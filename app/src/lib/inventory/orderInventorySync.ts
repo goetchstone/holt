@@ -31,6 +31,9 @@ export interface OrderLineForAllocation {
   holdUntil: Date | null;
   /** The product is drawn from stock: not made to order, in a category that keeps stock. */
   stocked: boolean;
+  /** On a drop-ship PO (GAP-20): the vendor takes it to the customer, so it holds no
+   *  store stock while it waits, and a resync gives back any it had. */
+  dropShipped: boolean;
 }
 
 /**
@@ -81,6 +84,13 @@ export async function getActiveOrderLines(
       holdUntil: true,
       product: { select: STOCKED_SELECT },
       salesOrder: { select: { deliveryMethod: true } },
+      purchaseOrderItems: {
+        where: {
+          purchaseOrder: { dropShipAddressId: { not: null }, status: { not: "CANCELLED" } },
+        },
+        select: { id: true },
+        take: 1,
+      },
     },
   });
   return lines.map((l) => {
@@ -92,6 +102,7 @@ export async function getActiveOrderLines(
       takeWith: l.fulfillment === "TAKE" || l.salesOrder.deliveryMethod === "TAKEN",
       holdUntil: l.holdUntil,
       stocked: l.product ? isStockedProduct(l.product) : false,
+      dropShipped: l.purchaseOrderItems.length > 0,
     };
   });
 }
@@ -196,6 +207,7 @@ export async function resyncOrderAllocation(
   const takeWith = new Set<number>();
   const unstocked = new Set<number>();
   for (const line of lines) {
+    if (line.dropShipped) continue;
     if (line.quantity > 0) {
       needed.set(line.productId, roundQty((needed.get(line.productId) ?? 0) + line.quantity));
       if (line.takeWith) takeWith.add(line.productId);

@@ -41,7 +41,8 @@ import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
 
 type Tx = Prisma.TransactionClient;
 
-export type HandoverMethod = "DELIVERY" | "PICKUP" | "TAKEN";
+/** DROP_SHIP: the vendor took it to the customer (GAP-20, DECISIONS 55). */
+export type HandoverMethod = "DELIVERY" | "PICKUP" | "TAKEN" | "DROP_SHIP";
 
 export interface HandoverInput {
   salesOrderId: number;
@@ -156,7 +157,9 @@ export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<Hand
       // report could tell which one to believe.
       status: "FULFILLED",
       dispatchStatus: "FULFILLED",
-      deliveryMethod: input.method,
+      // How the customer got it. A drop ship keeps the sale's own method: the vendor's
+      // delivery isn't one of the store's (DeliveryMethod has no value for it).
+      ...(input.method === "DROP_SHIP" ? {} : { deliveryMethod: input.method }),
       updatedBy: input.actor ?? null,
     },
   });
@@ -323,6 +326,86 @@ export async function recordDelivery(
     },
   });
   return { changed: true, complete: false, restAppointmentId: rest };
+}
+
+/**
+ * A drop-shipped PO was received (GAP-20, DECISIONS 55): the vendor took those lines to
+ * the customer. Owner, 2026-11-10: "once received we assume the customer has it". The
+ * lines delivered are marked fulfilled; when that's the last of the sale, it's the
+ * handover (markHandedOver), as a delivery's last stop is. Nothing is consumed, since a drop-shipped line
+ * holds no store stock. A quantity past what's still to deliver is ignored, and a sale
+ * that's cancelled or not yet a sale is left alone.
+ *
+ * Runs in the receipt's transaction.
+ */
+export async function deliverDropShipped(
+  tx: Tx,
+  input: { salesOrderId: number; at: Date; actor: string | null; lines: DeliveredLine[] },
+): Promise<DeliveryResult> {
+  const order = await tx.salesOrder.findUniqueOrThrow({
+    where: { id: input.salesOrderId },
+    select: {
+      status: true,
+      deliveredAt: true,
+      lineItems: {
+        where: { lineItemStatus: "ACTIVE", productId: { not: null }, orderedQuantity: { gt: 0 } },
+        select: {
+          id: true,
+          productName: true,
+          product: { select: { name: true } },
+          orderedQuantity: true,
+          fulfilledQty: true,
+        },
+      },
+    },
+  });
+  if (order.deliveredAt || (order.status !== "ORDER" && order.status !== "FULFILLED")) {
+    return { changed: false, complete: Boolean(order.deliveredAt), restAppointmentId: null };
+  }
+
+  const left = new Map(
+    order.lineItems.map((l) => [l.id, roundQty(toQty(l.orderedQuantity) - toQty(l.fulfilledQty))]),
+  );
+  const going = new Map<number, number>();
+  for (const d of input.lines) {
+    const open = left.get(d.orderLineItemId);
+    if (open === undefined) continue;
+    const quantity = Math.min(open - (going.get(d.orderLineItemId) ?? 0), d.quantity);
+    if (quantity > 0) {
+      going.set(d.orderLineItemId, roundQty((going.get(d.orderLineItemId) ?? 0) + quantity));
+    }
+  }
+  if (going.size === 0) return { changed: false, complete: false, restAppointmentId: null };
+
+  const names = new Map(
+    order.lineItems.map((l) => [l.id, l.productName ?? l.product?.name ?? `line ${l.id}`]),
+  );
+  await tx.orderChangeLog.create({
+    data: {
+      salesOrderId: input.salesOrderId,
+      changeType: "DROP_SHIPPED",
+      newValue: [...going].map(([id, q]) => `${names.get(id)} x${q}`).join("; "),
+      changedBy: input.actor ?? "system",
+    },
+  });
+
+  const complete = [...left].every(([id, open]) => roundQty(open - (going.get(id) ?? 0)) <= 0);
+  if (complete) {
+    await markHandedOver(tx, {
+      salesOrderId: input.salesOrderId,
+      at: input.at,
+      method: "DROP_SHIP",
+      actor: input.actor,
+    });
+    return { changed: true, complete: true, restAppointmentId: null };
+  }
+  for (const [lineId, quantity] of going) {
+    await tx.orderLineItem.update({
+      where: { id: lineId },
+      data: { fulfilledQty: { increment: quantity } },
+    });
+  }
+  return { changed: true, complete: false, restAppointmentId: null };
 }
 
 /** A DELIVERY appointment for what is left, in the dispatch pool (no stop). */

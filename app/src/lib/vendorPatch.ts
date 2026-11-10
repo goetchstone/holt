@@ -37,6 +37,8 @@ export function parseVendorPatch(body: Record<string, unknown>): VendorPatchPars
   if (typeof body.allowTradeDiscount === "boolean") {
     data.allowTradeDiscount = body.allowTradeDiscount;
   }
+  // Drop ship (GAP-20): its POs can go straight to the customer.
+  if (typeof body.dropShips === "boolean") data.dropShips = body.dropShips;
 
   for (const field of VENDOR_DETAIL_FIELDS) {
     if (!(field in body)) continue;

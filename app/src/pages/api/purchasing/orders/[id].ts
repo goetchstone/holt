@@ -15,6 +15,7 @@ import { logError } from "@/lib/logger";
 import { poEditProblem } from "@/lib/purchasing/purchaseOrderShared";
 import { poLandedUnitCosts } from "@/lib/purchasing/landedCost";
 import { getAppSettings } from "@/lib/appSettings";
+import { addressLines, customerName } from "@/lib/purchasing/dropShip";
 
 export async function handler(
   req: NextApiRequest,
@@ -76,6 +77,16 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
           },
         },
         shipTo: { select: { id: true, name: true } },
+        dropShipAddress: {
+          select: {
+            address1: true,
+            address2: true,
+            city: true,
+            state: true,
+            zip: true,
+            customer: { select: { firstName: true, lastName: true } },
+          },
+        },
         salesOrder: {
           select: {
             id: true,
@@ -127,6 +138,12 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
       // Where an email of this PO goes unless the sender changes it.
       vendorEmail: po.vendor.email?.trim() || po.vendor.contacts[0]?.email?.trim() || null,
       shipTo: po.shipTo,
+      // Drop ship (GAP-20): who and where the vendor delivers instead of a store.
+      dropShipTo: po.dropShipAddress
+        ? [customerName(po.dropShipAddress.customer), ...addressLines(po.dropShipAddress)].join(
+            ", ",
+          )
+        : null,
       isReturn: po.isReturn,
       // Why the PO's lines can't be changed, or null when they can (GAP-01).
       editProblem: poEditProblem({ status: po.status, isReturn: po.isReturn, receivedCount }),

@@ -272,8 +272,10 @@ export function PurchaseOrderEditor({
   const formatCurrency = useMoneyFormatter();
   const [vendorId, setVendorId] = useState<number | null>(po?.vendor.id ?? null);
   const [shipTo, setShipTo] = useState<number | null>(
-    po?.shipToLocationId ?? (stores.length === 1 ? stores[0].id : null),
+    po?.shipToLocationId ?? (stores.length === 1 && !po?.dropShip?.on ? stores[0].id : null),
   );
+  // Drop ship (GAP-20): straight to the customer, for a vendor that does it.
+  const [dropShip, setDropShip] = useState(po?.dropShip?.on ?? false);
   const [expected, setExpected] = useState(po?.expectedDelivery ?? "");
   const [notes, setNotes] = useState(po?.notes ?? "");
   const [lines, setLines] = useState<EditorLine[]>(() => (po ? fromPo(po) : []));
@@ -319,7 +321,8 @@ export function PurchaseOrderEditor({
     }
     setSaving(true);
     const body = {
-      shipToLocationId: shipTo,
+      shipToLocationId: dropShip ? null : shipTo,
+      dropShip,
       expectedDelivery: expected || null,
       notes: notes || null,
       lines: toInput(lines, costVisible),
@@ -390,8 +393,13 @@ export function PurchaseOrderEditor({
           <select
             id="po-ship-to"
             className={INPUT}
-            value={shipTo ?? ""}
-            onChange={(e) => setShipTo(e.target.value ? Number(e.target.value) : null)}
+            value={dropShip ? "customer" : (shipTo ?? "")}
+            onChange={(e) => {
+              setDropShip(e.target.value === "customer");
+              setShipTo(
+                e.target.value && e.target.value !== "customer" ? Number(e.target.value) : null,
+              );
+            }}
           >
             <option value="">Choose where it&apos;s delivered</option>
             {stores.map((s) => (
@@ -399,7 +407,15 @@ export function PurchaseOrderEditor({
                 {s.name}
               </option>
             ))}
+            {po?.dropShip?.offer && (
+              <option value="customer">The customer (drop ship): {po.dropShip.offer}</option>
+            )}
           </select>
+          {po?.dropShip?.problem && (
+            <p className="mt-1 text-xs text-brand-gray">
+              Can&apos;t drop ship this one: {po.dropShip.problem}
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-brand-gray mb-1" htmlFor="po-expected">

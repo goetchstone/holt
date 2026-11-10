@@ -1656,6 +1656,27 @@ Rejected:
 
 → `docs/domains/help.md`
 
+## 55. Drop ship is a PO addressed to the customer, and receiving it is the handover (2026-11-10)
+
+**Decided (owner):** "as easy as putting that on the po if the vendor allows for it, again not anything huge"
+(2026-11-05). Asked how a drop-shipped piece's arrival is recorded, the owner chose receiving the PO as the handover
+over receiving it into stock and handing it over separately, and added "once received we assume the customer has it"
+(2026-11-10).
+
+- **A vendor setting, and a choice on the PO.** Only a vendor marked as drop shipping offers it, and only on a PO whose
+  lines are all for one sale, with a customer address to send it to.
+- **The line holds no store stock while it waits,** since its piece never comes through the store. Otherwise it would
+  take a floor piece or wait in the Oversold report for a receipt that never stocks anything.
+- **Receiving records it without stocking it, and hands those lines over** through the same handover a delivery uses,
+  so whatever follows a delivery follows this too. The sale's own delivery method is kept.
+- **Taking the receipt back is refused.** The handover is what to undo.
+
+Rejected: receiving into stock and handing over separately, which the owner turned down for the extra step. A new
+delivery method value, which would have reached every delivery screen for something that only needs recording on
+the handover.
+
+→ `docs/domains/purchasing.md`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was
