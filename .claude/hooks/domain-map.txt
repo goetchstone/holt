@@ -186,6 +186,13 @@ app/src/pages/api/sales/interactions/*|docs/domains/interactions.md
 app/src/app/(dashboard)/app/interactions/*|docs/domains/interactions.md
 
 # Admin tools (Query Builder, apparel-order import, home-accessory order)
+# Help center (GAP-30): the articles and what shows them
+app/help/*|docs/domains/help.md
+app/src/app/(dashboard)/app/help/*|docs/domains/help.md
+app/src/lib/help/*|docs/domains/help.md
+app/src/components/help/*|docs/domains/help.md
+app/src/pages/api/help/*|docs/domains/help.md
+
 app/src/app/(dashboard)/app/tools/*|docs/domains/tools.md
 app/src/app/(dashboard)/app/admin/tools/*|docs/domains/tools.md
 app/src/pages/api/tools/*|docs/domains/tools.md
