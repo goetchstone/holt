@@ -1,10 +1,10 @@
 // /app/src/lib/queryBuilderQuery.ts
 //
-// Turns a query-builder request into Prisma `where` and `include` arguments.
-// Pure, so the property that matters is tested directly
-// (__tests__/queryBuilderQuery.test.ts): every property NAME written into
-// those objects comes from the entity's definition in queryBuilderConfig.ts,
-// never from the request body.
+// Turns a query-builder request into Prisma `where` and `select` arguments, and its
+// rows into flat ones for the table. Pure, so the property that matters is tested
+// directly (__tests__/queryBuilderQuery.test.ts): every property NAME written into
+// those objects comes from the entity's definition in queryBuilderConfig.ts, never
+// from the request body.
 //
 // It used to come from the body. A filter field was split on "." and written
 // as `where[relation][field] = ...`, so `{ field: "__proto__.x" }` assigned
@@ -16,43 +16,99 @@
 // unknown field is a 400 rather than a silently dropped filter: a result set
 // that ignored a filter the caller asked for would read as filtered.
 
-import type { EntityDef } from "@/lib/queryBuilderConfig";
+import { FILTER_OPS, type EntityDef, type FilterOption } from "@/lib/queryBuilderConfig";
+import { businessDayKey, businessDayRange, isDayKey } from "@/lib/reports/businessDay";
 
 export type BuildWhereResult =
   { ok: true; where: Record<string, unknown> } | { ok: false; error: string };
 
-export function buildFilterValue(op: string, value: string): unknown {
+type Condition = { ok: true; condition: Record<string, unknown> } | { ok: false; error: string };
+
+/** A day in the store's time, as a range of instants (lib/reports/businessDay.ts). */
+function dayCondition(op: string, day: string, timeZone: string): Record<string, Date> {
+  const { gte, lt } = businessDayRange(day, timeZone);
   switch (op) {
-    case "equals":
-      if (value === "true") return true;
-      if (value === "false") return false;
-      if (/^\d+$/.test(value)) return Number.parseInt(value, 10);
-      return value;
-    case "contains":
-      return { contains: value, mode: "insensitive" };
-    case "startsWith":
-      return { startsWith: value, mode: "insensitive" };
     case "gt":
-      return { gt: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
+      return { gte: lt };
     case "gte":
-      return { gte: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
+      return { gte };
     case "lt":
-      return { lt: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
+      return { lt: gte };
     case "lte":
-      return { lte: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
-    case "not":
-      return { not: value };
+      return { lt };
+    default:
+      return { gte, lt };
+  }
+}
+
+function comparison(op: string, value: string | number | boolean): unknown {
+  switch (op) {
+    case "contains":
+    case "startsWith":
+      return { [op]: value, mode: "insensitive" };
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+      return { [op]: value };
     default:
       return value;
   }
 }
 
-/** `filters` is the request body's value, unvalidated. */
-export function buildWhere(filters: unknown, entityDef: EntityDef): BuildWhereResult {
+function typedValue(def: FilterOption, value: string): string | number | boolean | null {
+  if (def.type === "number") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (def.type === "select" && (value === "true" || value === "false")) return value === "true";
+  return value;
+}
+
+/** The condition on the column, before its relations are wrapped around it. */
+function columnCondition(
+  def: FilterOption,
+  op: string,
+  value: string,
+  timeZone: string,
+): Condition {
+  const offered: readonly string[] = FILTER_OPS[def.type];
+  if (!offered.includes(op)) {
+    return { ok: false, error: `${def.label} can't be filtered with ${JSON.stringify(op)}` };
+  }
+  const column = def.field.split(".").pop() as string;
+
+  if (def.type === "date") {
+    if (!isDayKey(value)) return { ok: false, error: `${def.label} needs a date (YYYY-MM-DD)` };
+    return { ok: true, condition: { [column]: dayCondition(op, value, timeZone) } };
+  }
+
+  const typed = typedValue(def, value);
+  if (typed === null) return { ok: false, error: `${def.label} needs a number` };
+  if (op !== "not") return { ok: true, condition: { [column]: comparison(op, typed) } };
+
+  // NULL is neither equal nor unequal to anything, so a bare `not` drops those rows (rule 51).
+  return {
+    ok: true,
+    condition: def.nullable
+      ? { OR: [{ [column]: null }, { [column]: { not: typed } }] }
+      : { [column]: { not: typed } },
+  };
+}
+
+/**
+ * `filters` is the request body's value, unvalidated. Each filter is its own condition,
+ * so two on one column make a range rather than the second replacing the first.
+ */
+export function buildWhere(
+  filters: unknown,
+  entityDef: EntityDef,
+  timeZone: string,
+): BuildWhereResult {
   if (filters === undefined || filters === null) return { ok: true, where: {} };
   if (!Array.isArray(filters)) return { ok: false, error: "filters must be an array" };
 
-  const where: Record<string, unknown> = {};
+  const conditions: Record<string, unknown>[] = [];
   for (const filter of filters) {
     if (typeof filter !== "object" || filter === null) {
       return { ok: false, error: "each filter must be an object" };
@@ -68,42 +124,86 @@ export function buildWhere(filters: unknown, entityDef: EntityDef): BuildWhereRe
       return { ok: false, error: `Filter value for ${def.field} must be a string` };
     }
 
+    const built = columnCondition(def, String(op), value, timeZone);
+    if (!built.ok) return built;
     // Keys from def.field (configuration), never from `field` (the request).
-    const parts = def.field.split(".");
-    if (parts.length > 1) {
-      const [relation, column] = parts;
-      const nested = (where[relation] ?? {}) as Record<string, unknown>;
-      nested[column] = buildFilterValue(String(op), value);
-      where[relation] = nested;
-      continue;
-    }
-    where[def.field] = buildFilterValue(String(op), value);
+    const relations = def.field.split(".").slice(0, -1);
+    conditions.push(
+      relations.reduceRight<Record<string, unknown>>(
+        (inner, relation) => ({ [relation]: inner }),
+        built.condition,
+      ),
+    );
   }
-  return { ok: true, where };
+  if (conditions.length === 0) return { ok: true, where: {} };
+  return { ok: true, where: conditions.length === 1 ? conditions[0] : { AND: conditions } };
 }
 
-/** `joins` is the request body's value, unvalidated. An unknown join is
- *  skipped: it only adds columns, so dropping one cannot misstate a result. */
-export function buildInclude(
-  joins: unknown,
-  entityDef: EntityDef,
-): Record<string, unknown> | undefined {
-  if (!Array.isArray(joins) || joins.length === 0) return undefined;
-
-  const include: Record<string, unknown> = {};
-  for (const joinName of joins) {
-    const joinDef = entityDef.joins.find((j) => j.relation === joinName);
-    if (!joinDef) continue;
-
-    // Build select from the join's column definitions
-    const selectFields: Record<string, boolean> = {};
-    for (const col of joinDef.columns) {
-      const fieldName = col.field.split(".").pop();
-      if (fieldName) selectFields[fieldName] = true;
+/** A Prisma `select` for dotted paths. Pass only names from the entity's definition. */
+export function selectFromPaths(paths: string[]): Record<string, unknown> {
+  const select: Record<string, unknown> = {};
+  for (const path of paths) {
+    const parts = path.split(".");
+    const column = parts.pop() as string;
+    let node = select;
+    for (const relation of parts) {
+      const existing = node[relation] as { select: Record<string, unknown> } | undefined;
+      const next = existing ?? { select: {} };
+      node[relation] = next;
+      node = next.select;
     }
-
-    include[joinDef.relation] = { select: selectFields };
+    node[column] = true;
   }
+  return select;
+}
 
-  return Object.keys(include).length > 0 ? include : undefined;
+/**
+ * What a list of rows reads: the entity's columns and the joins asked for, and nothing
+ * else. A model's other columns never leave the database. `joins` is the request body's
+ * value, unvalidated. An unknown join is skipped: it only adds columns, so dropping one
+ * cannot misstate a result.
+ */
+export function buildSelect(joins: unknown, entityDef: EntityDef): Record<string, unknown> {
+  const asked = Array.isArray(joins) ? joins : [];
+  const joined = entityDef.joins.filter((j) => asked.includes(j.relation));
+  return selectFromPaths([
+    ...entityDef.columns.map((c) => c.field),
+    ...joined.flatMap((j) => j.columns.map((c) => c.field)),
+  ]);
+}
+
+function isDecimal(value: object): boolean {
+  return typeof (value as { toNumber?: unknown }).toNumber === "function";
+}
+
+/** One row as a flat object for the table. A to-many relation shows its count and first values. */
+export function flattenRow(
+  row: Record<string, unknown>,
+  timeZone: string,
+  prefix = "",
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    if (value === null || value === undefined) {
+      result[fullKey] = null;
+    } else if (value instanceof Date) {
+      result[fullKey] = businessDayKey(value, timeZone);
+    } else if (typeof value === "bigint") {
+      result[fullKey] = Number(value);
+    } else if (Array.isArray(value)) {
+      result[`${fullKey}._count`] = value.length;
+      for (const item of value) {
+        for (const [k, v] of Object.entries(flattenRow(item, timeZone, fullKey))) {
+          if (!result[k]) result[k] = v;
+        }
+      }
+    } else if (typeof value === "object") {
+      if (isDecimal(value)) result[fullKey] = Number(value);
+      else Object.assign(result, flattenRow(value as Record<string, unknown>, timeZone, fullKey));
+    } else {
+      result[fullKey] = value;
+    }
+  }
+  return result;
 }

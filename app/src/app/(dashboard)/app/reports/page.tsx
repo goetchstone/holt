@@ -268,7 +268,19 @@ const ITEMS: CardGridItem[] = [
   },
 ];
 
+// A store grants this one in Roles, so the card follows the key rather than a role.
+const BUILD_YOUR_OWN: CardGridItem = {
+  title: "Build Your Own",
+  description:
+    "List or total sales, purchasing, products, customers, consignment, service cases and transfers. Group, pivot and export.",
+  href: "/app/tools/query-builder",
+};
+
 export default async function ReportsHubPage() {
-  await requirePage(undefined, { permission: "reporting.read" });
-  return <CardGrid title="Reports" items={ITEMS} />;
+  const access = await requirePage(undefined, {
+    permission: "reporting.read",
+    also: ["reporting.adhoc"],
+  });
+  const items = access.holds["reporting.adhoc"] ? [...ITEMS, BUILD_YOUR_OWN] : ITEMS;
+  return <CardGrid title="Reports" items={items} />;
 }
