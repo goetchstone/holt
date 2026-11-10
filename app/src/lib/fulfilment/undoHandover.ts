@@ -86,6 +86,7 @@ const DISPATCH_BEFORE: Record<string, "SCHEDULED_DELIVERY" | "READY_FOR_PICKUP" 
   DELIVERY: "SCHEDULED_DELIVERY",
   PICKUP: "READY_FOR_PICKUP",
   TAKEN: null,
+  DROP_SHIP: null,
 };
 
 function readReason(raw: unknown): string {

@@ -147,6 +147,10 @@ model Vendor {
 
   allowTradeDiscount Boolean @default(true)
 
+  /// Ships a special order straight to the customer when asked (GAP-20, DECISIONS 55):
+  /// its POs can then name the customer's address as ship-to.
+  dropShips Boolean @default(false)
+
   consignmentItems         ConsignmentItem[]
   consignmentReceipts      ConsignmentReceipt[]
   consignmentPayments      ConsignmentPaymentBatch[]
@@ -1488,6 +1492,7 @@ model CustomerAddress {
   customer   Customer @relation(fields: [customerId], references: [id])
 
   deliveryOrders      SalesOrder[]         @relation("DeliveryAddress")
+  dropShipOrders      PurchaseOrder[]      @relation("PurchaseOrderDropShip")
   returnPickups       Return[]
   serviceAppointments ServiceAppointment[]
 
@@ -2408,6 +2413,12 @@ model PurchaseOrder {
   // imported POs, which never named one.
   shipToLocationId        Int?
   shipTo                  StoreLocation?      @relation("PurchaseOrderShipTo", fields: [shipToLocationId], references: [id])
+  // Drop ship (GAP-20, DECISIONS 55): the vendor delivers to this customer address
+  // instead of a store. Never set with shipToLocationId. Receiving such a PO puts
+  // nothing into stock and hands the sale's lines over (lib/purchasing/dropShip.ts).
+  // Restrict: an address a PO ships to can't be deleted out from under it.
+  dropShipAddressId       Int?
+  dropShipAddress         CustomerAddress?    @relation("PurchaseOrderDropShip", fields: [dropShipAddressId], references: [id], onDelete: Restrict)
   // Stamped by the legacy-POS inbound-items import (a full snapshot of open
   // POs): a PO absent from the latest export was received/cancelled upstream,
   // so inbound dashboards filter to MAX(lastSeenInInboundExport).
@@ -5947,30 +5958,30 @@ model AppSettings {
   // lowStockAlertedOn is the store day it last went, so it goes once a day.
   /// The choices on a client's profile form, as this store has them (GAP-36,
   /// lib/clientProfile.ts). Null uses the suggested ones.
-  clientProfileChoices Json?
-  lowStockAlertEmails String?
-  lowStockAlertHour   Int?
+  clientProfileChoices     Json?
+  lowStockAlertEmails      String?
+  lowStockAlertHour        Int?
   /// Ten different letters a tag's cost is coded in (lib/labels/costCode.ts); null
   /// means tags print no code.
-  costCipherKey String?
-  lowStockAlertedOn   String?
+  costCipherKey            String?
+  lowStockAlertedOn        String?
   // When the host's scheduler last woke Holt (GAP-37, lib/automations/runner.ts), so
   // Admin > Automations can say if nothing is waking it.
-  automationsWokenAt DateTime?
+  automationsWokenAt       DateTime?
   // How a store's emails look (GAP-37, lib/email/look.ts). Null is the default colour and foot.
-  emailAccentColor String?
-  emailShowLogo    Boolean @default(false)
+  emailAccentColor         String?
+  emailShowLogo            Boolean   @default(false)
   // Whether a sale may go ahead with nothing paid (DECISIONS 51). Off is the strict default.
-  allowSaleWithoutPayment Boolean @default(false)
-  emailFooter      String?
+  allowSaleWithoutPayment  Boolean   @default(false)
+  emailFooter              String?
   // The morning follow-up email (GAP-36, lib/followUpEmail.ts). Off until a store sets an
   // hour. followUpEmailedOn is the store day it last went, so it goes once a day.
-  followUpEmailHour   Int?
-  followUpEmailedOn   String?
+  followUpEmailHour        Int?
+  followUpEmailedOn        String?
   // Who's suggested to reach out to (GAP-36, lib/clientBook.ts). Off until a store sets a
   // lifetime spend, since what counts as a big client is theirs to say. The other two
   // default in the code when empty.
-  outreachMinLifetimeSpend Decimal? @db.Decimal(12, 2)
+  outreachMinLifetimeSpend Decimal?  @db.Decimal(12, 2)
   outreachLapsedMonths     Int?
   outreachQuietDays        Int?
 

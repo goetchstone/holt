@@ -15,6 +15,7 @@ import {
   type PurchaseOrderPdfParty,
 } from "@/lib/purchasing/purchaseOrderPdf";
 import { PurchaseOrderError } from "@/lib/purchasing/stockPurchaseOrder";
+import { addressLines, customerName } from "@/lib/purchasing/dropShip";
 
 export interface PurchaseOrderDocument {
   poNumber: string;
@@ -78,6 +79,16 @@ export async function purchaseOrderDocument(
         },
       },
       shipTo: { select: { name: true, address: true, city: true, state: true, zip: true } },
+      dropShipAddress: {
+        select: {
+          address1: true,
+          address2: true,
+          city: true,
+          state: true,
+          zip: true,
+          customer: { select: { firstName: true, lastName: true, phone: true } },
+        },
+      },
       lineItems: {
         where: { orderedQuantity: { gt: 0 } },
         orderBy: { id: "asc" },
@@ -131,7 +142,18 @@ export async function purchaseOrderDocument(
       orderDate: day.format(po.orderDate),
       expectedDelivery: po.expectedDelivery ? calendarDay.format(po.expectedDelivery) : null,
       vendor,
-      shipTo: po.shipTo ? { name: po.shipTo.name, lines: address(po.shipTo) } : null,
+      shipTo: po.dropShipAddress
+        ? {
+            // Drop ship (GAP-20): straight to the customer.
+            name: `${customerName(po.dropShipAddress.customer)} (drop ship)`,
+            lines: [
+              ...addressLines(po.dropShipAddress),
+              ...(po.dropShipAddress.customer.phone ? [po.dropShipAddress.customer.phone] : []),
+            ],
+          }
+        : po.shipTo
+          ? { name: po.shipTo.name, lines: address(po.shipTo) }
+          : null,
       terms: [
         ...(v.paymentTerms?.trim() ? [`Payment terms: ${v.paymentTerms.trim()}`] : []),
         ...(v.freightTerms?.trim() ? [`Freight: ${v.freightTerms.trim()}`] : []),

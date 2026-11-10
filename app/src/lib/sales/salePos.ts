@@ -240,6 +240,8 @@ export async function keepPoAsStock(
     data: {
       salesOrderId: null,
       shipToLocationId: current.shipToLocationId ?? storeLocationId,
+      // A drop-shipped piece the store keeps comes to the store (GAP-20).
+      dropShipAddressId: null,
       updatedBy: actor,
     },
   });

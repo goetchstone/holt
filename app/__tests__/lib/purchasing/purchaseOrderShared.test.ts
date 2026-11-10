@@ -28,6 +28,7 @@ describe("parsePoDraft", () => {
       ok: true,
       value: {
         shipToLocationId: 3,
+        dropShip: false,
         expectedDelivery: "2026-11-20",
         notes: "Dock door 2",
         lines: [
@@ -35,6 +36,23 @@ describe("parsePoDraft", () => {
           { id: 12, productId: 8, quantity: 1.5, unitCost: null },
         ],
       },
+    });
+  });
+
+  it("ships to the customer instead of a store when asked, needing no store (GAP-20)", () => {
+    expect(parsePoDraft({ ...draft, shipToLocationId: null, dropShip: true })).toMatchObject({
+      ok: true,
+      value: { shipToLocationId: null, dropShip: true },
+    });
+    // Drop ship wins over a store sent alongside it: the PO has one ship-to.
+    expect(parsePoDraft({ ...draft, dropShip: true })).toMatchObject({
+      ok: true,
+      value: { shipToLocationId: null, dropShip: true },
+    });
+    // Only true means drop ship.
+    expect(parsePoDraft({ ...draft, dropShip: "yes" })).toMatchObject({
+      ok: true,
+      value: { shipToLocationId: 3, dropShip: false },
     });
   });
 
@@ -85,6 +103,13 @@ describe("parseNewPo", () => {
     expect(parseNewPo({ ...draft, vendorId: 4 })).toMatchObject({
       ok: true,
       value: { vendorId: 4, shipToLocationId: 3 },
+    });
+  });
+
+  it("won't ship a new PO to a customer: only a sale's own PO can (GAP-20)", () => {
+    expect(parseNewPo({ ...draft, vendorId: 4, dropShip: true })).toEqual({
+      ok: false,
+      problem: "A new PO goes to a store. To ship to a customer, use the PO raised for their sale.",
     });
   });
 });

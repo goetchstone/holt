@@ -58,6 +58,18 @@ describe("parseVendorPatch", () => {
     expect(parsed).toEqual({ ok: true, data: { defaultMarkup: 2.5, mapEnforced: true } });
   });
 
+  it("turns drop ship on and off, and only for a real yes or no (GAP-20)", () => {
+    expect(parseVendorPatch({ dropShips: true })).toEqual({ ok: true, data: { dropShips: true } });
+    expect(parseVendorPatch({ dropShips: false })).toEqual({
+      ok: true,
+      data: { dropShips: false },
+    });
+    expect(parseVendorPatch({ dropShips: "yes", leadTimeDays: 5 })).toEqual({
+      ok: true,
+      data: { leadTimeDays: 5 },
+    });
+  });
+
   it("refuses a bad lead time with a message the screen can show", () => {
     expect(parseVendorPatch({ leadTimeDays: -3 })).toEqual({
       ok: false,

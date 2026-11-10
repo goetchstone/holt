@@ -79,7 +79,15 @@ async function loadReceipt(tx: Tx, receivingRecordId: number) {
   return tx.receivingRecord.findUnique({
     where: { id: receivingRecordId },
     include: {
-      purchaseOrder: { select: { id: true, poNumber: true, status: true, salesOrderId: true } },
+      purchaseOrder: {
+        select: {
+          id: true,
+          poNumber: true,
+          status: true,
+          salesOrderId: true,
+          dropShipAddressId: true,
+        },
+      },
       purchaseOrderItem: { select: { orderLineItemId: true, productId: true } },
     },
   });
@@ -162,6 +170,14 @@ export async function unreceive(
 ): Promise<{ remaining: number; newStatus: string }> {
   const record = await loadReceipt(tx, args.receivingRecordId);
   if (!record) throw new UnreceiveError("Receipt not found.", 404);
+  // Receiving it handed the customer's lines over (GAP-20): taking the receipt back
+  // here would leave them delivered with nothing behind it.
+  if (record.purchaseOrder.dropShipAddressId !== null) {
+    throw new UnreceiveError(
+      "This was drop shipped, and receiving it handed the sale over. If that was wrong, undo the handover on the sale.",
+      409,
+    );
+  }
   if (record.externalGipNo != null || record.externalPorNo != null) {
     throw new UnreceiveError(
       "This receipt came in through the import; correct its stock with a count.",

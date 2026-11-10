@@ -406,6 +406,46 @@ one draft PO per vendor, added to the vendor's open draft when there is one.
 Tested by `__tests__/integration/scanOrder.integration.test.ts`, which goes
 through the real route and permission gate.
 
+## Drop ship (GAP-20, DECISIONS 55, since 2026-11-10)
+
+Source read: `lib/purchasing/dropShip.ts`, `stockPurchaseOrder.ts` (`editPurchaseOrder`, `loadPoForEditor`),
+`receivePurchaseOrder.ts`, `unreceive.ts`, `lib/fulfilment/handover.ts` (`deliverDropShipped`),
+`lib/inventory/orderInventorySync.ts`, `purchaseOrderDocument.ts`.
+
+A vendor that ships straight to the customer (`Vendor.dropShips`, the checkbox on the vendor's details) can be sent
+a sale's PO with the customer's address as ship-to (`PurchaseOrder.dropShipAddressId`, never set with
+`shipToLocationId`).
+
+- **Choosing it.** The PO editor's Ship to offers "The customer (drop ship)" for that vendor. `dropShipTarget` refuses,
+  with the reason under the field: every line has to be for one sale, the sale can't be cancelled, and the customer
+  needs an address. It uses the sale's delivery address, or else the customer's first, as dispatch does. A new PO
+  can't be drop shipped, since it has no sale (`parseNewPo`).
+- **What the vendor gets.** The PDF and email print the customer's name with "(drop ship)", their address and phone
+  as Ship to. The PO's page shows "Drop ship to".
+- **Stock.** A line on a drop-ship PO holds no store stock (`dropShipped` in `getActiveOrderLines`), and switching a PO
+  to drop ship or back resyncs its sale, giving back or taking a store piece.
+- **Receiving it** (owner, 2026-11-10: "once received we assume the customer has it"):
+  - Each line is recorded with `intoStock` false: no stock, no average cost, no landed cost, no tag.
+  - `deliverDropShipped` then marks those sale lines fulfilled. When that's the last of the sale, it's the handover
+    (`OrderHandover.method` DROP_SHIP), the same one a delivery records. The sale keeps its own delivery method.
+    Revenue waits for the sale's invoice, as after any handover: `markHandedOver` creates none.
+  - The change log gets `DROP_SHIPPED`, naming the lines.
+  - A sale's other lines stay with the store, to be delivered as usual.
+- **It can't be undone by taking the receipt back** (`unreceive`), since that would leave the lines delivered with
+  nothing behind them. Undo the handover on the sale instead.
+- **Keeping the piece** when the sale is cancelled after the vendor acknowledged (DECISIONS 51) brings it to the store:
+  `keepPoAsStock` clears the drop-ship address. Tell the vendor the new address.
+- **An address a PO ships to can't be deleted** (`addressInUseProblem`, and `onDelete: Restrict` behind it).
+
+Not done:
+
+- **Holt doesn't tell the vendor about a change of ship-to** after the PO was sent. The same is true of any edit.
+- **The journal still credits Inventory** for a drop-shipped line, at the line's cost, though nothing was ever stocked.
+  `journalEntry.ts` books cost of goods and Inventory from each line's cost whatever stock did, as it already does for
+  an unstocked item.
+
+Tested in `__tests__/integration/dropShip.integration.test.ts`.
+
 ## Consignment PO Integration
 
 When a consignment vendor's PO (`Vendor.isConsignment`) transitions to RECEIVED_FULL, the import runner auto-creates a `ConsignmentPaymentBatch` and marks matching ConsignmentItems as PAID. See `docs/domains/consignment.md` for matching rules.
