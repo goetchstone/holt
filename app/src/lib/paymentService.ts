@@ -293,7 +293,7 @@ export async function recordPaymentTx(
       cardId: input.giftCardId,
       amount: rounded,
       createdBy: input.createdBy ?? null,
-      reference: "Order #" + String(orderId),
+      reference: order.orderno ? "Order " + order.orderno : "Order #" + String(orderId),
     });
   }
 

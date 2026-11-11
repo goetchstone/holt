@@ -595,8 +595,16 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     try {
       const res = await axios.get("/api/gift-cards/lookup", { params: { barcode } });
       const card = res.data;
-      if (card.status === "VOIDED" || card.status === "EXPIRED") {
-        setGiftCardError(`Gift card is ${card.status.toLowerCase()}`);
+      if (card.status === "REPLACED") {
+        setGiftCardError(
+          card.replacedById
+            ? `This card's balance moved to card #${card.replacedById}. Use that card.`
+            : "This card's balance moved to a new card. Use that card.",
+        );
+        return;
+      }
+      if (card.status === "VOIDED") {
+        setGiftCardError("Gift card is voided");
         return;
       }
       if (card.currentBalance <= 0) {

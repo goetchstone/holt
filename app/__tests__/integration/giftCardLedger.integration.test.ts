@@ -249,18 +249,29 @@ describe("re-importing cards", () => {
     Remainingamount,
   });
 
-  it("a changed balance is on the card's history; a retired card and an unreadable amount are left alone", async () => {
-    const first = await call(importRoute, { records: [row("IMP-1", "100"), row("IMP-2", "40")] });
-    expect(first.body).toMatchObject({ importedCount: 2, errorCount: 0 });
+  it("a re-import fills in an untouched card, and leaves a retired or used one as Holt has it", async () => {
+    const first = await call(importRoute, {
+      records: [row("IMP-1", "100"), row("IMP-2", "40"), row("IMP-4", "90")],
+    });
+    expect(first.body).toMatchObject({ importedCount: 3, errorCount: 0 });
     const two = await prisma.giftCard.findUniqueOrThrow({ where: { barcode: "IMP-2" } });
     await call(replaceRoute, { barcode: "IMP-2-NEW" }, { id: String(two.id) });
+    const four = await prisma.giftCard.findUniqueOrThrow({ where: { barcode: "IMP-4" } });
+    await pay(four.id, 30);
 
     const again = await call(importRoute, {
-      records: [row("IMP-1", "70"), row("IMP-2", "40"), row("IMP-3", "not a number")],
+      records: [
+        row("IMP-1", "70"),
+        row("IMP-2", "40"),
+        row("IMP-4", "90"),
+        row("IMP-3", "not a number"),
+      ],
     });
 
-    expect(again.body).toMatchObject({ updatedCount: 1, skippedCount: 1, errorCount: 1 });
-    expect(again.body.errors[0]).toContain("the amount can't be read");
+    expect(again.body).toMatchObject({ updatedCount: 1, errorCount: 3 });
+    expect(again.body.errors.join(" | ")).toContain("was retired in Holt");
+    expect(again.body.errors.join(" | ")).toContain("has been used in Holt");
+    expect(again.body.errors.join(" | ")).toContain("the amount can't be read");
     const one = await expectHistoryAddsUp(
       (await prisma.giftCard.findUniqueOrThrow({ where: { barcode: "IMP-1" } })).id,
     );
@@ -269,6 +280,9 @@ describe("re-importing cards", () => {
     expect(Number(one.transactions.at(-1)!.amount)).toBe(-30);
     const retired = await expectHistoryAddsUp(two.id);
     expect(retired.status).toBe("REPLACED");
+    // The $30 spent in Holt stands; the report's $90 doesn't undo it.
+    const used = await expectHistoryAddsUp(four.id);
+    expect(Number(used.currentBalance)).toBe(60);
     expect(await prisma.giftCard.count({ where: { barcode: "IMP-3" } })).toBe(0);
   });
 });

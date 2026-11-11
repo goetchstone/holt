@@ -74,27 +74,33 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
 
       const existing = await prisma.giftCard.findUnique({
         where: { barcode },
+        select: { id: true },
       });
 
       if (existing) {
-        // A card retired in Holt stays retired: a re-import never brings its balance back.
-        if (isClosedCard(existing.status)) {
-          skippedCount++;
-          continue;
-        }
-        // A re-import takes the report's balance, and any change is on the card's history as
-        // an IMPORT row, in one transaction with it (the money rule, lib/giftCardLedger.ts).
-        const before = Math.round(Number(existing.currentBalance) * 100) / 100;
-        const change = Math.round((remainingAmount - before) * 100) / 100;
-        await prisma.$transaction(async (tx) => {
+        // Holt is the record for a card once it's here. A re-import only fills in a card nothing
+        // has touched since it came in: one retired or used in Holt keeps what Holt says, and the
+        // row says why. The card is locked and read inside the transaction, so a spend or a move
+        // made meanwhile can't be undone by a stale read.
+        const outcome = await prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<Array<{ status: string; currentBalance: unknown }>>`
+            SELECT status, "currentBalance" FROM "GiftCard" WHERE id = ${existing.id} FOR UPDATE`;
+          const card = rows[0];
+          if (isClosedCard(card.status)) return "retired" as const;
+          const used = await tx.giftCardTransaction.count({
+            where: { giftCardId: existing.id, transactionType: { not: "IMPORT" } },
+          });
+          if (used > 0) return "used" as const;
+          const before = Math.round(Number(card.currentBalance) * 100) / 100;
+          const change = Math.round((remainingAmount - before) * 100) / 100;
           await tx.giftCard.update({
-            where: { barcode },
+            where: { id: existing.id },
             data: {
-              externalCode: externalCode || existing.externalCode,
+              ...(externalCode ? { externalCode } : {}),
               initialAmount,
               currentBalance: remainingAmount,
               status,
-              activatedAt: activatedAt || existing.activatedAt,
+              ...(activatedAt ? { activatedAt } : {}),
               updatedBy: createdBy,
             },
           });
@@ -112,8 +118,19 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
               },
             });
           }
+          return "updated" as const;
         }, TX_TIMEOUT.LONG);
-        updatedCount++;
+        if (outcome === "retired") {
+          errors.push(
+            `Row ${rowNum} (${row.Code || barcode}): this card was retired in Holt, so the report doesn't change it`,
+          );
+        } else if (outcome === "used") {
+          errors.push(
+            `Row ${rowNum} (${row.Code || barcode}): this card has been used in Holt, so its balance there stands`,
+          );
+        } else {
+          updatedCount++;
+        }
       } else {
         await prisma.$transaction(async (tx) => {
           const card = await tx.giftCard.create({

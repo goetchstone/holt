@@ -4,6 +4,8 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { getErrorMessage } from "@/lib/toastError";
+import { parseCardAmount } from "@/lib/giftCardLedger";
 
 // Activation happens at the till, so REGISTER staff need access too.
 export default requirePermission("pos.operate", async (req, res, session) => {
@@ -12,14 +14,20 @@ export default requirePermission("pos.operate", async (req, res, session) => {
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  const { barcode, amount } = req.body;
+  const { barcode } = req.body;
+  // Whole cents, through the one amount rule (lib/giftCardLedger.ts): a typed 25.555 was stored
+  // as is, and no card's history could add up to it.
+  let amount: number;
+  try {
+    amount = parseCardAmount(req.body?.amount);
+  } catch (err) {
+    return res
+      .status(400)
+      .json({ error: getErrorMessage(err, "Amount must be greater than zero") });
+  }
 
   if (!barcode || typeof barcode !== "string" || !barcode.trim()) {
     return res.status(400).json({ error: "Barcode is required" });
-  }
-
-  if (amount === undefined || amount === null || amount <= 0) {
-    return res.status(400).json({ error: "Amount must be greater than zero" });
   }
 
   const trimmedBarcode = barcode.trim();
