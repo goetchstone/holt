@@ -3382,7 +3382,16 @@ model OrderLineItem {
   selectedOptions String? // JSON string of selected options with prices
 
   // Line item lifecycle
-  lineItemStatus       LineItemStatus @default(ACTIVE)
+  lineItemStatus LineItemStatus @default(ACTIVE)
+
+  // A gift card sold or reloaded on this sale (owner, 2026-11-11: "a line on a sale"). The number
+  // marks the line as a card: it's owed like any line but it isn't sales revenue, tax, stock or a
+  // PO. The card is issued, or reloaded if the number is a card already, through
+  // lib/giftCardLedger.ts with the payment that pays the sale off; giftCardId is set then, so a
+  // card is issued once.
+  giftCardNumber       String?
+  giftCardId           Int?
+  giftCard             GiftCard?      @relation(fields: [giftCardId], references: [id])
   cancelReason         String?
   replacedByLineItemId Int?           @unique
   replacedByLineItem   OrderLineItem? @relation("ReplacedBy", fields: [replacedByLineItemId], references: [id])
@@ -4032,6 +4041,8 @@ model GiftCard {
 
   transactions GiftCardTransaction[]
   payments     Payment[]
+  // The sale lines that sold or reloaded it.
+  saleLines    OrderLineItem[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -5986,7 +5997,11 @@ model AppSettings {
   // the split partner gets the rest (GAP-07, lib/commissionSplit.ts). A new
   // split starts here and staff with "Reassign salesperson" may choose
   // another. 50 is an even split. A CHECK keeps it within 1-99.
-  defaultSplitPercent Int @default(50)
+  defaultSplitPercent Int     @default(50)
+  // Whether a gift card sold on a sale can be refunded (owner, 2026-11-11: "Most places will not
+  // refund a giftcard ... this should be a config and then only if unused"). Off by default; when
+  // on, only a card with nothing spent from it.
+  giftCardsRefundable Boolean @default(false)
 
   // Low stock (GAP-14): who gets the daily list of what's below its reorder
   // point, and at what hour of the store's day. Off until an address is set.
