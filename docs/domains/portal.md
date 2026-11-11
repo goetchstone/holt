@@ -6,7 +6,7 @@ Token-gated, no-login customer-facing surfaces. Customers receive a link via ema
 
 | Surface | UI | API |
 |---|---|---|
-| Order detail (balance + pay button + status) | `pages/portal/order.tsx` | `GET /api/portal/order?token=...` |
+| Order detail (balance + pay button + status) | `pages/portal/order.tsx` | `GET /api/portal/order?token=...` (totals by `computeBalance`; only lines still owed and payments that settled are listed, a refund as a negative amount; fixed 2026-11-11, `sales-orders.md`) |
 | Stripe pay flow | (same page) | `POST /api/portal/pay` |
 | Return request | `pages/portal/return/*` | `pages/api/portal/returns/*` |
 | Generate link (admin / SMS / email) | — | `POST /api/portal/generate-link` |

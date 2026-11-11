@@ -14,6 +14,7 @@ import {
 } from "@/lib/paymentService";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 // 5 requests per minute per IP -- payment creation should be rare
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 });
@@ -47,7 +48,9 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       where: { id: payload.orderId },
       include: {
         customer: { select: { email: true, firstName: true, lastName: true } },
+        // Only lines still owed name what's being paid for, not a cancelled or replaced one.
         lineItems: {
+          where: { lineItemStatus: COUNTED_LINE_FILTER },
           select: { productName: true, partNo: true, netPrice: true, orderedQuantity: true },
         },
       },

@@ -455,6 +455,38 @@ configurations"), and a duplicate is priced at today's prices. `docs/DECISIONS.m
   and every payment into what was paid: a voided card and a refund counted as
   paid. It now leaves cancelled lines out and counts payments the way every
   balance does (`computeTotalPaid`, `lib/paymentBalance.ts`).
+- **Every other screen that totals an order (fixed 2026-11-11).** The same two
+  mistakes, summing every line and every payment, or reading the stored
+  `SalesOrder.totalPaid` (a copy only the import writes, so it never saw a payment
+  taken in Holt), were still in seven places. Each now takes the register's rule,
+  `computeBalance` (`lib/paymentService.ts`): only lines still owed
+  (`COUNTED_LINE_STATUSES`), only payments that settled (`isPaymentExcludedFromBalance`
+  leaves out PENDING, VOIDED and FAILED; a payment with no status is imported money and
+  counts), and a refund is money back whatever its stored sign. Holt's own refunds are
+  stored positive with `isRefund`, imported ones negative, so code that adds the stored
+  amount gets one of them wrong; `signedPaymentAmount` (`lib/paymentBalance.ts`) is the
+  one place that turns either into money toward the order.
+  - the customer portal (`api/portal/order.ts`), which also listed cancelled and
+    replaced lines and pending or voided payments to the customer;
+  - the service desk's customer lookup (`api/service/customer-lookup.ts`);
+  - the customer page (`api/customers/[id]` now sends each order's total and paid);
+  - the order screen's paid figure (`api/sales/orders/[id]`);
+  - the order screen itself: its Balance Due and 50% deposit counted only ACTIVE lines
+    (now `isCountedLine`, so a backordered line counts), and its payments table showed a
+    Holt refund as a positive amount (now `signedPaymentAmount`);
+  - a line change on an imported order: `overpaidAfterLineChange` (`lib/sales/cancelOrder.ts`)
+    left imported refunds out, read the order as overpaid and refused a plain cancel;
+  - the card checkout's description (`api/portal/pay.ts`, `api/stripe/send-payment-link.ts`)
+    named cancelled and replaced lines;
+  - the weekly dashboard (`api/dashboard/weekly.ts`) and a lead's spend (`api/leads`), which
+    counted cancelled and replaced lines, and for leads quotes and cancelled orders too
+    (rules 33 and 47);
+  - Open Orders' customer deposits, Balance Aging and the daily reconciliation (their
+    runbooks say how).
+  One order with every kind of line and payment proves each of them against the
+  register: `__tests__/integration/customerTotals.integration.test.ts`. The printed
+  receipt and invoice were already right: `api/print/order/[id]` filters both and signs
+  refunds before the page adds them up.
 - **Deleting an order takes its history with it (fixed 2026-11-03).**
   `OrderChangeLog`'s foreign key restricts, and `DELETE /api/sales/orders/[id]`
   never removed the rows, so an order with any history (a status change, a

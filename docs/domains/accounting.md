@@ -403,9 +403,20 @@ the entire day plugged to Over/Short. The deposit check is now configuration
 first (`glAccountId === depositGlId`), with the code list kept only as a
 fallback for charts mapping more than one deposit account.
 
+### The reconciliation counted Holt's refunds as money in (fixed 2026-11-11)
+
+`source.cash` summed the day's payments with `status: "COMPLETED"` and added each
+stored amount. Holt's own refunds are stored positive with `isRefund`, so every
+refund taken in Holt counted as money in, and imported payments (no status) were
+left out, while the journal counts both the other way (`countedPaymentWhere`, a
+refund negative: `journalEntry.ts`). Either one reported a drift the books didn't
+have. The source side now uses the journal's rule: `countedPaymentWhere()` and
+`computeTotalPaid` (`lib/paymentBalance.ts`). Pinned by
+`customerTotals.integration.test.ts`.
+
 ### The reconciliation's cash bucket was one account
 
-`source.cash` sums **every** COMPLETED payment on the day. `journal.cash`
+`source.cash` sums **every** counted payment on the day (see the section above). `journal.cash`
 counted only the single GL mapped to `POS_PAYMENTS`/"Cash". The two sides were
 measuring different things, so a deployment that took one card payment reported
 a false cash drift equal to it — every day, for as long as it kept taking
