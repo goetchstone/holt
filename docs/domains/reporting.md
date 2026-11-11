@@ -483,7 +483,15 @@ by one.
 
 ### Balance Due Aging
 
-Filters `status: { in: ["ORDER"] }` — FULFILLED orders are paid in full by definition; QUOTE not yet a sale; CANCELLED out. Buckets: 0–30 / 31–60 / 61–90 / 91+ days. Uses `computeBalance()` per order so the cancelled-line + netPrice rules are inherited automatically.
+Filters `status: "ORDER"`: FULFILLED orders are paid in full by definition; QUOTE not yet a sale; CANCELLED out. Buckets (`bucketForAge`): 0–30 / 31–90 / 91–180 / 180+ days. It does **not** call `computeBalance()` (an earlier version of this note said it did). `lib/reports/balanceAging.ts` applies the same rule in its own query: lines with `COUNTED_LINE_FILTER`, payments without `PAYMENT_STATUSES_EXCLUDED_FROM_BALANCE` (null status kept), and Paid is net of refunds, a refund counting as money back whatever its stored sign (`Math.abs`), so Total − Paid = Balance Due. Until 2026-11-11 it added the stored refund amount, so an imported refund (stored negative) moved the balance the wrong way, by twice the refund, and Paid was shown before refunds. Whole dollars. Pinned by `customerTotals.integration.test.ts`.
+
+### Weekly dashboard and a lead's spend
+
+Both add up line totals, so both take `lineItemStatus: COUNTED_LINE_FILTER` (rule 33): the weekly dashboard's sales and its department list (`api/dashboard/weekly.ts`), and a lead's spend (`api/leads`), which also counts only sales (`SALES_REVENUE_STATUSES`, rule 47). Until 2026-11-11 a replaced line counted twice, a cancelled line counted, and a lead's customer with only a $5,200 quote read as $5,200 of spend and a Hot lead. A customer with only a quote still shows who wrote it.
+
+### Open Orders: customer deposits
+
+"Customer Deposits Outstanding" is what customers have paid on orders still open (`status: "ORDER"`): each order's payments by `countedPaymentWhere()` and `computeTotalPaid`, counting only orders with something paid (`lib/reports/openOrders.ts`). Until 2026-11-11 it summed the stored `SalesOrder.totalPaid`, which only the import writes, so a deposit taken in Holt never counted.
 
 ### Unclassified Returns (B3 exception report)
 

@@ -8,6 +8,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { PurchaseOrderStatus } from "@prisma/client";
+import { computeTotalPaid, countedPaymentWhere } from "@/lib/paymentBalance";
 
 export interface OpenOrdersReport {
   purchaseOrders: Array<{
@@ -90,9 +91,17 @@ export async function getOpenOrdersReport(prisma: PrismaClient): Promise<OpenOrd
       },
       orderBy: { orderDate: "asc" },
     }),
+    // What customers have paid on open orders, from the payments themselves. This read the
+    // stored `SalesOrder.totalPaid`, which only the import writes, so a deposit taken in
+    // Holt never counted.
     prisma.salesOrder.findMany({
-      where: { status: "ORDER", totalPaid: { not: null } },
-      select: { totalPaid: true },
+      where: { status: "ORDER" },
+      select: {
+        payments: {
+          where: countedPaymentWhere(),
+          select: { paymentAmount: true, isRefund: true, status: true },
+        },
+      },
     }),
   ]);
 
@@ -135,14 +144,21 @@ export async function getOpenOrdersReport(prisma: PrismaClient): Promise<OpenOrd
   summary.totalValue = round2(summary.totalValue);
   summary.overdueValue = round2(summary.overdueValue);
 
-  const totalOutstanding = depositOrders.reduce((sum, o) => sum + Number(o.totalPaid || 0), 0);
+  const deposits = depositOrders
+    .map((o) =>
+      round2(
+        computeTotalPaid(o.payments.map((p) => ({ ...p, paymentAmount: Number(p.paymentAmount) }))),
+      ),
+    )
+    .filter((paid) => paid > 0);
+  const totalOutstanding = deposits.reduce((sum, paid) => sum + paid, 0);
 
   return {
     purchaseOrders,
     summary,
     customerDeposits: {
       totalOutstanding: round2(totalOutstanding),
-      orderCount: depositOrders.length,
+      orderCount: deposits.length,
     },
   };
 }

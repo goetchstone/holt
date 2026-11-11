@@ -61,8 +61,17 @@ interface PaymentForTotal {
 export function computeTotalPaid(payments: readonly PaymentForTotal[]): number {
   return payments.reduce((sum, p) => {
     if (isPaymentExcludedFromBalance(p.status)) return sum;
-    return sum + (p.isRefund ? -Math.abs(p.paymentAmount) : p.paymentAmount);
+    return sum + signedPaymentAmount(p);
   }, 0);
+}
+
+/**
+ * A payment as money toward the order: a refund is negative whatever its stored sign. Holt's
+ * own refunds are stored positive with isRefund set; imported ones are stored negative. Use
+ * this wherever a payment is shown or summed on its own, so both kinds read the same way.
+ */
+export function signedPaymentAmount(p: { paymentAmount: number; isRefund: boolean }): number {
+  return p.isRefund ? -Math.abs(p.paymentAmount) : p.paymentAmount;
 }
 
 /**

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyPortalToken } from "@/lib/portalToken";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
+import { computeBalance } from "@/lib/paymentService";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
+import { isPaymentExcludedFromBalance, signedPaymentAmount } from "@/lib/paymentBalance";
 
 // 20 requests per minute per IP -- generous for legitimate use, stops enumeration
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 20 });
@@ -43,11 +46,13 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       return res.status(403).json({ error: "Token does not match this order" });
     }
 
-    const totalSales = order.lineItems.reduce((sum, item) => sum + Number(item.netPrice), 0);
-    const totalTax = order.lineItems.reduce((sum, item) => sum + Number(item.vatAmount || 0), 0);
-    const totalAmount = totalSales + totalTax;
-    const totalPaid = order.payments.reduce((sum, p) => sum + Number(p.paymentAmount), 0);
-    const balanceDue = totalAmount - totalPaid;
+    // The customer sees what the register charges: only lines still owed, and only payments
+    // that settled, a refund taking money back. Summing every row showed cancelled and
+    // replaced lines, and counted pending, voided and refunded money as paid.
+    const { totalDue: totalAmount, totalPaid, balanceDue } = computeBalance(
+      order.lineItems,
+      order.payments,
+    );
 
     return res.status(200).json({
       id: order.id,
@@ -60,19 +65,26 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
             lastName: order.customer.lastName,
           }
         : null,
-      lineItems: order.lineItems.map((item) => ({
+      lineItems: order.lineItems
+        .filter((item) => isCountedLine(item.lineItemStatus))
+        .map((item) => ({
         id: item.id,
         productName: item.productName,
         orderedQuantity: Number(item.orderedQuantity),
         netPrice: Number(item.netPrice),
         vatAmount: item.vatAmount != null ? Number(item.vatAmount) : null,
       })),
-      payments: order.payments.map((p) => ({
-        id: p.id,
-        paymentDate: p.paymentDate,
-        paymentType: p.paymentType,
-        paymentAmount: Number(p.paymentAmount),
-      })),
+      payments: order.payments
+        .filter((p) => !isPaymentExcludedFromBalance(p.status))
+        .map((p) => ({
+          id: p.id,
+          paymentDate: p.paymentDate,
+          paymentType: p.paymentType,
+          paymentAmount: signedPaymentAmount({
+            paymentAmount: Number(p.paymentAmount),
+            isRefund: p.isRefund,
+          }),
+        })),
       totalAmount,
       totalPaid,
       balanceDue,

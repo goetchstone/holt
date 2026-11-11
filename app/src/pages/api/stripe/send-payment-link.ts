@@ -12,6 +12,7 @@ import {
 } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
 import { isPracticeCopy, PRACTICE_COPY_NO_PAYMENT_LINKS } from "@/lib/practiceCopy";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
@@ -41,7 +42,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       where: { id: orderId },
       include: {
         customer: { select: { email: true, firstName: true, lastName: true } },
+        // Only lines still owed name what's being paid for, not a cancelled or replaced one.
         lineItems: {
+          where: { lineItemStatus: COUNTED_LINE_FILTER },
           select: { productName: true, partNo: true, netPrice: true, orderedQuantity: true },
         },
       },
