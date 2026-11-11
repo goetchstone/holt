@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { computeBalance } from "@/lib/paymentService";
 import {
   CustomerInputError,
   isDuplicateEmail,
@@ -77,6 +78,12 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, session: Ses
       : null;
     return res.status(200).json({
       ...customer,
+      // Each order's total and paid by the register's rule (only lines still owed, only
+      // settled payments, refunds out), worked out here so the screen doesn't redo it.
+      salesOrders: customer.salesOrders.map((order) => {
+        const { totalDue, totalPaid } = computeBalance(order.lineItems, order.payments);
+        return { ...order, calculatedOrderTotal: totalDue, calculatedTotalPaid: totalPaid };
+      }),
       textableNumber: phone,
       smsOptedOutAt: optOut?.optedOutAt ?? null,
     });

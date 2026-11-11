@@ -146,8 +146,8 @@ describe("Reports: CANCELLED line item filter (CLAUDE.md rule 33)", () => {
       : [];
     // Reports that read OrderLineItem dollar amounts but legitimately do NOT
     // need the cancelled filter. openOrders aggregates PurchaseOrder.lineItems
-    // (no cancelled-status concept) and only reads SalesOrder.totalPaid (not
-    // its line items). Document any addition here with the reason.
+    // (no cancelled-status concept) and a sale's payments, never its line items.
+    // Document any addition here with the reason.
     const NO_FILTER_NEEDED = new Set(["openOrders.ts"]);
     for (const file of libFiles) {
       if (NO_FILTER_NEEDED.has(file)) continue;
@@ -162,6 +162,23 @@ describe("Reports: CANCELLED line item filter (CLAUDE.md rule 33)", () => {
         const usesSharedHelper = /buildLineItemWhere/.test(src);
         expect(FILTER_REGEX.test(src) || RAW_SQL_REGEX.test(src) || usesSharedHelper).toBe(true);
       });
+    }
+  });
+
+  // The same check outside lib/reports: the dashboard and leads routes total sales lines
+  // too, and the weekly dashboard and a lead's spend counted cancelled and replaced lines
+  // until 2026-11-11 because nothing looked at them.
+  describe("dashboard and leads routes exclude cancelled and replaced lines", () => {
+    for (const dir of ["src/pages/api/dashboard", "src/pages/api/leads"]) {
+      const abs = path.join(APP_ROOT, dir);
+      const files = fs.existsSync(abs) ? fs.readdirSync(abs).filter((f) => f.endsWith(".ts")) : [];
+      for (const file of files) {
+        const src = fs.readFileSync(path.join(abs, file), "utf8");
+        if (!/orderLineItem\.(findMany|groupBy|aggregate)/.test(src)) continue;
+        test(`${dir}/${file} excludes cancelled and replaced lines`, () => {
+          expect(FILTER_REGEX.test(src) || RAW_SQL_REGEX.test(src)).toBe(true);
+        });
+      }
     }
   });
 

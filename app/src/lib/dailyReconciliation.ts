@@ -29,6 +29,7 @@ import {
 } from "./glMapping";
 import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
+import { computeTotalPaid, countedPaymentWhere } from "@/lib/paymentBalance";
 import { businessDayRange } from "@/lib/reports/businessDay";
 
 export const RECONCILIATION_TOLERANCE = 0.01;
@@ -43,8 +44,8 @@ export interface DailyReconciliationSource {
   /** Sum of OrderLineItem.cost under the same filter. The
    * "what was the cost of goods that moved (in or out via returns)." */
   cost: number;
-  /** Sum of Payment.paymentAmount for COMPLETED payments on the day,
-   * positive for sales, negative for refunds. The "net cash today." */
+  /** The day's payments that are money (`countedPaymentWhere`, the journal's rule), refunds
+   * negative whatever their stored sign (`computeTotalPaid`). The "net cash today." */
   cash: number;
 }
 
@@ -64,7 +65,7 @@ export interface DailyReconciliationJournal {
    * net cash in.
    *
    * This must span every tender because `source.cash` above sums every
-   * COMPLETED payment regardless of method. Counting only the account mapped
+   * counted payment regardless of method. Counting only the account mapped
    * to "Cash" made the two sides measure different things, and a deployment
    * that took a single card payment reported a false cash drift equal to it --
    * every day, for as long as it kept taking cards. */
@@ -277,7 +278,7 @@ function describeMappingGaps(sets: Omit<ReconciliationAccounts, "warnings">): st
  *
  * Every tender lands somewhere, and all of it is "cash in" as far as the
  * source side of the reconciliation is concerned -- `source.cash` sums every
- * COMPLETED payment regardless of method. The POS_PAYMENTS labels that name a
+ * counted payment regardless of method. The POS_PAYMENTS labels that name a
  * tender are the built-ins' (METHOD_DISPLAY) and the store's own tenders'
  * (`Tender.name`, lib/payments/tenders.ts); labels outside both (notably the
  * DEPOSIT_OFFSET_LABELS, which the JE generator uses as the OFFSET leg rather
@@ -423,19 +424,25 @@ export async function computeDailyReconciliation(opts: {
     select: { netPrice: true, vatAmount: true, cost: true },
   });
 
+  // The journal's own rule for which payments are money (countedPaymentWhere) and their sign:
+  // a refund is money out whatever its stored sign. `status: "COMPLETED"` left out imported
+  // payments (no status) and added Holt's refunds, stored positive, as money in, so the check
+  // reported drift the books didn't have.
   const payments = await client.payment.findMany({
     where: {
       paymentDate: { gte: dayStart, lt: dayEndExclusive },
-      status: "COMPLETED",
+      ...countedPaymentWhere(),
     },
-    select: { paymentAmount: true },
+    select: { paymentAmount: true, isRefund: true, status: true },
   });
 
   const source: DailyReconciliationSource = {
     revenue: round2(lineItems.reduce((s, li) => s + Number(li.netPrice ?? 0), 0)),
     tax: round2(lineItems.reduce((s, li) => s + Number(li.vatAmount ?? 0), 0)),
     cost: round2(lineItems.reduce((s, li) => s + Number(li.cost ?? 0), 0)),
-    cash: round2(payments.reduce((s, p) => s + Number(p.paymentAmount ?? 0), 0)),
+    cash: round2(
+      computeTotalPaid(payments.map((p) => ({ ...p, paymentAmount: Number(p.paymentAmount) }))),
+    ),
   };
 
   // Which account is which, per this deployment's configuration.

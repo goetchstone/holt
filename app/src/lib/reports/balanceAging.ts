@@ -61,7 +61,9 @@ function splitPayments(payments: { paymentAmount: unknown; isRefund: boolean }[]
   let refunds = 0;
   for (const p of payments) {
     const amt = Number(p.paymentAmount);
-    if (p.isRefund) refunds += amt;
+    // A refund is money back whatever its stored sign: Holt's own are positive, imported ones
+    // negative. Adding the stored amount put every imported refund on the wrong side.
+    if (p.isRefund) refunds += Math.abs(amt);
     else paid += amt;
   }
   return { paid, refunds };
@@ -121,8 +123,10 @@ export async function getBalanceAging(
 
   for (const o of orders) {
     const orderTotal = computeOrderTotal(o.lineItems);
-    const { paid: totalPaid, refunds } = splitPayments(o.payments);
-    const balanceDue = orderTotal - totalPaid + refunds;
+    const { paid, refunds } = splitPayments(o.payments);
+    // Paid is net of refunds, as every other screen shows it, so Total − Paid = Balance Due.
+    const totalPaid = paid - refunds;
+    const balanceDue = orderTotal - totalPaid;
     if (balanceDue <= minBalance) continue;
 
     const ageDays = o.orderDate

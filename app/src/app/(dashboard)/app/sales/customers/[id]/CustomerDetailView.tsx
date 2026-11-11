@@ -44,16 +44,15 @@ interface OrderPayment {
   paymentAmount: number | null;
 }
 
-interface SalesOrderRaw {
+/** An order as the customer endpoint sends it, with its total and paid already worked out
+ *  by the register's rule (`computeBalance`). */
+interface SalesOrderWithCalculatedFields {
   id: number;
   orderno: string;
   orderDate: string | null;
   status: string;
   lineItems: OrderLineItem[];
   payments: OrderPayment[];
-}
-
-interface SalesOrderWithCalculatedFields extends SalesOrderRaw {
   calculatedOrderTotal: number;
   calculatedTotalPaid: number;
 }
@@ -559,27 +558,7 @@ export function CustomerDetailView({
     setLoading(true);
     try {
       const { data } = await axios.get(`/api/customers/${encodeURIComponent(id)}`);
-      const orders: SalesOrderRaw[] = data.salesOrders || [];
-      const customerWithCalculations: CustomerWithRelations = {
-        ...data,
-        salesOrders: orders.map((order) => {
-          const totalNetPrice = order.lineItems.reduce(
-            (sum, item) => sum + Number(item.netPrice || 0),
-            0,
-          );
-          const totalTax = order.lineItems.reduce(
-            (sum, item) => sum + Number(item.vatAmount || 0),
-            0,
-          );
-          const calculatedOrderTotal = totalNetPrice + totalTax;
-          const calculatedTotalPaid = (order.payments || []).reduce(
-            (sum, payment) => sum + Number(payment.paymentAmount || 0),
-            0,
-          );
-          return { ...order, calculatedOrderTotal, calculatedTotalPaid };
-        }),
-      };
-      setCustomer(customerWithCalculations);
+      setCustomer({ ...data, salesOrders: data.salesOrders || [] });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to load customer details."));
     } finally {

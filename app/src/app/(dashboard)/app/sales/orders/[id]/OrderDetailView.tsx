@@ -23,7 +23,7 @@ import Modal from "@/components/ui/Modal";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
-import { computeTotalPaid } from "@/lib/paymentBalance";
+import { computeTotalPaid, signedPaymentAmount } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
 import { DeliveryFeePanel } from "./DeliveryFeePanel";
@@ -597,7 +597,8 @@ export function OrderDetailView({
 
   const getPaymentAmount = useCallback((): number | undefined => {
     if (!orderDetails) return undefined;
-    const activeItems = orderDetails.lineItems.filter((i) => i.lineItemStatus === "ACTIVE");
+    // The lines still owed, by the one rule (COUNTED_LINE_STATUSES: backordered counts too).
+    const activeItems = orderDetails.lineItems.filter((i) => isCountedLine(i.lineItemStatus));
     const totalSales = activeItems.reduce((acc, item) => acc + (Number(item.netPrice) || 0), 0);
     const totalTax = activeItems.reduce((acc, item) => acc + (Number(item.vatAmount) || 0), 0);
     const totalPaid = computeTotalPaid(orderDetails.payments);
@@ -759,7 +760,7 @@ export function OrderDetailView({
     return <p>Order not found.</p>;
   }
 
-  const activeItems = orderDetails.lineItems.filter((i) => i.lineItemStatus === "ACTIVE");
+  const activeItems = orderDetails.lineItems.filter((i) => isCountedLine(i.lineItemStatus));
   const totalSales = activeItems.reduce((acc, item) => acc + (Number(item.netPrice) || 0), 0);
   // Excludes VOIDED/FAILED/PENDING and signs refunds, mirroring
   // paymentService.computeBalance (see @/lib/paymentBalance for why this
@@ -1365,7 +1366,8 @@ export function OrderDetailView({
                   <td className="p-2 border-b">{payment.paymentType}</td>
                   <td className="p-2 border-b">{payment.status || "—"}</td>
                   <td className="p-2 border-b text-right">
-                    {formatCurrency(payment.paymentAmount)}
+                    {/* A refund is money back: shown negative whichever way it was stored. */}
+                    {formatCurrency(signedPaymentAmount(payment))}
                   </td>
                   {isManager && (
                     <td className="p-2 border-b text-right">

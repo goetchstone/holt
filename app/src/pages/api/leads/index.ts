@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import { calculateLeadScore } from "@/lib/leadScore";
 import { leadTemperature, daysSinceLastAction } from "@/lib/leadHousekeeping";
 import { logError } from "@/lib/logger";
+import { COUNTED_LINE_FILTER, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const userEmail = session.user.email!;
@@ -95,9 +96,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       >();
 
       if (customerIds.length > 0) {
+        // Sales only: a quote or a cancelled order isn't spend (rules 33 and 47), and a cancelled
+        // or replaced line isn't either. Counting them made a $5,200 quote a Hot lead.
         const orderAggs = await prisma.salesOrder.groupBy({
           by: ["customerId"],
-          where: { customerId: { in: customerIds } },
+          where: { customerId: { in: customerIds }, status: { in: [...SALES_REVENUE_STATUSES] } },
           _count: { id: true },
         });
 
@@ -105,7 +108,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         const spendAggs = await prisma.orderLineItem.groupBy({
           by: ["salesOrderId"],
           where: {
-            salesOrder: { customerId: { in: customerIds } },
+            lineItemStatus: COUNTED_LINE_FILTER,
+            salesOrder: {
+              customerId: { in: customerIds },
+              status: { in: [...SALES_REVENUE_STATUSES] },
+            },
           },
           _sum: { netPrice: true },
         });
@@ -160,6 +167,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
               totalSpend: spendByCustomer.get(agg.customerId) || 0,
               lastSalesperson: lastSalespersonMap.get(agg.customerId) || null,
             });
+          }
+        }
+        // A customer with only a quote has no sales but still has whoever wrote it.
+        for (const [custId, lastSalesperson] of lastSalespersonMap) {
+          if (!orderStatsMap.has(custId)) {
+            orderStatsMap.set(custId, { orderCount: 0, totalSpend: 0, lastSalesperson });
           }
         }
       }

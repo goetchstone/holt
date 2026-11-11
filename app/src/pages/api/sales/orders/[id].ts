@@ -16,7 +16,7 @@ import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
 import { deleteProblem, saleWithoutPaymentProblem } from "@/lib/sales/cancelOrder";
 import { readSalePos } from "@/lib/sales/salePos";
-import { onSaleWentAhead } from "@/lib/paymentService";
+import { computeBalance, onSaleWentAhead } from "@/lib/paymentService";
 import { getAppSettings } from "@/lib/appSettings";
 import { holdDateString, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
 import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
@@ -231,6 +231,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     const totalTax = counted.reduce((sum, item) => sum + Number(item.vatAmount || 0), 0);
     const totalSales = counted.reduce((sum, item) => sum + Number(item.netPrice), 0);
     const totalAmount = totalSales + totalTax;
+    // What's been paid, by the register's rule. `SalesOrder.totalPaid` is a copy only the
+    // import writes, so it never saw a payment taken in Holt.
+    const { totalPaid } = computeBalance(order.lineItems, order.payments);
 
     // Convert Prisma Decimal fields to Number for JSON safety
     return res.status(200).json({
@@ -256,7 +259,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       flags,
       disclaimers,
       totalTax,
-      totalPaid: Number(order.totalPaid || 0),
+      totalPaid,
       totalAmount,
       customer: order.customer
         ? {

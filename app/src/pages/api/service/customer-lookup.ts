@@ -8,6 +8,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { computeBalance } from "@/lib/paymentService";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -51,6 +52,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                 paymentAmount: true,
                 paymentType: true,
                 paymentDate: true,
+                status: true,
+                isRefund: true,
               },
               orderBy: { paymentDate: "desc" },
             },
@@ -73,11 +76,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       creditBalance: Number(customer.creditBalance),
       addresses: customer.addresses,
       orders: customer.salesOrders.map((order) => {
-        const totalDue = order.lineItems.reduce(
-          (sum, li) => sum + Number(li.netPrice || 0) + Number(li.vatAmount || 0),
-          0,
-        );
-        const totalPaid = order.payments.reduce((sum, p) => sum + Number(p.paymentAmount || 0), 0);
+        // The register's rule: only lines still owed, only settled payments, refunds out.
+        const { totalDue, totalPaid, balanceDue } = computeBalance(order.lineItems, order.payments);
 
         return {
           id: order.id,
@@ -85,9 +85,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           orderDate: order.orderDate,
           storeLocation: order.storeLocation,
           dispatchStatus: order.dispatchStatus,
-          totalDue: Math.round(totalDue * 100) / 100,
-          totalPaid: Math.round(totalPaid * 100) / 100,
-          balanceDue: Math.round((totalDue - totalPaid) * 100) / 100,
+          totalDue,
+          totalPaid,
+          balanceDue,
           lineItems: order.lineItems.map((li) => ({
             id: li.id,
             partNo: li.partNo,

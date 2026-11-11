@@ -30,6 +30,7 @@ import {
   round2,
 } from "@/lib/paymentService";
 import { refundCounts } from "@/lib/returns/returnMoney";
+import { signedPaymentAmount } from "@/lib/paymentBalance";
 import { type RefundDestination } from "@/lib/returns/refundReturn";
 import { dropPoLines, keepPoAsStock, poOutcome, readSalePos, type SalePo } from "./salePos";
 import { type PoDecision } from "./salePosShared";
@@ -525,11 +526,16 @@ export async function overpaidAfterLineChange(
 
   const others = order.lineItems.filter((l) => l.id !== lineItemId);
   const owed = round2(computeBalance(others, []).totalDue + newLineTotal);
-  // Held leaves out an imported payment with no status, though it counts as paid, so it
-  // counts here and moneyProblem refuses it.
+  // Held leaves out imported payments (no status), though they count as paid, so they count
+  // here and moneyProblem refuses them. Their refunds too: an imported refund is stored
+  // negative, and leaving it out read the order as overpaid and refused a plain cancel.
   const imported = order.payments
-    .filter((p) => p.status === null && !p.isRefund)
-    .reduce((sum, p) => sum + Number(p.paymentAmount), 0);
+    .filter((p) => p.status === null)
+    .reduce(
+      (sum, p) =>
+        sum + signedPaymentAmount({ paymentAmount: Number(p.paymentAmount), isRefund: p.isRefund }),
+      0,
+    );
   const toSettle = Math.max(round2(plan.held + imported - owed), 0);
   if (toSettle === 0 && plan.refundsToRetry.length === 0) return null;
 

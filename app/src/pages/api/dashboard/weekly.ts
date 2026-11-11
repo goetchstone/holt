@@ -24,7 +24,7 @@ import {
 import { visitorsByStoreLocation } from "@/lib/storeTraffic";
 import { buildRows } from "@/lib/weeklySummaryRows";
 import { logError } from "@/lib/logger";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { COUNTED_LINE_FILTER, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 // Canonical revenue scope. Was a local literal with the same three values;
 // salesOrderRevenue.ts allows an inline copy only when deliberately NARROWER
@@ -66,6 +66,8 @@ async function groupSales(
   if (typeParam === "company") {
     const storeGroups = await prisma.orderLineItem.findMany({
       where: {
+        // Cancelled and replaced lines don't count (rule 33, COUNTED_LINE_STATUSES).
+        lineItemStatus: COUNTED_LINE_FILTER,
         salesOrder: {
           orderDate: { gte: startDate, lte: endDate },
           status: { in: [...SALES_STATUSES] },
@@ -87,6 +89,7 @@ async function groupSales(
   const sales = await prisma.orderLineItem.groupBy({
     by: ["productId"],
     where: {
+      lineItemStatus: COUNTED_LINE_FILTER,
       salesOrder: {
         orderDate: { gte: startDate, lte: endDate },
         status: { in: [...SALES_STATUSES] },
@@ -235,6 +238,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const distinctDepartments = await prisma.orderLineItem.findMany({
       where: {
+        lineItemStatus: COUNTED_LINE_FILTER,
         salesOrder: {
           orderDate: { gte: win.startDate, lte: win.endDate },
           status: { in: [...SALES_STATUSES] },
