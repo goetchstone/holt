@@ -53,7 +53,8 @@ app/src/pages/api/tills/*|docs/domains/pos.md
 app/src/pages/api/registers/*|docs/domains/pos.md
 app/src/pages/api/gift-cards/*|docs/domains/pos.md
 app/src/pages/api/stripe/*|docs/domains/pos.md
-app/src/lib/giftCard.ts|docs/domains/pos.md
+app/src/lib/giftCardLedger.ts|docs/domains/pos.md
+app/src/app/(dashboard)/app/admin/gift-cards/*|docs/domains/pos.md
 app/src/lib/stripe.ts|docs/domains/pos.md
 
 # Returns -- both ERP-native path AND aggregations touching RETURNED status

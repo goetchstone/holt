@@ -636,7 +636,11 @@ export async function handler(
       if (error instanceof CancelOrderError) {
         return res.status(error.status).json({ error: error.message });
       }
-      if (error instanceof RefundError) return res.status(400).json({ error: error.message });
+      if (error instanceof RefundError) {
+        return res.status(400).json({
+          error: `The line hasn't changed. ${error.message} Anything already refunded stays refunded, and trying again refunds only what's left.`,
+        });
+      }
       if (error instanceof RefundProcessorError) {
         return res.status(502).json({
           error: `The line hasn't changed. ${error.message} Anything already refunded stays refunded, and trying again refunds only what's left.`,

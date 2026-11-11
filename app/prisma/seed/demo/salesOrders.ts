@@ -332,19 +332,31 @@ export async function seedSalesOrdersAndTills(
           },
         });
         const balanceAfter = round2(initialAmount - totalDue);
-        await prisma.giftCardTransaction.create({
-          data: {
-            giftCardId: gc.id,
-            transactionType: "REDEMPTION",
-            amount: -totalDue,
-            balanceBefore: initialAmount,
-            balanceAfter,
-            createdBy: SEED_ACTOR,
-          },
+        // The card's history adds up to its balance, as the app writes it (lib/giftCardLedger.ts):
+        // its issue, then the spend, and a card spent to $0 is Redeemed.
+        await prisma.giftCardTransaction.createMany({
+          data: [
+            {
+              giftCardId: gc.id,
+              transactionType: "ISSUANCE",
+              amount: initialAmount,
+              balanceBefore: 0,
+              balanceAfter: initialAmount,
+              createdBy: SEED_ACTOR,
+            },
+            {
+              giftCardId: gc.id,
+              transactionType: "REDEMPTION",
+              amount: -totalDue,
+              balanceBefore: initialAmount,
+              balanceAfter,
+              createdBy: SEED_ACTOR,
+            },
+          ],
         });
         await prisma.giftCard.update({
           where: { id: gc.id },
-          data: { currentBalance: balanceAfter },
+          data: { currentBalance: balanceAfter, ...(balanceAfter === 0 && { status: "REDEEMED" }) },
         });
         giftCardId = gc.id;
         result.giftCardsCreated += 1;
@@ -478,7 +490,7 @@ export async function seedSalesOrdersAndTills(
           await prisma.giftCardTransaction.create({
             data: {
               giftCardId,
-              transactionType: "RELOAD",
+              transactionType: "REFUND",
               amount: refundAmount,
               balanceBefore: before,
               balanceAfter: after,
@@ -488,7 +500,7 @@ export async function seedSalesOrdersAndTills(
           });
           await prisma.giftCard.update({
             where: { id: giftCardId },
-            data: { currentBalance: after },
+            data: { currentBalance: after, status: "ACTIVE" },
           });
         } else if (order.method === "STORE_CREDIT" && order.customerId) {
           const before = customerCreditBalance.get(order.customerId) ?? 0;

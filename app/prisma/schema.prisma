@@ -3995,7 +3995,11 @@ model SEComponent {
 enum GiftCardStatus {
   ACTIVE
   REDEEMED
+  // Kept for cards voided before Void was removed (owner, 2026-11-11: money must never
+  // vanish). Nothing writes it now; a card is retired by moving its balance (REPLACED).
   VOIDED
+  // Its balance moved to a new card (replacedById), which is the only way to retire one.
+  REPLACED
 }
 
 enum GiftCardTransactionType {
@@ -4005,6 +4009,10 @@ enum GiftCardTransactionType {
   ADJUSTMENT
   VOID
   IMPORT
+  // A balance moved between two cards: negative on the card it left, positive on the new one.
+  TRANSFER
+  // A payment made with the card, refunded back to it.
+  REFUND
 }
 
 model GiftCard {
@@ -4016,6 +4024,11 @@ model GiftCard {
   status         GiftCardStatus @default(ACTIVE)
   activatedAt    DateTime?
   notes          String?
+
+  // The card this one's balance moved to when it was retired (status REPLACED).
+  replacedById Int?      @unique
+  replacedBy   GiftCard? @relation("GiftCardReplacement", fields: [replacedById], references: [id])
+  replaces     GiftCard? @relation("GiftCardReplacement")
 
   transactions GiftCardTransaction[]
   payments     Payment[]

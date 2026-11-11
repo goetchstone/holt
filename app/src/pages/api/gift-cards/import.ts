@@ -5,6 +5,13 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
+import { isClosedCard } from "@/lib/giftCardLedger";
+
+/** An amount from the report: a number, or null when the cell can't be read. */
+function readAmount(cell: string | undefined): number | null {
+  const n = Number.parseFloat(cell ?? "");
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
 
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
@@ -48,8 +55,13 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
         continue;
       }
 
-      const initialAmount = Number.parseFloat(row.Initialamount) || 0;
-      const remainingAmount = Number.parseFloat(row.Remainingamount) || 0;
+      // An unreadable amount is reported, never read as $0: that wiped a card's balance.
+      const initialAmount = readAmount(row.Initialamount);
+      const remainingAmount = readAmount(row.Remainingamount);
+      if (initialAmount === null || remainingAmount === null) {
+        errors.push(`Row ${rowNum} (${row.Code || barcode}): the amount can't be read`);
+        continue;
+      }
       const status = remainingAmount > 0 ? "ACTIVE" : "REDEEMED";
 
       let activatedAt: Date | null = null;
@@ -62,21 +74,63 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
 
       const existing = await prisma.giftCard.findUnique({
         where: { barcode },
+        select: { id: true },
       });
 
       if (existing) {
-        await prisma.giftCard.update({
-          where: { barcode },
-          data: {
-            externalCode: externalCode || existing.externalCode,
-            initialAmount,
-            currentBalance: remainingAmount,
-            status,
-            activatedAt: activatedAt || existing.activatedAt,
-            updatedBy: createdBy,
-          },
-        });
-        updatedCount++;
+        // Holt is the record for a card once it's here. A re-import only fills in a card nothing
+        // has touched since it came in: one retired or used in Holt keeps what Holt says, and the
+        // row says why. The card is locked and read inside the transaction, so a spend or a move
+        // made meanwhile can't be undone by a stale read.
+        const outcome = await prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<Array<{ status: string; currentBalance: unknown }>>`
+            SELECT status, "currentBalance" FROM "GiftCard" WHERE id = ${existing.id} FOR UPDATE`;
+          const card = rows[0];
+          if (isClosedCard(card.status)) return "retired" as const;
+          const used = await tx.giftCardTransaction.count({
+            where: { giftCardId: existing.id, transactionType: { not: "IMPORT" } },
+          });
+          if (used > 0) return "used" as const;
+          const before = Math.round(Number(card.currentBalance) * 100) / 100;
+          const change = Math.round((remainingAmount - before) * 100) / 100;
+          await tx.giftCard.update({
+            where: { id: existing.id },
+            data: {
+              ...(externalCode ? { externalCode } : {}),
+              initialAmount,
+              currentBalance: remainingAmount,
+              status,
+              ...(activatedAt ? { activatedAt } : {}),
+              updatedBy: createdBy,
+            },
+          });
+          if (change !== 0) {
+            await tx.giftCardTransaction.create({
+              data: {
+                giftCardId: existing.id,
+                transactionType: "IMPORT",
+                amount: change,
+                balanceBefore: before,
+                balanceAfter: remainingAmount,
+                reference: externalCode || null,
+                notes: "Re-imported from the POS voucher report",
+                createdBy,
+              },
+            });
+          }
+          return "updated" as const;
+        }, TX_TIMEOUT.LONG);
+        if (outcome === "retired") {
+          errors.push(
+            `Row ${rowNum} (${row.Code || barcode}): this card was retired in Holt, so the report doesn't change it`,
+          );
+        } else if (outcome === "used") {
+          errors.push(
+            `Row ${rowNum} (${row.Code || barcode}): this card has been used in Holt, so its balance there stands`,
+          );
+        } else {
+          updatedCount++;
+        }
       } else {
         await prisma.$transaction(async (tx) => {
           const card = await tx.giftCard.create({
@@ -95,7 +149,9 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
             data: {
               giftCardId: card.id,
               transactionType: "IMPORT",
-              amount: initialAmount,
+              // The balance it arrives with: balanceBefore + amount = balanceAfter. The card's
+              // first value is on the card itself (initialAmount).
+              amount: remainingAmount,
               balanceBefore: 0,
               balanceAfter: remainingAmount,
               reference: externalCode || null,

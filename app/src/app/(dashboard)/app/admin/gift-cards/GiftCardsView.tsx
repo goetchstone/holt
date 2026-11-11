@@ -30,6 +30,7 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-800",
   REDEEMED: "bg-brand-gray/20 text-brand-gray",
   VOIDED: "bg-red-100 text-red-800",
+  REPLACED: "bg-brand-gray/20 text-brand-gray",
 };
 
 function StatusBadge({ status }: { status: string }) {

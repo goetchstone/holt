@@ -92,7 +92,11 @@ async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
     if (err instanceof CancelOrderError) return res.status(err.status).json({ error: err.message });
-    if (err instanceof RefundError) return res.status(400).json({ error: err.message });
+    if (err instanceof RefundError) {
+      return res.status(400).json({
+        error: `The order is still open. ${err.message} Anything already refunded stays refunded, and cancelling again refunds only what's left.`,
+      });
+    }
     if (err instanceof RefundProcessorError) {
       return res.status(502).json({
         error: `The order is still open. ${err.message} Anything already refunded stays refunded, and cancelling again refunds only what's left.`,

@@ -24,6 +24,7 @@ import { expectedArrival } from "@/lib/vendorLeadTime";
 import { createNumberedPurchaseOrder } from "@/lib/purchasing/poNumber";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
 import { resolveTenderPayment } from "@/lib/payments/tenders";
+import { creditToCard, GiftCardError, spendFromCard } from "@/lib/giftCardLedger";
 
 type Tx = Prisma.TransactionClient;
 
@@ -286,31 +287,13 @@ export async function recordPaymentTx(
     if (!input.giftCardId) {
       throw new Error("giftCardId is required for gift card payments");
     }
-    const card = await tx.giftCard.findUniqueOrThrow({
-      where: { id: input.giftCardId },
-    });
-    const balance = Number(card.currentBalance);
-    if (balance < rounded) {
-      throw new Error(
-        `Insufficient gift card balance: available $${balance.toFixed(2)}, requested $${rounded.toFixed(2)}`,
-      );
-    }
-    const balanceBefore = balance;
-    const balanceAfter = round2(balanceBefore - rounded);
-
-    await tx.giftCardTransaction.create({
-      data: {
-        giftCardId: input.giftCardId,
-        transactionType: "REDEMPTION",
-        amount: -rounded,
-        balanceBefore,
-        balanceAfter,
-        createdBy: input.createdBy,
-      },
-    });
-    await tx.giftCard.update({
-      where: { id: input.giftCardId },
-      data: { currentBalance: balanceAfter },
+    // One locked, conditional change (lib/giftCardLedger.ts): a closed card or one short of the
+    // amount is refused, two spends of one balance can't both pass, and $0 is REDEEMED.
+    await spendFromCard(tx, {
+      cardId: input.giftCardId,
+      amount: rounded,
+      createdBy: input.createdBy ?? null,
+      reference: order.orderno ? "Order " + order.orderno : "Order #" + String(orderId),
     });
   }
 
@@ -1020,24 +1003,23 @@ async function settleRefund(tx: Tx, refundPaymentId: number): Promise<void> {
   const customerId = original.customerId ?? refund.salesOrder?.customerId ?? null;
 
   if (original.method === "GIFT_CARD" && original.giftCardId) {
-    const card = await tx.giftCard.findUniqueOrThrow({ where: { id: original.giftCardId } });
-    const balanceBefore = Number(card.currentBalance);
-    const balanceAfter = round2(balanceBefore + amount);
-    await tx.giftCardTransaction.create({
-      data: {
-        giftCardId: original.giftCardId,
-        transactionType: "RELOAD",
+    // Back onto the card it came off, unless the card was retired: then staff refund it
+    // another way (owner, 2026-11-11), and nothing here moves.
+    try {
+      await creditToCard(tx, {
+        cardId: original.giftCardId,
         amount,
-        balanceBefore,
-        balanceAfter,
-        notes: refund.refundReason,
+        type: "REFUND",
         createdBy: refund.createdBy,
-      },
-    });
-    await tx.giftCard.update({
-      where: { id: original.giftCardId },
-      data: { currentBalance: balanceAfter },
-    });
+        reference: "Refund of payment #" + String(original.id),
+        notes: refund.refundReason,
+      });
+    } catch (err) {
+      if (err instanceof GiftCardError) {
+        throw new RefundError(err.message + " Refund it to store credit instead.");
+      }
+      throw err;
+    }
   }
 
   if (original.method === "STORE_CREDIT") {
