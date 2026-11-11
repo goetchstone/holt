@@ -16,6 +16,7 @@ import Modal from "@/components/ui/Modal";
 import FormInput from "@/components/form/FormInput";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import Link from "next/link";
 
 interface GiftCardTransaction {
   id: number;
@@ -38,10 +39,16 @@ interface GiftCard {
   status: string;
   activatedAt: string | null;
   notes: string | null;
+  /** The card this one's balance moved to, once it was retired. */
+  replacedById: number | null;
+  /** The card this one replaced, if it did. */
+  replaces: { id: number } | null;
   transactions: GiftCardTransaction[];
 }
 
-type ModalType = "reload" | "adjust" | "void" | null;
+// No Void and no Adjust (owner, 2026-11-11): a balance changes only when money moves, and a
+// card is retired by moving its balance to a new card.
+type ModalType = "reload" | "replace" | null;
 
 const TX_TYPE_LABEL: Record<string, string> = {
   ISSUANCE: "Issuance",
@@ -50,6 +57,8 @@ const TX_TYPE_LABEL: Record<string, string> = {
   ADJUSTMENT: "Adjustment",
   VOID: "Void",
   IMPORT: "Import",
+  TRANSFER: "Moved",
+  REFUND: "Refund",
 };
 
 const TX_TYPE_COLOR: Record<string, string> = {
@@ -59,12 +68,15 @@ const TX_TYPE_COLOR: Record<string, string> = {
   ADJUSTMENT: "text-yellow-700",
   VOID: "text-red-700",
   IMPORT: "text-brand-gray",
+  TRANSFER: "text-brand-blue",
+  REFUND: "text-green-700",
 };
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-800",
   REDEEMED: "bg-brand-gray/20 text-brand-gray",
   VOIDED: "bg-red-100 text-red-800",
+  REPLACED: "bg-brand-gray/20 text-brand-gray",
 };
 
 export function GiftCardDetailView({ id }: { id: string }) {
@@ -75,8 +87,7 @@ export function GiftCardDetailView({ id }: { id: string }) {
   const [modal, setModal] = useState<ModalType>(null);
   const [reloadAmount, setReloadAmount] = useState("");
   const [reloadRef, setReloadRef] = useState("");
-  const [adjustBalance, setAdjustBalance] = useState("");
-  const [adjustReason, setAdjustReason] = useState("");
+  const [newBarcode, setNewBarcode] = useState("");
   const [saving, setSaving] = useState(false);
 
   const fetchCard = useCallback(async () => {
@@ -128,55 +139,29 @@ export function GiftCardDetailView({ id }: { id: string }) {
     }
   };
 
-  const handleAdjust = async () => {
-    const newBal = Number.parseFloat(adjustBalance);
-    if (Number.isNaN(newBal) || newBal < 0) {
-      toast.error("Enter a valid balance");
-      return;
-    }
-    if (!adjustReason.trim()) {
-      toast.error("Reason is required");
+  const handleReplace = async () => {
+    if (!newBarcode.trim()) {
+      toast.error("Scan or type the new card's number");
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch(`/api/gift-cards/${encodeURIComponent(id)}/adjust`, {
+      const res = await fetch(`/api/gift-cards/${encodeURIComponent(id)}/replace`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newBalance: newBal, reason: adjustReason }),
+        body: JSON.stringify({ barcode: newBarcode }),
       });
+      const body = await res.json().catch(() => null);
       if (res.ok) {
-        toast.success("Balance adjusted");
+        toast.success("Balance moved to the new card");
         setModal(null);
-        setAdjustBalance("");
-        setAdjustReason("");
-        fetchCard();
+        setNewBarcode("");
+        router.push(`/app/admin/gift-cards/${body.newCardId}`);
       } else {
-        toast.error(getErrorMessage(await res.json().catch(() => null), "Failed to adjust"));
+        toast.error(getErrorMessage(body, "The balance wasn't moved"));
       }
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Error adjusting balance"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleVoid = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/gift-cards/${encodeURIComponent(id)}/void`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (res.ok) {
-        toast.success("Card voided");
-        setModal(null);
-        fetchCard();
-      } else {
-        toast.error(getErrorMessage(await res.json().catch(() => null), "Failed to void"));
-      }
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Error voiding card"));
+      toast.error(getErrorMessage(err, "The balance wasn't moved"));
     } finally {
       setSaving(false);
     }
@@ -237,18 +222,36 @@ export function GiftCardDetailView({ id }: { id: string }) {
           </div>
         </div>
 
-        {card.status !== "VOIDED" && (
+        {card.replacedById !== null && (
+          <p className="mt-4 text-sm font-serif text-brand-gray">
+            Its balance moved to{" "}
+            <Link
+              href={`/app/admin/gift-cards/${card.replacedById}`}
+              className="text-brand-blue hover:underline"
+            >
+              card #{card.replacedById}
+            </Link>
+            .
+          </p>
+        )}
+        {card.replaces && (
+          <p className="mt-4 text-sm font-serif text-brand-gray">
+            Replaces{" "}
+            <Link
+              href={`/app/admin/gift-cards/${card.replaces.id}`}
+              className="text-brand-blue hover:underline"
+            >
+              card #{card.replaces.id}
+            </Link>
+            .
+          </p>
+        )}
+
+        {card.status !== "VOIDED" && card.status !== "REPLACED" && (
           <div className="flex gap-2 mt-6">
             <Button onClick={() => setModal("reload")}>Reload</Button>
-            <Button variant="outline" onClick={() => setModal("adjust")}>
-              Adjust Balance
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setModal("void")}
-              className="!text-red-700 !border-red-300 hover:!bg-red-50"
-            >
-              Void Card
+            <Button variant="outline" onClick={() => setModal("replace")}>
+              Move to a New Card
             </Button>
           </div>
         )}
@@ -340,48 +343,27 @@ export function GiftCardDetailView({ id }: { id: string }) {
         </Modal>
       )}
 
-      {modal === "adjust" && (
+      {modal === "replace" && (
         <Modal
-          title="Adjust Balance"
+          title="Move to a New Card"
           onClose={() => setModal(null)}
-          onSave={handleAdjust}
+          onSave={handleReplace}
           saving={saving}
         >
-          <p className="text-sm text-brand-gray font-serif mb-2">
-            Current balance:{" "}
-            <span className="font-semibold">{formatMoney(card.currentBalance)}</span>
+          <p className="font-serif text-brand-black mb-2">
+            The whole balance of{" "}
+            <span className="font-semibold">{formatMoney(card.currentBalance)}</span> moves to the
+            new card. This card stays on record at $0, with its history, and can&apos;t be used
+            again.
           </p>
           <FormInput
-            label="New Balance"
-            name="adjustBalance"
-            value={adjustBalance}
-            onChange={setAdjustBalance}
-            type="number"
-            placeholder="0.00"
-          />
-          <FormInput
-            label="Reason"
-            name="adjustReason"
-            value={adjustReason}
-            onChange={setAdjustReason}
+            label="New card number"
+            name="newBarcode"
+            value={newBarcode}
+            onChange={setNewBarcode}
             required
-            placeholder="Manager correction, etc."
+            placeholder="Scan the new card"
           />
-        </Modal>
-      )}
-
-      {modal === "void" && (
-        <Modal
-          title="Void Gift Card"
-          onClose={() => setModal(null)}
-          onSave={handleVoid}
-          saving={saving}
-        >
-          <p className="font-serif text-brand-black">
-            This will permanently void this gift card and zero out the remaining balance of{" "}
-            <span className="font-semibold">{formatMoney(card.currentBalance)}</span>.
-          </p>
-          <p className="font-serif text-red-700 text-sm mt-2">This action cannot be undone.</p>
         </Modal>
       )}
     </div>

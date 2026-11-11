@@ -23,6 +23,8 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
           transactions: {
             orderBy: { created: "desc" },
           },
+          // The card a retired card's balance moved to (replacedById), and the one this replaced.
+          replaces: { select: { id: true } },
         },
       });
 

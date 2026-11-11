@@ -5,6 +5,13 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
+import { isClosedCard } from "@/lib/giftCardLedger";
+
+/** An amount from the report: a number, or null when the cell can't be read. */
+function readAmount(cell: string | undefined): number | null {
+  const n = Number.parseFloat(cell ?? "");
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
 
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
@@ -48,8 +55,13 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
         continue;
       }
 
-      const initialAmount = Number.parseFloat(row.Initialamount) || 0;
-      const remainingAmount = Number.parseFloat(row.Remainingamount) || 0;
+      // An unreadable amount is reported, never read as $0: that wiped a card's balance.
+      const initialAmount = readAmount(row.Initialamount);
+      const remainingAmount = readAmount(row.Remainingamount);
+      if (initialAmount === null || remainingAmount === null) {
+        errors.push(`Row ${rowNum} (${row.Code || barcode}): the amount can't be read`);
+        continue;
+      }
       const status = remainingAmount > 0 ? "ACTIVE" : "REDEEMED";
 
       let activatedAt: Date | null = null;
@@ -65,17 +77,42 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
       });
 
       if (existing) {
-        await prisma.giftCard.update({
-          where: { barcode },
-          data: {
-            externalCode: externalCode || existing.externalCode,
-            initialAmount,
-            currentBalance: remainingAmount,
-            status,
-            activatedAt: activatedAt || existing.activatedAt,
-            updatedBy: createdBy,
-          },
-        });
+        // A card retired in Holt stays retired: a re-import never brings its balance back.
+        if (isClosedCard(existing.status)) {
+          skippedCount++;
+          continue;
+        }
+        // A re-import takes the report's balance, and any change is on the card's history as
+        // an IMPORT row, in one transaction with it (the money rule, lib/giftCardLedger.ts).
+        const before = Math.round(Number(existing.currentBalance) * 100) / 100;
+        const change = Math.round((remainingAmount - before) * 100) / 100;
+        await prisma.$transaction(async (tx) => {
+          await tx.giftCard.update({
+            where: { barcode },
+            data: {
+              externalCode: externalCode || existing.externalCode,
+              initialAmount,
+              currentBalance: remainingAmount,
+              status,
+              activatedAt: activatedAt || existing.activatedAt,
+              updatedBy: createdBy,
+            },
+          });
+          if (change !== 0) {
+            await tx.giftCardTransaction.create({
+              data: {
+                giftCardId: existing.id,
+                transactionType: "IMPORT",
+                amount: change,
+                balanceBefore: before,
+                balanceAfter: remainingAmount,
+                reference: externalCode || null,
+                notes: "Re-imported from the POS voucher report",
+                createdBy,
+              },
+            });
+          }
+        }, TX_TIMEOUT.LONG);
         updatedCount++;
       } else {
         await prisma.$transaction(async (tx) => {
@@ -95,7 +132,9 @@ export default requirePermission("payment.giftcard.issue", async (req, res, sess
             data: {
               giftCardId: card.id,
               transactionType: "IMPORT",
-              amount: initialAmount,
+              // The balance it arrives with: balanceBefore + amount = balanceAfter. The card's
+              // first value is on the card itself (initialAmount).
+              amount: remainingAmount,
               balanceBefore: 0,
               balanceAfter: remainingAmount,
               reference: externalCode || null,
