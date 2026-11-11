@@ -7,7 +7,7 @@
 // Revenue statuses include RETURNED so negative return lines net correctly.
 
 import type { PrismaClient, Prisma } from "@prisma/client";
-import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 import { businessDayKey, businessDayRange } from "@/lib/reports/businessDay";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 
@@ -51,7 +51,7 @@ export async function getSalesDaily(
   }
 
   const lineItemWhere: Prisma.OrderLineItemWhereInput = {
-    lineItemStatus: COUNTED_LINE_FILTER,
+    ...COUNTED_ITEM_LINE,
   };
   if (departments.length > 0) {
     lineItemWhere.product = { department: { name: { in: departments } } };

@@ -9,7 +9,7 @@ import { Prisma } from "@prisma/client";
 import { calculateLeadScore } from "@/lib/leadScore";
 import { leadTemperature, daysSinceLastAction } from "@/lib/leadHousekeeping";
 import { logError } from "@/lib/logger";
-import { COUNTED_LINE_FILTER, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const userEmail = session.user.email!;
@@ -108,7 +108,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         const spendAggs = await prisma.orderLineItem.groupBy({
           by: ["salesOrderId"],
           where: {
-            lineItemStatus: COUNTED_LINE_FILTER,
+            ...COUNTED_ITEM_LINE,
             salesOrder: {
               customerId: { in: customerIds },
               status: { in: [...SALES_REVENUE_STATUSES] },

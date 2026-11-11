@@ -9,7 +9,7 @@
 import { SalesOrderStatus } from "@prisma/client";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export interface CustomerReportRow {
   id: number;
@@ -95,7 +95,7 @@ export async function getCustomersReport(
             // Rule 33: cancelled lines must not inflate lifetime spend. (The
             // legacy Pages report omitted this filter — fixed in the port.)
             lineItems: {
-              where: { lineItemStatus: COUNTED_LINE_FILTER },
+              where: { ...COUNTED_ITEM_LINE },
               select: { netPrice: true },
             },
           },

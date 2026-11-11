@@ -12,7 +12,7 @@ import type { NextApiRequest } from "next";
 import type { Session } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 /**
  * Canonical productNames the POS uses for delivery / freight pass-through
@@ -93,7 +93,9 @@ export function buildOrderDateFilter(
  * labor on the salesperson reports. Set `includeDeliveryFreight = true`
  * to add them back in.
  *
- * The cancelled-line filter (CLAUDE.md rule 33) is unconditional.
+ * The cancelled-line filter (CLAUDE.md rule 33) is unconditional, and so is
+ * leaving out a gift card line: a card sold on a sale is a liability, not
+ * sales credit (COUNTED_ITEM_LINE in lib/salesOrderRevenue.ts).
  *
  * NULL-safety on productName (failure-log 2026-05-05):
  * ----------------------------------------------------
@@ -124,7 +126,7 @@ export function buildLineItemWhere(
   includeDeliveryFreight = false,
 ): Prisma.OrderLineItemWhereInput {
   const where: Prisma.OrderLineItemWhereInput = {
-    lineItemStatus: COUNTED_LINE_FILTER,
+    ...COUNTED_ITEM_LINE,
   };
   if (!includeDeliveryFreight) {
     // NULL productNames are NOT delivery/freight — admit them via the

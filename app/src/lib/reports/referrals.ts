@@ -5,11 +5,13 @@
 //
 // Spend is revenue as every report counts it: orders whose status is in
 // SALES_REVENUE_STATUSES (returned orders stay in, so returns net out; rule 47)
-// and lines whose status is in COUNTED_LINE_STATUSES (cancelled and replaced
-// lines out; rule 33), summing netPrice, the line total. All time.
+// and the counted item lines (countedItemLineSql: cancelled and replaced lines
+// out, rule 33, and a gift card sold, which isn't revenue), summing netPrice,
+// the line total. All time.
 
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { COUNTED_LINE_STATUSES, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { countedItemLineSql } from "@/lib/reports/revenueScope";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -38,7 +40,6 @@ export interface ReferralReport {
 }
 
 const ORDER_COUNTED = Prisma.join([...SALES_REVENUE_STATUSES]);
-const LINE_COUNTED = Prisma.join([...COUNTED_LINE_STATUSES]);
 
 /** Spend per group, from customers through their counted orders and lines. */
 function totalsSql(groupBy: Prisma.Sql, where: Prisma.Sql) {
@@ -51,7 +52,7 @@ function totalsSql(groupBy: Prisma.Sql, where: Prisma.Sql) {
     LEFT JOIN "SalesOrder" o
       ON o."customerId" = c.id AND o.status::text IN (${ORDER_COUNTED})
     LEFT JOIN "OrderLineItem" li
-      ON li."salesOrderId" = o.id AND li."lineItemStatus"::text IN (${LINE_COUNTED})
+      ON li."salesOrderId" = o.id AND ${countedItemLineSql("li")}
     ${where}
     GROUP BY 1`;
 }

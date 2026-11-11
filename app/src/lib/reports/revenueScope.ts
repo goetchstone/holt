@@ -78,3 +78,26 @@ export function countedLineSqlText(alias = "li"): string {
   const statuses = COUNTED_LINE_STATUSES.map((status) => `'${status}'`).join(", ");
   return `"${safeAlias(alias, "countedLineSqlText")}"."lineItemStatus"::text IN (${statuses})`;
 }
+
+// countedLineSql keeps a gift card line in, so it is for what a customer owes. Revenue,
+// reports and goods leave a card line out with the two below (COUNTED_ITEM_LINE in
+// lib/salesOrderRevenue.ts says why).
+
+/**
+ * countedLineSql AND not a gift card line: the counted lines that are items. Parenthesised,
+ * so it reads as one predicate wherever it is dropped. `IS NULL` is a positive match, so no
+ * row slips past it (rule 51).
+ */
+export function countedItemLineSql(alias = "li"): Prisma.Sql {
+  const table = Prisma.raw(`"${safeAlias(alias, "countedItemLineSql")}"`);
+  return Prisma.sql`(${table}."lineItemStatus"::text IN (${Prisma.join([
+    ...COUNTED_LINE_STATUSES,
+  ])}) AND ${table}."giftCardNumber" IS NULL)`;
+}
+
+/** countedItemLineSql spelled out, for a query built as a string ($queryRawUnsafe). */
+export function countedItemLineSqlText(alias = "li"): string {
+  const table = `"${safeAlias(alias, "countedItemLineSqlText")}"`;
+  const statuses = COUNTED_LINE_STATUSES.map((status) => `'${status}'`).join(", ");
+  return `(${table}."lineItemStatus"::text IN (${statuses}) AND ${table}."giftCardNumber" IS NULL)`;
+}

@@ -62,8 +62,51 @@ export function isCountedLine(status: string): boolean {
  * The same as a Prisma filter, for every sum and count over lines (rule 33):
  * `where: { lineItemStatus: COUNTED_LINE_FILTER }`. Leaving out only CANCELLED counts a
  * replaced line and its replacement both. Raw SQL uses countedLineSql in
- * lib/reports/revenueScope.ts.
+ * lib/reports/revenueScope.ts. It keeps a gift card line in, so it is for what a customer
+ * owes; revenue, reports and goods use COUNTED_ITEM_LINE below.
  */
 export const COUNTED_LINE_FILTER: { in: CountedLineStatus[] } = {
   in: [...COUNTED_LINE_STATUSES],
 };
+
+// A gift card sold on a sale is a line too (OrderLineItem.giftCardNumber is set). The
+// customer owes it, but it is a liability the store holds, not sales revenue, and it
+// isn't goods: nothing ships, nothing is tagged, no stock moves. So a counted line comes
+// in two kinds:
+//
+//   * what a customer OWES (balance due, the ledger, a payment link, the order's own
+//     totals) keeps a card line in: COUNTED_LINE_FILTER / isCountedLine above, and
+//     countedLineSql / countedLineSqlText for raw SQL;
+//   * revenue, reports and goods (sales, commission, margin, stock, dispatch, sold tags)
+//     leave it out: COUNTED_ITEM_LINE / isCountedItemLine below, and countedItemLineSql /
+//     countedItemLineSqlText for raw SQL (lib/reports/revenueScope.ts).
+//
+// Every file still on the first kind is listed with its reason in
+// __tests__/countedLineOwedSites.test.ts, so a new total can't take the owed filter by
+// accident.
+
+/**
+ * The counted lines that are items, as a Prisma OrderLineItem filter to spread into a
+ * where: `where: { ...COUNTED_ITEM_LINE, productId: { not: null } }`. Cancelled and
+ * replaced lines out (rule 33), and a gift card line out. `giftCardNumber` is nullable, and
+ * `null` here is a positive IS NULL match, so no row slips past it (rule 51).
+ */
+export const COUNTED_ITEM_LINE: {
+  lineItemStatus: { in: CountedLineStatus[] };
+  giftCardNumber: null;
+} = {
+  lineItemStatus: COUNTED_LINE_FILTER,
+  giftCardNumber: null,
+};
+
+/**
+ * True when a line counts as an item: its status is counted and it isn't a gift card. A
+ * null status (the column is NOT NULL, but some read types allow it) reads as the
+ * column's default, ACTIVE.
+ */
+export function isCountedItemLine(line: {
+  lineItemStatus: string | null;
+  giftCardNumber?: string | null;
+}): boolean {
+  return isCountedLine(line.lineItemStatus ?? "ACTIVE") && !line.giftCardNumber;
+}

@@ -14,7 +14,7 @@
 
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-import { revenueStatusSql, countedLineSql } from "@/lib/reports/revenueScope";
+import { revenueStatusSql, countedItemLineSql } from "@/lib/reports/revenueScope";
 
 export const TOP_SELLERS_METRICS = ["revenue", "units", "margin"] as const;
 export type TopSellersMetric = (typeof TOP_SELLERS_METRICS)[number];
@@ -170,7 +170,7 @@ export async function getTopSellers(
     WHERE ${revenueStatusSql()}
       AND so."orderDate" >= ${startDate}::date
       AND so."orderDate" < (${endDate}::date + INTERVAL '1 day')
-      AND ${countedLineSql("li")}
+      AND ${countedItemLineSql("li")}
       ${deptFilter}
     GROUP BY p.id, p."productNumber", p.name, d.name, v.name
     HAVING SUM(li."orderedQuantity") > 0

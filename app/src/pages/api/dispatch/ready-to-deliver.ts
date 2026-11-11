@@ -12,7 +12,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 interface ReadyOrder {
   id: number;
@@ -63,7 +63,7 @@ export default requireAuthWithRole(
           deliveryAddress: { select: { address1: true, city: true, state: true, zip: true } },
           store: { select: { name: true } },
           lineItems: {
-            where: { lineItemStatus: COUNTED_LINE_FILTER },
+            where: { ...COUNTED_ITEM_LINE },
             select: { id: true },
           },
           purchaseOrders: {

@@ -4,7 +4,7 @@ import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import type { ServiceAppointmentStatus, ServiceAppointmentType } from "@prisma/client";
-import { isCountedLine } from "@/lib/salesOrderRevenue";
+import { isCountedItemLine } from "@/lib/salesOrderRevenue";
 
 const VALID_TRANSITIONS: Record<ServiceAppointmentStatus, ServiceAppointmentStatus[]> = {
   PENDING: ["SCHEDULED", "CANCELLED"],
@@ -69,9 +69,9 @@ export async function syncServiceAppointments(salesOrderId: number, tx?: any): P
   for (const li of lineItems) {
     const serviceType: ServiceAppointmentType | null = li.product?.serviceType ?? null;
 
-    if (!isCountedLine(li.lineItemStatus)) {
+    if (!isCountedItemLine(li)) {
       // Cancel any non-terminal appointments for a cancelled or replaced line: a
-      // replacement gets its own.
+      // replacement gets its own. A gift card line is never a service to book.
       const activeAppointments = li.serviceAppointments.filter(
         (a: { status: ServiceAppointmentStatus }) => !isTerminalState(a.status),
       );

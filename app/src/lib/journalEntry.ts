@@ -16,7 +16,7 @@ import {
 import { countedPaymentWhere } from "@/lib/paymentBalance";
 import { businessDayRange } from "@/lib/reports/businessDay";
 import { getBusinessTimeZone } from "@/lib/appSettings";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 type Decimal = Prisma.Decimal;
 
@@ -889,8 +889,9 @@ const ORDER_FOR_JOURNAL_INCLUDE = {
       // cancelled rows persist in the table -- they would otherwise
       // double-count into Sales / COGS / Inventory / Tax. Same bug
       // class as the Detailed Sales discrepancy fixed in PR
-      // #125; this is the JE-side closure of that surface.
-      where: { lineItemStatus: COUNTED_LINE_FILTER },
+      // #125; this is the JE-side closure of that surface. A gift card
+      // line is out too: a card sold is a liability, not Sales.
+      where: { ...COUNTED_ITEM_LINE },
       include: {
         product: {
           include: {

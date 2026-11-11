@@ -10,7 +10,8 @@
 //
 // The on-hand / customer-stock / on-order / stock-vs-special classification SQL
 // is load-bearing and copied as-is — every WHERE clause, the
-// counted-line filter (rule 33, now countedLineSqlText), the customer-hold
+// counted-line filter (rule 33, now countedItemLineSqlText, which leaves a gift card
+// line out), the customer-hold
 // location split, the Issue #168 same-SO gates, and the cost waterfall are
 // preserved exactly. Do not change the classification, on-hand,
 // weeks-of-supply, or sell-through math here.
@@ -34,7 +35,7 @@ import {
 } from "@/lib/buyersRollup";
 import { buildFrameDecisions, type FrameInput } from "@/lib/frameRollup";
 import { freePositionSql } from "@/lib/inventory/allocation";
-import { countedLineSqlText } from "@/lib/reports/revenueScope";
+import { countedItemLineSqlText } from "@/lib/reports/revenueScope";
 
 export type { BuyersPivot } from "@/lib/buyersRollup";
 
@@ -342,11 +343,11 @@ export async function getBuyersSummary(
                 EXISTS (SELECT 1 FROM "SalesOrder" WHERE id = po."salesOrderId" AND status = 'ORDER')
                 -- (b) Specific PO item allocated to an open line
                 OR (li_direct.id IS NOT NULL
-                    AND ${countedLineSqlText("li_direct")}
+                    AND ${countedItemLineSqlText("li_direct")}
                     AND EXISTS (SELECT 1 FROM "SalesOrder" WHERE id = li_direct."salesOrderId" AND status = 'ORDER'))
                 -- (c) Linked via the POS POR number
                 OR (li_por.id IS NOT NULL
-                    AND ${countedLineSqlText("li_por")}
+                    AND ${countedItemLineSqlText("li_por")}
                     AND EXISTS (SELECT 1 FROM "SalesOrder" WHERE id = li_por."salesOrderId" AND status = 'ORDER'))
               )
           ),
@@ -475,7 +476,7 @@ export async function getBuyersSummary(
             LIMIT 1
           ) poi_link ON TRUE
           WHERE so.status IN ('ORDER','FULFILLED','RETURNED')
-            AND ${countedLineSqlText("li")}
+            AND ${countedItemLineSqlText("li")}
             AND so."orderDate" >= $1
             AND so."orderDate" <= $2
             AND ($3::int IS NULL OR so."storeLocationId" = $3)

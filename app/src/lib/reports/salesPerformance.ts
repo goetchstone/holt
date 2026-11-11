@@ -11,7 +11,7 @@ import { SalesOrderStatus } from "@prisma/client";
 import { getDateRanges } from "@/lib/reports/dateRanges";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayKey, businessDayRange, businessDayStart } from "@/lib/reports/businessDay";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export interface SalesPerformanceResponse {
   dateRange: { start: string; end: string };
@@ -82,7 +82,7 @@ export async function getSalesPerformance(
       orderDate: true,
       storeLocation: true,
       lineItems: {
-        where: { lineItemStatus: COUNTED_LINE_FILTER },
+        where: { ...COUNTED_ITEM_LINE },
         select: {
           netPrice: true,
           product: { select: { department: { select: { name: true } } } },
@@ -130,7 +130,7 @@ export async function getSalesPerformance(
   const lineSelect = {
     lineItems: {
       select: { netPrice: true },
-      where: { lineItemStatus: COUNTED_LINE_FILTER },
+      where: { ...COUNTED_ITEM_LINE },
     },
   };
   const [mtdOrders, prevMtdOrders, ytdOrders, prevYtdOrders] = await Promise.all([

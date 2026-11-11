@@ -14,7 +14,7 @@
 
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { countedLineSql, countedLineSqlText } from "@/lib/reports/revenueScope";
+import { countedItemLineSql, countedItemLineSqlText } from "@/lib/reports/revenueScope";
 
 // --- Department Group Configuration ---
 
@@ -151,7 +151,7 @@ export async function recalculateCustomerLevels(): Promise<RecalculationResult> 
         JOIN "OrderLineItem" li ON li."salesOrderId" = so.id
         WHERE so."customerId" IS NOT NULL
           AND so.status IN ('ORDER', 'FULFILLED', 'RETURNED')
-          AND ${countedLineSql("li")}
+          AND ${countedItemLineSql("li")}
         GROUP BY so."customerId"
       )
       UPDATE "Customer" c
@@ -193,7 +193,7 @@ export async function recalculateCustomerLevels(): Promise<RecalculationResult> 
         LEFT JOIN "Department" d ON d.id = cat."departmentId"
         WHERE so."customerId" IS NOT NULL
           AND so.status IN ('ORDER', 'FULFILLED', 'RETURNED')
-          AND ${countedLineSqlText("li")}
+          AND ${countedItemLineSqlText("li")}
           AND COALESCE(d.name, '') NOT IN (${excludedList})
         GROUP BY so."customerId", dept_group
       ),
@@ -267,7 +267,7 @@ export async function recalculateCustomerLevels(): Promise<RecalculationResult> 
         WHERE so."customerId" IS NOT NULL
           AND so."orderDate" >= '${cutoff.toISOString()}'
           AND so.status IN ('ORDER', 'FULFILLED', 'RETURNED')
-          AND ${countedLineSqlText("li")}
+          AND ${countedItemLineSqlText("li")}
           AND (d.name IN (${deptList}) ${nullClause})
         GROUP BY so."customerId"
       `);

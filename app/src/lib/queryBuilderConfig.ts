@@ -8,7 +8,7 @@
 //
 // Pure: the screen imports it too.
 
-import { COUNTED_LINE_STATUSES, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export interface ColumnDef {
   field: string;
@@ -277,11 +277,11 @@ export const ENTITIES: EntityDef[] = [
     defaultOrderBy: "id",
     totals: {
       where: {
-        lineItemStatus: { in: [...COUNTED_LINE_STATUSES] },
+        ...COUNTED_ITEM_LINE,
         orderedQuantity: { not: 0 },
         salesOrder: { status: { in: [...SALES_REVENUE_STATUSES] } },
       },
-      says: "Lines on orders. Leaves out quotes, cancelled orders, cancelled and replaced lines, and zero quantities. Returned orders stay in, so returns net out, and a delivery fee counts as a line.",
+      says: "Lines on orders. Leaves out quotes, cancelled orders, cancelled and replaced lines, gift cards sold, and zero quantities. Returned orders stay in, so returns net out, and a delivery fee counts as a line.",
       countLabel: "Lines",
       groups: [
         { key: "salesperson", label: "Salesperson", path: "salesOrder.salesperson" },

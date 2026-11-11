@@ -22,7 +22,7 @@ import {
   type FrameSaleLine,
 } from "@/lib/frameSalesHistory";
 import { stripLastSegment } from "@/lib/frameRollup";
-import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export default requirePermission(
   "admin.settings",
@@ -141,7 +141,7 @@ async function computeFrameSalesHistoryForProduct(
   const lines = await prisma.orderLineItem.findMany({
     where: {
       productId: { in: matedIds },
-      lineItemStatus: COUNTED_LINE_FILTER,
+      ...COUNTED_ITEM_LINE,
       salesOrder: {
         status: { in: [...SALES_REVENUE_STATUSES] },
         orderDate: { gte: windowStart },

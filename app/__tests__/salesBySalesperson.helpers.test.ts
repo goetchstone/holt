@@ -34,6 +34,12 @@ describe("buildLineItemWhere", () => {
     expect(where.lineItemStatus).toEqual({ in: ["ACTIVE", "BACKORDERED"] });
   });
 
+  it("always leaves out a gift card line, which is owed but isn't sales credit", () => {
+    // A positive IS NULL match on the nullable column (rule 51), whatever the options.
+    expect(buildLineItemWhere([]).giftCardNumber).toBeNull();
+    expect(buildLineItemWhere(["Furniture"], true).giftCardNumber).toBeNull();
+  });
+
   it("keeps the cancelled-line filter even when includeDeliveryFreight is true", () => {
     // Cancelled-line guard is unconditional. Only delivery + freight
     // are toggleable.
