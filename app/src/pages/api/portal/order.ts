@@ -49,10 +49,11 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
     // The customer sees what the register charges: only lines still owed, and only payments
     // that settled, a refund taking money back. Summing every row showed cancelled and
     // replaced lines, and counted pending, voided and refunded money as paid.
-    const { totalDue: totalAmount, totalPaid, balanceDue } = computeBalance(
-      order.lineItems,
-      order.payments,
-    );
+    const {
+      totalDue: totalAmount,
+      totalPaid,
+      balanceDue,
+    } = computeBalance(order.lineItems, order.payments);
 
     return res.status(200).json({
       id: order.id,
@@ -68,12 +69,12 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       lineItems: order.lineItems
         .filter((item) => isCountedLine(item.lineItemStatus))
         .map((item) => ({
-        id: item.id,
-        productName: item.productName,
-        orderedQuantity: Number(item.orderedQuantity),
-        netPrice: Number(item.netPrice),
-        vatAmount: item.vatAmount != null ? Number(item.vatAmount) : null,
-      })),
+          id: item.id,
+          productName: item.productName,
+          orderedQuantity: Number(item.orderedQuantity),
+          netPrice: Number(item.netPrice),
+          vatAmount: item.vatAmount != null ? Number(item.vatAmount) : null,
+        })),
       payments: order.payments
         .filter((p) => !isPaymentExcludedFromBalance(p.status))
         .map((p) => ({
