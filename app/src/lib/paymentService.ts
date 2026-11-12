@@ -25,6 +25,9 @@ import { createNumberedPurchaseOrder } from "@/lib/purchasing/poNumber";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
 import { resolveTenderPayment } from "@/lib/payments/tenders";
 import { creditToCard, GiftCardError, spendFromCard } from "@/lib/giftCardLedger";
+// A cycle (giftCardLines reads computeBalance from here), safe because neither module uses the
+// other's exports while it loads, only when a payment runs.
+import { issuePaidGiftCards } from "@/lib/sales/giftCardLines";
 
 type Tx = Prisma.TransactionClient;
 
@@ -358,6 +361,10 @@ export async function recordPaymentTx(
     reference: order.orderno || `order-${orderId}`,
     createdBy: input.createdBy,
   });
+
+  // A gift card sold on the sale goes live with the payment that pays it off, in this
+  // transaction: a card refused (retired since it was rung up) refuses the payment too.
+  await issuePaidGiftCards(tx, orderId, input.createdBy ?? null);
 
   return payment;
 }
@@ -816,6 +823,12 @@ export async function completePayment(
       reference: order?.orderno || `order-${payment.salesOrderId}`,
       createdBy: payment.createdBy ?? undefined,
     });
+
+    // The processor's payment can pay the sale off too: its gift cards go live with it, as at
+    // the register (recordPaymentTx). A refusal throws, so the webhook alerts and retries.
+    if (payment.salesOrderId != null) {
+      await issuePaidGiftCards(tx, payment.salesOrderId, payment.createdBy ?? null);
+    }
 
     return updated;
   });

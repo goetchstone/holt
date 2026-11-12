@@ -42,6 +42,12 @@ import {
 } from "@/components/sales/SplitSaleField";
 import type { SplitSaleSetup } from "@/lib/commissionSplit";
 import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
+import {
+  GIFT_CARD_LINE,
+  GIFT_CARD_LINE_NAME,
+  closedCardMessage,
+  type GiftCardCartLine,
+} from "@/lib/sales/giftCardLineShared";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
 
@@ -72,6 +78,20 @@ interface CartItem {
   discounts: Discount[];
   isReturn: boolean;
   inventorySummary: InventorySummary[];
+}
+
+/**
+ * A gift card sold or reloaded on this sale: a line of its own beside the
+ * products, priced as its amount and nothing else (lib/sales/giftCardLineShared.ts).
+ * `reload` is for the screen only; the server decides from the number.
+ */
+type CardLine = GiftCardCartLine & { reload: boolean };
+
+/** The card being added: its quick code's label, the number scanned, the amount. */
+interface CardDraft {
+  label: string;
+  number: string;
+  amount: string;
 }
 
 interface CustomerResult {
@@ -106,6 +126,8 @@ interface CreatedOrder {
   taxAmount: number;
   total: number;
   allowSaleWithoutPayment: boolean;
+  /** It sells or reloads a gift card, so it's paid in full before it leaves the register. */
+  holdsGiftCard: boolean;
 }
 
 interface PaymentSummary {
@@ -186,6 +208,9 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   const fmt = useMoneyFormatter();
   const scanRef = useRef<HTMLInputElement>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  // Gift cards on the sale, and the one being added (a GC quick code scanned).
+  const [cardLines, setCardLines] = useState<CardLine[]>([]);
+  const [cardDraft, setCardDraft] = useState<CardDraft | null>(null);
   // A sale written with a colleague (GAP-07), for those allowed to split one.
   const [split, setSplit] = useState<SplitChoice>(() => emptySplit(splitSetup));
   const [scanInput, setScanInput] = useState("");
@@ -343,7 +368,11 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     { orderDiscount },
   );
   const { subtotal, orderDiscountAmount, netSubtotal } = priced;
-  const cartItemCount = cart.reduce((sum, item) => sum + Math.abs(item.quantity), 0);
+  // A gift card is its amount: no discount and no tax (create-from-cart prices it the same).
+  const cardTotal = round2(cardLines.reduce((sum, line) => sum + line.amount, 0));
+  const cartIsEmpty = cart.length + cardLines.length === 0;
+  const cartItemCount =
+    cart.reduce((sum, item) => sum + Math.abs(item.quantity), 0) + cardLines.length;
   // Every cart line is goods: a custom line becomes a product of its own.
   const deliveryPieceCount = deliveryPieces(
     cart.map((item) => ({ quantity: item.quantity, goods: true, isReturn: item.isReturn })),
@@ -399,18 +428,95 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     [returnMode],
   );
 
+  // A GC quick code opens the card form with the preset's amount; a bare GC
+  // with no preset of its own leaves the amount to type.
+  const startCardLine = useCallback(
+    async (code: string) => {
+      if (returnMode) {
+        toast.error("A gift card is sold, not returned: turn Return Mode off to add one.");
+        return;
+      }
+      try {
+        const res = await axios.get<{ label: string | null; amount: number | null }>(
+          "/api/gift-cards/presets/resolve",
+          { params: { code } },
+        );
+        setCardDraft({
+          label: res.data.label || "Gift card",
+          number: "",
+          amount: res.data.amount == null ? "" : res.data.amount.toFixed(2),
+        });
+      } catch (err: unknown) {
+        if (code === "GC" && axios.isAxiosError(err) && err.response?.status === 404) {
+          setCardDraft({ label: "Gift card", number: "", amount: "" });
+          return;
+        }
+        toast.error(getErrorMessage(err, `No gift card code "${code}"`));
+      }
+    },
+    [returnMode],
+  );
+
+  // The card's number decides what it is: an open card is a reload, an unknown
+  // number a new card, a retired one is refused (the server checks all three
+  // again, and issues the card only when the sale is paid in full).
+  const addCardLine = async () => {
+    if (!cardDraft) return;
+    const number = cardDraft.number.trim();
+    const amount = Number.parseFloat(cardDraft.amount);
+    if (!number) {
+      toast.error("Scan or type the card's number");
+      return;
+    }
+    if (!(amount > 0) || round2(amount) !== amount) {
+      toast.error("Enter the amount to put on the card, in dollars and cents");
+      return;
+    }
+    if (cardLines.some((line) => line.giftCardNumber === number)) {
+      toast.error(`Gift card ${number} is already on this sale`);
+      return;
+    }
+    let reload = false;
+    try {
+      const res = await axios.get<{ status: string; replacedById: number | null }>(
+        "/api/gift-cards/lookup",
+        { params: { barcode: number } },
+      );
+      const closed = closedCardMessage(res.data);
+      if (closed) {
+        toast.error(closed);
+        return;
+      }
+      reload = true;
+    } catch (err: unknown) {
+      if (!(axios.isAxiosError(err) && err.response?.status === 404)) {
+        toast.error(getErrorMessage(err, "Couldn't look the card up"));
+        return;
+      }
+    }
+    setCardLines((prev) => [
+      ...prev,
+      { type: GIFT_CARD_LINE, giftCardNumber: number, amount, reload },
+    ]);
+    setCardDraft(null);
+    toast.success(
+      `${reload ? GIFT_CARD_LINE_NAME.RELOAD : GIFT_CARD_LINE_NAME.NEW} ${number}: ${fmt(amount)}`,
+    );
+    scanRef.current?.focus();
+  };
+
   const handleScan = useCallback(
     async (input: string) => {
       const trimmed = input.trim();
       if (!trimmed || scanning) return;
 
-      // Gift card quick codes: GC = custom amount, GC25/GC50/etc = preset amount.
-      // Gift card sales require scanning a physical card barcode, so redirect
-      // to the dedicated gift card sale page which handles the full activation flow.
+      // Gift card quick codes: GC = an amount typed here, GC25/GC50/etc = a
+      // preset's amount (Settings, Gift Cards). The card is a line on this sale,
+      // paid like the rest of it, and goes live when the sale is paid in full.
       const gcMatch = trimmed.toUpperCase().match(/^GC(\d*)$/);
       if (gcMatch) {
         setScanInput("");
-        router.push(`/app/sales/gift-card-sale?code=${encodeURIComponent(trimmed.toUpperCase())}`);
+        void startCardLine(trimmed.toUpperCase());
         return;
       }
 
@@ -438,7 +544,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         scanRef.current?.focus();
       }
     },
-    [scanning, router, returnMode, fetchInventorySummary, addProductToCart],
+    [scanning, returnMode, fetchInventorySummary, addProductToCart, startCardLine],
   );
 
   const handleScanKeyDown = (e: React.KeyboardEvent) => {
@@ -514,7 +620,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   };
 
   const handleCreateOrder = async () => {
-    if (cart.length === 0) {
+    if (cartIsEmpty) {
       toast.error("Cart is empty");
       return;
     }
@@ -527,14 +633,22 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
           customerId: selectedCustomer?.id || null,
           storeLocation: activeStore?.name || null,
           registerId: selectedRegister?.id || null,
-          items: cart.map((item) => ({
-            productId: item.productId,
-            quantity: item.isReturn ? -item.quantity : item.quantity,
-            unitPrice: item.price,
-            cost: item.cost || undefined,
-            discounts: item.discounts,
-            isReturn: item.isReturn,
-          })),
+          items: [
+            ...cart.map((item) => ({
+              productId: item.productId,
+              quantity: item.isReturn ? -item.quantity : item.quantity,
+              unitPrice: item.price,
+              cost: item.cost || undefined,
+              discounts: item.discounts,
+              isReturn: item.isReturn,
+            })),
+            // A gift card is its number and amount; the server decides the rest.
+            ...cardLines.map(({ type, giftCardNumber, amount }): GiftCardCartLine => ({
+              type,
+              giftCardNumber,
+              amount,
+            })),
+          ],
           orderDiscount: orderDiscount || undefined,
           deliveryMethod,
           // 0 charges none (create-from-cart).
@@ -579,6 +693,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         taxAmount: data.taxAmount ?? 0,
         total: data.total,
         allowSaleWithoutPayment: data.allowSaleWithoutPayment === true,
+        holdsGiftCard: cardLines.length > 0,
       });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to create order"));
@@ -595,16 +710,9 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     try {
       const res = await axios.get("/api/gift-cards/lookup", { params: { barcode } });
       const card = res.data;
-      if (card.status === "REPLACED") {
-        setGiftCardError(
-          card.replacedById
-            ? `This card's balance moved to card #${card.replacedById}. Use that card.`
-            : "This card's balance moved to a new card. Use that card.",
-        );
-        return;
-      }
-      if (card.status === "VOIDED") {
-        setGiftCardError("Gift card is voided");
+      const closed = closedCardMessage(card);
+      if (closed) {
+        setGiftCardError(closed);
         return;
       }
       if (card.currentBalance <= 0) {
@@ -766,6 +874,8 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
 
   const handleNewTransaction = () => {
     setCart([]);
+    setCardLines([]);
+    setCardDraft(null);
     setSelectedCustomer(null);
     setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
@@ -784,6 +894,8 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
 
   const clearAll = () => {
     setCart([]);
+    setCardLines([]);
+    setCardDraft(null);
     setSelectedCustomer(null);
     setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
@@ -1013,6 +1125,15 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
           className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-lg focus:outline-none focus:border-brand-blue"
           autoComplete="off"
         />
+        <CardLineForm
+          draft={cardDraft}
+          onChange={setCardDraft}
+          onAdd={addCardLine}
+          onCancel={() => {
+            setCardDraft(null);
+            scanRef.current?.focus();
+          }}
+        />
       </div>
 
       {/* Product search */}
@@ -1056,7 +1177,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
 
       {/* Cart */}
       <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm overflow-hidden mb-4">
-        {cart.length === 0 ? (
+        {cartIsEmpty ? (
           <p className="text-brand-gray text-center py-8">Scan an item to start</p>
         ) : (
           <>
@@ -1094,12 +1215,24 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                 onCancelItemDiscount={() => setDiscountIdx(null)}
               />
             ))}
+            {cardLines.map((line) => (
+              <CardLineRow
+                key={`gift-card-${line.giftCardNumber}`}
+                line={line}
+                fmt={fmt}
+                onRemove={() =>
+                  setCardLines((prev) =>
+                    prev.filter((other) => other.giftCardNumber !== line.giftCardNumber),
+                  )
+                }
+              />
+            ))}
 
             {/* Totals */}
             <div className="p-4 bg-brand-linen border-t border-brand-gray/20 space-y-1">
               <div className="flex justify-between text-sm text-brand-gray">
                 <span>{cartItemCount} item(s)</span>
-                <span>Subtotal: {fmt(subtotal)}</span>
+                <span>Subtotal: {fmt(subtotal + cardTotal)}</span>
               </div>
               {orderDiscount && (
                 <div className="flex justify-between text-sm text-green-700">
@@ -1130,7 +1263,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                 </button>
                 <div className="text-right">
                   <span className="text-xl font-semibold text-brand-black">
-                    {fmt(netSubtotal + deliveryFeeAmount)}
+                    {fmt(netSubtotal + cardTotal + deliveryFeeAmount)}
                   </span>
                   {/* No tax rate is known client-side (it depends on the tax
                       district/exemption resolved server-side), so this is
@@ -1193,7 +1326,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
       </div>
 
       {/* Conveyance + Actions */}
-      {cart.length > 0 && (
+      {!cartIsEmpty && (
         <div className="space-y-3">
           <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4">
             <p className="block text-xs text-brand-gray mb-2">Conveyance</p>
@@ -1495,10 +1628,7 @@ function TakePaymentPanel({
               Pay in full
             </button>
           </div>
-          <p className="mt-1 text-xs text-brand-gray">
-            Leave blank to take the full {fmt(balanceDue)} balance. Enter less to take a deposit or
-            split across tenders — the order stays open until it is paid off.
-          </p>
+          <PayAmountHint holdsGiftCard={order.holdsGiftCard} balanceDue={balanceDue} fmt={fmt} />
         </div>
       )}
 
@@ -1698,9 +1828,153 @@ function TakePaymentPanel({
         </div>
       )}
 
-      <div className="mt-6 text-center">
-        <button onClick={onSkip} className="text-sm text-brand-gray underline min-h-[44px] px-4">
-          Skip payment and view order
+      <SkipPayment
+        mustFinish={order.holdsGiftCard && paidSoFar > 0}
+        balanceDue={balanceDue}
+        fmt={fmt}
+        onSkip={onSkip}
+      />
+    </div>
+  );
+}
+
+/**
+ * What the amount to take means. Owner, 2026-11-11: a sale with a gift card
+ * "must be paid in full", so it takes no deposit; a split across tenders still
+ * pays it in full.
+ */
+function PayAmountHint({
+  holdsGiftCard,
+  balanceDue,
+  fmt,
+}: Readonly<{ holdsGiftCard: boolean; balanceDue: number; fmt: MoneyFmt }>) {
+  if (holdsGiftCard) {
+    return (
+      <p className="mt-1 text-xs text-brand-gray">
+        This sale has a gift card, so it&apos;s paid in full now. Leave blank to take the full{" "}
+        {fmt(balanceDue)}, or enter less to split it across tenders. The card goes live with the
+        last one.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs text-brand-gray">
+      Leave blank to take the full {fmt(balanceDue)} balance. Enter less to take a deposit or split
+      across tenders — the order stays open until it is paid off.
+    </p>
+  );
+}
+
+/**
+ * Leave the register without finishing the payment. Not once part of a sale
+ * with a gift card is paid: leaving then would make what was taken a deposit,
+ * and its card waits for the rest.
+ */
+function SkipPayment({
+  mustFinish,
+  balanceDue,
+  fmt,
+  onSkip,
+}: Readonly<{ mustFinish: boolean; balanceDue: number; fmt: MoneyFmt; onSkip: () => void }>) {
+  if (mustFinish) {
+    return (
+      <p className="mt-6 text-center text-sm text-brand-gray">
+        This sale has a gift card: take the {fmt(balanceDue)} still due to finish it.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-6 text-center">
+      <button onClick={onSkip} className="text-sm text-brand-gray underline min-h-[44px] px-4">
+        Skip payment and view order
+      </button>
+    </div>
+  );
+}
+
+/** The form a GC quick code opens: the card's number (scanned) and its amount. */
+function CardLineForm({
+  draft,
+  onChange,
+  onAdd,
+  onCancel,
+}: Readonly<{
+  draft: CardDraft | null;
+  onChange: Dispatch<SetStateAction<CardDraft | null>>;
+  onAdd: () => void;
+  onCancel: () => void;
+}>) {
+  if (!draft) return null;
+  const onEnter = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onAdd();
+    }
+  };
+  return (
+    <div className="mt-3 rounded border border-brand-gray/20 bg-brand-linen p-3">
+      <p className="mb-2 text-sm font-medium text-brand-black">{draft.label}</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[12rem] flex-1">
+          <label htmlFor="pos-card-number" className="block text-xs text-brand-gray mb-1">
+            Card number
+          </label>
+          <input
+            id="pos-card-number"
+            type="text"
+            value={draft.number}
+            onChange={(e) => onChange({ ...draft, number: e.target.value })}
+            onKeyDown={onEnter}
+            placeholder="Scan the card"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2 font-mono focus:outline-none focus:border-brand-blue"
+            autoComplete="off"
+            autoFocus
+          />
+        </div>
+        <div className="w-32">
+          <label htmlFor="pos-card-amount" className="block text-xs text-brand-gray mb-1">
+            Amount
+          </label>
+          <input
+            id="pos-card-amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={draft.amount}
+            onChange={(e) => onChange({ ...draft, amount: e.target.value })}
+            onKeyDown={onEnter}
+            placeholder="0.00"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2 text-right focus:outline-none focus:border-brand-blue"
+          />
+        </div>
+        <Button onClick={onAdd}>Add to sale</Button>
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** A gift card on the cart: its number, whether it's a reload, its amount. */
+function CardLineRow({
+  line,
+  fmt,
+  onRemove,
+}: Readonly<{ line: CardLine; fmt: MoneyFmt; onRemove: () => void }>) {
+  return (
+    <div className="border-b border-brand-gray/10 p-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-brand-black">
+            {line.reload ? GIFT_CARD_LINE_NAME.RELOAD : GIFT_CARD_LINE_NAME.NEW}
+          </p>
+          <p className="text-xs text-brand-gray font-mono">{line.giftCardNumber}</p>
+          <p className="text-xs text-brand-gray mt-0.5">Goes live when the sale is paid in full</p>
+        </div>
+        <div className="text-right min-w-[80px] text-sm font-medium">{fmt(line.amount)}</div>
+        <button onClick={onRemove} className="text-[10px] text-red-400 hover:text-red-600">
+          X
         </button>
       </div>
     </div>

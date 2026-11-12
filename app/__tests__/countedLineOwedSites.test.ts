@@ -52,18 +52,10 @@ const OWED: Record<string, string> = {
     "names what a payment link pays for: the balance due, a card line in it",
   "src/pages/api/warehouse/awaiting-delivery.ts":
     "the balance due on each order waiting for delivery (computeBalance over these lines)",
+  "src/lib/sales/giftCardLines.ts":
+    "issues the gift cards a sale paid for: it waits for the balance computeBalance owes to reach $0, and issues only a card line still on the order",
   "src/pages/api/dispatch/orders-by-zone.ts":
     "the balance due on each order on the dispatch board; the pieces for the truck are filtered with isCountedItemLine",
-
-  // Quotes only. A card is sold on an order, not quoted, so no card line reaches these;
-  // if a quote ever can hold one, these are pipeline value and move to the item kind.
-  "src/lib/reports/pipelineOpportunity.ts":
-    "the drilldown reads QUOTE orders only; the summary SQL beside it uses countedItemLineSqlText",
-  "src/lib/reports/staleQuotes.ts": "the stale quote value, read from QUOTE orders only",
-  "src/lib/tax/rerateQuoteTax.ts":
-    "re-rates a QUOTE's tax (its one caller checks the status), so only quote lines reach it",
-  "src/lib/pipelineClientQuery.ts":
-    "COUNTED_QUOTE_LINE, built from COUNTED_LINE_STATUSES, is read on QUOTE orders only; its order reads use COUNTED_ITEM_LINE",
 
   // Where the two kinds are defined.
   "src/lib/salesOrderRevenue.ts":

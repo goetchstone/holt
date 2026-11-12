@@ -6,7 +6,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { COUNTED_LINE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 import { CLIENT_NOTE_SOURCE, CONTACT_SOURCES } from "@/lib/interactionSources";
 import {
   distinctLocations,
@@ -19,11 +19,12 @@ const MAX_NOTES_PER_CLIENT = 25;
 const LAST_PURCHASE_ITEM_COUNT = 3;
 
 /** The lines a quote's value is made of: not cancelled or replaced (rule 33), not zero
- *  quantity (rule 31), and priced. */
+ *  quantity (rule 31), priced, and not a gift card (a register sale is a quote until it's
+ *  paid, and a card isn't a sale). */
 export const COUNTED_QUOTE_LINE = {
   netPrice: { gt: 0 },
   orderedQuantity: { gt: 0 },
-  lineItemStatus: { in: [...COUNTED_LINE_STATUSES] },
+  ...COUNTED_ITEM_LINE,
 } satisfies Prisma.OrderLineItemWhereInput;
 
 const CLIENT_ENTRY_SELECT = {

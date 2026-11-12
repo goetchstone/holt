@@ -34,6 +34,7 @@ import { signedPaymentAmount } from "@/lib/paymentBalance";
 import { type RefundDestination } from "@/lib/returns/refundReturn";
 import { dropPoLines, keepPoAsStock, poOutcome, readSalePos, type SalePo } from "./salePos";
 import { type PoDecision } from "./salePosShared";
+import { giftCardLineChangeProblem } from "@/lib/sales/giftCardLines";
 
 /** A cancel refused before anything moved; `status` is what the route answers. */
 export class CancelOrderError extends Error {
@@ -81,7 +82,14 @@ export async function readCancelPlan(orderId: number, db: Db = prisma): Promise<
       orderDate: true,
       salesPersonId: true,
       splitWithId: true,
-      lineItems: { select: { lineItemStatus: true, fulfilledQty: true } },
+      lineItems: {
+        select: {
+          lineItemStatus: true,
+          fulfilledQty: true,
+          giftCardNumber: true,
+          giftCardId: true,
+        },
+      },
       invoices: { where: { status: { not: "VOID" } }, select: { invoiceNo: true } },
       payments: {
         orderBy: { paymentDate: "asc" },
@@ -140,7 +148,12 @@ async function cancelProblem(
     id: number;
     status: string;
     deliveredAt: Date | null;
-    lineItems: { lineItemStatus: string; fulfilledQty: unknown }[];
+    lineItems: {
+      lineItemStatus: string;
+      fulfilledQty: unknown;
+      giftCardNumber: string | null;
+      giftCardId: number | null;
+    }[];
     invoices: { invoiceNo: string }[];
     payments: { status: string | null; isRefund: boolean }[];
   },
@@ -158,6 +171,11 @@ async function cancelProblem(
   ) {
     return "Part of this order has already gone to the customer. Cancel the lines that haven't, and do a return for the rest.";
   }
+  // A live gift card keeps its balance: refunding the sale under it would pay twice.
+  const card = order.lineItems
+    .map((line) => giftCardLineChangeProblem(line, "cancel"))
+    .find(Boolean);
+  if (card) return card;
   const money = await moneyProblem(order, db);
   if (money) return money;
   const moving = await db.inventoryTransfer.count({

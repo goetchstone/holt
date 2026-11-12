@@ -48,7 +48,6 @@ app/src/pages/api/consignment/*|docs/domains/consignment.md
 # (more specific than the generic sales/* pattern below)
 app/src/app/(dashboard)/app/sales/pos/*|docs/domains/pos.md
 app/src/app/(dashboard)/app/sales/till/*|docs/domains/pos.md
-app/src/app/(dashboard)/app/sales/gift-card-sale/*|docs/domains/pos.md
 app/src/pages/api/tills/*|docs/domains/pos.md
 app/src/pages/api/registers/*|docs/domains/pos.md
 app/src/pages/api/gift-cards/*|docs/domains/pos.md

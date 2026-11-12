@@ -696,7 +696,8 @@ and suggestions. Nobody gets an empty one, and anyone can turn theirs off on My 
 email queue.
 
 **What a quote is worth.** `COUNTED_QUOTE_LINE` (`lib/pipelineClientQuery.ts`): counted line
-statuses, quantity above 0 and a price. The card, All Staff, "No owner" and the report all use it.
+statuses, quantity above 0, a price, and not a gift card (a register sale is a quote until it's
+paid, and a card sold on it isn't a sale; `docs/domains/pos.md` "Gift cards"). The card, All Staff, "No owner" and the report all use it.
 Until GAP-36, the pipeline counted any line with a price, cancelled or not (rule 33).
 
 **Cash Sale.** `isCashSaleCustomer` matches the customer named exactly "Cash Sale", the shape

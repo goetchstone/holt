@@ -3,7 +3,10 @@
 // Creates a SalesOrder from a POS or quote cart, numbered by lib/orderNumber.ts
 // (<prefix>-YYMMDD-NNN, prefix from AppSettings). For CONFIGURED and CUSTOM
 // line items, creates a new Product record so the item exists in the catalog
-// for reporting, inventory, and reorder purposes.
+// for reporting, inventory, and reorder purposes. A GIFT_CARD line is a card
+// sold or reloaded on the sale (lib/sales/giftCardLineShared.ts): owed like any
+// line, but no product, stock, PO, tax or discount, and issued only when the
+// sale is paid in full (lib/sales/giftCardLines.ts).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
@@ -49,6 +52,12 @@ import {
   findOrCreateVendorId,
   findVendorsByName,
 } from "@/lib/vendors/vendorByName";
+import { checkGiftCardLines, type CheckedGiftCardLine } from "@/lib/sales/giftCardLines";
+import {
+  GIFT_CARD_LINE,
+  isGiftCardCartLine,
+  type GiftCardCartLine,
+} from "@/lib/sales/giftCardLineShared";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -104,7 +113,8 @@ export async function handler(
     splitPercent,
   } = req.body as {
     customerId?: number | null;
-    items: CartItem[];
+    /** The goods, and any gift card sold or reloaded on the sale. */
+    items: (CartItem | GiftCardCartLine)[];
     storeLocation?: string;
     orderNotes?: string;
     deliveryMethod?: "TAKEN" | "PICKUP" | "DELIVERY";
@@ -119,8 +129,15 @@ export async function handler(
     splitPercent?: number;
   };
 
-  const requestProblem = await cartRequestProblem({ items, deliveryMethod, deliveryFee });
+  // A gift card line is not goods: it's priced, taxed, discounted and stocked
+  // as nothing, and written after the goods with its own amount.
+  const goods = (Array.isArray(items) ? items : []).filter(
+    (item): item is CartItem => !isGiftCardCartLine(item),
+  );
+  const requestProblem = await cartRequestProblem({ items, goods, deliveryMethod, deliveryFee });
   if (requestProblem) return res.status(400).json({ error: requestProblem });
+  const cards = await checkGiftCardLines(items.filter(isGiftCardCartLine));
+  if ("error" in cards) return res.status(400).json({ error: cards.error });
   const split = await saleSplitProblem({
     splitWithId,
     splitPercent,
@@ -134,7 +151,7 @@ export async function handler(
   // before anything is written: a manager's PIN is checked on its own, outside
   // the sale's transaction, so a wrong try counts even when the sale is refused
   // (lib/sales/discountApproval.ts).
-  const cartItems = items.map((item) => ({
+  const cartItems = goods.map((item) => ({
     unitPrice: item.unitPrice,
     quantity: Math.abs(item.quantity),
     discounts: item.discounts,
@@ -144,7 +161,7 @@ export async function handler(
   let discount: { percent: number; approver: Approver | null };
   try {
     ({ listUnits, discount } = await judgeCartDiscount({
-      items,
+      items: goods,
       netPrices: priceCart(cartItems, { orderDiscount }).items.map((l) => l.netPrice),
       delivery:
         deliveryMethod === "DELIVERY"
@@ -173,7 +190,7 @@ export async function handler(
       );
 
       // Pre-load existing products (for PRODUCT-type items and as source for CONFIGURED items)
-      const allProductIds = items.filter((i) => i.productId).map((i) => i.productId!);
+      const allProductIds = goods.filter((i) => i.productId).map((i) => i.productId!);
       const existingProducts = await tx.product.findMany({
         where: { id: { in: allProductIds } },
         select: {
@@ -195,7 +212,7 @@ export async function handler(
       // Resolve vendor IDs for configured/custom items, by an earlier name
       // too (a vendor merged away). Keyed lowercased, as findOrCreateInIndex
       // reads it.
-      const vendorNames = [...new Set(items.filter((i) => i.vendor).map((i) => i.vendor!))];
+      const vendorNames = [...new Set(goods.filter((i) => i.vendor).map((i) => i.vendor!))];
       const found = await findVendorsByName(tx, vendorNames, { ignoreCase: true });
       const vendorMap = new Map([...found].map(([name, v]) => [name.toLowerCase(), v.id]));
 
@@ -244,7 +261,7 @@ export async function handler(
       // line: its source product's, which the minted product inherits below).
       const untaxed = priceCart(cartItems, { orderDiscount });
       const lineRates = untaxed.items.map((line, i) => {
-        const product = items[i].productId ? productMap.get(items[i].productId!) : null;
+        const product = goods[i].productId ? productMap.get(goods[i].productId!) : null;
         return rateForLineAmount(taxDistrict.rules, line.netPrice, lineTaxGroupOf(product)).rate;
       });
       const priced = priceCart(cartItems, { taxRate: lineRates, orderDiscount });
@@ -252,8 +269,8 @@ export async function handler(
       // Build line items, creating products as needed
       const lineItemData = [];
 
-      for (let idx = 0; idx < items.length; idx++) {
-        const item = items[idx];
+      for (let idx = 0; idx < goods.length; idx++) {
+        const item = goods[idx];
         const itemType = item.type || "PRODUCT";
         let productId = item.productId || null;
         let partNo = item.productNumber || null;
@@ -365,6 +382,10 @@ export async function handler(
         });
       }
 
+      // The gift cards, after the goods (cardLineRows).
+      lineItemData.push(...cardLineRows(cards.lines, goods.length));
+      const cardTotal = round2(cards.lines.reduce((sum, card) => sum + card.amount, 0));
+
       const created = await tx.salesOrder.create({
         data: {
           orderno,
@@ -466,18 +487,23 @@ export async function handler(
 
       return {
         ...created,
-        subtotal: priced.subtotal,
+        // The cards are in the subtotal, so subtotal - discount + delivery +
+        // tax is the total the register shows and charges.
+        subtotal: round2(priced.subtotal + cardTotal),
         orderDiscountAmount: priced.orderDiscountAmount,
         deliveryFee: feeAmount,
         taxAmount: round2(priced.taxAmount + feeTax),
-        total: round2(priced.total + feeAmount + feeTax),
+        total: round2(priced.total + cardTotal + feeAmount + feeTax),
       };
     });
 
-    // The register offers to go ahead with nothing paid only where the store allows it.
-    return res
-      .status(201)
-      .json({ ...order, allowSaleWithoutPayment: settings.allowSaleWithoutPayment });
+    // The register offers to go ahead with nothing paid only where the store
+    // allows it, and never on a sale with a gift card: that is paid in full
+    // (owner, 2026-11-11), and its card goes live when it is.
+    return res.status(201).json({
+      ...order,
+      allowSaleWithoutPayment: settings.allowSaleWithoutPayment && cards.lines.length === 0,
+    });
   } catch (error) {
     if (error instanceof DeliveryFeeError) {
       return res.status(error.status).json({ error: error.message });
@@ -490,6 +516,35 @@ export async function handler(
 export default requirePermission("sales.write", handler, {
   also: ["sales.discount", "sales.reassign"],
 });
+
+/**
+ * The order lines for the sale's gift cards, numbered after its goods. The
+ * card's amount is the line: no discount share and no tax (a card sold for
+ * less than it holds puts money on it nobody paid), and no product, so no
+ * stock, PO or delivery piece. The card itself is issued when the sale is
+ * paid in full (lib/sales/giftCardLines.ts).
+ */
+function cardLineRows(cards: CheckedGiftCardLine[], goodsCount: number) {
+  return cards.map((card, k) => ({
+    itemType: GIFT_CARD_LINE,
+    lineNumber: goodsCount + k + 1,
+    productId: null,
+    productName: card.productName,
+    partNo: "",
+    orderedQuantity: 1,
+    netPrice: card.amount,
+    listPrice: card.amount,
+    cost: 0,
+    barcode: "",
+    vatRate: 0,
+    vatAmount: 0,
+    selectedGrade: null,
+    source: null,
+    fulfillment: null,
+    holdUntil: null,
+    giftCardNumber: card.giftCardNumber,
+  }));
+}
 
 /** What is wrong with the cart as sent, before anything is priced or written; null when nothing. */
 /**
@@ -536,11 +591,13 @@ async function saleSplitProblem(input: {
 }
 
 async function cartRequestProblem(input: {
-  items: CartItem[] | undefined;
+  items: unknown[] | undefined;
+  /** The cart's lines that aren't gift cards: the ones a hold can be on. */
+  goods: CartItem[];
   deliveryMethod: string | undefined;
   deliveryFee: number | null | undefined;
 }): Promise<string | null> {
-  const { items, deliveryMethod, deliveryFee } = input;
+  const { items, goods, deliveryMethod, deliveryFee } = input;
   if (!items || !Array.isArray(items) || items.length === 0) {
     return "Cart must contain at least one item";
   }
@@ -549,7 +606,7 @@ async function cartRequestProblem(input: {
     const feeProblem = deliveryFeeProblem(deliveryFee);
     if (feeProblem) return feeProblem;
   }
-  return cartHoldProblem(items);
+  return cartHoldProblem(goods);
 }
 
 /**

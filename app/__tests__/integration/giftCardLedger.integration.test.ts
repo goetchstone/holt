@@ -20,7 +20,7 @@ import { resetTestDb } from "@/lib/testing/withTestDb";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { processRefund, recordPayment } from "@/lib/paymentService";
-import reloadRoute from "@/pages/api/gift-cards/[id]/reload";
+import { creditToCard } from "@/lib/giftCardLedger";
 import replaceRoute from "@/pages/api/gift-cards/[id]/replace";
 import importRoute from "@/pages/api/gift-cards/import";
 
@@ -90,6 +90,12 @@ async function expectHistoryAddsUp(cardId: number) {
   return card;
 }
 
+// A reload is a line on a sale (giftCardSale.integration.test.ts); here, the ledger's own.
+const reload = (cardId: number, amount: number) =>
+  prisma.$transaction((tx) =>
+    creditToCard(tx, { cardId, amount, type: "RELOAD", createdBy: "owner@example.com" }),
+  );
+
 const pay = (giftCardId: number, amount: number) =>
   recordPayment(orderId, {
     method: "GIFT_CARD",
@@ -153,12 +159,11 @@ describe("spending a card at the register", () => {
       "REDEEMED",
     );
 
-    // An amount sent as text is added as a number, not joined on as a string.
-    const res = await call(reloadRoute, { amount: "25" }, { id: String(card.id) });
+    await reload(card.id, 25);
 
-    expect(res.statusCode).toBe(200);
-    expect(res.body.card).toMatchObject({ status: "ACTIVE", currentBalance: 25 });
-    await expectHistoryAddsUp(card.id);
+    const after = await expectHistoryAddsUp(card.id);
+    expect(after).toMatchObject({ status: "ACTIVE" });
+    expect(Number(after.currentBalance)).toBe(25);
   });
 
   it("a refund goes back on the card it came off", async () => {
@@ -201,8 +206,7 @@ describe("retiring a card: its balance moves to a new one", () => {
     await call(replaceRoute, { barcode: "GC-HERE" }, { id: String(old.id) });
 
     await expect(pay(old.id, 1)).rejects.toThrow("moved to a new card");
-    const reload = await call(reloadRoute, { amount: 10 }, { id: String(old.id) });
-    expect(reload.statusCode).toBe(400);
+    await expect(reload(old.id, 10)).rejects.toThrow("moved to a new card");
     const again = await call(replaceRoute, { barcode: "GC-OTHER" }, { id: String(old.id) });
     expect(again.statusCode).toBe(400);
     await expect(

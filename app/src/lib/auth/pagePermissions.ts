@@ -277,7 +277,6 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/sales/customers": { permission: "sales.read" },
   "/app/sales/customers/[id]": { permission: "sales.read" },
   "/app/sales/customers/email-list": { permission: "marketing.write" },
-  "/app/sales/gift-card-sale": { permission: "sales.read" },
   "/app/sales/import-hd": { permission: "sales.read" },
   "/app/sales/invoices": { permission: "sales.read", widensFrom: "MANAGER,ADMIN" },
   "/app/sales/invoices/[id]": { permission: "sales.read", widensFrom: "MANAGER,ADMIN" },

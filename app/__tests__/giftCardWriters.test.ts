@@ -14,10 +14,12 @@ const APP = join(__dirname, "..");
 const WRITE =
   /giftCard\.(update|updateMany|upsert|create|createMany|delete|deleteMany)\(|giftCardTransaction\.(create|createMany|update|updateMany|delete|deleteMany)\(|UPDATE "GiftCard"/;
 
+// Selling or reloading a card is a line on a sale; lib/sales/giftCardLines.ts issues it with the
+// payment that pays the sale off, through the ledger's issueCard and creditToCard, so it writes no
+// card itself and isn't listed.
 const ALLOWED: Record<string, string> = {
-  "src/lib/giftCardLedger.ts": "the one way a balance changes",
-  "src/pages/api/gift-cards/activate.ts":
-    "issues a card; selling a card as a line on a sale replaces it (next change)",
+  "src/lib/giftCardLedger.ts":
+    "the one way a balance changes, and the one way a sold card is issued (issueCard)",
   "src/pages/api/gift-cards/import.ts":
     "onboarding import: a new card with its IMPORT row, or a locked re-import of an untouched card",
   "src/pages/api/gift-cards/[id]/index.ts": "edits a card's notes only, never its balance",

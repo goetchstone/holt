@@ -75,10 +75,13 @@ const SOURCE_SELECT = {
   returnFor: { select: { returnNumber: true } },
   lineItems: {
     // In the sale: not cancelled or replaced (rule 33), more than nothing
-    // (rule 31), and not given back (an exchange's negative lines).
+    // (rule 31), and not given back (an exchange's negative lines). Not a gift
+    // card: it's its own card's number, sold at the register, and copied as a
+    // plain line it would be sold as goods and taxed (lib/sales/giftCardLines.ts).
     where: {
       lineItemStatus: { in: ["ACTIVE", "BACKORDERED"] },
       orderedQuantity: { gt: 0 },
+      giftCardNumber: null,
     },
     orderBy: [{ lineNumber: "asc" }, { id: "asc" }],
     select: {
@@ -119,7 +122,9 @@ async function loadSource(tx: Tx, orderId: number) {
   }
   const lines = source.lineItems.filter((l) => l.id !== source.deliveryFeeLineItemId);
   if (lines.length === 0) {
-    throw new DuplicateOrderError("This order has nothing to copy: every line is cancelled.");
+    throw new DuplicateOrderError(
+      "This order has nothing to copy: every line is cancelled or a gift card.",
+    );
   }
   return { ...source, lines };
 }

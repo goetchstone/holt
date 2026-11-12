@@ -9,7 +9,8 @@
 // Every change is a single conditional UPDATE: Postgres locks the card's row and re-checks the
 // condition, so two spends of one balance can't both pass, and a closed card is never touched.
 // There's no Void and no Adjust; a card is retired by moving its balance to a new one
-// (replaceCard), which leaves it REPLACED at $0 with its history.
+// (replaceCard), which leaves it REPLACED at $0 with its history. A card comes into being only
+// with money too: issueCard, when the sale it's sold on is paid in full.
 
 import type { GiftCardStatus, GiftCardTransactionType, Prisma } from "@prisma/client";
 
@@ -151,6 +152,45 @@ export async function creditToCard(
     notes: input.notes,
     createdBy: input.createdBy,
   });
+}
+
+/**
+ * Issue a new card with its first value: a card sold on a sale, issued with the payment that pays
+ * the sale off (lib/sales/giftCardLines.ts). ACTIVE, with an ISSUANCE row from $0. A number
+ * already in use is refused; a reload of an open card is creditToCard with type RELOAD.
+ */
+export async function issueCard(
+  tx: Tx,
+  input: { barcode: string; amount: number; createdBy: string | null; reference?: string | null },
+): Promise<{ cardId: number; balanceBefore: number; balanceAfter: number }> {
+  const barcode = input.barcode.trim();
+  if (!barcode) throw new GiftCardError("Scan or type the card's number");
+  const amount = parseCardAmount(input.amount);
+  const taken = await tx.giftCard.findUnique({ where: { barcode }, select: { id: true } });
+  if (taken) throw new GiftCardError("That card number is already in use");
+
+  const card = await tx.giftCard.create({
+    data: {
+      barcode,
+      initialAmount: amount,
+      currentBalance: amount,
+      status: "ACTIVE",
+      activatedAt: new Date(),
+      createdBy: input.createdBy,
+    },
+  });
+  await tx.giftCardTransaction.create({
+    data: {
+      giftCardId: card.id,
+      transactionType: "ISSUANCE",
+      amount,
+      balanceBefore: 0,
+      balanceAfter: amount,
+      reference: input.reference ?? null,
+      createdBy: input.createdBy,
+    },
+  });
+  return { cardId: card.id, balanceBefore: 0, balanceAfter: amount };
 }
 
 /**

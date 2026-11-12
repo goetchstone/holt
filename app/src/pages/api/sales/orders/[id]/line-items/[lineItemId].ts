@@ -16,6 +16,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { deliveryFeeLineEditProblem } from "@/lib/delivery/deliveryFee";
+import { giftCardLineEditProblem } from "@/lib/sales/giftCardLines";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import {
   DiscountApprovalError,
@@ -31,6 +32,12 @@ import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { HoldError, quoteHoldContext, setLineHold } from "@/lib/sales/quoteHolds";
 import { readLineNote } from "@/lib/sales/lineNotesShared";
+
+/** What the request does to the line: PUT's action, or "remove" for a DELETE. */
+function lineAction(req: NextApiRequest): string {
+  if (req.method === "DELETE") return "remove";
+  return typeof req.body?.action === "string" ? req.body.action : "";
+}
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -56,8 +63,12 @@ export async function handler(
     if (locked) return res.status(409).json({ error: locked });
   }
   if (!Number.isNaN(itemId)) {
-    const feeLine = await deliveryFeeLineEditProblem(prisma, itemId);
-    if (feeLine) return res.status(409).json({ error: feeLine });
+    // The delivery fee line changes only under Delivery fee; a gift card line
+    // only as lib/sales/giftCardLines.ts allows.
+    const lineProblem =
+      (await deliveryFeeLineEditProblem(prisma, itemId)) ??
+      (await giftCardLineEditProblem(prisma, itemId, lineAction(req)));
+    if (lineProblem) return res.status(409).json({ error: lineProblem });
   }
 
   // PUT: Update line item (cancel, replace, relink, or modify)

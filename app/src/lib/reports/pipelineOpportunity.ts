@@ -9,10 +9,10 @@
 //
 // Load-bearing invariants copied as-is:
 //   - netPrice is the LINE TOTAL, not a unit price — never multiplied by qty.
-//   - Cancelled and replaced lines are excluded (rule 33): the list SQL uses
-//     countedItemLineSqlText, which leaves a gift card line out too; the detail, which
-//     reads quotes only, filters `lineItemStatus: COUNTED_LINE_FILTER`, since a quote
-//     can't hold a card line.
+//   - Cancelled and replaced lines are excluded (rule 33), and a gift card line too:
+//     the list SQL uses countedItemLineSqlText, the detail COUNTED_ITEM_LINE. A register
+//     sale is a quote until its first payment, so a quote can hold a card line, and a
+//     card isn't a sale in the pipeline.
 //   - The detail computes a lead score from Windfall life-event signals. Both
 //     endpoints are MANAGER/ADMIN only, so lead tier + score ride along on every
 //     quote row. The legacy handler had no role-conditional wealth omission, so
@@ -21,7 +21,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { isNoteSource } from "@/lib/interactionSources";
 import { calculateLeadScore, type LeadTier } from "@/lib/leadScore";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 import { countedItemLineSqlText } from "@/lib/reports/revenueScope";
 
 export interface PipelineRow {
@@ -285,7 +285,7 @@ export async function getPipelineDetail(
         },
       },
       lineItems: {
-        where: { lineItemStatus: COUNTED_LINE_FILTER },
+        where: { ...COUNTED_ITEM_LINE },
         select: {
           id: true,
           productName: true,
