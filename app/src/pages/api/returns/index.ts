@@ -142,8 +142,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, changedBy: 
             "A delivery fee isn't goods to return. Until the order is handed over, change or remove it under Delivery fee on the order.",
         });
       }
-      // Nor is a gift card: its money is on the card, and taking a card back
-      // isn't built yet (lib/sales/giftCardLines.ts).
+      // A gift card's money is on the card: it comes back only where the store
+      // refunds cards, from an unused card (lib/sales/giftCardLines.ts), and
+      // its value comes off the card when the return is booked.
       const cardLine = await giftCardLineEditProblem(prisma, lineItem.id, "return");
       if (cardLine) return res.status(409).json({ error: cardLine });
     }

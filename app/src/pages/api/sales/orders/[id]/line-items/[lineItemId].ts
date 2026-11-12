@@ -6,6 +6,7 @@ import {
   creditOverpayment,
   overpaidAfterLineChange,
   refundOverpayment,
+  takeBackLineCard,
 } from "@/lib/sales/cancelOrder";
 import { RefundError, RefundProcessorError } from "@/lib/paymentService";
 import { isRefundDestination } from "@/lib/returns/refundReturn";
@@ -320,6 +321,8 @@ export async function handler(
         if (money.refused) return;
 
         const result = await prisma.$transaction(async (tx) => {
+          // A live gift card's value comes back off it with the line's money (gated above).
+          await takeBackLineCard(tx, itemId, changedBy);
           const updated = await tx.orderLineItem.update({
             where: { id: itemId },
             data: { lineItemStatus: "CANCELLED", cancelReason: reason },

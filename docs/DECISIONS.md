@@ -1704,6 +1704,38 @@ Rejected:
 
 → `docs/domains/commission.md` "Protection-plan plans"
 
+## 57. A gift card is sold as a line on a sale, is a liability until spent, and is refunded only if the store says so and it's unused (2026-11-12)
+
+**Decided:** The owner, 2026-11-11: "everything must be transactional, be on a ledger", and "if we can void
+something and the money disappears, that is not good accounting practice". A card is sold "as a line on a sale",
+and "the card goes live when the sale is paid in full". On refunds: "Most places will not refund a giftcard ...
+this should be a config and then only if unused".
+
+- **A card's balance changes only when money moves**, through `lib/giftCardLedger.ts`, each change in the
+  caller's transaction with a signed history row (#117). There is no Void and no Adjust. A card is retired by
+  moving its balance to a new card ("issuing a new one using the old one to pay for the new one"), which leaves
+  the old one `REPLACED` at $0 with its history.
+- **Sold or reloaded as a line on a sale**, paid like any sale, and issued only by the payment that pays the sale
+  off to the cent, in that payment's transaction. No card goes live on a deposit.
+- **A liability, not revenue.** The card line is owed but isn't Sales, tax, stock or a PO. The sales journal
+  moves the money paid for it from the deposit (or receivable) to the gift card liability on the day the card is
+  issued, from the card's own ledger row, and takes it back the same way.
+- **Refunding a live card is a setting, off by default** (`AppSettings.giftCardsRefundable`, "Refund unused gift
+  cards"). On, a card line can be cancelled, or returned once its sale is invoiced, only while the card is unused:
+  it holds the line's whole amount and nothing has left it since that line issued or reloaded it. Its value comes
+  off the card in the transaction of the money that goes back, and the sale's own refund or credit returns it.
+
+Rejected:
+
+- **Void and Adjust on a card.** Value would appear or vanish with no money behind it.
+- **Activating a card with no payment,** and a gift-card sale screen apart from the register. A card would go
+  live with nothing paid for it.
+- **Booking a card sold as Sales.** It's money the store owes until the card is spent.
+- **Refunding any card, or refunding part of a used one.** The owner wants it a store's choice, and then only for
+  an unused card; a used card's value has already been given.
+
+→ `docs/domains/pos.md` "Gift cards", `docs/domains/accounting.md` "Gift cards sold on a sale"
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

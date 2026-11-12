@@ -30,12 +30,12 @@ The business's GL is a 4-segment numeric chart (`X-XXXX`). The first digit is th
 | Account #    | Name                               | Use                                                                                                                                                                                                                                                                                                                |
 | ------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **`1-1006`** | Cash / Combined Receipts           | All payment methods (Cash / Amex / Visa / MC / Discover / Debit / Check) post here. Each method gets its own journal line for memo clarity, but they share one GL. **Debit on sales, credit on returns.**                                                                                                          |
-| **`1-1200`** | Pmt On Acct (Customer Deposits)    | Receivable for orders without an invoice yet. **Credit when a deposit is taken; debit when the invoice posts.**                                                                                                                                                                                                    |
+| **`1-1200`** | Pmt On Acct (Customer Deposits)    | Receivable for orders without an invoice yet. **Credit when a deposit is taken; debit when the invoice posts, or when a gift card sold on the order is issued.**                                                                                                                                                                                                    |
 | `1-1203`     | (alternate deposit GL)             | Treated identically to 1-1200 by the JE generator — see `DEPOSIT_GL_CODES` in `lib/journalEntry.ts`.                                                                                                                                                                                                               |
 | **`1-13XX`** | **Inventory by department**        | One sub-account per `AccountGroup`. **Credit when inventory leaves (sale); debit when inventory arrives (receiving) or returns (restock).** Example department codes:                                                                                                                                              |
 | `1-13NN`     | Inventory: (department)            | e.g. `1-1301` Inventory: Dept A, `1-1302` Inventory: Dept B — one per department; consult the master COA for the complete list.                                                                                                                                                                                    |
 | **`2-2120`** | **Sales Tax Payable**              | The home-state TaxDistrict's `glAccountId` resolves here. **Credit on sales, debit on returns.** Other states would have their own GL via their TaxDistrict mapping.                                                                                                                                               |
-| **`2-2127`** | **Gift Card Liability**            | Outstanding gift cards are a liability. **Credit when sold (debit cash); debit when redeemed (credit revenue).** **Not yet true at sale (2026-11-11):** selling a card takes no payment, so nothing credits this account when a card is sold; only redemption debits it. Selling a card as a line on a sale is the next change (pos.md "Gift cards"). This is a `LIABILITY_DEBIT_CODES` entry in the JE generator — meaning it gets a debit on sale-day journal because we recognize the redemption.                                                    |
+| **`2-2127`** | **Gift Card Liability**            | Outstanding gift cards are a liability. **Credit when a card sold or reloaded on a sale is issued; debit when it's redeemed, or when a card line is cancelled or returned and its value taken back.** The credit is the sales journal's "Gift cards sold" line, from the card's own ledger rows (see "Gift cards sold on a sale" below); the account is whatever `POS_PAYMENTS`/"Gift Card" maps to. The redemption debit is a `LIABILITY_DEBIT_CODES` entry in the JE generator ("GC Redeem").                                                    |
 | **`4-40XX`** | **Sales revenue by department**    | One sub-account per `AccountGroup`. **Credit on sales, debit on returns** (returns are sales-in-reverse — see Returns section). Example department codes:                                                                                                                                                          |
 | `4-40NN`     | Sales: (department)                | e.g. `4-4001` Sales: Dept A — matches the inventory sub-account department-by-department.                                                                                                                                                                                                                          |
 | **`5-52XX`** | **COGS by department**             | One sub-account per `AccountGroup`. **Debit on sales, credit on returns.**                                                                                                                                                                                                                                         |
@@ -241,6 +241,38 @@ second one is emitted.
 
 For each payment that hits a liability-debit GL (gift card): debit the liability (we redeemed our debt to the customer).
 
+### Gift cards sold on a sale (2026-11-12)
+
+A gift card is sold or reloaded as a line on a sale (pos.md "Gift cards"). The line is
+owed but isn't Sales: `COUNTED_ITEM_LINE` keeps it out of recognition, so an order's
+`orderTotal` leaves it out. The money paid for it is booked like any payment on the order:
+credited to the deposit liability before the order is invoiced, against the receivable
+after (`settlesOf`). Without anything more, that money stays there: an order never
+invoiced (a card sold alone) leaves it in deposits for good, and one invoiced later
+leaves the receivable in credit by the card's amount.
+
+So the journal moves it on the day the card is issued (`CardLineMove` in
+`lib/journalEntry.ts`). The day's `GiftCardTransaction` rows tied to a sale line
+(`SALE_LINE_CARD_ROW` in `lib/giftCardLedger.ts`: the `ISSUANCE` or `RELOAD` a card line
+writes, and the negative `REFUND` that takes it back) each become:
+
+| Memo                                   | Account                                    | Debit  | Credit |
+| -------------------------------------- | ------------------------------------------ | ------ | ------ |
+| Deposits to gift cards (or "Invoiced") | deposit offset, or AR once invoiced        | amount |        |
+| Gift cards sold                        | `POS_PAYMENTS`/"Gift Card" (e.g. `2-2127`) |        | amount |
+
+A take-back's amount is negative, so `emitSigned` books the same two lines the other way.
+Which account the money comes out of is the same recorded fact a payment's is: the row's
+own time against the order's first live invoice date, so it leaves exactly the account the
+payment put it in. On the delivery day, `priorDepositCredited` leaves out what the card lines
+moved out of the deposit before the invoice, so the deposit relieved is the goods' and the
+receivable nets to zero. With the gift card, deposit or AR account unmapped, neither leg is
+written and the day warns ("... is not in the gift card liability"), so the money stays
+where it was paid rather than plugging. Pinned by `giftCardSaleBooks.integration.test.ts`:
+a $100 card sold for cash balances its day, credits 2-2127 by 100 and leaves nothing in
+deposits; a card and a sofa paid in full move the card's 100 on the sale day and recognise
+the sofa from 1,060 of deposits on its delivery day.
+
 ### Sample output (illustrative)
 
 An illustrative sales-day journal (1 day, all stores), with invented balanced amounts:
@@ -426,7 +458,17 @@ cards. A daily control that cries wolf daily is one people stop reading.
 names a tender, using `METHOD_DISPLAY` as the single source of truth for what
 counts as one.
 
-The reason this survived: `dailyReconciliation.integration.test.ts` hand-builds
+### A gift card sold on a sale isn't cash drift (2026-11-12)
+
+`POS_PAYMENTS`/"Gift Card" names a tender (a redemption is one), so its account is in
+`journal.cash`. The journal credits that account with the money paid for a card sold on a
+sale, so the journal's cash bucket nets the card out of the day's takings. `source.cash`
+does the same: `computeDailyReconciliation` subtracts the day's `SALE_LINE_CARD_ROW` rows
+(a take-back adds back) when that account is one of the tender accounts
+(`ReconciliationAccounts.giftCardLiability`). Unmapped, the journal leaves the money where
+it was paid and the source subtracts nothing.
+
+The reason the cash bucket's one-account bug survived: `dailyReconciliation.integration.test.ts` hand-builds
 its journal entries with `prisma.journalEntry.create` and never calls
 `generateSalesJournal`. It is a good test of the comparator and no test at all
 of the seam.
@@ -619,6 +661,7 @@ These are documented gaps as of 2026-04-28. Each is a Phase 0 BLOCKER or a Phase
 | Gap                                                                                    | Plan reference        | Status                                                                                                                                                                                                                                                                                               |
 | -------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Proportional line-level reversal for a native refund                                   | (deferred 2026-08-06) | A native refund books its cash leg only; the day is left short by the refund amount and surfaces as a warned plug. Reversing proportionally needs a decision about which lines a partial refund unwinds.                                                                                             |
+| Reconciliation revenue is counted on the order day, the journal's on the delivery day | (found 2026-11-12)    | `computeDailyReconciliation` sums lines on orders whose `orderDate` is the day; `generateSalesJournal` recognises an order on its invoice date. A sale delivered on a later day reads as revenue, tax and cost drift on both days (`giftCardSaleBooks.integration.test.ts` pins the figures). Not caused by gift cards; needs the reconciliation's source to follow recognition. |
 | `CASH_GL_CODES` / `DEPOSIT_GL_CODES` / `LIABILITY_DEBIT_CODES` still hardcoded         | (deferred 2026-08-06) | Rule-61 violation in the generator's write path; marked in-place. See "How the reconciliation identifies each bucket".                                                                                                                                                                               |
 | Cancelled-line filter in JE                                                            | B1                    | ✓ shipped (cancelled-line filter change)                                                                                                                                                                                                                                                             |
 | JE balance assertion before POST                                                       | B4                    | ✓ shipped (balance-assertion-before-POST change)                                                                                                                                                                                                                                                     |

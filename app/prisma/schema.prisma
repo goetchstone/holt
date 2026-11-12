@@ -3391,11 +3391,12 @@ model OrderLineItem {
   // card is issued once.
   giftCardNumber       String?
   giftCardId           Int?
-  giftCard             GiftCard?      @relation(fields: [giftCardId], references: [id])
+  giftCard             GiftCard?             @relation(fields: [giftCardId], references: [id])
+  giftCardTransactions GiftCardTransaction[]
   cancelReason         String?
-  replacedByLineItemId Int?           @unique
-  replacedByLineItem   OrderLineItem? @relation("ReplacedBy", fields: [replacedByLineItemId], references: [id])
-  replacesLineItem     OrderLineItem? @relation("ReplacedBy")
+  replacedByLineItemId Int?                  @unique
+  replacedByLineItem   OrderLineItem?        @relation("ReplacedBy", fields: [replacedByLineItemId], references: [id])
+  replacesLineItem     OrderLineItem?        @relation("ReplacedBy")
 
   purchaseOrderItems  PurchaseOrderItem[]
   invoiceLineItems    InvoiceLineItem[]
@@ -4062,12 +4063,20 @@ model GiftCardTransaction {
   balanceAfter    Decimal
   reference       String?
   notes           String?
+  // The sale line whose money this row moved: the card line that issued or reloaded the card
+  // (ISSUANCE/RELOAD), or that took its value back when it was cancelled or returned (a negative
+  // REFUND). The sales journal moves exactly these rows between the gift card liability and the
+  // money paid for them (lib/journalEntry.ts); a redemption or a payment refunded to the card is
+  // a payment, journaled as one, and has none.
+  orderLineItemId Int?
+  orderLineItem   OrderLineItem?          @relation(fields: [orderLineItemId], references: [id])
 
   created   DateTime @default(now())
   createdBy String?
 
   @@index([giftCardId])
   @@index([created])
+  @@index([orderLineItemId])
 }
 
 model GiftCardPreset {

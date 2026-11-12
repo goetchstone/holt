@@ -428,6 +428,36 @@ function SalesWithoutPaymentSection({
   );
 }
 
+// Whether a gift card sold on a sale can be refunded (AppSettings.giftCardsRefundable,
+// DECISIONS 57). Owner: "Most places will not refund a giftcard ... this should be a config and
+// then only if unused". Off by default.
+function GiftCardRefundSection({
+  value,
+  onChange,
+}: Readonly<{ value: boolean; onChange: (allowed: boolean) => void }>) {
+  return (
+    <section id="gift-card-refunds" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Gift card refunds</h2>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={value}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span>
+          Refund unused gift cards
+          <span className="block text-xs text-brand-gray">
+            When this is on, a gift card sold on a sale can be cancelled or returned while nothing
+            has been spent from it: its value comes off the card and the money goes back like any
+            refund. When it&apos;s off, a card that&apos;s live stays sold.
+          </span>
+        </span>
+      </label>
+    </section>
+  );
+}
+
 // Who may discount without a manager (AppSettings.discountLimitPercent, GAP-06).
 // A role holding "Apply discounts" may give any discount; everyone else up to
 // this, and above it a manager approves with their PIN. 0 locks it down.
@@ -1132,6 +1162,7 @@ export function SettingsOverviewView() {
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
           allowSaleWithoutPayment: settings.allowSaleWithoutPayment,
+          giftCardsRefundable: settings.giftCardsRefundable,
           defaultSplitPercent: settings.defaultSplitPercent,
           clientProfileChoices: settings.clientProfileChoices,
           followUpEmailHour: settings.followUpEmailHour ?? null,
@@ -1259,6 +1290,12 @@ export function SettingsOverviewView() {
         value={settings.allowSaleWithoutPayment}
         onChange={(allowed) =>
           setSettings((prev) => (prev ? { ...prev, allowSaleWithoutPayment: allowed } : prev))
+        }
+      />
+      <GiftCardRefundSection
+        value={settings.giftCardsRefundable}
+        onChange={(allowed) =>
+          setSettings((prev) => (prev ? { ...prev, giftCardsRefundable: allowed } : prev))
         }
       />
       <DiscountsSection

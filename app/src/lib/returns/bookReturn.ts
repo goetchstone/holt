@@ -20,6 +20,11 @@
 // Its total is what the customer is owed (negative). Refunds on it bring it to
 // zero; the customer's AR ledger moves with it.
 //
+// A gift card line returns whole, and its value comes off the card here, in
+// the booking's transaction (lib/sales/giftCardLines.ts takeBackCardLine). Its
+// negative line is a card line too, so it reverses no revenue: the card was a
+// liability, and the journal moves it back off 2-2127 from the ledger row.
+//
 // Idempotent: a second call returns the booking already made, and refuses a
 // different fee, because the fee is part of what was booked.
 
@@ -28,6 +33,7 @@ import { appendEntry } from "@/lib/customerLedger";
 import { POS_TRANSACTIONS_SECTION, RESTOCKING_FEE_MAPPING_LABEL } from "@/lib/glMapping";
 import { roundMoney as round2 } from "@/lib/money";
 import { toQty } from "@/lib/inventory/quantity";
+import { takeBackCardLine } from "@/lib/sales/giftCardLines";
 import {
   computeReturnRefundable,
   computeReturnValue,
@@ -163,6 +169,8 @@ export async function bookReturn(
           productName: true,
           partNo: true,
           taxDistrictId: true,
+          giftCardNumber: true,
+          giftCardId: true,
         },
       },
       salesOrder: {
@@ -242,6 +250,22 @@ export async function bookReturn(
   const original = ret.salesOrder;
   const customerId = ret.customerId ?? original.customerId;
   const at = opts.at ?? new Date();
+
+  // A gift card comes back whole or not at all: its value comes off the card now, with the
+  // return's money, or the booking is refused.
+  if (line.giftCardNumber) {
+    if (value.net !== round2(n(line.netPrice)) || fee > 0) {
+      throw new ReturnMoneyError(
+        `Gift card ${line.giftCardNumber} is returned whole, with no restocking fee.`,
+      );
+    }
+    const problem = await takeBackCardLine(tx, ret.lineItemId, opts.createdBy ?? null, {
+      action: "return",
+      reference: `Return ${ret.returnNumber}`,
+      at,
+    });
+    if (problem) throw new ReturnMoneyError(problem);
+  }
   const returnOrder = await tx.salesOrder.create({
     data: {
       orderno: ret.returnNumber,
@@ -272,6 +296,8 @@ export async function bookReturn(
       vatRate: line.vatRate,
       cost: -value.cost,
       taxDistrictId: line.taxDistrictId,
+      giftCardNumber: line.giftCardNumber,
+      giftCardId: line.giftCardId,
     },
   });
   let feeLineId: number | null = null;

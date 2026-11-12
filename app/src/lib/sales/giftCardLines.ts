@@ -9,13 +9,27 @@
 // Every path that completes a payment on an order calls issuePaidGiftCards (rule 42):
 // recordPaymentTx (the register, the order screen's store credit, a return's credit applied to
 // what the original still owes) and completePayment (a processor's webhook). See pos.md.
+//
+// Taking a live card back is the store's call (AppSettings.giftCardsRefundable, off by default;
+// owner: "Most places will not refund a giftcard ... this should be a config and then only if
+// unused"). giftCardLineChangeProblem is the one gate, and takeBackCardLine moves the value off
+// the card in the transaction of the money that goes back: a whole-sale cancel, cancelling the
+// line, or booking its return.
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { computeBalance, round2 } from "@/lib/paymentService";
 import { COUNTED_LINE_FILTER, isCountedLine } from "@/lib/salesOrderRevenue";
-import { creditToCard, GiftCardError, issueCard, parseCardAmount } from "@/lib/giftCardLedger";
+import {
+  creditToCard,
+  GiftCardError,
+  isClosedCard,
+  issueCard,
+  parseCardAmount,
+  takeBackFromCard,
+} from "@/lib/giftCardLedger";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
+import { getAppSettings } from "@/lib/appSettings";
 import {
   GIFT_CARD_LINE_NAME,
   closedCardMessage,
@@ -99,25 +113,98 @@ function cardLineAmount(value: unknown): number | string {
   return amount;
 }
 
+/** Where a store turns refunding cards on, named in every refusal it causes. */
+const REFUND_SETTING = 'Settings, "Refund unused gift cards"';
+
 /**
  * Why a card line can't take this change, or null (a line that isn't a card, or a change that's
  * fine). A card line is a card's number and the money paid for it, so its price, quantity and
  * product don't change, or the card would hold what nobody paid for: it's cancelled (or taken off
- * a quote) and sold again at the register. Once its card is issued it can't be cancelled either:
- * cancelling or returning a live card isn't built yet. A note can always go on. `action` is the
- * line route's (`cancel`, `update`, `note`...), or `remove` for taking it off a quote, or `return`. The line
- * route, a whole-sale cancel and a new return all ask (rule 42).
+ * a quote) and sold again at the register. Once its card is issued it can be cancelled or
+ * returned only where the store refunds cards, and only while the card is unused
+ * (liveCardRefundProblem). A note can always go on. `action` is the line route's (`cancel`,
+ * `update`, `note`...), or `remove` for taking it off a quote, or `return`. The line route, a
+ * whole-sale cancel, a new return and takeBackCardLine all ask (rule 42).
  */
-export function giftCardLineChangeProblem(
-  line: { giftCardNumber: string | null; giftCardId: number | null },
+export async function giftCardLineChangeProblem(
+  db: Tx | typeof prisma,
+  line: { id: number; giftCardNumber: string | null; giftCardId: number | null },
   action: string,
-): string | null {
+): Promise<string | null> {
   if (!line.giftCardNumber || action === "note") return null;
   if (line.giftCardId != null) {
-    return `Gift card ${line.giftCardNumber} is live, so its line can't be changed, cancelled or returned yet.`;
+    if (action === "cancel" || action === "return") {
+      return liveCardRefundProblem(db, line.id, action);
+    }
+    return `Gift card ${line.giftCardNumber} is live, so its line can't be changed. Cancel or return it instead.`;
   }
   if (action === "cancel" || action === "remove") return null;
   return "A gift card line is the card's number and amount, so it can't be changed. Cancel it and sell the card again at the register.";
+}
+
+/**
+ * Why a live card's line can't be cancelled or returned, or null. The store has to refund cards,
+ * and the card has to be unused: it still holds the line's whole amount and nothing has left it
+ * since this line issued or reloaded it. A return is for a sale that was invoiced, as with goods;
+ * before that the line is cancelled, and its money goes back from the deposit it sits in.
+ */
+async function liveCardRefundProblem(
+  db: Tx | typeof prisma,
+  lineItemId: number,
+  action: "cancel" | "return",
+): Promise<string | null> {
+  const line = await db.orderLineItem.findUniqueOrThrow({
+    where: { id: lineItemId },
+    select: {
+      giftCardNumber: true,
+      giftCardId: true,
+      netPrice: true,
+      salesOrder: {
+        select: { invoices: { where: { status: { not: "VOID" } }, select: { id: true }, take: 1 } },
+      },
+      giftCardTransactions: {
+        select: { id: true, transactionType: true, amount: true },
+        orderBy: { id: "asc" },
+      },
+    },
+  });
+  const number = line.giftCardNumber;
+  const cardId = line.giftCardId;
+  if (cardId == null) return null;
+  if (!(await getAppSettings()).giftCardsRefundable) {
+    return `Gift card ${number} is live, and this store doesn't refund gift cards (${REFUND_SETTING}).`;
+  }
+  // Its value already came off the card: a cancel that refunded and then didn't finish. Cancelling
+  // again finishes it; a return would pay it back a second time.
+  if (line.giftCardTransactions.some((t) => Number(t.amount) < 0)) {
+    return action === "cancel"
+      ? null
+      : `Gift card ${number}'s value has already come back off the card. Cancel its line to finish.`;
+  }
+  if (action === "return" && line.salesOrder.invoices.length === 0) {
+    return `Gift card ${number}'s sale hasn't been invoiced, so cancel its line instead of returning it.`;
+  }
+  const issued = line.giftCardTransactions.find(
+    (t) => t.transactionType === "ISSUANCE" || t.transactionType === "RELOAD",
+  );
+  const card = await db.giftCard.findUniqueOrThrow({
+    where: { id: cardId },
+    select: { status: true, currentBalance: true },
+  });
+  const spentSince = issued
+    ? await db.giftCardTransaction.count({
+        where: { giftCardId: cardId, id: { gt: issued.id }, amount: { lt: 0 } },
+      })
+    : 0;
+  if (
+    !issued ||
+    spentSince > 0 ||
+    isClosedCard(card.status) ||
+    Number(card.currentBalance) < Number(line.netPrice)
+  ) {
+    return `Gift card ${number} has been used since it was sold, so it can't be refunded.`;
+  }
+  return null;
 }
 
 /** giftCardLineChangeProblem for a line by its id; null for a line that isn't there. */
@@ -128,9 +215,51 @@ export async function giftCardLineEditProblem(
 ): Promise<string | null> {
   const line = await db.orderLineItem.findUnique({
     where: { id: lineItemId },
-    select: { giftCardNumber: true, giftCardId: true },
+    select: { id: true, giftCardNumber: true, giftCardId: true },
   });
-  return line ? giftCardLineChangeProblem(line, action) : null;
+  return line ? giftCardLineChangeProblem(db, line, action) : null;
+}
+
+/**
+ * Take a live card line's value back off its card, in the caller's transaction: the one that
+ * returns its money (a refund's, or the credit's, or the cancel's or return's own). Returns why it
+ * can't (the gate's answer, for the caller to throw as its own error), or null once the value is
+ * off the card. Nothing for a line that isn't a live card, and nothing the second time: the line
+ * and its card are locked, so of two at once the second sees the first's REFUND row.
+ */
+export async function takeBackCardLine(
+  tx: Tx,
+  lineItemId: number,
+  actor: string | null,
+  opts: { action: "cancel" | "return"; reference?: string; at?: Date },
+): Promise<string | null> {
+  await tx.$queryRaw`SELECT id FROM "OrderLineItem" WHERE id = ${lineItemId} FOR UPDATE`;
+  const line = await tx.orderLineItem.findUnique({
+    where: { id: lineItemId },
+    select: {
+      id: true,
+      giftCardNumber: true,
+      giftCardId: true,
+      netPrice: true,
+      salesOrder: { select: { id: true, orderno: true } },
+      giftCardTransactions: { where: { amount: { lt: 0 } }, select: { id: true } },
+    },
+  });
+  if (!line?.giftCardNumber || line.giftCardId == null) return null;
+  if (opts.action === "cancel" && line.giftCardTransactions.length > 0) return null;
+  await tx.$queryRaw`SELECT id FROM "GiftCard" WHERE id = ${line.giftCardId} FOR UPDATE`;
+  const problem = await giftCardLineChangeProblem(tx, line, opts.action);
+  if (problem) return problem;
+  const order = line.salesOrder;
+  await takeBackFromCard(tx, {
+    cardId: line.giftCardId,
+    amount: Number(line.netPrice),
+    orderLineItemId: line.id,
+    createdBy: actor,
+    reference: opts.reference ?? (order.orderno ? `Order ${order.orderno}` : `Order #${order.id}`),
+    at: opts.at,
+  });
+  return null;
 }
 
 /**
@@ -202,6 +331,7 @@ export async function issuePaidGiftCards(
         type: "RELOAD",
         createdBy: actor,
         reference,
+        orderLineItemId: line.id,
       });
       cardId = existing.id;
     } else {
@@ -210,6 +340,7 @@ export async function issuePaidGiftCards(
         amount,
         createdBy: actor,
         reference,
+        orderLineItemId: line.id,
       }));
     }
     await tx.orderLineItem.update({ where: { id: line.id }, data: { giftCardId: cardId } });

@@ -131,6 +131,9 @@ export interface ResolvedAppSettings {
   emailShowLogo: boolean;
   /** Whether a sale may go ahead with nothing paid (DECISIONS 51). Off is the strict default. */
   allowSaleWithoutPayment: boolean;
+  /** Whether a gift card sold on a sale can be refunded, and then only while unused
+   *  (lib/sales/giftCardLines.ts, DECISIONS 57). Off is the default. */
+  giftCardsRefundable: boolean;
   emailFooter: string | null;
   lowStockAlertEmails: string | null;
   /** The hour of the store's day it goes, 0-23; null is off. */
@@ -208,6 +211,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   emailAccentColor: null,
   emailShowLogo: false,
   allowSaleWithoutPayment: false,
+  giftCardsRefundable: false,
   emailFooter: null,
   lowStockAlertEmails: null,
   lowStockAlertHour: null,
@@ -254,6 +258,7 @@ interface AppSettingsRow {
   emailAccentColor?: string | null;
   emailShowLogo?: boolean;
   allowSaleWithoutPayment?: boolean;
+  giftCardsRefundable?: boolean;
   emailFooter?: string | null;
   lowStockAlertEmails?: string | null;
   lowStockAlertHour?: number | null;
@@ -349,6 +354,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     emailAccentColor: row.emailAccentColor ?? null,
     emailShowLogo: row.emailShowLogo ?? false,
     allowSaleWithoutPayment: row.allowSaleWithoutPayment ?? false,
+    giftCardsRefundable: row.giftCardsRefundable ?? false,
     emailFooter: row.emailFooter ?? null,
     lowStockAlertEmails: row.lowStockAlertEmails ?? null,
     lowStockAlertHour: row.lowStockAlertHour ?? null,

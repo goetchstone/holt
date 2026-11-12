@@ -11,6 +11,9 @@
 //   2. Everything else, in one transaction: STORE_CREDIT, the lines, the stock, the POs,
 //      the schedule, draft transfers, consignment pieces and open stock exceptions.
 //
+// A live gift card's value comes back off the card (takeBackCards) in the transaction of the
+// first money that goes back: the first refund's, or this one's when the money is credited.
+//
 // What this refuses, and why, is in cancelProblem. Revenue and sales tax are booked from
 // invoices (lib/journalEntry.ts, lib/reports/taxSummary.ts), so a live invoice has to be
 // voided first, and that's what keeps the books right.
@@ -34,7 +37,7 @@ import { signedPaymentAmount } from "@/lib/paymentBalance";
 import { type RefundDestination } from "@/lib/returns/refundReturn";
 import { dropPoLines, keepPoAsStock, poOutcome, readSalePos, type SalePo } from "./salePos";
 import { type PoDecision } from "./salePosShared";
-import { giftCardLineChangeProblem } from "@/lib/sales/giftCardLines";
+import { giftCardLineChangeProblem, takeBackCardLine } from "@/lib/sales/giftCardLines";
 
 /** A cancel refused before anything moved; `status` is what the route answers. */
 export class CancelOrderError extends Error {
@@ -84,6 +87,7 @@ export async function readCancelPlan(orderId: number, db: Db = prisma): Promise<
       splitWithId: true,
       lineItems: {
         select: {
+          id: true,
           lineItemStatus: true,
           fulfilledQty: true,
           giftCardNumber: true,
@@ -149,6 +153,7 @@ async function cancelProblem(
     status: string;
     deliveredAt: Date | null;
     lineItems: {
+      id: number;
       lineItemStatus: string;
       fulfilledQty: unknown;
       giftCardNumber: string | null;
@@ -171,11 +176,13 @@ async function cancelProblem(
   ) {
     return "Part of this order has already gone to the customer. Cancel the lines that haven't, and do a return for the rest.";
   }
-  // A live gift card keeps its balance: refunding the sale under it would pay twice.
-  const card = order.lineItems
-    .map((line) => giftCardLineChangeProblem(line, "cancel"))
-    .find(Boolean);
-  if (card) return card;
+  // A live gift card comes back off its card only where the store refunds cards and it's unused:
+  // otherwise refunding the sale under it would pay twice.
+  for (const line of order.lineItems) {
+    if (line.lineItemStatus !== "ACTIVE") continue;
+    const card = await giftCardLineChangeProblem(db, line, "cancel");
+    if (card) return card;
+  }
   const money = await moneyProblem(order, db);
   if (money) return money;
   const moving = await db.inventoryTransfer.count({
@@ -352,6 +359,7 @@ export async function cancelOrder(orderId: number, input: CancelInput): Promise<
         amount: payment.amount,
         reason,
         createdBy: input.actor ?? undefined,
+        guard: (tx) => takeBackCards(tx, orderId, input.actor),
       });
       await logRefund(payment.amount);
     }
@@ -368,6 +376,21 @@ export async function cancelOrder(orderId: number, input: CancelInput): Promise<
       .filter((po) => po.status === "SUBMITTED")
       .map((po) => ({ poNumber: po.poNumber, vendor: po.vendor })),
   };
+}
+
+/**
+ * Every live gift card on the sale comes back off its card, in the caller's transaction (the
+ * money's), once: lib/sales/giftCardLines.ts takeBackCardLine.
+ */
+async function takeBackCards(tx: Db, orderId: number, actor: string | null): Promise<void> {
+  const lines = await tx.orderLineItem.findMany({
+    where: { salesOrderId: orderId, lineItemStatus: "ACTIVE", giftCardId: { not: null } },
+    select: { id: true },
+  });
+  for (const line of lines) {
+    const problem = await takeBackCardLine(tx, line.id, actor, { action: "cancel" });
+    if (problem) throw new CancelOrderError(problem);
+  }
 }
 
 function poChangeReason(
@@ -410,6 +433,8 @@ async function closeTheSale(
     },
   });
 
+  // A live card's value, if no refund took it back already.
+  await takeBackCards(tx, orderId, actor);
   // The lines go too, so nothing is owed on it and no one can be asked to pay.
   await tx.orderLineItem.updateMany({
     where: { salesOrderId: orderId, lineItemStatus: "ACTIVE" },
@@ -611,9 +636,24 @@ export async function refundOverpayment(
       amount: payment.amount,
       reason,
       createdBy: actor ?? undefined,
+      // A live gift card being cancelled comes back off its card with its money.
+      guard: (tx) => takeBackLineCard(tx, lineItemId, actor),
     });
     await log(payment.amount);
   }
+}
+
+/**
+ * A cancelled card line's value comes back off its card, in the caller's transaction: the first
+ * refund's, or the one that cancels the line. Nothing for any other line, or the second time.
+ */
+export async function takeBackLineCard(
+  tx: Db,
+  lineItemId: number,
+  actor: string | null,
+): Promise<void> {
+  const problem = await takeBackCardLine(tx, lineItemId, actor, { action: "cancel" });
+  if (problem) throw new CancelOrderError(problem);
 }
 
 /** Onto the customer's account, in the transaction that changes the line. */
