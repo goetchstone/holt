@@ -11,7 +11,6 @@ import {
   onPaymentReceived,
   reportUntrackedCheckoutPaid,
 } from "@/lib/paymentService";
-import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
 import { reportOpsAlert } from "@/lib/opsAlert";
 
@@ -128,28 +127,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // The charge is confirmed; now post it to the books. If any step throws,
       // the money has moved at Stripe but our ledger is out of sync — the most
-      // important failure to surface. Alert, then 500 so Stripe retries; every
-      // step below is idempotent, so a retry re-runs cleanly once fixed.
+      // important failure to surface. Alert, then 500 so Stripe retries.
       try {
-        // Flip to COMPLETED and post the AR-ledger entry atomically — the charge
-        // is only now confirmed. Idempotent if the webhook re-fires. (#137)
-        await completePayment(pendingPayment.id, extraData);
+        // One transaction: COMPLETED, the AR-ledger entry, an order's gift
+        // cards, and an invoice's application and AR_PAYMENT journal. A
+        // failure writes none of it and leaves the row PENDING, so Stripe's
+        // retry finds it and posts it whole. Routing is structural
+        // (Payment.invoiceId, set at link creation); the metadata id is only a
+        // cross-check, and a mismatch refuses the completion. (#137)
+        const completed = await completePayment(pendingPayment.id, extraData, {
+          metadataInvoiceId: invoiceId ? Number(invoiceId) : undefined,
+        });
 
-        // Promote QUOTE → ORDER and create draft POs
-        if (pendingPayment.salesOrderId) {
-          await onPaymentReceived(pendingPayment.salesOrderId);
-        }
-
-        // Authored-invoice payment: apply to the invoice + post the AR_PAYMENT
-        // journal. Routing is structural (Payment.invoiceId, set at link
-        // creation); the metadata id is only a cross-check — a mismatch throws,
-        // Stripe retries, and completePayment above stays a no-op, so the
-        // application lands once the discrepancy is investigated.
-        if (pendingPayment.invoiceId !== null || invoiceId) {
-          await applyInvoiceStripePayment(
-            pendingPayment.id,
-            invoiceId ? Number(invoiceId) : undefined,
-          );
+        if (!completed) {
+          // Another delivery completed it first (silent), or it was voided or
+          // expired meanwhile: money Holt stopped tracking (alert).
+          await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
+        } else if (completed.salesOrderId) {
+          // Promote QUOTE → ORDER and create draft POs. Not money, and not
+          // retried: a retry finds the row COMPLETED.
+          await onPaymentReceived(completed.salesOrderId);
         }
       } catch (err) {
         logError("Stripe webhook: failed to post confirmed payment to the ledger", err, {

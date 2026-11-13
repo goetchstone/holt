@@ -3,9 +3,9 @@
 import type { Prisma } from "@prisma/client";
 import {
   CancelOrderError,
-  creditOverpayment,
   overpaidAfterLineChange,
   refundOverpayment,
+  settleLineChange,
   takeBackLineCard,
 } from "@/lib/sales/cancelOrder";
 import { RefundError, RefundProcessorError } from "@/lib/paymentService";
@@ -87,22 +87,39 @@ export async function handler(
         destination,
       } = req.body;
 
+      const order = await prisma.salesOrder.findUnique({ where: { id: orderId } });
+      if (!order) return res.status(404).json({ error: "Order not found." });
+
+      const lineItem = await prisma.orderLineItem.findFirst({
+        where: { id: itemId, salesOrderId: orderId },
+      });
+      if (!lineItem) return res.status(404).json({ error: "Line item not found." });
+
       // A change that leaves more paid than is owed has to say where the rest goes, as
       // cancelling the whole sale does (DECISIONS 52). `refused` means it has answered.
+      // `settleIn` runs first in the change's own transaction: it locks the order, checks the
+      // line is as read, and settles what's over then (lib/sales/cancelOrder.ts
+      // settleLineChange), so a change sent twice settles once. It returns whether it credited.
       const settleOverpayment = async (
         newLineTotal: number,
         why: string,
       ): Promise<
         | { refused: true }
-        | {
-            refused: false;
-            creditIn: (tx: Prisma.TransactionClient) => Promise<void>;
-            /** True when the money goes back in the line change's own transaction (a credit). */
-            creditsInTx: boolean;
-          }
+        | { refused: false; settleIn: (tx: Prisma.TransactionClient) => Promise<boolean> }
       > => {
+        const settleIn =
+          (credit: { customerId: number } | null) => (tx: Prisma.TransactionClient) =>
+            settleLineChange(tx, {
+              orderId,
+              lineItemId: itemId,
+              lineStatus: lineItem.lineItemStatus,
+              lineTotal: newLineTotal,
+              credit,
+              reason: why,
+              actor: changedBy,
+            });
         const over = await overpaidAfterLineChange(orderId, itemId, newLineTotal);
-        if (!over) return { refused: false, creditIn: async () => {}, creditsInTx: false };
+        if (!over) return { refused: false, settleIn: settleIn(null) };
         if (!isRefundDestination(destination)) {
           res.status(409).json({
             error: `This leaves the customer $${over.excess.toFixed(2)} overpaid. Say whether it goes back the way it was paid, or onto their account.`,
@@ -127,25 +144,9 @@ export async function handler(
           return { refused: true };
         }
         await refundOverpayment(orderId, itemId, over, destination, why, changedBy);
-        return {
-          refused: false,
-          creditsInTx: credit,
-          creditIn: async (tx) => {
-            if (credit && customerId !== null) {
-              const amount = { customerId, amount: toSettle };
-              await creditOverpayment(tx, orderId, itemId, amount, why, changedBy);
-            }
-          },
-        };
+        const onAccount = destination === "STORE_CREDIT" && customerId !== null;
+        return { refused: false, settleIn: settleIn(onAccount ? { customerId } : null) };
       };
-
-      const order = await prisma.salesOrder.findUnique({ where: { id: orderId } });
-      if (!order) return res.status(404).json({ error: "Order not found." });
-
-      const lineItem = await prisma.orderLineItem.findFirst({
-        where: { id: itemId, salesOrderId: orderId },
-      });
-      if (!lineItem) return res.status(404).json({ error: "Line item not found." });
 
       // Nothing on a cancelled sale changes: its money and stock have gone back. A note
       // can still go on, and a relink only fixes how a line reports.
@@ -330,15 +331,15 @@ export async function handler(
         if (money.refused) return;
 
         const result = await prisma.$transaction(async (tx) => {
+          const credited = await money.settleIn(tx);
           // A live gift card's value comes back off it with the line's money (gated above). A
           // refund before this took it already; a credit here takes it now, and refuses a card
           // already taken back, so a cancel sent twice can't credit twice.
-          await takeBackLineCard(tx, itemId, changedBy, !money.creditsInTx);
+          await takeBackLineCard(tx, itemId, changedBy, !credited);
           const updated = await tx.orderLineItem.update({
             where: { id: itemId },
             data: { lineItemStatus: "CANCELLED", cancelReason: reason },
           });
-          await money.creditIn(tx);
 
           for (const po of linePos) {
             const outcome = poOutcome(po, isPoDecision(poDecision) ? poDecision : undefined);
@@ -449,7 +450,7 @@ export async function handler(
         if (money.refused) return;
 
         const result = await prisma.$transaction(async (tx) => {
-          await money.creditIn(tx);
+          await money.settleIn(tx);
           // Create the replacement line item
           const newItem = await tx.orderLineItem.create({
             data: {
@@ -601,7 +602,7 @@ export async function handler(
         if (money.refused) return;
 
         const result = await prisma.$transaction(async (tx) => {
-          await money.creditIn(tx);
+          await money.settleIn(tx);
           if (priceApprover) {
             await logDiscountApproval(tx, {
               orderId,

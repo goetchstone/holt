@@ -576,9 +576,11 @@ describe("money for a card moves only with the card", () => {
       destination: "ORIGINAL_PAYMENT",
     });
     expect(first.statusCode).toBe(200);
+    // Refused by the refund's own guard, under the order's lock, before the card's (which
+    // would refuse it too): what the change leaves over is worked out again, and it's gone.
     await expect(
       refundOverpayment(order.id, line.id, stale!, "ORIGINAL_PAYMENT", "Changed mind", ACTOR),
-    ).rejects.toThrow("already been taken back");
+    ).rejects.toThrow("The money on this order changed since this was worked out");
 
     const refunds = await prisma.payment.findMany({ where: { isRefund: true } });
     expect(refunds.map((r) => Number(r.paymentAmount))).toEqual([50]);

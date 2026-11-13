@@ -8,8 +8,9 @@
 //   PAYMENT creates a COMPLETED Payment (customer-linked, no sales order),
 //           a PaymentApplication for the same amount, an AR_PAYMENT journal
 //           (debit cash/card GL, credit AR control), and a PAYMENT ledger
-//           entry (-amount) — Stripe payments do the ledger half through
-//           completePayment, then applyInvoiceStripePayment adds the rest.
+//           entry (-amount) — a card checkout's webhook does all of it in
+//           completePayment's one transaction, the rest through
+//           applyInvoiceCardPayment.
 //   VOID    of an ISSUED invoice posts the reversing journal and an
 //           ADJUSTMENT_CREDIT ledger entry; refused once payments exist.
 //
@@ -17,6 +18,8 @@
 // the customer ledger, the open-item view, and the AR drift check agree by
 // construction. Journal numbers are ARI-/ARP-/ARV-<invoiceNo> — unique, so a
 // retried webhook can never double-post.
+//
+// Every writer locks the invoice's row first (lockInvoice), then reads it.
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -115,6 +118,18 @@ function openBalanceOf(
   let applied = 0;
   for (const a of applications) applied += Number(a.amountApplied);
   return round2(total - applied);
+}
+
+/**
+ * Lock the invoice's row for the rest of the transaction, before anything about it is read.
+ * Of a payment, a card payment, a void, an issue or an edit landing together, each then
+ * decides after the one before has committed, on what it left: under READ COMMITTED each
+ * statement after the lock reads afresh. Without it, two payments both saw the whole balance
+ * open and both applied, a void and a payment each missed the other, and a draft's delete
+ * removed an invoice an issue had just posted.
+ */
+async function lockInvoice(tx: Tx, id: number): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${id} FOR UPDATE`;
 }
 
 async function nextInvoiceNumber(tx: Tx, date: Date): Promise<string> {
@@ -278,6 +293,7 @@ export interface UpdateDraftInput {
 export async function updateDraftInvoice(id: number, input: UpdateDraftInput): Promise<void> {
   const totals = computeInvoiceTotals(input.lines, input.taxRate ?? 0);
   await prisma.$transaction(async (tx) => {
+    await lockInvoice(tx, id);
     const invoice = await tx.invoice.findUniqueOrThrow({
       where: { id },
       select: { status: true, organizationId: true },
@@ -317,6 +333,7 @@ export async function updateDraftInvoice(id: number, input: UpdateDraftInput): P
 
 export async function deleteDraftInvoice(id: number): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await lockInvoice(tx, id);
     const invoice = await tx.invoice.findUniqueOrThrow({
       where: { id },
       select: { status: true, organizationId: true },
@@ -344,6 +361,7 @@ function assertAuthored(organizationId: number | null): void {
 
 export async function issueInvoice(id: number, issuedBy?: string | null): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await lockInvoice(tx, id);
     const invoice = await tx.invoice.findUniqueOrThrow({
       where: { id },
       select: {
@@ -401,6 +419,7 @@ export async function issueInvoice(id: number, issuedBy?: string | null): Promis
 
 export async function voidInvoice(id: number, voidedBy?: string | null): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await lockInvoice(tx, id);
     const invoice = await tx.invoice.findUniqueOrThrow({
       where: { id },
       select: {
@@ -526,6 +545,9 @@ export async function recordInvoicePayment(
 ): Promise<{ paymentId: number; openBalance: number }> {
   const amount = round2(input.amount);
   return prisma.$transaction(async (tx) => {
+    // The open balance below is read under the lock: two payments of the same
+    // balance can't both find it open.
+    await lockInvoice(tx, id);
     const invoice = await tx.invoice.findUniqueOrThrow({
       where: { id },
       select: {
@@ -636,11 +658,14 @@ export async function recordInvoicePayment(
 }
 
 /**
- * Post-completion side effects for a Stripe invoice payment, called from the
- * webhook after completePayment() ran (payment COMPLETED + PAYMENT ledger
- * entry for the FULL amount). Adds the PaymentApplication, the AR_PAYMENT
- * journal, and the PAID flip. Idempotent: re-fired webhooks find the
- * existing application/journal.
+ * What a card checkout on an invoice pays, in completePayment's transaction
+ * (the payment COMPLETED, and the PAYMENT ledger entry for the FULL amount):
+ * the PaymentApplication, the AR_PAYMENT journal, and the PAID flip. One
+ * transaction with the completion, so a failure here (a missing GL mapping, a
+ * metadata mismatch) leaves the payment PENDING with nothing posted, and the
+ * processor's retry posts it whole. Provider-neutral: it posts off
+ * Payment.invoiceId, never anything Stripe-specific. Idempotent: an existing
+ * application or journal is found and kept.
  *
  * Routing is structural: the invoice comes from Payment.invoiceId (set at
  * link creation), never from webhook metadata. When the caller passes the
@@ -654,89 +679,91 @@ export async function recordInvoicePayment(
  * credit, exactly what arEngine.paymentUnapplied() models, and the customer
  * ledger / drift check both see the full amount so everything ties.
  */
-export async function applyInvoiceStripePayment(
+export async function applyInvoiceCardPayment(
+  tx: Tx,
   paymentId: number,
   metadataInvoiceId?: number,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.findUniqueOrThrow({
-      where: { id: paymentId },
-      select: { paymentAmount: true, status: true, invoiceId: true },
-    });
-    if (payment.status !== "COMPLETED") return;
-    if (payment.invoiceId === null) {
-      throw new InvoiceValidationError(
-        `Payment ${paymentId} has no invoice binding; refusing to apply`,
-      );
-    }
-    if (metadataInvoiceId !== undefined && metadataInvoiceId !== payment.invoiceId) {
-      throw new InvoiceValidationError(
-        `Webhook invoiceId ${metadataInvoiceId} does not match the payment's bound invoice ${payment.invoiceId}; refusing to apply`,
-      );
-    }
-    const invoiceId = payment.invoiceId;
-    const invoice = await tx.invoice.findUniqueOrThrow({
-      where: { id: invoiceId },
-      select: {
-        invoiceNo: true,
-        status: true,
-        total: true,
-        organizationId: true,
-        applications: { select: { paymentId: true, amountApplied: true } },
+  const payment = await tx.payment.findUniqueOrThrow({
+    where: { id: paymentId },
+    select: { paymentAmount: true, status: true, invoiceId: true },
+  });
+  if (payment.status !== "COMPLETED") return;
+  if (payment.invoiceId === null) {
+    throw new InvoiceValidationError(
+      `Payment ${paymentId} has no invoice binding; refusing to apply`,
+    );
+  }
+  if (metadataInvoiceId !== undefined && metadataInvoiceId !== payment.invoiceId) {
+    throw new InvoiceValidationError(
+      `Webhook invoiceId ${metadataInvoiceId} does not match the payment's bound invoice ${payment.invoiceId}; refusing to apply`,
+    );
+  }
+  const invoiceId = payment.invoiceId;
+  // The open balance is read under the lock: a payment recorded by hand at
+  // the same moment can't take the same balance.
+  await lockInvoice(tx, invoiceId);
+  const invoice = await tx.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
+    select: {
+      invoiceNo: true,
+      status: true,
+      total: true,
+      organizationId: true,
+      applications: { select: { paymentId: true, amountApplied: true } },
+    },
+  });
+  if (invoice.total === null) return;
+  if (invoice.applications.some((a) => a.paymentId === paymentId)) return;
+
+  const amount = round2(Number(payment.paymentAmount));
+  // A stale link can complete after the invoice left ISSUED (e.g. voided):
+  // cash still arrived and the ledger entry exists, so the journal below
+  // always posts — but nothing gets applied to a non-AR invoice; the whole
+  // amount stays as on-account credit.
+  const open =
+    invoice.status === "ISSUED" || invoice.status === "PAID"
+      ? openBalanceOf(Number(invoice.total), invoice.applications)
+      : 0;
+  const applied = Math.min(amount, Math.max(0, open));
+
+  if (applied > 0) {
+    await tx.paymentApplication.create({
+      data: {
+        organizationId: invoice.organizationId ?? DEFAULT_ORG_ID,
+        paymentId,
+        invoiceId,
+        amountApplied: applied,
       },
     });
-    if (invoice.total === null) return;
-    if (invoice.applications.some((a) => a.paymentId === paymentId)) return;
-
-    const amount = round2(Number(payment.paymentAmount));
-    // A stale link can complete after the invoice left ISSUED (e.g. voided):
-    // cash still arrived and the ledger entry exists, so the journal below
-    // always posts — but nothing gets applied to a non-AR invoice; the whole
-    // amount stays as on-account credit.
-    const open =
-      invoice.status === "ISSUED" || invoice.status === "PAID"
-        ? openBalanceOf(Number(invoice.total), invoice.applications)
-        : 0;
-    const applied = Math.min(amount, Math.max(0, open));
-
-    if (applied > 0) {
-      await tx.paymentApplication.create({
-        data: {
-          organizationId: invoice.organizationId ?? DEFAULT_ORG_ID,
-          paymentId,
-          invoiceId,
-          amountApplied: applied,
-        },
-      });
-    }
-    const gl = await resolveArGlMappings(tx);
-    // A hosted checkout is a card payment, labelled METHOD_DISPLAY.CARD when
-    // startHostedCheckout wrote it; the cash side is that label's mapping.
-    const cardMapping = await tx.systemGLMapping.findUnique({
-      where: { section_label: { section: "POS_PAYMENTS", label: METHOD_DISPLAY.CARD } },
-      select: { glAccountId: true },
-    });
-    if (!cardMapping?.glAccountId) {
-      throw new InvoiceValidationError(
-        `No GL mapping for payment type "${METHOD_DISPLAY.CARD}". Map it under POS Payments in Admin -> Setup -> Accounting.`,
-      );
-    }
-    // Full payment amount — must mirror the ledger entry completePayment
-    // posted, or cash/AR drift apart by the unapplied surplus.
-    await postJournal(tx, {
-      journalNumber: `ARP-${invoice.invoiceNo}-${paymentId}`,
-      journalType: "AR_PAYMENT",
-      lines: buildInvoicePaymentJournalLines({
-        invoiceNo: invoice.invoiceNo,
-        amount,
-        cashGlAccountId: cardMapping.glAccountId,
-        arGlAccountId: gl.arGlAccountId,
-      }),
-    });
-    if (round2(open - applied) <= PAID_TOLERANCE && invoice.status === "ISSUED") {
-      await tx.invoice.update({ where: { id: invoiceId }, data: { status: "PAID" } });
-    }
+  }
+  const gl = await resolveArGlMappings(tx);
+  // A hosted checkout is a card payment, labelled METHOD_DISPLAY.CARD when
+  // startHostedCheckout wrote it; the cash side is that label's mapping.
+  const cardMapping = await tx.systemGLMapping.findUnique({
+    where: { section_label: { section: "POS_PAYMENTS", label: METHOD_DISPLAY.CARD } },
+    select: { glAccountId: true },
   });
+  if (!cardMapping?.glAccountId) {
+    throw new InvoiceValidationError(
+      `No GL mapping for payment type "${METHOD_DISPLAY.CARD}". Map it under POS Payments in Admin -> Setup -> Accounting.`,
+    );
+  }
+  // Full payment amount — must mirror the ledger entry completePayment
+  // posted, or cash/AR drift apart by the unapplied surplus.
+  await postJournal(tx, {
+    journalNumber: `ARP-${invoice.invoiceNo}-${paymentId}`,
+    journalType: "AR_PAYMENT",
+    lines: buildInvoicePaymentJournalLines({
+      invoiceNo: invoice.invoiceNo,
+      amount,
+      cashGlAccountId: cardMapping.glAccountId,
+      arGlAccountId: gl.arGlAccountId,
+    }),
+  });
+  if (round2(open - applied) <= PAID_TOLERANCE && invoice.status === "ISSUED") {
+    await tx.invoice.update({ where: { id: invoiceId }, data: { status: "PAID" } });
+  }
 }
 
 export interface ListInvoicesFilter {

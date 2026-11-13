@@ -15,6 +15,7 @@ jest.mock("next-auth/next", () => ({ getServerSession: jest.fn() }));
 jest.mock("next-auth/jwt", () => ({ getToken: jest.fn() }));
 jest.mock("next/headers", () => ({ cookies: jest.fn(), headers: jest.fn() }));
 
+import { Prisma } from "@prisma/client";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { getServerSession as getServerSessionNext } from "next-auth/next";
@@ -30,6 +31,7 @@ import { receiptOrderId } from "@/lib/inventory/receiving";
 import { raiseSpecialOrderPos } from "@/lib/sales/salePos";
 import { stripeProvider } from "@/lib/payments/stripeProvider";
 import { stockAt } from "../helpers/stock";
+import { holdRows, waitForLockWaits } from "../helpers/locks";
 import cancelRoute from "@/pages/api/sales/orders/[id]/cancel";
 import lineRoute from "@/pages/api/sales/orders/[id]/line-items/[lineItemId]";
 import createPoRoute from "@/pages/api/sales/orders/[id]/create-po";
@@ -1398,6 +1400,75 @@ describe("a line change that leaves the customer overpaid", () => {
     });
     expect(asked.status).toBe(409);
     expect(asked.body.overpaid.excess).toBe(300);
+  });
+
+  // The same change sent twice (a double click, a retried request): the second used to work out
+  // the same overpayment as the first before either moved money, and settle it again. The
+  // customer's row is held so both are under way, past their reads, before either commits.
+  describe("sent twice", () => {
+    const holdBuyer = (customerId: number) =>
+      holdRows(Prisma.sql`SELECT id FROM "Customer" WHERE id = ${customerId} FOR UPDATE`);
+
+    async function twice(orderId: number, lineId: number, customerId: number, body: object) {
+      const hold = await holdBuyer(customerId);
+      const both = Promise.all([change(orderId, lineId, body), change(orderId, lineId, body)]);
+      await waitForLockWaits(2);
+      await hold.release();
+      return (await both).map((r) => r.status).sort();
+    }
+
+    it("credits a cancelled line's money once", async () => {
+      const { order, buyer, second } = await twoLines([1000]);
+      const statuses = await twice(order.id, second.id, buyer!.id, {
+        action: "cancel",
+        reason: "x",
+        destination: "STORE_CREDIT",
+      });
+      expect(statuses).toEqual([200, 409]);
+      expect(await getBalance(buyer!.id)).toBe(400);
+    });
+
+    it("refunds a cancelled line's money once", async () => {
+      const { order, buyer, second } = await twoLines([1000]);
+      const statuses = await twice(order.id, second.id, buyer!.id, {
+        action: "cancel",
+        reason: "x",
+        destination: "ORIGINAL_PAYMENT",
+      });
+      expect(statuses).toEqual([200, 409]);
+      const refunds = await prisma.payment.findMany({ where: { isRefund: true } });
+      expect(refunds.map((r) => Number(r.paymentAmount))).toEqual([400]);
+      expect((await calculateOrderBalance(order.id)).balanceDue).toBe(0);
+    });
+
+    it("adds one replacement, and credits it once", async () => {
+      const { order, buyer, second } = await twoLines([1000]);
+      const statuses = await twice(order.id, second.id, buyer!.id, {
+        action: "replace",
+        replacement: { productName: "Stool", unitPrice: 50, quantity: 2 },
+        destination: "STORE_CREDIT",
+      });
+      expect(statuses).toEqual([200, 409]);
+      expect(await getBalance(buyer!.id)).toBe(300);
+      expect(
+        await prisma.orderLineItem.count({
+          where: { salesOrderId: order.id, productName: "Stool" },
+        }),
+      ).toBe(1);
+    });
+
+    it("credits a lower price once", async () => {
+      const { order, buyer, second } = await twoLines([1000]);
+      const statuses = await twice(order.id, second.id, buyer!.id, {
+        action: "update",
+        unitPrice: 100,
+        destination: "STORE_CREDIT",
+      });
+      // The second finds the price already there: nothing more is over, so it credits nothing.
+      expect(statuses).toEqual([200, 200]);
+      expect(await getBalance(buyer!.id)).toBe(200);
+      expect((await calculateOrderBalance(order.id)).balanceDue).toBe(0);
+    });
   });
 
   it("credits a cheaper replacement, in the same change", async () => {

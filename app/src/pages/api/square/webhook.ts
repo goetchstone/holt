@@ -1,10 +1,10 @@
 // /app/src/pages/api/square/webhook.ts
 //
 // Modelled directly on pages/api/stripe/webhook.ts. The downstream ledger-
-// posting logic (completePayment, onPaymentReceived, applyInvoiceStripePayment)
-// is provider-neutral despite the name of that last function -- it posts off
-// Payment.invoiceId, never anything Stripe-specific -- so it is reused
-// as-is rather than duplicated. Everything above that line is where the two
+// posting logic (completePayment, which applies an invoice's checkout through
+// applyInvoiceCardPayment, and onPaymentReceived) is provider-neutral -- it
+// posts off Payment.invoiceId, never anything Stripe-specific -- so it is
+// reused as-is rather than duplicated. Everything above that line is where the two
 // routes differ: Square signs the notification URL + raw body (not a single
 // header value), so verifyWebhook needs the absolute URL Square delivered to,
 // which this route builds the same way create-checkout.ts builds baseUrl.
@@ -18,7 +18,6 @@ import {
   onPaymentReceived,
   reportUntrackedCheckoutPaid,
 } from "@/lib/paymentService";
-import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
 import { reportOpsAlert } from "@/lib/opsAlert";
 
@@ -109,30 +108,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // The charge is confirmed; now post it to the books. If any step throws,
       // the money has moved at Square but our ledger is out of sync -- the
-      // most important failure to surface. Alert, then 500 so Square retries;
-      // every step below is idempotent, so a retry re-runs cleanly once fixed.
+      // most important failure to surface. Alert, then 500 so Square retries.
       try {
-        // Flip to COMPLETED and post the AR-ledger entry atomically -- the
-        // charge is only now confirmed. Idempotent if the webhook re-fires.
-        await completePayment(pendingPayment.id, extraData);
+        // One transaction: COMPLETED, the AR-ledger entry, an order's gift
+        // cards, and an invoice's application and AR_PAYMENT journal. A
+        // failure writes none of it and leaves the row PENDING, so Square's
+        // retry finds it and posts it whole. Square sends payment.created and
+        // payment.updated for one payment: the second finds it COMPLETED and
+        // writes nothing (completePayment's conditional update).
+        const completed = await completePayment(pendingPayment.id, extraData, {
+          metadataInvoiceId: invoiceId ? Number(invoiceId) : undefined,
+        });
 
-        // Promote QUOTE → ORDER and create draft POs
-        if (pendingPayment.salesOrderId) {
-          await onPaymentReceived(pendingPayment.salesOrderId);
-        }
-
-        // Authored-invoice payment: apply to the invoice + post the
-        // AR_PAYMENT journal. Provider-neutral despite the name (it posts off
-        // Payment.invoiceId, never anything Stripe-specific) -- reused as-is
-        // rather than duplicated. Routing is structural (Payment.invoiceId,
-        // set at link creation); the metadata id is only a cross-check -- a
-        // mismatch throws, Square retries, and completePayment above stays a
-        // no-op, so the application lands once the discrepancy is investigated.
-        if (pendingPayment.invoiceId !== null || invoiceId) {
-          await applyInvoiceStripePayment(
-            pendingPayment.id,
-            invoiceId ? Number(invoiceId) : undefined,
-          );
+        if (!completed) {
+          // Another delivery completed it first (silent), or it was voided or
+          // expired meanwhile: money Holt stopped tracking (alert).
+          await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
+        } else if (completed.salesOrderId) {
+          // Promote QUOTE → ORDER and create draft POs. Not money, and not
+          // retried: a retry finds the row COMPLETED.
+          await onPaymentReceived(completed.salesOrderId);
         }
       } catch (err) {
         logError("Square webhook: failed to post confirmed payment to the ledger", err, {
