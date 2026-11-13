@@ -9,8 +9,10 @@
 //
 // Load-bearing invariants copied as-is:
 //   - netPrice is the LINE TOTAL, not a unit price — never multiplied by qty.
-//   - Cancelled and replaced lines are excluded (rule 33): the list SQL uses
-//     countedLineSqlText; the detail filters `lineItemStatus: COUNTED_LINE_FILTER`.
+//   - Cancelled and replaced lines are excluded (rule 33), and a gift card line too:
+//     the list SQL uses countedItemLineSqlText, the detail COUNTED_ITEM_LINE. A register
+//     sale is a quote until its first payment, so a quote can hold a card line, and a
+//     card isn't a sale in the pipeline.
 //   - The detail computes a lead score from Windfall life-event signals. Both
 //     endpoints are MANAGER/ADMIN only, so lead tier + score ride along on every
 //     quote row. The legacy handler had no role-conditional wealth omission, so
@@ -19,8 +21,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { isNoteSource } from "@/lib/interactionSources";
 import { calculateLeadScore, type LeadTier } from "@/lib/leadScore";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
-import { countedLineSqlText } from "@/lib/reports/revenueScope";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
+import { countedItemLineSqlText } from "@/lib/reports/revenueScope";
 
 export interface PipelineRow {
   salesperson: string;
@@ -164,7 +166,7 @@ export async function getPipelineOpportunity(
     JOIN "OrderLineItem" li ON li."salesOrderId" = so.id
     LEFT JOIN "StaffMember" sm ON sm."displayName" = so.salesperson
     WHERE so.status IN ('QUOTE', 'ORDER', 'FULFILLED')
-      AND ${countedLineSqlText("li")}
+      AND ${countedItemLineSqlText("li")}
       AND COALESCE(so."quoteDate", so."orderDate") >= NOW() - INTERVAL '12 months'
       ${activeClause}
       ${archivedClause}
@@ -283,7 +285,7 @@ export async function getPipelineDetail(
         },
       },
       lineItems: {
-        where: { lineItemStatus: COUNTED_LINE_FILTER },
+        where: { ...COUNTED_ITEM_LINE },
         select: {
           id: true,
           productName: true,

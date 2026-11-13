@@ -4,8 +4,10 @@
 //
 // Gift Card detail body. App Router port of the legacy admin/gift-cards/[id]
 // body (minus MainLayout chrome, which the (dashboard) layout supplies). Shows
-// the card summary + transaction history and drives reload / adjust / void via
-// the shared /api/gift-cards/[id]/* REST endpoints.
+// the card summary + transaction history and moves a card's balance to a new
+// card via the shared /api/gift-cards/[id]/replace REST endpoint. A card is
+// sold or reloaded as a line on a sale at the register, paid like any sale
+// (owner, 2026-11-11), so there's no Reload here.
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -46,9 +48,9 @@ interface GiftCard {
   transactions: GiftCardTransaction[];
 }
 
-// No Void and no Adjust (owner, 2026-11-11): a balance changes only when money moves, and a
-// card is retired by moving its balance to a new card.
-type ModalType = "reload" | "replace" | null;
+// No Void, no Adjust and no Reload (owner, 2026-11-11): a balance changes only when money moves,
+// and a card is retired by moving its balance to a new card.
+type ModalType = "replace" | null;
 
 const TX_TYPE_LABEL: Record<string, string> = {
   ISSUANCE: "Issuance",
@@ -85,8 +87,6 @@ export function GiftCardDetailView({ id }: { id: string }) {
   const [card, setCard] = useState<GiftCard | null>(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalType>(null);
-  const [reloadAmount, setReloadAmount] = useState("");
-  const [reloadRef, setReloadRef] = useState("");
   const [newBarcode, setNewBarcode] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -109,35 +109,6 @@ export function GiftCardDetailView({ id }: { id: string }) {
   useEffect(() => {
     fetchCard();
   }, [fetchCard]);
-
-  const handleReload = async () => {
-    const amount = Number.parseFloat(reloadAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Enter a valid amount");
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/gift-cards/${encodeURIComponent(id)}/reload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, reference: reloadRef || null }),
-      });
-      if (res.ok) {
-        toast.success(`${formatMoney(amount)} added to card`);
-        setModal(null);
-        setReloadAmount("");
-        setReloadRef("");
-        fetchCard();
-      } else {
-        toast.error(getErrorMessage(await res.json().catch(() => null), "Failed to reload"));
-      }
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Error reloading card"));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleReplace = async () => {
     if (!newBarcode.trim()) {
@@ -249,7 +220,6 @@ export function GiftCardDetailView({ id }: { id: string }) {
 
         {card.status !== "VOIDED" && card.status !== "REPLACED" && (
           <div className="flex gap-2 mt-6">
-            <Button onClick={() => setModal("reload")}>Reload</Button>
             <Button variant="outline" onClick={() => setModal("replace")}>
               Move to a New Card
             </Button>
@@ -317,31 +287,6 @@ export function GiftCardDetailView({ id }: { id: string }) {
           )}
         </tbody>
       </table>
-
-      {modal === "reload" && (
-        <Modal
-          title="Reload Gift Card"
-          onClose={() => setModal(null)}
-          onSave={handleReload}
-          saving={saving}
-        >
-          <FormInput
-            label="Amount to Add"
-            name="reloadAmount"
-            value={reloadAmount}
-            onChange={setReloadAmount}
-            type="number"
-            placeholder="25.00"
-          />
-          <FormInput
-            label="Reference (optional)"
-            name="reloadRef"
-            value={reloadRef}
-            onChange={setReloadRef}
-            placeholder="Order number, reason, etc."
-          />
-        </Modal>
-      )}
 
       {modal === "replace" && (
         <Modal

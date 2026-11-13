@@ -82,10 +82,15 @@ const SHARED_LINE_ITEM_HELPERS: ReadonlyArray<{
 
 // The shared filter (lib/salesOrderRevenue.ts COUNTED_LINE_FILTER): cancelled AND
 // replaced lines out. Leaving out only CANCELLED counted a replaced line and its
-// replacement both (2026-11-10), so the old literal no longer passes here.
-const FILTER_REGEX = /lineItemStatus:\s*COUNTED_LINE_FILTER/;
-// Raw SQL: the shared predicate from lib/reports/revenueScope.ts.
-const RAW_SQL_REGEX = /countedLineSql(?:Text)?\(/;
+// replacement both (2026-11-10), so the old literal no longer passes here. Its item
+// form, `...COUNTED_ITEM_LINE`, carries the same status filter and leaves a gift card
+// line out too; revenue and reports use that one (which form each file may use is
+// checked in countedLineOwedSites.test.ts).
+const FILTER_REGEX = /lineItemStatus:\s*COUNTED_LINE_FILTER|\.\.\.COUNTED_ITEM_LINE\b/;
+// Raw SQL: the shared predicate from lib/reports/revenueScope.ts, either form.
+const RAW_SQL_REGEX = /counted(?:Item)?LineSql(?:Text)?\(/;
+// The item form alone, for the revenue reports pinned below.
+const ITEM_FILTER_REGEX = /\.\.\.COUNTED_ITEM_LINE\b/g;
 
 function fileExcludesCancelled(file: string): boolean {
   const src = read(file);
@@ -128,9 +133,10 @@ describe("Reports: CANCELLED line item filter (CLAUDE.md rule 33)", () => {
     // structurally diverge the way the two old REST handlers did. We assert the
     // literal filter appears in that single file; since both functions share it
     // there, matching once proves both carry the same shape. (The deleted Pages
-    // handlers detailed-sales.ts + detailed-sales/items.ts no longer exist.)
+    // handlers detailed-sales.ts + detailed-sales/items.ts no longer exist.) The
+    // shape is the item form, so a gift card line is out of both.
     const lib = readApp("src/lib/reports/detailedSales.ts");
-    const matches = lib.match(/lineItemStatus:\s*COUNTED_LINE_FILTER/g) ?? [];
+    const matches = lib.match(ITEM_FILTER_REGEX) ?? [];
     // One occurrence in getDetailedSales, one in getDetailedSalesItems.
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });

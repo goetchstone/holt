@@ -203,7 +203,6 @@
 /app/sales/customers
 /app/sales/customers/[id]
 /app/sales/customers/email-list
-/app/sales/gift-card-sale
 /app/sales/import-hd
 /app/sales/invoices
 /app/sales/invoices/[id]

@@ -9,13 +9,24 @@
 // Every change is a single conditional UPDATE: Postgres locks the card's row and re-checks the
 // condition, so two spends of one balance can't both pass, and a closed card is never touched.
 // There's no Void and no Adjust; a card is retired by moving its balance to a new one
-// (replaceCard), which leaves it REPLACED at $0 with its history.
+// (replaceCard), which leaves it REPLACED at $0 with its history. A card comes into being only
+// with money too: issueCard, when the sale it's sold on is paid in full. A card line cancelled or
+// returned takes its value back off the card (takeBackFromCard) only where the store refunds
+// cards, and the money goes back through the sale's own refund or credit.
 
 import type { GiftCardStatus, GiftCardTransactionType, Prisma } from "@prisma/client";
 
 type Tx = Prisma.TransactionClient;
 
 export class GiftCardError extends Error {}
+
+/**
+ * The rows a sale line wrote: a card line's ISSUANCE or RELOAD, and the negative REFUND that takes
+ * it back. The sales journal moves exactly these between the gift card liability and the money
+ * paid for them, and the daily reconciliation nets them out of the day's money (one home, rule 6).
+ * A redemption, or a payment refunded to a card, is a payment and is journaled as one.
+ */
+export const SALE_LINE_CARD_ROW = { orderLineItemId: { not: null } } as const;
 
 /** A card that can still take and give value. VOIDED (from before Void was removed) and REPLACED can't. */
 const OPEN_STATUSES: GiftCardStatus[] = ["ACTIVE", "REDEEMED"];
@@ -67,6 +78,8 @@ async function recordChange(
     reference?: string | null;
     notes?: string | null;
     createdBy: string | null;
+    orderLineItemId?: number | null;
+    at?: Date;
   },
 ): Promise<{ balanceBefore: number; balanceAfter: number }> {
   const card = await tx.giftCard.findUniqueOrThrow({
@@ -85,6 +98,8 @@ async function recordChange(
       reference: input.reference ?? null,
       notes: input.notes ?? null,
       createdBy: input.createdBy,
+      orderLineItemId: input.orderLineItemId ?? null,
+      ...(input.at ? { created: input.at } : {}),
     },
   });
   return { balanceBefore, balanceAfter };
@@ -131,6 +146,8 @@ export async function creditToCard(
     createdBy: string | null;
     reference?: string | null;
     notes?: string | null;
+    /** The card line a RELOAD was sold on. */
+    orderLineItemId?: number | null;
   },
 ): Promise<{ balanceBefore: number; balanceAfter: number }> {
   const amount = parseCardAmount(input.amount);
@@ -150,7 +167,94 @@ export async function creditToCard(
     reference: input.reference,
     notes: input.notes,
     createdBy: input.createdBy,
+    orderLineItemId: input.orderLineItemId,
   });
+}
+
+/**
+ * Take a card line's value back off its card: the line was cancelled or returned and the store
+ * refunds cards (lib/sales/giftCardLines.ts decides whether it may). A negative REFUND row tied to
+ * the line, in the caller's transaction, which also returns the money. Refuses a closed card and a
+ * balance short of the amount, so value that was spent is never paid back. A card emptied is
+ * REDEEMED, as one spent to $0 is. `at` dates the row when the caller dated the money it moves with.
+ */
+export async function takeBackFromCard(
+  tx: Tx,
+  input: {
+    cardId: number;
+    amount: number;
+    orderLineItemId: number;
+    createdBy: string | null;
+    reference?: string | null;
+    at?: Date;
+  },
+): Promise<{ balanceBefore: number; balanceAfter: number }> {
+  const amount = parseCardAmount(input.amount);
+  const moved = await tx.giftCard.updateMany({
+    where: { id: input.cardId, status: { in: OPEN_STATUSES }, currentBalance: { gte: amount } },
+    data: { currentBalance: { decrement: amount }, updatedBy: input.createdBy },
+  });
+  if (moved.count === 0) return explainRefusal(tx, input.cardId, amount);
+  const change = await recordChange(tx, {
+    cardId: input.cardId,
+    type: "REFUND",
+    amount: -amount,
+    reference: input.reference,
+    createdBy: input.createdBy,
+    orderLineItemId: input.orderLineItemId,
+    at: input.at,
+  });
+  if (change.balanceAfter === 0) {
+    await tx.giftCard.update({ where: { id: input.cardId }, data: { status: "REDEEMED" } });
+  }
+  return change;
+}
+
+/**
+ * Issue a new card with its first value: a card sold on a sale, issued with the payment that pays
+ * the sale off (lib/sales/giftCardLines.ts). ACTIVE, with an ISSUANCE row from $0. A number
+ * already in use is refused; a reload of an open card is creditToCard with type RELOAD.
+ */
+export async function issueCard(
+  tx: Tx,
+  input: {
+    barcode: string;
+    amount: number;
+    createdBy: string | null;
+    reference?: string | null;
+    /** The card line it was sold on. */
+    orderLineItemId?: number | null;
+  },
+): Promise<{ cardId: number; balanceBefore: number; balanceAfter: number }> {
+  const barcode = input.barcode.trim();
+  if (!barcode) throw new GiftCardError("Scan or type the card's number");
+  const amount = parseCardAmount(input.amount);
+  const taken = await tx.giftCard.findUnique({ where: { barcode }, select: { id: true } });
+  if (taken) throw new GiftCardError("That card number is already in use");
+
+  const card = await tx.giftCard.create({
+    data: {
+      barcode,
+      initialAmount: amount,
+      currentBalance: amount,
+      status: "ACTIVE",
+      activatedAt: new Date(),
+      createdBy: input.createdBy,
+    },
+  });
+  await tx.giftCardTransaction.create({
+    data: {
+      giftCardId: card.id,
+      transactionType: "ISSUANCE",
+      amount,
+      balanceBefore: 0,
+      balanceAfter: amount,
+      reference: input.reference ?? null,
+      createdBy: input.createdBy,
+      orderLineItemId: input.orderLineItemId ?? null,
+    },
+  });
+  return { cardId: card.id, balanceBefore: 0, balanceAfter: amount };
 }
 
 /**

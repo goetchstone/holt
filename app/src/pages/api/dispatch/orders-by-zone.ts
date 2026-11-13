@@ -11,7 +11,7 @@ import { logError } from "@/lib/logger";
 import { computeBalance } from "@/lib/paymentService";
 import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
 import { type OrderFlagRef, flagRefsOf } from "@/lib/sales/orderFlagsShared";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_LINE_FILTER, isCountedItemLine } from "@/lib/salesOrderRevenue";
 
 export interface DispatchLineItem {
   id: number;
@@ -87,7 +87,10 @@ export default requireAuthWithRole(
               netPrice: true,
               vatAmount: true,
               lineItemStatus: true,
+              giftCardNumber: true,
             },
+            // Every line the customer owes, a gift card too, for the balance due below;
+            // the pieces going on the truck are the item lines among them.
             where: { lineItemStatus: COUNTED_LINE_FILTER },
           },
           purchaseOrders: {
@@ -153,14 +156,16 @@ export default requireAuthWithRole(
           : true;
 
         const balance = computeBalance(o.lineItems, o.payments);
+        // A gift card sold on the order is owed but isn't a piece to deliver.
+        const pieces = o.lineItems.filter(isCountedItemLine);
 
         const order: DispatchOrder = {
           id: o.id,
           orderno: o.orderno,
           orderDate: o.orderDate?.toISOString() ?? "",
-          lineItemCount: o.lineItems.length,
+          lineItemCount: pieces.length,
           inStock: allReceived,
-          lineItems: o.lineItems.map((li) => ({
+          lineItems: pieces.map((li) => ({
             id: li.id,
             partNo: li.partNo,
             productName: li.productName,
@@ -180,7 +185,7 @@ export default requireAuthWithRole(
         if (customerMap.has(groupKey)) {
           const existing = customerMap.get(groupKey)!;
           existing.orders.push(order);
-          existing.totalItems += o.lineItems.length;
+          existing.totalItems += pieces.length;
           existing.totalBalanceDue += balance.balanceDue;
           if (!allReceived) existing.allInStock = false;
         } else {
@@ -193,7 +198,7 @@ export default requireAuthWithRole(
             zoneName: zone?.name ?? null,
             zoneId: zone?.id ?? null,
             orders: [order],
-            totalItems: o.lineItems.length,
+            totalItems: pieces.length,
             allInStock: allReceived,
             totalBalanceDue: balance.balanceDue,
           });

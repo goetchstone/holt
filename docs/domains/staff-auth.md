@@ -447,7 +447,7 @@ real database), `__tests__/lib/auth/idleLogoff.test.ts` and
 
 Currently restricted:
 
-- Sales hub: only Customers is visible to all. Pipeline, Quotes, Orders (ADMIN/MANAGER/DESIGNER). Invoices, B2B Proposals (ADMIN/MANAGER). POS, Gift Card Sale, Till (ADMIN/REGISTER). New Quote, Returns, House Calls, Interactions, Leads, HD Import (ADMIN only).
+- Sales hub: only Customers is visible to all. Pipeline, Quotes, Orders (ADMIN/MANAGER/DESIGNER). Invoices, B2B Proposals (ADMIN/MANAGER). POS, Till (ADMIN/REGISTER). New Quote, Returns, House Calls, Interactions, Leads, HD Import (ADMIN only).
 - Order detail: Payment links and Customer Portal hidden from DESIGNER (MANAGER/ADMIN only).
 - Warehouse hub: Overview, Receiving, Transfers, Returns (ADMIN/WAREHOUSE only — hidden from MANAGER).
 - Reports hub: 10 of the 29 cards are (ADMIN/MANAGER), including Pipeline Opportunity; Opportunities is (ADMIN/MARKETING). Tax Summary, Till Reconciliation (ADMIN only). Mailchimp Campaign + Activity (ADMIN/MARKETING only). **Wealth Insights (ADMIN/MARKETING only — not MANAGER).**

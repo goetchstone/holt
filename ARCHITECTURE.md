@@ -168,16 +168,20 @@ Customer requests return
 ### Gift Cards
 
 ```
-Sale: sales/gift-card-sale.tsx creates card + activation payment
+Sale/reload: a GIFT_CARD line on a sale (POS, create-from-cart)
+    -> issued by the payment that pays the sale off, in its transaction
+       (lib/sales/giftCardLines.ts issuePaidGiftCards -> giftCardLedger issueCard / creditToCard RELOAD)
 Redemption: paymentService.recordPayment() with method=GIFT_CARD
-    -> Checks balance, creates GiftCardTransaction, updates currentBalance
+    -> giftCardLedger.spendFromCard: locked, conditional, with its GiftCardTransaction row
 Refund: paymentService.processRefund() with method=GIFT_CARD
-    -> Credits balance back to card
+    -> giftCardLedger.creditToCard: credits the balance back to the card
 ```
 
 **Key files:**
 
-- `src/pages/api/gift-cards/` -- CRUD, activation, redemption, import
+- `src/lib/giftCardLedger.ts` -- the one way a card's balance changes
+- `src/lib/sales/giftCardLines.ts` -- a card sold on a sale, issued when it's paid in full
+- `src/pages/api/gift-cards/` -- lookup, notes, move to a new card, presets, import
 - Gift card logic embedded in `src/lib/paymentService.ts`
 
 ### Staff Up-Board

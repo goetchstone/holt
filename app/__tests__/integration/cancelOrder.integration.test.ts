@@ -20,7 +20,7 @@ import { getServerSession } from "next-auth";
 import { getServerSession as getServerSessionNext } from "next-auth/next";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
-import { DEFAULT_ORG_ID, invalidateAppSettingsCache } from "@/lib/appSettings";
+import { DEFAULT_ORG_ID, getAppSettings, invalidateAppSettingsCache } from "@/lib/appSettings";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { getBalance } from "@/lib/customerCredit";
@@ -1822,5 +1822,30 @@ describe("a sale going ahead with no payment", () => {
       where: { event: "SETTINGS_SAVED" },
     });
     expect(entry.summary).toContain("allowSaleWithoutPayment");
+  });
+});
+
+// The gate that reads it is covered in giftCardSaleBooks.integration.test.ts.
+describe("refunding unused gift cards (Settings)", () => {
+  it("is off by default, saves, is recorded, and refuses a value that isn't true or false", async () => {
+    invalidateAppSettingsCache();
+    expect((await getAppSettings()).giftCardsRefundable).toBe(false);
+
+    const bad = await call(settingsRoute, "owner", {
+      method: "PUT",
+      body: { giftCardsRefundable: "yes" },
+    });
+    expect(bad.status).toBe(400);
+
+    const res = await call(settingsRoute, "owner", {
+      method: "PUT",
+      body: { giftCardsRefundable: true },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.settings.giftCardsRefundable).toBe(true);
+    const entry = await prisma.auditEntry.findFirstOrThrow({
+      where: { event: "SETTINGS_SAVED" },
+    });
+    expect(entry.summary).toContain("giftCardsRefundable");
   });
 });

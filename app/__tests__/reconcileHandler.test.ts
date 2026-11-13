@@ -111,6 +111,11 @@ function makeMockPrisma(opts: {
       findMany: jest.fn().mockResolvedValue(configured ? [{ glAccountId: ACCT.TAX }] : []),
     },
     tender: { findMany: jest.fn().mockResolvedValue([]) },
+    // No gift card sold on a sale this day (the "Gift Card" gap is asked only when one is).
+    giftCardTransaction: {
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
     systemGLMapping: {
       findMany: jest.fn().mockResolvedValue(
         configured

@@ -6,6 +6,7 @@ import {
   creditOverpayment,
   overpaidAfterLineChange,
   refundOverpayment,
+  takeBackLineCard,
 } from "@/lib/sales/cancelOrder";
 import { RefundError, RefundProcessorError } from "@/lib/paymentService";
 import { isRefundDestination } from "@/lib/returns/refundReturn";
@@ -16,6 +17,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { deliveryFeeLineEditProblem } from "@/lib/delivery/deliveryFee";
+import { giftCardLineEditProblem, issuePaidGiftCards } from "@/lib/sales/giftCardLines";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import {
   DiscountApprovalError,
@@ -31,6 +33,12 @@ import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { HoldError, quoteHoldContext, setLineHold } from "@/lib/sales/quoteHolds";
 import { readLineNote } from "@/lib/sales/lineNotesShared";
+
+/** What the request does to the line: PUT's action, or "remove" for a DELETE. */
+function lineAction(req: NextApiRequest): string {
+  if (req.method === "DELETE") return "remove";
+  return typeof req.body?.action === "string" ? req.body.action : "";
+}
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -56,8 +64,12 @@ export async function handler(
     if (locked) return res.status(409).json({ error: locked });
   }
   if (!Number.isNaN(itemId)) {
-    const feeLine = await deliveryFeeLineEditProblem(prisma, itemId);
-    if (feeLine) return res.status(409).json({ error: feeLine });
+    // The delivery fee line changes only under Delivery fee; a gift card line
+    // only as lib/sales/giftCardLines.ts allows.
+    const lineProblem =
+      (await deliveryFeeLineEditProblem(prisma, itemId)) ??
+      (await giftCardLineEditProblem(prisma, itemId, lineAction(req)));
+    if (lineProblem) return res.status(409).json({ error: lineProblem });
   }
 
   // PUT: Update line item (cancel, replace, relink, or modify)
@@ -82,10 +94,15 @@ export async function handler(
         why: string,
       ): Promise<
         | { refused: true }
-        | { refused: false; creditIn: (tx: Prisma.TransactionClient) => Promise<void> }
+        | {
+            refused: false;
+            creditIn: (tx: Prisma.TransactionClient) => Promise<void>;
+            /** True when the money goes back in the line change's own transaction (a credit). */
+            creditsInTx: boolean;
+          }
       > => {
         const over = await overpaidAfterLineChange(orderId, itemId, newLineTotal);
-        if (!over) return { refused: false, creditIn: async () => {} };
+        if (!over) return { refused: false, creditIn: async () => {}, creditsInTx: false };
         if (!isRefundDestination(destination)) {
           res.status(409).json({
             error: `This leaves the customer $${over.excess.toFixed(2)} overpaid. Say whether it goes back the way it was paid, or onto their account.`,
@@ -112,6 +129,7 @@ export async function handler(
         await refundOverpayment(orderId, itemId, over, destination, why, changedBy);
         return {
           refused: false,
+          creditsInTx: credit,
           creditIn: async (tx) => {
             if (credit && customerId !== null) {
               const amount = { customerId, amount: toSettle };
@@ -165,9 +183,12 @@ export async function handler(
 
       // What's gone to the customer comes back as a return, which puts its stock and its
       // money right. Cancelling it would refund goods the customer still has (DECISIONS 52).
-      const goneQty = order.deliveredAt
+      // A gift card line isn't goods: handing the sale over hands over nothing of it, and its
+      // cancel is the card's own gate (lib/sales/giftCardLines.ts).
+      const handedQty = order.deliveredAt
         ? Number(lineItem.orderedQuantity)
         : Number(lineItem.fulfilledQty);
+      const goneQty = lineItem.giftCardNumber ? 0 : handedQty;
       const takesBackWhatsGone =
         action === "cancel" ||
         action === "replace" ||
@@ -309,6 +330,10 @@ export async function handler(
         if (money.refused) return;
 
         const result = await prisma.$transaction(async (tx) => {
+          // A live gift card's value comes back off it with the line's money (gated above). A
+          // refund before this took it already; a credit here takes it now, and refuses a card
+          // already taken back, so a cancel sent twice can't credit twice.
+          await takeBackLineCard(tx, itemId, changedBy, !money.creditsInTx);
           const updated = await tx.orderLineItem.update({
             where: { id: itemId },
             data: { lineItemStatus: "CANCELLED", cancelReason: reason },
@@ -354,6 +379,10 @@ export async function handler(
           // Cancelling a line changes what the order has committed --
           // full resync rather than delta math.
           await resyncOrderAllocation(orderId, order.storeLocation, tx);
+          // A change that leaves the sale paid in full issues its gift cards: no payment is
+          // coming to do it. Its money has moved already, so a card that can't be issued is
+          // left unissued with why on the order (lib/sales/giftCardLines.ts).
+          await issuePaidGiftCards(tx, orderId, changedBy, "leave");
 
           return updated;
         });
@@ -481,6 +510,10 @@ export async function handler(
           // The original line is now REPLACED (inactive) and the new line
           // is ACTIVE -- full resync rather than delta math.
           await resyncOrderAllocation(orderId, order.storeLocation, tx);
+          // A change that leaves the sale paid in full issues its gift cards: no payment is
+          // coming to do it. Its money has moved already, so a card that can't be issued is
+          // left unissued with why on the order (lib/sales/giftCardLines.ts).
+          await issuePaidGiftCards(tx, orderId, changedBy, "leave");
 
           for (const po of linePos) await dropPoLines(tx, po, changedBy);
 
@@ -603,6 +636,10 @@ export async function handler(
           // A quantity change moves what the order has committed -- full
           // resync rather than delta math.
           await resyncOrderAllocation(orderId, order.storeLocation, tx);
+          // A change that leaves the sale paid in full issues its gift cards: no payment is
+          // coming to do it. Its money has moved already, so a card that can't be issued is
+          // left unissued with why on the order (lib/sales/giftCardLines.ts).
+          await issuePaidGiftCards(tx, orderId, changedBy, "leave");
 
           if (changesWhatIsOrdered) {
             for (const po of linePos) {
@@ -689,6 +726,10 @@ export async function handler(
         // Removing a line changes what the order has committed -- full
         // resync rather than delta math.
         await resyncOrderAllocation(orderId, order.storeLocation, tx);
+        // A change that leaves the sale paid in full issues its gift cards: no payment is
+        // coming to do it. Its money has moved already, so a card that can't be issued is
+        // left unissued with why on the order (lib/sales/giftCardLines.ts).
+        await issuePaidGiftCards(tx, orderId, changedBy, "leave");
       });
 
       return res.status(204).end();

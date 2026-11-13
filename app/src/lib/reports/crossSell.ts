@@ -14,7 +14,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { loadReportTaxonomy } from "@/lib/reports/reportTaxonomy";
-import { countedLineSql } from "@/lib/reports/revenueScope";
+import { countedItemLineSql } from "@/lib/reports/revenueScope";
 
 export interface CrossSellRow {
   id: number;
@@ -99,7 +99,7 @@ export async function getCrossSell(
       LEFT JOIN "Category" cat ON cat.id = p."categoryId"
       LEFT JOIN "Department" d ON d.id = cat."departmentId"
       WHERE so.status IN ('ORDER', 'FULFILLED')
-        AND ${countedLineSql("li")}
+        AND ${countedItemLineSql("li")}
       GROUP BY c.id, c."firstName", c."lastName", c.email, c.phone, d.name
     )
     SELECT

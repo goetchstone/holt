@@ -19,6 +19,7 @@
 // Every writer goes through setDeliveryFee: the register's sale
 // (create-from-cart.ts) and the order screen (orders/[id]/delivery-fee.ts).
 
+import { issuePaidGiftCards } from "@/lib/sales/giftCardLines";
 import type { PrismaTx } from "@/lib/inventory/allocation";
 import { DELIVERY_FEE_MAPPING_LABEL, POS_TRANSACTIONS_SECTION } from "@/lib/glMapping";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
@@ -30,7 +31,7 @@ import {
   deliveryPieces,
   zoneFee,
 } from "./deliveryFeeShared";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_LINE_FILTER, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export class DeliveryFeeError extends Error {
   constructor(
@@ -156,7 +157,7 @@ export async function deliveryFeeLineEditProblem(
 /** The order's pieces going out on the truck (deliveryPieces), from its lines. */
 async function orderPieces(db: PrismaTx, orderId: number, feeLineId: number | null) {
   const lines = await db.orderLineItem.findMany({
-    where: { salesOrderId: orderId, lineItemStatus: COUNTED_LINE_FILTER },
+    where: { salesOrderId: orderId, ...COUNTED_ITEM_LINE },
     select: { id: true, productId: true, orderedQuantity: true, fulfillment: true },
   });
   return deliveryPieces(
@@ -248,6 +249,10 @@ export async function setDeliveryFee(
       updatedBy: input.actor,
     },
   });
+  // A lower fee can leave the sale paid in full: its gift cards go live now, as with a payment.
+  // The overpayment, if any, is the caller's; a card that can't be issued is left unissued with
+  // why on the order (lib/sales/giftCardLines.ts).
+  await issuePaidGiftCards(tx, order.id, input.actor, "leave");
   return result;
 }
 

@@ -26,7 +26,7 @@ import {
   rateForLineAmount,
   resolveTaxDistrict,
 } from "@/lib/tax/resolveTaxRate";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -39,9 +39,11 @@ export async function rerateQuoteTax(tx: PrismaTx, orderId: number): Promise<voi
       storeLocationId: true,
       deliveryFeeLineItemId: true,
       // Cancelled lines are out of every sum (CLAUDE.md rule 33) and keep the
-      // rate they had.
+      // rate they had. A gift card line isn't taxed: it's a liability the store
+      // holds, not a sale (lib/sales/giftCardLines.ts), so it stays at 0. A
+      // register sale is a quote until its first payment, so one can be here.
       lineItems: {
-        where: { lineItemStatus: COUNTED_LINE_FILTER },
+        where: { ...COUNTED_ITEM_LINE },
         select: { id: true, netPrice: true, product: { select: LINE_TAX_GROUP_SELECT } },
       },
     },

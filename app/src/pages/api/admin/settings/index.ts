@@ -518,6 +518,15 @@ function parseSaleWithoutPayment(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// Whether a gift card sold on a sale can be refunded while unused (DECISIONS 57).
+function parseGiftCardsRefundable(body: Body, data: SettingsData): ParseError {
+  const raw = body.giftCardsRefundable;
+  if (raw === undefined) return null;
+  if (typeof raw !== "boolean") return { error: "giftCardsRefundable must be true or false." };
+  data.giftCardsRefundable = raw;
+  return null;
+}
+
 function parseQuoteHoldMaxDays(body: Body, data: SettingsData): ParseError {
   const raw = body.quoteHoldMaxDays;
   if (raw === undefined) return null;
@@ -572,6 +581,7 @@ function parseAcknowledgements(body: Body, data: SettingsData): ParseError {
 const SETTINGS_PARSERS = [
   parseAppName,
   parseSaleWithoutPayment,
+  parseGiftCardsRefundable,
   parseTextFields,
   parseUrlFields,
   parseLocaleFields,

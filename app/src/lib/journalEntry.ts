@@ -16,7 +16,9 @@ import {
 import { countedPaymentWhere } from "@/lib/paymentBalance";
 import { businessDayRange } from "@/lib/reports/businessDay";
 import { getBusinessTimeZone } from "@/lib/appSettings";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
+import { SALE_LINE_CARD_ROW } from "@/lib/giftCardLedger";
 
 type Decimal = Prisma.Decimal;
 
@@ -102,13 +104,31 @@ export interface SalesPayment {
 export interface OrderRecognition {
   order: SalesOrderForJournal;
   /**
-   * Everything the customer paid BEFORE the invoice date. All of it was credited
-   * to the deposit liability on the day it arrived, and all of it is debited
-   * back out now.
+   * Everything the customer paid BEFORE the invoice date, less the gift card
+   * value its card lines moved out of the deposit before then (CardLineMove).
+   * All of it was credited to the deposit liability on the day it arrived, and
+   * all of what is still there is debited back out now.
    */
   priorDepositCredited: number;
-  /** Net + tax across the order's non-cancelled lines. */
+  /** Net + tax across the order's non-cancelled lines, gift card lines aside. */
   orderTotal: number;
+}
+
+/**
+ * Value a sale's gift card line put on a card (positive), or took back off it
+ * when the line was cancelled or returned (negative), on this journal's day:
+ * one ledger row tied to the line (SALE_LINE_CARD_ROW, lib/giftCardLedger.ts).
+ *
+ * A card sold is a liability, not Sales (2-2127). The money paid for it was
+ * booked like any payment on the order, so it sits where that payment went:
+ * the deposit liability before the order is invoiced, the receivable from the
+ * invoice on. `settles` is the same recorded fact a payment's is (settlesOf,
+ * the row's own time against the order's invoice date), so the move takes the
+ * money out of exactly the account the payment put it in.
+ */
+export interface CardLineMove {
+  amount: number;
+  settles: "DEPOSIT" | "RECEIVABLE";
 }
 
 export interface SalesOrderForJournal {
@@ -591,6 +611,17 @@ function recogniseOrderLines(
   }
 }
 
+/** Which account a gift card move is missing, said in the generator's words. */
+function cardMoveUnmapped(move: CardLineMove, giftCardGlId: number | null): string {
+  const value = `$${move.amount.toFixed(2)} of gift card value sold on a sale is not in the gift card liability`;
+  if (!giftCardGlId) {
+    return `No ${POS_PAYMENTS_SECTION}/"${METHOD_DISPLAY.GIFT_CARD}" GL mapping -- ${value}`;
+  }
+  return move.settles === "RECEIVABLE"
+    ? `No AR_TRANSACTIONS/"Accounts Receivable" GL mapping -- ${value}`
+    : `No ${POS_PAYMENTS_SECTION}/"On Account" GL mapping -- ${value}`;
+}
+
 export function buildJournalLines(
   payments: SalesPayment[],
   overShortGlId: number | null,
@@ -602,6 +633,10 @@ export function buildJournalLines(
   recognitions: OrderRecognition[] = [],
   /** `AR_TRANSACTIONS`/"Accounts Receivable". */
   arGlId: number | null = null,
+  /** Gift card value sold or taken back on sale lines today. */
+  cardMoves: CardLineMove[] = [],
+  /** `POS_PAYMENTS`/"Gift Card": the liability redemptions debit. */
+  giftCardGlId: number | null = null,
 ): BuildResult {
   const warnings: string[] = [];
 
@@ -770,6 +805,28 @@ export function buildJournalLines(
     }
   }
 
+  // GIFT CARDS SOLD ON A SALE -- into the liability, out of wherever their
+  // money sits (CardLineMove). Both legs or neither: with an account missing the
+  // move is skipped with a warning here, and generateSalesJournal refuses the
+  // day before it gets this far, since a skipped move can't be made up later.
+  const giftCardCredits = new Map<number, { memo: string; amount: number }>();
+  const cardOffsetDebits = new Map<number, { memo: string; amount: number }>();
+  for (const move of cardMoves) {
+    const offsetGlId = move.settles === "RECEIVABLE" ? arGlId : depositGlId;
+    if (!giftCardGlId || !offsetGlId) {
+      warnings.push(cardMoveUnmapped(move, giftCardGlId));
+      continue;
+    }
+    const card = giftCardCredits.get(giftCardGlId) || { memo: "Gift cards sold", amount: 0 };
+    card.amount = round2(card.amount + move.amount);
+    giftCardCredits.set(giftCardGlId, card);
+    const offsets = move.settles === "RECEIVABLE" ? arDebits : cardOffsetDebits;
+    const memo = move.settles === "RECEIVABLE" ? "Invoiced" : "Deposits to gift cards";
+    const offset = offsets.get(offsetGlId) || { memo, amount: 0 };
+    offset.amount = round2(offset.amount + move.amount);
+    offsets.set(offsetGlId, offset);
+  }
+
   // Build journal lines. emitSigned() handles the sign convention
   // uniformly: positive amounts go on the default side; negative
   // amounts (returns / refunds) flip to the opposite side. Without
@@ -789,8 +846,10 @@ export function buildJournalLines(
 
   emitInto(paymentDebits, "debit", 10); // cash/card receipts, GC redemptions
   emitInto(depositDebits, "debit", 15); // deposit liability relieved on delivery
+  emitInto(cardOffsetDebits, "debit", 15); // deposits that became gift card value
   emitInto(arDebits, "debit", 16); // what the invoice put on the customer's account
   emitInto(paymentCredits, "credit", 20); // deposits, on-account
+  emitInto(giftCardCredits, "credit", 25); // gift cards sold on a sale
   emitInto(inventoryCredits, "credit", 30); // by department
   emitInto(writeoffDebits, "debit", 35); // B3 classified-writeoff returns, by department
   emitInto(taxCredits, "credit", 40); // by district
@@ -869,16 +928,19 @@ export const RETURN_FOR_JOURNAL_SELECT = {
   writtenOffAt: true,
 } as const;
 
+/** An order's first invoice that wasn't voided: when it was recognised. */
+const FIRST_LIVE_INVOICE = {
+  where: { status: { not: "VOID" as const } },
+  select: { id: true, invoiceDate: true },
+  orderBy: { invoiceDate: "asc" as const },
+};
+
 const ORDER_FOR_JOURNAL_INCLUDE = {
   include: {
     // invoiceDate decides BOTH which day recognises the order and whether a
     // given payment was a deposit or a settlement. VOID invoices are excluded:
     // a voided invoice never delivered anything.
-    invoices: {
-      where: { status: { not: "VOID" } },
-      select: { id: true, invoiceDate: true },
-      orderBy: { invoiceDate: "asc" },
-    },
+    invoices: FIRST_LIVE_INVOICE,
     taxDistrict: {
       select: { id: true, shortName: true, glAccountId: true },
     },
@@ -889,8 +951,9 @@ const ORDER_FOR_JOURNAL_INCLUDE = {
       // cancelled rows persist in the table -- they would otherwise
       // double-count into Sales / COGS / Inventory / Tax. Same bug
       // class as the Detailed Sales discrepancy fixed in PR
-      // #125; this is the JE-side closure of that surface.
-      where: { lineItemStatus: COUNTED_LINE_FILTER },
+      // #125; this is the JE-side closure of that surface. A gift card
+      // line is out too: a card sold is a liability, not Sales.
+      where: { ...COUNTED_ITEM_LINE },
       include: {
         product: {
           include: {
@@ -1141,6 +1204,9 @@ export async function generateSalesJournal(
     select: { glAccountId: true },
   });
   const arGlId = arMapping?.glAccountId || null;
+  // The gift card liability: the account a redemption debits.
+  const giftCardGlId =
+    paymentGlMap.get(METHOD_DISPLAY.GIFT_CARD.toLowerCase())?.glAccountId ?? null;
 
   // Query all payments for the date
   // Money that moved: a PENDING, FAILED or VOIDED payment never did (a
@@ -1179,7 +1245,38 @@ export async function generateSalesJournal(
     include: ORDER_FOR_JOURNAL_INCLUDE.include,
   });
 
-  if (payments.length === 0 && recognisedOrders.length === 0) {
+  // Gift card value sold or taken back on sale lines today (CardLineMove).
+  const cardRows = await prisma.giftCardTransaction.findMany({
+    where: {
+      ...SALE_LINE_CARD_ROW,
+      created: { gte: dayStart, lt: dayEndExclusive },
+      ...(storeLocation ? { orderLineItem: { salesOrder: { storeLocation } } } : {}),
+    },
+    select: {
+      amount: true,
+      created: true,
+      orderLineItem: { select: { salesOrder: { select: { invoices: FIRST_LIVE_INVOICE } } } },
+    },
+  });
+  const cardMoves: CardLineMove[] = cardRows.map((row) => ({
+    amount: toNum(row.amount),
+    settles: settlesOf(row.orderLineItem?.salesOrder.invoices[0]?.invoiceDate, row.created),
+  }));
+
+  // A card move with an account missing can't be booked, and leaving it out isn't safe: a later
+  // recognition nets every earlier issuance out of the deposits regardless, so the books would
+  // stay wrong for good. Like a day with nothing mappable, no entry: map it and generate again.
+  const unbookable = cardMoves.find(
+    (move) => !giftCardGlId || !(move.settles === "RECEIVABLE" ? arGlId : depositGlId),
+  );
+  if (unbookable) {
+    throw new Error(
+      `Refusing to post ${journalNumber}: ${cardMoveUnmapped(unbookable, giftCardGlId)}. ` +
+        `Map it and generate the day again.`,
+    );
+  }
+
+  if (payments.length === 0 && recognisedOrders.length === 0 && cardMoves.length === 0) {
     throw new Error(
       `No payments or deliveries found for ${journalNumber} (${date.toLocaleDateString()})`,
     );
@@ -1260,6 +1357,23 @@ export async function generateSalesJournal(
         round2((priorByOrder.get(pmt.salesOrderId) ?? 0) + signed),
       );
     }
+    // What its card lines moved out of the deposit (or back in) before the
+    // invoice is not there to relieve: it went to the gift card liability on the
+    // day it moved (CardLineMove, the same comparison).
+    const priorCardRows = await prisma.giftCardTransaction.findMany({
+      where: {
+        ...SALE_LINE_CARD_ROW,
+        orderLineItem: { salesOrderId: { in: recognisedOrders.map((o) => o.id) } },
+      },
+      select: { amount: true, created: true, orderLineItem: { select: { salesOrderId: true } } },
+    });
+    for (const row of priorCardRows) {
+      const orderId = row.orderLineItem?.salesOrderId;
+      if (orderId == null) continue;
+      const invoiceDate = invoiceDateByOrder.get(orderId);
+      if (!invoiceDate || settlesOf(invoiceDate, row.created) === "RECEIVABLE") continue;
+      priorByOrder.set(orderId, round2((priorByOrder.get(orderId) ?? 0) - toNum(row.amount)));
+    }
 
     for (const row of recognisedOrders) {
       const order = toOrderForJournal(row, fallbackTaxGlId, fees);
@@ -1281,6 +1395,8 @@ export async function generateSalesJournal(
     journalNumber,
     recognitions,
     arGlId,
+    cardMoves,
+    giftCardGlId,
   );
   warnings.push(...result.warnings);
 
@@ -1331,7 +1447,7 @@ export async function generateSalesJournal(
   // surface. Zero lines out of zero inputs throws; zero lines out of real
   // inputs is arithmetic.
   if (result.lines.length === 0) {
-    if (mappedPayments.length === 0 && recognisedOrders.length === 0) {
+    if (mappedPayments.length === 0 && recognisedOrders.length === 0 && cardMoves.length === 0) {
       throw new Error(
         `Refusing to post a journal entry with zero lines: ${journalNumber} had ` +
           `${payments.length} payment(s) but none could be mapped to a GL account, ` +

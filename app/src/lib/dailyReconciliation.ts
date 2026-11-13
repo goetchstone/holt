@@ -27,10 +27,11 @@ import {
   RESTOCKING_FEE_MAPPING_LABEL,
   DELIVERY_FEE_MAPPING_LABEL,
 } from "./glMapping";
-import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { computeTotalPaid, countedPaymentWhere } from "@/lib/paymentBalance";
 import { businessDayRange } from "@/lib/reports/businessDay";
+import { SALE_LINE_CARD_ROW } from "@/lib/giftCardLedger";
 
 export const RECONCILIATION_TOLERANCE = 0.01;
 
@@ -45,7 +46,10 @@ export interface DailyReconciliationSource {
    * "what was the cost of goods that moved (in or out via returns)." */
   cost: number;
   /** The day's payments that are money (`countedPaymentWhere`, the journal's rule), refunds
-   * negative whatever their stored sign (`computeTotalPaid`). The "net cash today." */
+   * negative whatever their stored sign (`computeTotalPaid`). The "net cash today." Less the
+   * gift card value sold on sale lines today (taken back counts back in), when the gift card
+   * liability is a tender's account: the journal moves that money into it (CardLineMove in
+   * lib/journalEntry.ts), and a tender's account is in the journal side's cash. */
   cash: number;
 }
 
@@ -197,6 +201,9 @@ export interface ReconciliationAccounts {
   cost: Set<number>;
   cash: Set<number>;
   overShort: Set<number>;
+  /** `POS_PAYMENTS`/"Gift Card": the liability a redemption debits and a card sold on a sale
+   *  credits. Null when unmapped. */
+  giftCardLiability: number | null;
   warnings: string[];
 }
 
@@ -206,7 +213,9 @@ export interface ReconciliationAccounts {
  * of source data drifts by nothing — indistinguishable from a clean day
  * unless it is said out loud.
  */
-function describeMappingGaps(sets: Omit<ReconciliationAccounts, "warnings">): string[] {
+function describeMappingGaps(
+  sets: Omit<ReconciliationAccounts, "warnings" | "giftCardLiability">,
+): string[] {
   const warnings: string[] = [];
   const configureAt = "Configure account groups at /app/admin/setup/accounting.";
 
@@ -245,6 +254,17 @@ function describeMappingGaps(sets: Omit<ReconciliationAccounts, "warnings">): st
   }
 
   return warnings;
+}
+
+/**
+ * The mapping gap a day's gift cards sold on a sale hit: with no `POS_PAYMENTS`/"Gift Card"
+ * account the journal can't book them, so it refuses the day (generateSalesJournal).
+ */
+function describeGiftCardGap(cardMovesToday: number): string[] {
+  if (cardMovesToday === 0) return [];
+  return [
+    `No ${POS_PAYMENTS_SECTION}/"${METHOD_DISPLAY.GIFT_CARD}" GL mapping — ${cardMovesToday} gift card move(s) on a sale this day have no liability account, so the day's journal can't be generated until it's mapped.`,
+  ];
 }
 
 /**
@@ -371,7 +391,13 @@ export async function resolveReconciliationAccounts(
 
   warnings.push(...describeMappingGaps({ revenue, tax, cost, cash, overShort }));
 
-  return { revenue, tax, cost, cash, overShort, warnings };
+  const giftCardLabel = METHOD_DISPLAY.GIFT_CARD.toLowerCase();
+  const giftCardLiability =
+    mappings.find(
+      (m) => m.section === POS_PAYMENTS_SECTION && m.label.trim().toLowerCase() === giftCardLabel,
+    )?.glAccountId ?? null;
+
+  return { revenue, tax, cost, cash, overShort, giftCardLiability, warnings };
 }
 
 /**
@@ -415,7 +441,7 @@ export async function computeDailyReconciliation(opts: {
   // Source-side queries
   const lineItems = await client.orderLineItem.findMany({
     where: {
-      lineItemStatus: COUNTED_LINE_FILTER,
+      ...COUNTED_ITEM_LINE,
       salesOrder: {
         orderDate: { gte: dayStart, lt: dayEndExclusive },
         status: { in: [...SALES_REVENUE_STATUSES] },
@@ -436,17 +462,41 @@ export async function computeDailyReconciliation(opts: {
     select: { paymentAmount: true, isRefund: true, status: true },
   });
 
+  // Which account is which, per this deployment's configuration.
+  const accounts = await resolveReconciliationAccounts(client);
+
+  // Gift cards sold on a sale: the journal credits the gift card liability with that money, and
+  // the liability is the "Gift Card" tender's account (a redemption debits it), so the journal's
+  // cash bucket nets the sale out. The source nets it out the same way, or every card sold would
+  // read as a cash drift. Unmapped, the journal leaves the money where it was paid, and so does this.
+  const cardAccount = accounts.giftCardLiability;
+  const cardRows =
+    cardAccount != null && accounts.cash.has(cardAccount)
+      ? await client.giftCardTransaction.findMany({
+          where: { ...SALE_LINE_CARD_ROW, created: { gte: dayStart, lt: dayEndExclusive } },
+          select: { amount: true },
+        })
+      : [];
+  const cardSold = cardRows.reduce((s, row) => s + Number(row.amount), 0);
+  // With no "Gift Card" mapping the journal refuses a day with a card sold on a sale, so the
+  // day has no journal to read: say which mapping, beside the other gaps.
+  const unmappedCards =
+    cardAccount == null
+      ? await client.giftCardTransaction.count({
+          where: { ...SALE_LINE_CARD_ROW, created: { gte: dayStart, lt: dayEndExclusive } },
+        })
+      : 0;
+  const cardGap = describeGiftCardGap(unmappedCards);
+
   const source: DailyReconciliationSource = {
     revenue: round2(lineItems.reduce((s, li) => s + Number(li.netPrice ?? 0), 0)),
     tax: round2(lineItems.reduce((s, li) => s + Number(li.vatAmount ?? 0), 0)),
     cost: round2(lineItems.reduce((s, li) => s + Number(li.cost ?? 0), 0)),
     cash: round2(
-      computeTotalPaid(payments.map((p) => ({ ...p, paymentAmount: Number(p.paymentAmount) }))),
+      computeTotalPaid(payments.map((p) => ({ ...p, paymentAmount: Number(p.paymentAmount) }))) -
+        cardSold,
     ),
   };
-
-  // Which account is which, per this deployment's configuration.
-  const accounts = await resolveReconciliationAccounts(client);
 
   // Load the day's JE (if any).
   //
@@ -503,7 +553,7 @@ export async function computeDailyReconciliation(opts: {
   const { drift, balanced, warnings } = compareReconciliation(source, journal);
   // Configuration problems go first: "revenue drift $8,000" is a misleading
   // thing to read when the real story is that no sales account is mapped.
-  warnings.unshift(...accounts.warnings);
+  warnings.unshift(...accounts.warnings, ...cardGap);
 
   if (!je) {
     warnings.unshift(
@@ -523,7 +573,7 @@ export async function computeDailyReconciliation(opts: {
     // drift looks: unresolved buckets read $0.00, and $0.00 vs $0.00 drifts
     // by nothing. That is the silent-success shape this control exists to
     // prevent, so an unresolved mapping fails the day outright.
-    balanced: balanced && !!je && accounts.warnings.length === 0,
+    balanced: balanced && !!je && accounts.warnings.length === 0 && cardGap.length === 0,
     warnings,
   };
 }

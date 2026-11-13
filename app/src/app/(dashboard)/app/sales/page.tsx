@@ -30,7 +30,7 @@ const ITEMS: CardGridItem[] = [
   },
   {
     title: "Point of Sale",
-    description: "Scan items, build a cart, and process sales.",
+    description: "Scan items and gift cards, build a cart, and process sales.",
     href: "/app/sales/pos",
     roles: ["ADMIN", "REGISTER"],
     feature: "pos",
@@ -59,13 +59,6 @@ const ITEMS: CardGridItem[] = [
     title: "Customers",
     description: "Search, view, and update customer profiles",
     href: "/app/sales/customers",
-  },
-  {
-    title: "Gift Card Sale",
-    description: "Sell and activate gift cards using quick codes.",
-    href: "/app/sales/gift-card-sale",
-    roles: ["ADMIN", "REGISTER"],
-    feature: "giftCards",
   },
   {
     title: "Till",

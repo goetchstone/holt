@@ -6,7 +6,7 @@
 // lib/reports/detailedSales.ts and inspecting the exact params it's called
 // with. Together with __tests__/reports.cancelledLineFilter.test.ts (which
 // auto-discovers this file under lib/reports/* and asserts the literal
-// `lineItemStatus: COUNTED_LINE_FILTER` clause is present), this pins all
+// shared counted-line filter is present), this pins all
 // three docs/domains/reporting.md invariants for the new report:
 //
 //   (a) cancelled-line rule       -> "excludes CANCELLED lines" below
@@ -164,8 +164,8 @@ describe("source-text invariant pins (lib/reports/salesExplorerQuery.ts)", () =>
     "utf8",
   );
 
-  it("(a) excludes cancelled and replaced lines with the shared filter", () => {
-    expect(src).toMatch(/lineItemStatus:\s*COUNTED_LINE_FILTER/);
+  it("(a) excludes cancelled and replaced lines, and gift card lines, with the shared filter", () => {
+    expect(src).toMatch(/\.\.\.COUNTED_ITEM_LINE\b/);
   });
 
   it("(b) never filters a nullable column with a bare not:/notIn: (only positive `in:` allow-lists)", () => {

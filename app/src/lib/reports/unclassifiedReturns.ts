@@ -17,7 +17,8 @@
 // booked — one source of truth for "was this return classified."
 //
 // Invariants (docs/domains/reporting.md):
-//  - Rule 33: `lineItemStatus: COUNTED_LINE_FILTER` on every line-item read.
+//  - Rule 33: `...COUNTED_ITEM_LINE` on every line-item read (a refunded gift card
+//    line isn't goods to restock, so it is out too).
 //    (lineItemStatus is non-nullable in the current data — migration
 //    20260505_backfill_lineitem_status_nulls backfilled every legacy NULL —
 //    so a direct `not:` here does not hit the NULL-trap.)
@@ -33,7 +34,7 @@ import {
   RETURN_FOR_JOURNAL_SELECT,
   type ReturnForJournal,
 } from "@/lib/journalEntry";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export interface UnclassifiedReturnRow {
   lineItemId: number;
@@ -184,7 +185,7 @@ export async function getUnclassifiedReturns(
         // Rule 33 (cancelled-line filter) AND scope to return-shaped lines
         // only — netPrice is non-nullable, so this is a plain numeric
         // comparison, not a negated filter on a nullable column.
-        where: { lineItemStatus: COUNTED_LINE_FILTER, netPrice: { lt: 0 } },
+        where: { ...COUNTED_ITEM_LINE, netPrice: { lt: 0 } },
         select: { id: true, productId: true, productName: true, partNo: true, netPrice: true },
       },
       // The journal's own select (rule 6), so this report can never classify

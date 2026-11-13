@@ -12,7 +12,7 @@
 // without a DB.
 
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { revenueStatusSql, countedLineSql } from "@/lib/reports/revenueScope";
+import { revenueStatusSql, countedItemLineSql } from "@/lib/reports/revenueScope";
 
 export const GROSS_MARGIN_PIVOTS = ["department", "vendor"] as const;
 export type GrossMarginPivot = (typeof GROSS_MARGIN_PIVOTS)[number];
@@ -195,7 +195,7 @@ export async function getGrossMargin(
     WHERE ${revenueStatusSql()}
       AND so."orderDate" >= ${startDate}::date
       AND so."orderDate" < (${endDate}::date + INTERVAL '1 day')
-      AND ${countedLineSql("li")}
+      AND ${countedItemLineSql("li")}
     GROUP BY 1
   `);
 

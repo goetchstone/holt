@@ -12,7 +12,7 @@ import {
   type EngagementEvent,
   type AttributableOrder,
 } from "@/lib/campaignAttribution";
-import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 import { logError } from "@/lib/logger";
 
 const ATTRIBUTION_WINDOW_DAYS = 30;
@@ -134,7 +134,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             customerId: true,
             orderDate: true,
             lineItems: {
-              where: { lineItemStatus: COUNTED_LINE_FILTER },
+              where: { ...COUNTED_ITEM_LINE },
               select: {
                 netPrice: true,
                 product: { select: { department: { select: { name: true } } } },

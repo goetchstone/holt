@@ -7,7 +7,7 @@
 // TOTAL, not unit price.
 
 import type { PrismaClient } from "@prisma/client";
-import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export interface StaleQuoteRow {
   id: number;
@@ -65,7 +65,8 @@ export async function getStaleQuotes(
       salesperson: true,
       customer: { select: { firstName: true, lastName: true } },
       lineItems: {
-        where: { lineItemStatus: COUNTED_LINE_FILTER },
+        // Not a gift card: a register sale is a quote until it's paid, and a card isn't a sale.
+        where: { ...COUNTED_ITEM_LINE },
         select: { netPrice: true, orderedQuantity: true },
       },
     },

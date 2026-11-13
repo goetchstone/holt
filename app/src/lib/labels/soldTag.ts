@@ -3,22 +3,24 @@
 // A "sold" tag (GAP-18): hung on a piece so nobody sells it twice or moves it,
 // saying whose it is. It's for a line of a real sale: a quote hasn't sold, and a
 // cancelled or replaced line, or one with nothing on it, isn't sold any more
-// (rules 31, 33). What shows is the store's template: customerLastName is there
-// for a tag on a showroom floor, where a full name may be more than it wants to
-// show.
+// (rules 31, 33). A gift card sold on the order isn't a piece, so it has no tag.
+// What shows is the store's template: customerLastName is there for a tag on a
+// showroom floor, where a full name may be more than it wants to show.
 
 import { prisma } from "@/lib/prisma";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayKey } from "@/lib/reports/businessDay";
 import { LabelSetupError } from "./productTag";
 import { renderTemplate } from "./renderTemplate";
-import { isCountedLine } from "@/lib/salesOrderRevenue";
+import { isCountedItemLine } from "@/lib/salesOrderRevenue";
 
 /** Orders that have sold. A returned order's goods aren't on hold for anyone. */
 const SOLD_STATUSES: readonly string[] = ["ORDER", "FULFILLED"];
 
 export interface SoldTagLine {
   lineItemStatus: string | null;
+  /** Set on a gift card line. */
+  giftCardNumber?: string | null;
   orderedQuantity: unknown;
   productName: string | null;
   product: { name: string; productNumber: string; vendor: { name: string } } | null;
@@ -35,8 +37,10 @@ export interface SoldTagOrder {
 /** Why this line can't have a sold tag, or null. Pure. */
 export function soldTagProblem(status: string, line: SoldTagLine): string | null {
   if (!SOLD_STATUSES.includes(status)) return "Only a sold order's lines can have a sold tag.";
-  if (line.lineItemStatus !== null && !isCountedLine(line.lineItemStatus)) {
-    return "This line is no longer on the order.";
+  if (!isCountedItemLine(line)) {
+    return line.giftCardNumber
+      ? "A gift card isn't a piece, so it has no sold tag."
+      : "This line is no longer on the order.";
   }
   if (!(Number(line.orderedQuantity) > 0)) return "This line has nothing on it to tag.";
   return null;
@@ -69,6 +73,7 @@ export async function renderSoldTag(
     where: { id: lineItemId, salesOrderId: orderId },
     select: {
       lineItemStatus: true,
+      giftCardNumber: true,
       orderedQuantity: true,
       productName: true,
       product: { select: { name: true, productNumber: true, vendor: { select: { name: true } } } },

@@ -34,7 +34,7 @@ import {
   realizedRetailByFrame,
   type StockReceipt,
 } from "@/lib/reports/poSellThrough";
-import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export interface PoSellThruParams {
   poNumbers: string[];
@@ -346,7 +346,7 @@ async function loadWindowedSales(
   const rows = await prisma.orderLineItem.findMany({
     where: {
       productId: { in: productIds },
-      lineItemStatus: COUNTED_LINE_FILTER,
+      ...COUNTED_ITEM_LINE,
       salesOrder: {
         status: { in: [...SALES_REVENUE_STATUSES] },
         ...(floor ? { orderDate: { gte: floor } } : {}),

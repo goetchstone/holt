@@ -6,7 +6,7 @@
 // included so the rewrite chain nets) and exclude CANCELLED lines (rule 33).
 
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
 export interface CustomerRow {
   id: number;
@@ -104,7 +104,7 @@ export async function getWealthInsights(
             select: {
               lineItems: {
                 select: { netPrice: true },
-                where: { lineItemStatus: COUNTED_LINE_FILTER },
+                where: { ...COUNTED_ITEM_LINE },
               },
             },
             where: { status: { in: [...SALES_REVENUE_STATUSES] } },

@@ -9,6 +9,7 @@ import { parseQty } from "@/lib/inventory/qtyInput";
 import { generateReturnNumber } from "@/lib/returnService";
 import { logError } from "@/lib/logger";
 import { deliveryFeeLineEditProblem } from "@/lib/delivery/deliveryFee";
+import { giftCardLineEditProblem } from "@/lib/sales/giftCardLines";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -141,6 +142,11 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, changedBy: 
             "A delivery fee isn't goods to return. Until the order is handed over, change or remove it under Delivery fee on the order.",
         });
       }
+      // A gift card's money is on the card: it comes back only where the store
+      // refunds cards, from an unused card (lib/sales/giftCardLines.ts), and
+      // its value comes off the card when the return is booked.
+      const cardLine = await giftCardLineEditProblem(prisma, lineItem.id, "return");
+      if (cardLine) return res.status(409).json({ error: cardLine });
     }
 
     const returnNumber = await generateReturnNumber();

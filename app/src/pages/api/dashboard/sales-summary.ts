@@ -4,7 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
-import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayKey, businessDayRange, sameDateLastYear } from "@/lib/reports/businessDay";
 
@@ -38,7 +38,7 @@ async function sumSalesByStore(from: Date, to: Date): Promise<Record<string, Sto
       storeLocation: true,
       store: { select: { name: true } },
       lineItems: {
-        where: { lineItemStatus: COUNTED_LINE_FILTER },
+        where: { ...COUNTED_ITEM_LINE },
         select: { netPrice: true, vatAmount: true },
       },
     },

@@ -59,8 +59,8 @@ describe("detailed-sales summary lib — vendor pivot extension", () => {
     expect(LIB).toMatch(/vendor:\s*\{\s*select:\s*\{\s*name:\s*true\s*\}\s*\}/);
   });
 
-  it("rule 33: cancelled lines excluded from rollup", () => {
-    expect(LIB).toMatch(/lineItemStatus:\s*COUNTED_LINE_FILTER/);
+  it("rule 33: cancelled lines excluded from rollup (and gift card lines)", () => {
+    expect(LIB).toMatch(/\.\.\.COUNTED_ITEM_LINE\b/);
   });
 
   it("vendors filter parsed and applied through product relation", () => {
@@ -98,7 +98,7 @@ describe("detailed-sales drilldown lib — vendor + type narrowing", () => {
     // Two inline occurrences: one in getDetailedSales, one in
     // getDetailedSalesItems. Both must carry the filter so summary +
     // drilldown can never diverge (they once did).
-    const matches = LIB.match(/lineItemStatus:\s*COUNTED_LINE_FILTER/g) ?? [];
+    const matches = LIB.match(/\.\.\.COUNTED_ITEM_LINE\b/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 });

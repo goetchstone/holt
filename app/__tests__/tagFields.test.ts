@@ -237,6 +237,13 @@ describe("soldTagProblem", () => {
   it("refuses a zero-quantity line (rule 31)", () => {
     expect(soldTagProblem("ORDER", line({ orderedQuantity: 0 }))).toMatch(/nothing on it/);
   });
+
+  it("refuses a gift card line, which isn't a piece to tag", () => {
+    expect(soldTagProblem("ORDER", line({ giftCardNumber: "GC-1001", product: null }))).toMatch(
+      /gift card/,
+    );
+    expect(soldTagProblem("ORDER", line({ giftCardNumber: null }))).toBeNull();
+  });
 });
 
 describe("soldTagFields", () => {
