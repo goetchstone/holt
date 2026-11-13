@@ -42,6 +42,8 @@ function fakeClient(captured: Captured) {
     taxDistrict: { findMany: async () => [] },
     systemGLMapping: { findMany: async () => [] },
     tender: { findMany: async () => [] },
+    // No gift card sold on a sale this day (the "Gift Card" gap is asked only when one is).
+    giftCardTransaction: { findMany: async () => [], count: async () => 0 },
     orderLineItem: {
       findMany: async (args: { where: { salesOrder: { orderDate: { gte: Date; lt: Date } } } }) => {
         captured.orderDate = args.where.salesOrder.orderDate;

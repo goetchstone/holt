@@ -37,6 +37,7 @@ import { consume } from "@/lib/inventory/allocation";
 import { getActiveOrderLines, resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { lockProducts } from "@/lib/inventory/ledger";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
+import { isCountedItemLine } from "@/lib/salesOrderRevenue";
 import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
 
 type Tx = Prisma.TransactionClient;
@@ -189,9 +190,11 @@ export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<Hand
       lineItemStatus: "ACTIVE",
       orderedQuantity: { gt: 0 },
     },
-    select: { id: true, orderedQuantity: true },
+    select: { id: true, orderedQuantity: true, lineItemStatus: true, giftCardNumber: true },
   });
-  for (const line of open) {
+  // A gift card line isn't goods, so nothing of it is handed over: marking it fulfilled would
+  // read as the card gone to the customer, and refuse its cancel where the store refunds cards.
+  for (const line of open.filter(isCountedItemLine)) {
     await tx.orderLineItem.update({
       where: { id: line.id },
       data: { fulfilledQty: line.orderedQuantity },

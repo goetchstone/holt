@@ -388,7 +388,12 @@ async function takeBackCards(tx: Db, orderId: number, actor: string | null): Pro
     select: { id: true },
   });
   for (const line of lines) {
-    const problem = await takeBackCardLine(tx, line.id, actor, { action: "cancel" });
+    // Finishing: the payments' own cap keeps a whole-sale cancel's refunds to what was paid, so
+    // a card its first refund took back is no reason to refuse the next.
+    const problem = await takeBackCardLine(tx, line.id, actor, {
+      action: "cancel",
+      finishing: true,
+    });
     if (problem) throw new CancelOrderError(problem);
   }
 }
@@ -631,13 +636,14 @@ export async function refundOverpayment(
     await log(pending.amount);
   }
   if (destination !== "ORIGINAL_PAYMENT") return;
-  for (const payment of over.payments) {
+  for (const [i, payment] of over.payments.entries()) {
     await processRefund(payment.paymentId, {
       amount: payment.amount,
       reason,
       createdBy: actor ?? undefined,
-      // A live gift card being cancelled comes back off its card with its money.
-      guard: (tx) => takeBackLineCard(tx, lineItemId, actor),
+      // A live gift card being cancelled comes back off its card with its money: the first
+      // refund's. A card already back refuses it, so a cancel sent twice can't refund twice.
+      guard: i === 0 ? (tx) => takeBackLineCard(tx, lineItemId, actor) : undefined,
     });
     await log(payment.amount);
   }
@@ -645,14 +651,16 @@ export async function refundOverpayment(
 
 /**
  * A cancelled card line's value comes back off its card, in the caller's transaction: the first
- * refund's, or the one that cancels the line. Nothing for any other line, or the second time.
+ * refund's, or the one that cancels the line. Nothing for any other line. A card already taken
+ * back refuses, unless `finishing` (the cancel's own last step, moving no money of its own).
  */
 export async function takeBackLineCard(
   tx: Db,
   lineItemId: number,
   actor: string | null,
+  finishing = false,
 ): Promise<void> {
-  const problem = await takeBackCardLine(tx, lineItemId, actor, { action: "cancel" });
+  const problem = await takeBackCardLine(tx, lineItemId, actor, { action: "cancel", finishing });
   if (problem) throw new CancelOrderError(problem);
 }
 

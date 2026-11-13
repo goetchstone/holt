@@ -286,7 +286,7 @@ describe("reloading a card on a sale", () => {
       replaceCard(tx, { cardId: old.id, newBarcode: "GC-LATE-2", createdBy: ACTOR }),
     );
 
-    await expect(cash(order.id, 25)).rejects.toThrow("moved to a new card");
+    await expect(cash(order.id, 25)).rejects.toThrow("balance moved to card #");
 
     expect(await prisma.payment.count({ where: { salesOrderId: order.id } })).toBe(0);
     expect((await cardLineOf(order.id)).giftCardId).toBeNull();

@@ -257,6 +257,17 @@ function describeMappingGaps(
 }
 
 /**
+ * The mapping gap a day's gift cards sold on a sale hit: with no `POS_PAYMENTS`/"Gift Card"
+ * account the journal can't book them, so it refuses the day (generateSalesJournal).
+ */
+function describeGiftCardGap(cardMovesToday: number): string[] {
+  if (cardMovesToday === 0) return [];
+  return [
+    `No ${POS_PAYMENTS_SECTION}/"${METHOD_DISPLAY.GIFT_CARD}" GL mapping — ${cardMovesToday} gift card move(s) on a sale this day have no liability account, so the day's journal can't be generated until it's mapped.`,
+  ];
+}
+
+/**
  * Resolves the account sets above from configuration.
  *
  * Why two different mechanisms, and why each is the honest signal:
@@ -467,6 +478,15 @@ export async function computeDailyReconciliation(opts: {
         })
       : [];
   const cardSold = cardRows.reduce((s, row) => s + Number(row.amount), 0);
+  // With no "Gift Card" mapping the journal refuses a day with a card sold on a sale, so the
+  // day has no journal to read: say which mapping, beside the other gaps.
+  const unmappedCards =
+    cardAccount == null
+      ? await client.giftCardTransaction.count({
+          where: { ...SALE_LINE_CARD_ROW, created: { gte: dayStart, lt: dayEndExclusive } },
+        })
+      : 0;
+  const cardGap = describeGiftCardGap(unmappedCards);
 
   const source: DailyReconciliationSource = {
     revenue: round2(lineItems.reduce((s, li) => s + Number(li.netPrice ?? 0), 0)),
@@ -533,7 +553,7 @@ export async function computeDailyReconciliation(opts: {
   const { drift, balanced, warnings } = compareReconciliation(source, journal);
   // Configuration problems go first: "revenue drift $8,000" is a misleading
   // thing to read when the real story is that no sales account is mapped.
-  warnings.unshift(...accounts.warnings);
+  warnings.unshift(...accounts.warnings, ...cardGap);
 
   if (!je) {
     warnings.unshift(
@@ -553,7 +573,7 @@ export async function computeDailyReconciliation(opts: {
     // drift looks: unresolved buckets read $0.00, and $0.00 vs $0.00 drifts
     // by nothing. That is the silent-success shape this control exists to
     // prevent, so an unresolved mapping fails the day outright.
-    balanced: balanced && !!je && accounts.warnings.length === 0,
+    balanced: balanced && !!je && accounts.warnings.length === 0 && cardGap.length === 0,
     warnings,
   };
 }

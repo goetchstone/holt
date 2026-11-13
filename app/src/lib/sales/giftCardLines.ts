@@ -6,9 +6,10 @@
 // card is issued, or reloaded, only by issuePaidGiftCards: inside the transaction of the payment
 // that pays the sale off, so the money and the card's balance move together or not at all.
 //
-// Every path that completes a payment on an order calls issuePaidGiftCards (rule 42):
-// recordPaymentTx (the register, the order screen's store credit, a return's credit applied to
-// what the original still owes) and completePayment (a processor's webhook). See pos.md.
+// Every path that can pay an order off calls issuePaidGiftCards (rule 42): recordPaymentTx (the
+// register, the order screen's store credit, a return's credit applied to what the original still
+// owes), completePayment (a processor's webhook), and each change that lowers what's owed (the
+// line route's cancel, update, replace and remove, and a delivery fee changed). See pos.md.
 //
 // Taking a live card back is the store's call (AppSettings.giftCardsRefundable, off by default;
 // owner: "Most places will not refund a giftcard ... this should be a config and then only if
@@ -30,6 +31,7 @@ import {
 } from "@/lib/giftCardLedger";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { getAppSettings } from "@/lib/appSettings";
+import { logError } from "@/lib/logger";
 import {
   GIFT_CARD_LINE_NAME,
   closedCardMessage,
@@ -50,11 +52,20 @@ export interface CheckedGiftCardLine {
  * The cart's card lines checked before anything is written, or why they can't be sold: each has a
  * number and an amount in whole cents above zero, no number twice, and none a card that was
  * retired (REPLACED, or VOIDED before Void was removed). A number that's an open card is a reload.
+ * No card beside a return (`withReturn`): no exchange onto a card, since the return's credit
+ * would pay for it with no payment, and a card is issued by the payment that pays the sale off.
  */
 export async function checkGiftCardLines(
   lines: GiftCardCartLine[],
+  withReturn = false,
 ): Promise<{ error: string } | { lines: CheckedGiftCardLine[] }> {
   if (lines.length === 0) return { lines: [] };
+  if (withReturn) {
+    return {
+      error:
+        "A gift card can't go on a sale with a return. Do the return on its own, then sell the card.",
+    };
+  }
   if (!(await isModuleEnabled("giftCards"))) {
     return { error: "Gift cards are switched off for this store (Settings, Modules)." };
   }
@@ -224,14 +235,20 @@ export async function giftCardLineEditProblem(
  * Take a live card line's value back off its card, in the caller's transaction: the one that
  * returns its money (a refund's, or the credit's, or the cancel's or return's own). Returns why it
  * can't (the gate's answer, for the caller to throw as its own error), or null once the value is
- * off the card. Nothing for a line that isn't a live card, and nothing the second time: the line
- * and its card are locked, so of two at once the second sees the first's REFUND row.
+ * off the card. Nothing for a line that isn't a live card.
+ *
+ * The line and its card are locked, so of two at once the second sees the first's REFUND row,
+ * and refuses: its money went back with the first, so a second refund would pay for the card
+ * twice (a double-submitted cancel). `finishing` is the one exception, for a caller whose
+ * transaction moves no money for the card: a whole-sale cancel's later refunds, where the
+ * payments' own cap keeps the total to what was paid, or the cancel's last step after its own
+ * refund took the value off, or a cancel finishing one that refunded and then stopped.
  */
 export async function takeBackCardLine(
   tx: Tx,
   lineItemId: number,
   actor: string | null,
-  opts: { action: "cancel" | "return"; reference?: string; at?: Date },
+  opts: { action: "cancel" | "return"; reference?: string; at?: Date; finishing?: boolean },
 ): Promise<string | null> {
   await tx.$queryRaw`SELECT id FROM "OrderLineItem" WHERE id = ${lineItemId} FOR UPDATE`;
   const line = await tx.orderLineItem.findUnique({
@@ -241,12 +258,16 @@ export async function takeBackCardLine(
       giftCardNumber: true,
       giftCardId: true,
       netPrice: true,
+      lineItemStatus: true,
       salesOrder: { select: { id: true, orderno: true } },
       giftCardTransactions: { where: { amount: { lt: 0 } }, select: { id: true } },
     },
   });
   if (!line?.giftCardNumber || line.giftCardId == null) return null;
-  if (opts.action === "cancel" && line.giftCardTransactions.length > 0) return null;
+  if (opts.action === "cancel" && line.giftCardTransactions.length > 0) {
+    if (opts.finishing && isCountedLine(line.lineItemStatus)) return null;
+    return `Gift card ${line.giftCardNumber}'s value has already been taken back off the card, and its money with it.`;
+  }
   await tx.$queryRaw`SELECT id FROM "GiftCard" WHERE id = ${line.giftCardId} FOR UPDATE`;
   const problem = await giftCardLineChangeProblem(tx, line, opts.action);
   if (problem) return problem;
@@ -263,11 +284,71 @@ export async function takeBackCardLine(
 }
 
 /**
+ * Why money can't go back on this order straight from a payment (the refunds route), or null.
+ * A live card's money goes back only with its card: cancelling or returning its line, which
+ * ask the store's refund setting and whether the card is unused (giftCardLineChangeProblem). A
+ * direct refund asks neither, so the customer would have the money and the card. A card line
+ * whose value has already come off its card isn't live. Run inside the refund's transaction
+ * (processRefund's guard), so a card issued meanwhile is seen.
+ */
+export async function directRefundProblem(
+  db: Tx | typeof prisma,
+  orderId: number,
+): Promise<string | null> {
+  const live = await db.orderLineItem.findFirst({
+    where: {
+      salesOrderId: orderId,
+      lineItemStatus: COUNTED_LINE_FILTER,
+      giftCardId: { not: null },
+      giftCardTransactions: { none: { amount: { lt: 0 } } },
+    },
+    select: { giftCardNumber: true },
+  });
+  if (!live) return null;
+  return `Gift card ${live.giftCardNumber} on this sale is live, and its money goes back only with the card. Cancel its line, or return it, instead of refunding the payment.`;
+}
+
+/** Advisory-lock key space for issuing one card number; see STOCK_LOCK_SPACE in inventory/ledger.ts. */
+const CARD_NUMBER_LOCK_SPACE = 5_461_074;
+
+/** What a card line does at issue: a new card, or a reload of the card already on the number. */
+export function cardLineIntent(productName: string | null): "NEW" | "RELOAD" {
+  return productName === GIFT_CARD_LINE_NAME.RELOAD ? "RELOAD" : "NEW";
+}
+
+/**
+ * Why a card line can't be issued now, or null. A line rung up as a new card never reloads a
+ * card: a number that's a card now was taken by another sale since (two sales, one number), and
+ * putting this sale's money on that card would hand it to whoever holds it. A reload needs its
+ * card still open.
+ */
+function issueProblem(
+  number: string,
+  intent: "NEW" | "RELOAD",
+  card: { status: string; replacedById: number | null } | null,
+): string | null {
+  if (intent === "NEW") {
+    return card
+      ? `Gift card ${number} was rung up as a new card, but another sale has issued that number since. Cancel the line and sell a card with an unused number.`
+      : null;
+  }
+  if (!card) return `Gift card ${number} was rung up as a reload, but there is no such card.`;
+  const closed = closedCardMessage(card);
+  return closed ? `Gift card ${number}: ${closed}` : null;
+}
+
+/**
  * Issue the order's card lines once the order is paid in full, in the caller's transaction (the
- * payment's). Each waiting line (a counted line with a number and no card yet) is issued through
- * the card ledger: a number that's an open card gets a RELOAD of the line's amount, any other a
- * new card (issueCard); a retired card is refused, which refuses the payment with it. The line
+ * payment's, or the line change's that paid it off). Each waiting line (a counted line with a
+ * number and no card yet) is issued through the card ledger as it was rung up (cardLineIntent): a
+ * reload credits the open card a RELOAD of the line's amount, a new card is issueCard. The line
  * then carries the card, so it's issued once. Before the order is paid in full, nothing happens.
+ *
+ * A line that can't be issued (issueProblem) is the caller's call. `refuse` (the register's
+ * payment) throws, so the payment is refused and staff see why at once. `leave` is for a caller
+ * whose money has already moved, a processor's captured payment or a line change after its
+ * refund: the line stays unissued with why on the order (GIFT_CARD_NOT_ISSUED) and in the log,
+ * and staff cancel it, which gives its money back.
  *
  * "Paid in full" is what the order owes less what was paid, from computeBalance, with no
  * tolerance: its balanceDue treats up to $1.00 owed as paid, and a card is never issued short.
@@ -276,6 +357,7 @@ export async function issuePaidGiftCards(
   tx: Tx,
   orderId: number,
   actor: string | null,
+  onProblem: "refuse" | "leave" = "refuse",
 ): Promise<void> {
   // Nothing to do, and no lock taken, on a sale without a card waiting: almost every sale.
   const waiting = await tx.orderLineItem.count({
@@ -299,6 +381,7 @@ export async function issuePaidGiftCards(
       lineItems: {
         select: {
           id: true,
+          productName: true,
           netPrice: true,
           orderedQuantity: true,
           vatAmount: true,
@@ -318,31 +401,63 @@ export async function issuePaidGiftCards(
   for (const line of order.lineItems) {
     if (!line.giftCardNumber || line.giftCardId != null) continue;
     if (!isCountedLine(line.lineItemStatus)) continue;
-    const amount = Number(line.netPrice);
-    const existing = await tx.giftCard.findUnique({
-      where: { barcode: line.giftCardNumber },
-      select: { id: true },
+    const problem = await issueLine(tx, { ...line, giftCardNumber: line.giftCardNumber }, actor, {
+      reference,
     });
-    let cardId: number;
-    if (existing) {
-      await creditToCard(tx, {
-        cardId: existing.id,
-        amount,
-        type: "RELOAD",
-        createdBy: actor,
-        reference,
-        orderLineItemId: line.id,
-      });
-      cardId = existing.id;
-    } else {
-      ({ cardId } = await issueCard(tx, {
-        barcode: line.giftCardNumber,
-        amount,
-        createdBy: actor,
-        reference,
-        orderLineItemId: line.id,
-      }));
-    }
-    await tx.orderLineItem.update({ where: { id: line.id }, data: { giftCardId: cardId } });
+    if (!problem) continue;
+    if (onProblem === "refuse") throw new GiftCardError(problem);
+    await leaveUnissued(tx, orderId, line.id, problem, actor);
   }
+}
+
+/** Issue one waiting card line as it was rung up; why it can't be, or null once it is. */
+async function issueLine(
+  tx: Tx,
+  line: { id: number; productName: string | null; netPrice: unknown; giftCardNumber: string },
+  actor: string | null,
+  opts: { reference: string },
+): Promise<string | null> {
+  const number = line.giftCardNumber;
+  // Two sales issuing one number decide one after the other, so the second sees the card.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CARD_NUMBER_LOCK_SPACE}::int, hashtext(${number}))`;
+  const existing = await tx.giftCard.findUnique({
+    where: { barcode: number },
+    select: { id: true, status: true, replacedById: true },
+  });
+  const problem = issueProblem(number, cardLineIntent(line.productName), existing);
+  if (problem) return problem;
+  const written = { amount: Number(line.netPrice), createdBy: actor, orderLineItemId: line.id };
+  let cardId: number;
+  if (existing) {
+    await creditToCard(tx, { ...written, cardId: existing.id, type: "RELOAD", ...opts });
+    cardId = existing.id;
+  } else {
+    ({ cardId } = await issueCard(tx, { ...written, barcode: number, ...opts }));
+  }
+  await tx.orderLineItem.update({ where: { id: line.id }, data: { giftCardId: cardId } });
+  return null;
+}
+
+/** Why a paid card line wasn't issued, on the order once (and in the log), for staff to act on. */
+async function leaveUnissued(
+  tx: Tx,
+  orderId: number,
+  lineItemId: number,
+  problem: string,
+  actor: string | null,
+): Promise<void> {
+  logError(`Gift card line ${lineItemId} on order ${orderId} paid but not issued`, problem);
+  const said = await tx.orderChangeLog.count({
+    where: { salesOrderId: orderId, lineItemId, changeType: "GIFT_CARD_NOT_ISSUED" },
+  });
+  if (said > 0) return;
+  await tx.orderChangeLog.create({
+    data: {
+      salesOrderId: orderId,
+      lineItemId,
+      changeType: "GIFT_CARD_NOT_ISSUED",
+      reason: `${problem} Its money is paid: cancel the line to give it back.`,
+      changedBy: actor ?? "system",
+    },
+  });
 }

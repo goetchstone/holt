@@ -266,9 +266,12 @@ Which account the money comes out of is the same recorded fact a payment's is: t
 own time against the order's first live invoice date, so it leaves exactly the account the
 payment put it in. On the delivery day, `priorDepositCredited` leaves out what the card lines
 moved out of the deposit before the invoice, so the deposit relieved is the goods' and the
-receivable nets to zero. With the gift card, deposit or AR account unmapped, neither leg is
-written and the day warns ("... is not in the gift card liability"), so the money stays
-where it was paid rather than plugging. Pinned by `giftCardSaleBooks.integration.test.ts`:
+receivable nets to zero. With the gift card, deposit or AR account a move needs unmapped,
+`generateSalesJournal` refuses the day ("Refusing to post ...: No POS_PAYMENTS/"Gift Card"
+GL mapping -- ... is not in the gift card liability. Map it and generate the day again."),
+like a day with nothing mappable: no entry is written. Skipping the move with a warning
+isn't safe, because a later recognition nets every earlier issuance out of the deposits
+whether or not it was booked, which left 1-1200 and AR wrong for good (review, 2026-11-12). Pinned by `giftCardSaleBooks.integration.test.ts`:
 a $100 card sold for cash balances its day, credits 2-2127 by 100 and leaves nothing in
 deposits; a card and a sofa paid in full move the card's 100 on the sale day and recognise
 the sofa from 1,060 of deposits on its delivery day.
@@ -465,8 +468,10 @@ counts as one.
 sale, so the journal's cash bucket nets the card out of the day's takings. `source.cash`
 does the same: `computeDailyReconciliation` subtracts the day's `SALE_LINE_CARD_ROW` rows
 (a take-back adds back) when that account is one of the tender accounts
-(`ReconciliationAccounts.giftCardLiability`). Unmapped, the journal leaves the money where
-it was paid and the source subtracts nothing.
+(`ReconciliationAccounts.giftCardLiability`). Unmapped, the journal refuses a day with a
+card move, so the reconciliation names the gap (`describeGiftCardGap`: `POS_PAYMENTS`/"Gift
+Card" GL mapping, and how many card moves the day has) beside the other mapping gaps, and
+the day isn't balanced.
 
 The reason the cash bucket's one-account bug survived: `dailyReconciliation.integration.test.ts` hand-builds
 its journal entries with `prisma.journalEntry.create` and never calls

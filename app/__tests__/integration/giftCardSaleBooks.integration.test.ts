@@ -15,9 +15,15 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { DEFAULT_ORG_ID, getBusinessTimeZone, invalidateAppSettingsCache } from "@/lib/appSettings";
-import { onPaymentReceived, recordPayment } from "@/lib/paymentService";
-import { issueCard, spendFromCard } from "@/lib/giftCardLedger";
-import { cancelOrder } from "@/lib/sales/cancelOrder";
+import {
+  completePayment,
+  onPaymentReceived,
+  recordPayment,
+  recordPendingPayment,
+} from "@/lib/paymentService";
+import { issueCard, replaceCard, spendFromCard } from "@/lib/giftCardLedger";
+import { cancelOrder, overpaidAfterLineChange, refundOverpayment } from "@/lib/sales/cancelOrder";
+import { markHandedOver } from "@/lib/fulfilment/handover";
 import { refundReturn } from "@/lib/returns/refundReturn";
 import { generateSalesJournal } from "@/lib/journalEntry";
 import { computeDailyReconciliation } from "@/lib/dailyReconciliation";
@@ -25,6 +31,7 @@ import { addDays, businessDayKey } from "@/lib/reports/businessDay";
 import { handler as createFromCart } from "@/pages/api/sales/orders/create-from-cart";
 import { handler as lineRoute } from "@/pages/api/sales/orders/[id]/line-items/[lineItemId]";
 import { handler as returnsRoute } from "@/pages/api/returns/index";
+import { handler as refundsRoute } from "@/pages/api/sales/orders/[id]/refunds";
 import { posted } from "../helpers/postedJournal";
 
 const session = { user: { email: "register@example.com" } } as unknown as Session;
@@ -526,5 +533,193 @@ describe("cancelling or returning a live card", () => {
     const returned = await startReturn(order.id, line.id);
     expect(returned.statusCode).toBe(409);
     expect(returned.body.error).toContain("cancel its line instead");
+  });
+});
+
+describe("money for a card moves only with the card", () => {
+  it("a direct refund of a payment that paid for a live card is refused, whatever the setting", async () => {
+    for (const on of [false, true]) {
+      await refundsCards(on);
+      const number = `GC-DIRECT-${on}`;
+      const order = await sold([card(number, 50)]);
+      const payment = await cash(order.id, 50);
+
+      const res = makeRes();
+      await refundsRoute(
+        {
+          method: "POST",
+          query: { id: String(order.id) },
+          body: { paymentId: payment.id, amount: 50 },
+        } as unknown as NextApiRequest,
+        res,
+        session,
+      );
+      expect(res.statusCode).toBe(400);
+      expect(res.body.error).toContain("Cancel its line, or return it");
+      expect(await prisma.payment.count({ where: { isRefund: true } })).toBe(0);
+      expect(Number((await expectHistoryAddsUp(number)).currentBalance)).toBe(50);
+    }
+  });
+
+  it("a cancel sent twice refunds the card once: the second is refused inside the lock", async () => {
+    await refundsCards(true);
+    const order = await sold([sofaLine(), card("GC-TWICE", 50)]);
+    await cash(order.id, 1110);
+    const line = await cardLineOf(order.id);
+    // The second request read the order before the first refunded anything.
+    const stale = await overpaidAfterLineChange(order.id, line.id, 0);
+    expect(stale?.toSettle).toBe(50);
+
+    const first = await cancelLine(order.id, line.id, {
+      action: "cancel",
+      reason: "Changed mind",
+      destination: "ORIGINAL_PAYMENT",
+    });
+    expect(first.statusCode).toBe(200);
+    await expect(
+      refundOverpayment(order.id, line.id, stale!, "ORIGINAL_PAYMENT", "Changed mind", ACTOR),
+    ).rejects.toThrow("already been taken back");
+
+    const refunds = await prisma.payment.findMany({ where: { isRefund: true } });
+    expect(refunds.map((r) => Number(r.paymentAmount))).toEqual([50]);
+    expect(Number((await expectHistoryAddsUp("GC-TWICE")).currentBalance)).toBe(0);
+  });
+
+  it("a handed-over sale's card line isn't marked fulfilled, and can still be cancelled", async () => {
+    await refundsCards(true);
+    const order = await sold([card("GC-HANDED", 100)]);
+    await cash(order.id, 100);
+    await prisma.$transaction((tx) =>
+      markHandedOver(tx, { salesOrderId: order.id, at: new Date(), method: "TAKEN", actor: ACTOR }),
+    );
+    const line = await cardLineOf(order.id);
+    expect(Number(line.fulfilledQty)).toBe(0);
+
+    const res = await cancelLine(order.id, line.id, {
+      action: "cancel",
+      reason: "Changed mind",
+      destination: "ORIGINAL_PAYMENT",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(Number((await expectHistoryAddsUp("GC-HANDED")).currentBalance)).toBe(0);
+    const refunds = await prisma.payment.findMany({ where: { isRefund: true } });
+    expect(refunds.map((r) => Number(r.paymentAmount))).toEqual([100]);
+  });
+});
+
+describe("a sale paid off without a payment issues its card", () => {
+  it("cancelling the goods down to what's paid issues the card in the cancel's transaction", async () => {
+    const order = await sold([sofaLine(), card("GC-PAIDOFF", 100)]);
+    await cash(order.id, 100);
+    expect((await cardLineOf(order.id)).giftCardId).toBeNull();
+    const sofaRow = await prisma.orderLineItem.findFirstOrThrow({
+      where: { salesOrderId: order.id, giftCardNumber: null },
+    });
+
+    const res = await cancelLine(order.id, sofaRow.id, {
+      action: "cancel",
+      reason: "Out of stock",
+    });
+    expect(res.statusCode).toBe(200);
+
+    expect((await cardLineOf(order.id)).giftCardId).not.toBeNull();
+    const issued = await expectHistoryAddsUp("GC-PAIDOFF");
+    expect(Number(issued.currentBalance)).toBe(100);
+  });
+
+  it("a card can't be sold beside a return: no exchange onto a card", async () => {
+    const res = makeRes();
+    await createFromCart(
+      {
+        method: "POST",
+        query: {},
+        body: {
+          storeLocation: store.name,
+          items: [
+            { productId: sofa.id, quantity: 1, unitPrice: 100, isReturn: true },
+            card("GC-SWAP", 100),
+          ],
+        },
+      } as NextApiRequest,
+      res,
+      session,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("can't go on a sale with a return");
+    expect(await prisma.salesOrder.count()).toBe(0);
+  });
+});
+
+describe("issuing refuses what it can't do, without losing a processor's money", () => {
+  it("a processor's payment completes when its reload card was retired meanwhile, and the line waits unissued", async () => {
+    await prisma.$transaction((tx) =>
+      issueCard(tx, { barcode: "GC-GONE", amount: 10, createdBy: ACTOR }),
+    );
+    const order = await sold([card("GC-GONE", 150)]);
+    const old = await prisma.giftCard.findUniqueOrThrow({ where: { barcode: "GC-GONE" } });
+    await prisma.$transaction((tx) =>
+      replaceCard(tx, { cardId: old.id, newBarcode: "GC-GONE-2", createdBy: ACTOR }),
+    );
+    const pending = await recordPendingPayment(
+      { orderId: order.id },
+      { method: "CARD", amount: 150, processorType: "STRIPE", processorTxnId: "cs_test_gone" },
+    );
+
+    await completePayment(pending.id);
+
+    const payment = await prisma.payment.findUniqueOrThrow({ where: { id: pending.id } });
+    expect(payment.status).toBe("COMPLETED");
+    expect((await cardLineOf(order.id)).giftCardId).toBeNull();
+    const said = await prisma.orderChangeLog.findMany({
+      where: { salesOrderId: order.id, changeType: "GIFT_CARD_NOT_ISSUED" },
+    });
+    expect(said).toHaveLength(1);
+    expect(said[0].reason).toContain("moved to card #");
+    expect(Number((await expectHistoryAddsUp("GC-GONE-2")).currentBalance)).toBe(10);
+  });
+
+  it("a line rung up as a new card never reloads a card another sale issued on its number", async () => {
+    const first = await sold([card("GC-1001", 100)]);
+    const second = await sold([card("GC-1001", 50)]);
+    await cash(second.id, 50);
+
+    // At the register: refused, nothing moves.
+    await expect(cash(first.id, 100)).rejects.toThrow("rung up as a new card");
+    expect(await prisma.payment.count({ where: { salesOrderId: first.id } })).toBe(0);
+
+    // From a processor: the payment completes and the line waits unissued.
+    const pending = await recordPendingPayment(
+      { orderId: first.id },
+      { method: "CARD", amount: 100, processorType: "STRIPE", processorTxnId: "cs_test_1001" },
+    );
+    await completePayment(pending.id);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: pending.id } })).status).toBe(
+      "COMPLETED",
+    );
+    expect((await cardLineOf(first.id)).giftCardId).toBeNull();
+
+    const taken = await expectHistoryAddsUp("GC-1001");
+    expect(Number(taken.currentBalance)).toBe(50);
+    expect(taken.transactions).toHaveLength(1);
+  });
+});
+
+describe("a card sold with no gift card account mapped", () => {
+  it("gets no journal for its day, and the reconciliation names the mapping", async () => {
+    await prisma.systemGLMapping.deleteMany({
+      where: { section: "POS_PAYMENTS", label: "Gift Card" },
+    });
+    const order = await sold([card("GC-NOMAP", 100)]);
+    await cash(order.id, 100);
+    const { marker } = await dayMarker();
+
+    await expect(generateSalesJournal(marker, ACTOR)).rejects.toThrow('"Gift Card" GL mapping');
+    expect(await prisma.journalEntry.count()).toBe(0);
+
+    const recon = await reconcile(marker);
+    expect(recon.balanced).toBe(false);
+    expect(recon.warnings.some((w) => w.includes('POS_PAYMENTS/"Gift Card" GL mapping'))).toBe(
+      true,
+    );
   });
 });

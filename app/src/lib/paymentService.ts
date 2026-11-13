@@ -363,7 +363,8 @@ export async function recordPaymentTx(
   });
 
   // A gift card sold on the sale goes live with the payment that pays it off, in this
-  // transaction: a card refused (retired since it was rung up) refuses the payment too.
+  // transaction: a card refused (retired, or its number issued by another sale, since it was
+  // rung up) refuses the payment too, so staff see it at the register.
   await issuePaidGiftCards(tx, orderId, input.createdBy ?? null);
 
   return payment;
@@ -825,9 +826,11 @@ export async function completePayment(
     });
 
     // The processor's payment can pay the sale off too: its gift cards go live with it, as at
-    // the register (recordPaymentTx). A refusal throws, so the webhook alerts and retries.
+    // the register (recordPaymentTx). The processor has the money already, so a card that can't
+    // be issued doesn't refuse the payment: no retry would ever succeed, and the money would be
+    // missing from the books. Its line stays unissued, with why on the order, for staff to cancel.
     if (payment.salesOrderId != null) {
-      await issuePaidGiftCards(tx, payment.salesOrderId, payment.createdBy ?? null);
+      await issuePaidGiftCards(tx, payment.salesOrderId, payment.createdBy ?? null, "leave");
     }
 
     return updated;

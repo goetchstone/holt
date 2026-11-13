@@ -22,8 +22,9 @@ import {
   RefundProcessorError,
 } from "@/lib/paymentService";
 import { badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
+import { directRefundProblem } from "@/lib/sales/giftCardLines";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
   const orderId = Number.parseInt(req.query.id as string);
@@ -53,6 +54,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       tillId: tillId ? Number.parseInt(tillId) : undefined,
       staffMemberId: staffMemberId ? Number.parseInt(staffMemberId) : undefined,
       createdBy: session.user?.email || undefined,
+      // A live gift card's money goes back only with the card, through its line's cancel or
+      // return, which ask the store's refund setting (lib/sales/giftCardLines.ts).
+      guard: async (tx) => {
+        const problem = await directRefundProblem(tx, orderId);
+        if (problem) throw new RefundError(problem);
+      },
     });
 
     await prisma.orderChangeLog.create({

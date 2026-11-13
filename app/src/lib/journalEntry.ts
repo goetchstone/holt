@@ -807,7 +807,8 @@ export function buildJournalLines(
 
   // GIFT CARDS SOLD ON A SALE -- into the liability, out of wherever their
   // money sits (CardLineMove). Both legs or neither: with an account missing the
-  // money stays where it was paid and the day says so, rather than plugging.
+  // move is skipped with a warning here, and generateSalesJournal refuses the
+  // day before it gets this far, since a skipped move can't be made up later.
   const giftCardCredits = new Map<number, { memo: string; amount: number }>();
   const cardOffsetDebits = new Map<number, { memo: string; amount: number }>();
   for (const move of cardMoves) {
@@ -1261,6 +1262,19 @@ export async function generateSalesJournal(
     amount: toNum(row.amount),
     settles: settlesOf(row.orderLineItem?.salesOrder.invoices[0]?.invoiceDate, row.created),
   }));
+
+  // A card move with an account missing can't be booked, and leaving it out isn't safe: a later
+  // recognition nets every earlier issuance out of the deposits regardless, so the books would
+  // stay wrong for good. Like a day with nothing mappable, no entry: map it and generate again.
+  const unbookable = cardMoves.find(
+    (move) => !giftCardGlId || !(move.settles === "RECEIVABLE" ? arGlId : depositGlId),
+  );
+  if (unbookable) {
+    throw new Error(
+      `Refusing to post ${journalNumber}: ${cardMoveUnmapped(unbookable, giftCardGlId)}. ` +
+        `Map it and generate the day again.`,
+    );
+  }
 
   if (payments.length === 0 && recognisedOrders.length === 0 && cardMoves.length === 0) {
     throw new Error(

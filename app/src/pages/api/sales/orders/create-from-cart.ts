@@ -136,7 +136,10 @@ export async function handler(
   );
   const requestProblem = await cartRequestProblem({ items, goods, deliveryMethod, deliveryFee });
   if (requestProblem) return res.status(400).json({ error: requestProblem });
-  const cards = await checkGiftCardLines(items.filter(isGiftCardCartLine));
+  const cards = await checkGiftCardLines(
+    items.filter(isGiftCardCartLine),
+    goods.some((item) => item.isReturn),
+  );
   if ("error" in cards) return res.status(400).json({ error: cards.error });
   const split = await saleSplitProblem({
     splitWithId,
