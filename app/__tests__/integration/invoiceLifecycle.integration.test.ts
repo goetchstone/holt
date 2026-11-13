@@ -242,7 +242,7 @@ describe("invoice lifecycle against a real DB", () => {
   });
 });
 
-describe("Stripe webhook path (applyInvoiceStripePayment) against a real DB", () => {
+describe("Stripe webhook path (completePayment applying the invoice) against a real DB", () => {
   beforeEach(async () => {
     await resetTestDb();
   });
@@ -253,7 +253,8 @@ describe("Stripe webhook path (applyInvoiceStripePayment) against a real DB", ()
 
   // Simulates the webhook flow without the Stripe client: a PENDING payment
   // bound to the invoice (as createInvoicePaymentLink writes it), then
-  // completePayment + applyInvoiceStripePayment exactly as webhook.ts calls.
+  // completePayment with the metadata's invoice, exactly as webhook.ts calls it:
+  // completion, ledger entry, application and journal in one transaction.
   async function makeBoundPendingPayment(customerId: number, invoiceId: number, amount: number) {
     return prisma.payment.create({
       data: {
@@ -281,12 +282,9 @@ describe("Stripe webhook path (applyInvoiceStripePayment) against a real DB", ()
 
     const payment = await makeBoundPendingPayment(cust.id, id, 500);
     const { completePayment } = await import("@/lib/paymentService");
-    const { applyInvoiceStripePayment } = await import("@/lib/billing/invoiceService");
-    await completePayment(payment.id);
-    await applyInvoiceStripePayment(payment.id, id);
-    // Webhook re-fire: both steps are idempotent no-ops.
-    await completePayment(payment.id);
-    await applyInvoiceStripePayment(payment.id, id);
+    expect(await completePayment(payment.id, undefined, { metadataInvoiceId: id })).not.toBeNull();
+    // Webhook re-fire: the row is COMPLETED, so nothing more is written.
+    expect(await completePayment(payment.id, undefined, { metadataInvoiceId: id })).toBeNull();
 
     const detail = await getInvoiceDetail(id);
     expect(detail.status).toBe("PAID");
@@ -312,9 +310,7 @@ describe("Stripe webhook path (applyInvoiceStripePayment) against a real DB", ()
 
     const payment = await makeBoundPendingPayment(cust.id, id, 1000);
     const { completePayment } = await import("@/lib/paymentService");
-    const { applyInvoiceStripePayment } = await import("@/lib/billing/invoiceService");
-    await completePayment(payment.id);
-    await applyInvoiceStripePayment(payment.id, id);
+    await completePayment(payment.id, undefined, { metadataInvoiceId: id });
 
     // Application capped at the 600 open; invoice PAID.
     const apps = await prisma.paymentApplication.findMany({ where: { paymentId: payment.id } });
@@ -354,10 +350,15 @@ describe("Stripe webhook path (applyInvoiceStripePayment) against a real DB", ()
 
     const payment = await makeBoundPendingPayment(cust.id, invoiceA, 100);
     const { completePayment } = await import("@/lib/paymentService");
-    const { applyInvoiceStripePayment } = await import("@/lib/billing/invoiceService");
-    await completePayment(payment.id);
 
-    await expect(applyInvoiceStripePayment(payment.id, invoiceB)).rejects.toThrow("does not match");
+    await expect(
+      completePayment(payment.id, undefined, { metadataInvoiceId: invoiceB }),
+    ).rejects.toThrow("does not match");
+    // Refused whole: nothing applied, nothing ledgered, and the row still PENDING.
     expect(await prisma.paymentApplication.count()).toBe(0);
+    expect(await prisma.customerLedgerEntry.count({ where: { type: "PAYMENT" } })).toBe(0);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe(
+      "PENDING",
+    );
   });
 });

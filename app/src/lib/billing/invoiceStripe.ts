@@ -6,8 +6,9 @@
 // paymentService.startHostedCheckout, the same one the order routes use. It
 // refuses while a checkout on this invoice may still be open, opens the
 // session, and stores a PENDING customer-linked Payment bound to the invoice.
-// The webhook completes it (completePayment -> ledger) and then
-// applyInvoiceStripePayment adds the application + AR_PAYMENT journal.
+// The webhook completes it: completePayment posts the ledger entry and, through
+// applyInvoiceCardPayment, the application + AR_PAYMENT journal, in one
+// transaction.
 // Server-only (imports the Stripe client).
 
 import { prisma } from "@/lib/prisma";

@@ -25,6 +25,7 @@ import type {
   VerifiedWebhookEvent,
   WebhookVerifyRequest,
 } from "@/lib/payments/types";
+import { REFUND_REQUEST_TIMEOUT_MS } from "@/lib/payments/types";
 
 /** Amounts cross the seam in MAJOR units (dollars); Square wants minor units
  *  (cents), same conversion stripeProvider does for Stripe. Exported so the
@@ -240,14 +241,17 @@ export const squareProvider: PaymentProvider = {
       // Square's Refunds API takes that payment id directly in one call --
       // there's no second "resolve the charge from the intent" hop the way
       // Stripe's payment-intent -> charge chain needs for card details.
+      // Both requests bounded, so the refund lock outlasts them (REFUND_REQUEST_TIMEOUT_MS).
       const { order } = await squareRequest<{ order: SquareOrder }>(
         `/v2/orders/${req.providerTxnId}`,
+        { timeoutMs: REFUND_REQUEST_TIMEOUT_MS },
       );
       const paymentId = order.tenders?.[0]?.payment_id;
       if (!paymentId) return { refundId: null };
 
       const { refund } = await squareRequest<{ refund: { id: string } }>("/v2/refunds", {
         method: "POST",
+        timeoutMs: REFUND_REQUEST_TIMEOUT_MS,
         body: {
           idempotency_key: req.idempotencyKey,
           payment_id: paymentId,

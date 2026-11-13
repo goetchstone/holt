@@ -18,6 +18,7 @@ import { InvoiceValidationError } from "@/lib/billing/invoiceAuthoring";
 import { CheckoutAlreadyOpenError } from "@/lib/paymentService";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { paidNotYetRecordedMessage } from "@/lib/openCheckoutPrompt";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -62,10 +63,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (err instanceof CheckoutAlreadyOpenError) {
       const open = err.existing;
       return res.status(409).json({
-        error:
-          `A payment of $${open.amount.toFixed(2)} is already in progress on ` +
-          `this invoice (started ${open.ageMinutes} min ago). If that attempt ` +
-          `failed, retry with force:true to start a new one.`,
+        error: open.paidAtProcessor
+          ? paidNotYetRecordedMessage(open.amount, "invoice")
+          : `A payment of $${open.amount.toFixed(2)} is already in progress on ` +
+            `this invoice (started ${open.ageMinutes} min ago). If that attempt ` +
+            `failed, retry with force:true to start a new one.`,
         existingPayment: open,
       });
     }

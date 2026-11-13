@@ -526,6 +526,8 @@ async function closeTheSale(
 }
 
 export interface Overpayment {
+  /** The line's total after the change this was worked out for. */
+  lineTotal: number;
   /** All that's owed back: `toSettle`, plus any refund that didn't finish. */
   excess: number;
   /** The part the store decides on: back the way it was paid, or credit. */
@@ -544,14 +546,18 @@ export interface Overpayment {
  * goes back. A change that doesn't lower the line asks nothing, even on a sale already
  * overpaid some other way, since this change isn't the reason. Throws CancelOrderError
  * when there's money to settle and it can't be settled yet.
+ *
+ * Read outside a lock, it's what to ask the store. Before money moves it's read again with
+ * the order locked (refundOverpayment's guard, settleLineChange), in that transaction.
  */
 export async function overpaidAfterLineChange(
   orderId: number,
   lineItemId: number,
   newLineTotal: number,
+  db: Db = prisma,
 ): Promise<Overpayment | null> {
-  const plan = await readCancelPlan(orderId);
-  const order = await prisma.salesOrder.findUniqueOrThrow({
+  const plan = await readCancelPlan(orderId, db);
+  const order = await db.salesOrder.findUniqueOrThrow({
     where: { id: orderId },
     select: {
       id: true,
@@ -587,7 +593,7 @@ export async function overpaidAfterLineChange(
   const toSettle = Math.max(round2(plan.held + imported - owed), 0);
   if (toSettle === 0 && plan.refundsToRetry.length === 0) return null;
 
-  const problem = await moneyProblem(order, prisma);
+  const problem = await moneyProblem(order, db);
   if (problem) throw new CancelOrderError(problem);
 
   let left = toSettle;
@@ -600,6 +606,7 @@ export async function overpaidAfterLineChange(
   }
   const unfinished = plan.refundsToRetry.reduce((sum, r) => sum + r.amount, 0);
   return {
+    lineTotal: newLineTotal,
     excess: round2(toSettle + unfinished),
     toSettle,
     payments,
@@ -608,13 +615,77 @@ export async function overpaidAfterLineChange(
   };
 }
 
+/** The order's row, locked for the rest of the transaction. NO KEY UPDATE, as issuePaidGiftCards
+ *  takes it: a payment's foreign-key share lock on its order doesn't wait on it. */
+async function lockOrder(tx: Db, orderId: number): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "SalesOrder" WHERE id = ${orderId} FOR NO KEY UPDATE`;
+}
+
+/** What a line change works from: the line's status, quantity and money as the request read it. */
+export type LineAsRead = Pick<
+  Prisma.OrderLineItemGetPayload<object>,
+  "lineItemStatus" | "orderedQuantity" | "netPrice" | "vatAmount"
+>;
+
+const sameAmount = (a: unknown, b: unknown) => Number(a ?? 0) === Number(b ?? 0);
+
+/**
+ * With the order locked: the line is still as the request read it (status, quantity, price and
+ * tax), or the change stops (409) before it moves money or writes a total worked out from the
+ * old line. The one check for every step of a line change: each refund's guard and the change's
+ * own transaction.
+ */
+async function assertLineAsRead(tx: Db, lineItemId: number, asRead: LineAsRead): Promise<void> {
+  const line = await tx.orderLineItem.findUniqueOrThrow({
+    where: { id: lineItemId },
+    select: { lineItemStatus: true, orderedQuantity: true, netPrice: true, vatAmount: true },
+  });
+  if (
+    line.lineItemStatus !== asRead.lineItemStatus ||
+    !sameAmount(line.orderedQuantity, asRead.orderedQuantity) ||
+    !sameAmount(line.netPrice, asRead.netPrice) ||
+    !sameAmount(line.vatAmount, asRead.vatAmount)
+  ) {
+    throw new CancelOrderError(
+      "This line changed while this was on its way (sent twice, or changed in another tab). Reload the order to see where it stands.",
+    );
+  }
+}
+
+/**
+ * Inside each refund's own transaction (processRefund's guard): with the order locked, the line
+ * still as read, and what the change still leaves overpaid worked out again; a refund bigger
+ * than that is refused. Of the same change sent twice, the second's refund waits for the
+ * first's, then finds the money gone back, and stops; a change worked out from a line another
+ * change has since moved stops before its refund goes out.
+ */
+async function stillOverpaid(
+  tx: Db,
+  orderId: number,
+  lineItemId: number,
+  asRead: LineAsRead,
+  lineTotal: number,
+  amount: number,
+): Promise<void> {
+  await lockOrder(tx, orderId);
+  await assertLineAsRead(tx, lineItemId, asRead);
+  const now = await overpaidAfterLineChange(orderId, lineItemId, lineTotal, tx);
+  if (!now || now.toSettle < round2(amount)) {
+    throw new CancelOrderError(
+      "The money on this order changed since this was worked out (sent twice, or another change landed first). Reload the order and try again.",
+    );
+  }
+}
+
 /**
  * Finishes any refund that didn't, then gives the rest back if that's where it goes.
- * Outside a transaction: a card goes through its processor.
+ * Outside a transaction: a card goes through its processor. Each refund checks again, under
+ * the order's lock, that it's still owed (stillOverpaid).
  */
 export async function refundOverpayment(
   orderId: number,
   lineItemId: number,
+  asRead: LineAsRead,
   over: Overpayment,
   destination: RefundDestination,
   reason: string,
@@ -641,12 +712,65 @@ export async function refundOverpayment(
       amount: payment.amount,
       reason,
       createdBy: actor ?? undefined,
-      // A live gift card being cancelled comes back off its card with its money: the first
-      // refund's. A card already back refuses it, so a cancel sent twice can't refund twice.
-      guard: i === 0 ? (tx) => takeBackLineCard(tx, lineItemId, actor) : undefined,
+      guard: async (tx) => {
+        await stillOverpaid(tx, orderId, lineItemId, asRead, over.lineTotal, payment.amount);
+        // A live gift card being cancelled comes back off its card with its money: the first
+        // refund's. A card already back refuses it, so a cancel sent twice can't refund twice.
+        if (i === 0) await takeBackLineCard(tx, lineItemId, actor);
+      },
     });
     await log(payment.amount);
   }
+}
+
+/**
+ * First in the transaction that changes the line: the order locked, the line still as the
+ * request read it (status, quantity, price and tax), and what the change leaves overpaid worked
+ * out again. Of a change sent twice, or two changes from two tabs, the second waits here for
+ * the first, then finds the line different and stops (409), so it neither writes a total
+ * worked out from the old line nor settles its money again. What's over now goes on the
+ * account when that's where the caller may put it (`credit`), written here with the change.
+ * Any other way the refunds went before this transaction, so anything still over means money
+ * came in meanwhile, and the change is refused, to try again. Returns whether it credited.
+ */
+export async function settleLineChange(
+  tx: Db,
+  change: {
+    orderId: number;
+    lineItemId: number;
+    /** The line when the request read it, before any lock. */
+    asRead: LineAsRead;
+    /** The line's total after the change. */
+    lineTotal: number;
+    /** Set when what's over goes on this customer's account, and the caller may put it there. */
+    credit: { customerId: number } | null;
+    reason: string;
+    actor: string | null;
+  },
+): Promise<boolean> {
+  await lockOrder(tx, change.orderId);
+  await assertLineAsRead(tx, change.lineItemId, change.asRead);
+  const over = await overpaidAfterLineChange(
+    change.orderId,
+    change.lineItemId,
+    change.lineTotal,
+    tx,
+  );
+  if (!over || over.toSettle <= 0) return false;
+  if (!change.credit) {
+    throw new CancelOrderError(
+      "More money came in on this order while the line was changing. Try again.",
+    );
+  }
+  await creditOverpayment(
+    tx,
+    change.orderId,
+    change.lineItemId,
+    { customerId: change.credit.customerId, amount: over.toSettle },
+    change.reason,
+    change.actor,
+  );
+  return true;
 }
 
 /**

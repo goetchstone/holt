@@ -83,10 +83,11 @@ export class SquareApiError extends Error {
  * Minimal typed wrapper over Square's REST API. Every call resolves fresh
  * (cached) credentials, sends the pinned Square-Version header, and throws
  * SquareApiError on a non-2xx response with Square's own error detail.
+ * `timeoutMs` aborts the request (headers and body) after that long.
  */
 export async function squareRequest<T>(
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
 ): Promise<T> {
   const { accessToken } = await getSquareCredentials();
 
@@ -98,6 +99,7 @@ export async function squareRequest<T>(
       "Square-Version": SQUARE_API_VERSION,
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    signal: init.timeoutMs !== undefined ? AbortSignal.timeout(init.timeoutMs) : undefined,
   });
 
   const text = await res.text();

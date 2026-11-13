@@ -3557,9 +3557,13 @@ model Payment {
   customer      Customer?    @relation("CustomerPayments", fields: [customerId], references: [id])
 
   // Payment processor details
-  processorType  String?
-  processorTxnId String?
-  processorData  Json?
+  processorType        String?
+  processorTxnId       String?
+  processorData        Json?
+  /// When a processor said this PENDING checkout was paid and posting it failed (completePayment
+  /// threw: no "Card" mapping, say). The row stays PENDING for the processor's retry, and the
+  /// stale sweep and a forced new checkout leave it alone (lib/paymentService.ts). Null otherwise.
+  processorConfirmedAt DateTime?
 
   // Card details (last 4 only, safe to store)
   cardLast4 String?

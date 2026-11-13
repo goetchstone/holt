@@ -420,6 +420,37 @@ describe("one open checkout per order or invoice (real DB)", () => {
     );
   });
 
+  // The processor said the customer paid it and Holt couldn't record it yet: the customer is
+  // told it went through, never offered a new payment, and a forced one is refused too.
+  it("client portal: a payment that went through and isn't recorded yet is never replaced", async () => {
+    await seedSettings({ clientPortal: true });
+    const invoice = await seedInvoice("INV-PORTAL-PAID");
+    jest
+      .mocked(verifyClientPortalToken)
+      .mockReturnValue({ customerId: invoice.customerId } as never);
+    expect((await post(clientPortalPay, { token: "t", invoiceId: invoice.id })).statusCode).toBe(
+      200,
+    );
+    await prisma.payment.updateMany({
+      where: { invoiceId: invoice.id, status: "PENDING" },
+      data: {
+        processorConfirmedAt: new Date(),
+        paymentDate: new Date(Date.now() - 30 * 3_600_000),
+      },
+    });
+
+    for (const force of [false, true]) {
+      const refused = await post(clientPortalPay, { token: "t", invoiceId: invoice.id, force });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.body).toMatchObject({
+        error: expect.stringMatching(/^Your payment of \$500\.00 went through/),
+        existingPayment: { amount: 500, paidAtProcessor: true },
+      });
+    }
+    expect(mockCreateCheckout).toHaveBeenCalledTimes(1);
+    expect(await pendingCount({ invoiceId: invoice.id })).toBe(1);
+  });
+
   it("staff tRPC paymentLink: CONFLICT in plain words, and force replaces it", async () => {
     await seedSettings({ billing: true });
     const user = await prisma.user.create({
@@ -456,6 +487,20 @@ describe("one open checkout per order or invoice (real DB)", () => {
     const forced = await caller.billing.paymentLink({ id: invoice.id, force: true });
 
     expect(forced).toMatchObject({ amount: 500 });
+    expect(await pendingCount({ invoiceId: invoice.id })).toBe(1);
+
+    // Paid at the processor and not recorded yet: not a CONFLICT, which the invoice screen
+    // offers to void and replace, but a refusal it shows as it is, forced or not.
+    await prisma.payment.updateMany({
+      where: { invoiceId: invoice.id, status: "PENDING" },
+      data: { processorConfirmedAt: new Date() },
+    });
+    for (const force of [false, true]) {
+      await expect(caller.billing.paymentLink({ id: invoice.id, force })).rejects.toMatchObject({
+        code: "PRECONDITION_FAILED",
+        message: expect.stringContaining("went through"),
+      });
+    }
     expect(await pendingCount({ invoiceId: invoice.id })).toBe(1);
   });
 

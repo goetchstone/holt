@@ -163,14 +163,45 @@ Lifecycle (all in `lib/billing/invoiceService.ts`, pure math in
   which refuses while a checkout on the invoice is still open (see
   `docs/domains/pos.md`; staff replace it from "Copy Payment Link" after a
   confirm, and a replaced session paid anyway raises an ops alert, never a
-  posting); the webhook runs `completePayment` (ledger)
-  then `applyInvoiceStripePayment` (application + journal + PAID) —
-  idempotent via the unique journal number + existing-application check.
+  posting); the webhook runs `completePayment`, which in ONE transaction
+  sets the payment COMPLETED, posts the `PAYMENT` ledger entry, and calls
+  `applyInvoiceCardPayment` (application capped at the open balance +
+  journal for the full amount + PAID). A failure there (no
+  `POS_PAYMENTS`/"Card" mapping, or webhook metadata naming another invoice)
+  writes nothing and leaves the payment PENDING, marked
+  `processorConfirmedAt` so neither the stale sweep, a void nor a forced new
+  link ends it; the processor's retry posts it whole once what stopped it is
+  fixed. After the processor's retry window (`PROCESSOR_RETRY_WINDOW_MS`,
+  three days) the sweep fails it with an alert to record the money by hand,
+  and the invoice can take a new link (`pos.md`). A metadata mismatch fails
+  every retry the same way, and ends the same way. Until 2026-11-13 the application ran in a
+  second transaction after the ledger entry committed, and a retry never came
+  back for it. A card checkout that lands on an invoice already paid or voided
+  applies nothing but still posts its `ARP-` journal for the whole amount
+  (the money is on the customer's account as an overpayment). A repeat delivery writes nothing (`completePayment` moves the row
+  only from PENDING); the unique journal number and existing-application
+  check stay as a second guard.
 - **Void**: only with zero applications. ISSUED voids post the reversing
   journal `ARV-<invoiceNo>` + an `ADJUSTMENT_CREDIT` ledger entry.
+- **Every writer locks the invoice's row first** (`lockInvoice`,
+  `SELECT … FOR UPDATE`): `updateDraftInvoice`, `deleteDraftInvoice`,
+  `issueInvoice`, `voidInvoice`, `recordInvoicePayment` and
+  `applyInvoiceCardPayment`. Each then reads status and applications under
+  the lock, so of two landing together the second decides on what the first
+  committed. Without it (ledger audit 2026-11-11): two payments of the whole
+  balance both applied, a card payment and a recorded one both applied in
+  full, a void and a payment each missed the other (VOID with a payment, or
+  PAID with the void's reversal posted), and a draft's delete removed an
+  invoice an issue had just posted, leaving its `SALE` row and `ARI-`
+  journal. Lock order is invoice, then customer (`completePayment` applies
+  the invoice before its ledger entry for that reason).
 
 Double-posting guards: `generateSalesJournal` SKIPS payments with
-`salesOrderId NULL` + applications (the invoice flow posted their journal);
+`salesOrderId NULL` that are bound to an invoice (`invoiceId`) or applied to
+one (the invoice flow posted their journal). By the binding since
+2026-11-13: it used to skip only payments with an application, and booked a
+card payment that applied nothing a second time
+(`paymentRaces.integration.test.ts`);
 tripwire in `__tests__/invoiceAuthoring.test.ts`. The AR drift check folds
 `computeStandaloneInvoiceSource` (ISSUED/PAID totals minus applications)
 into the source side so billed customers tie out —
@@ -183,7 +214,10 @@ through the durable queue (optionally embedding a Stripe pay link).
 
 Real-DB proof: `__tests__/integration/invoiceLifecycle.integration.test.ts`
 (issue → balanced journal + ledger; partial + closing payments; drift
-tie-out; void reversal; missing-mapping guards).
+tie-out; void reversal; missing-mapping guards) and
+`paymentRaces.integration.test.ts` (each race above, run by holding the
+customer's row until both requests are queued; a card checkout with no
+"Card" mapping posts nothing, then posts once on the retry).
 
 **Store credit pays an invoice too (GAP-26).** `STORE_CREDIT` is one of
 `INVOICE_PAYMENT_METHODS`, offered on "Record payment" when the invoice's customer has

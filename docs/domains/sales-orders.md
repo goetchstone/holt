@@ -359,6 +359,21 @@ on the account. That needs `payment.refund`.
 - **A refund that didn't finish is tried again first,** whichever way the rest goes, as a whole-sale cancel does. Past
   the processor's retry window it answers 400, and someone checks the processor's dashboard.
 - **Both go in the order's history,** `REFUND_ISSUED` and `CREDIT_ISSUED`, with the line, the reason and who did it.
+- **The same change sent twice settles once (ledger audit 2026-11-11).** What's over is first worked out with no lock,
+  to ask the store; every new refund or credit works it out again with the order's row locked (`FOR NO KEY UPDATE`),
+  in its own transaction (`lib/sales/cancelOrder.ts`). A refund left PENDING by an earlier processor error is finished
+  first, under its own refund lock, so it is sent once; of a change sent twice, both can write its `REFUND_ISSUED`
+  history line (tracked in the roadmap). Each refund's guard (`stillOverpaid`, inside `processRefund`'s
+  reserve) refuses a refund bigger than what the change still leaves over. The line change's transaction starts with
+  `settleLineChange`: the line's status, quantity, price and tax must be as the request read them (a second cancel,
+  replace or price change finds the line changed and answers 409, and so does a change from another tab worked out from
+  the old line, which used to write a total from it: one chair at the old quantity's price), and the credit is what's
+  over now, not what was read; each refund's guard makes the same check (`assertLineAsRead`), so a change whose line
+  moved before its refund refunds nothing. A change landing while a card refund is with the processor is the one gap:
+  the refund has gone out, and the first change is then refused (tracked); a refund destination with money still over (more came
+  in meanwhile) is refused, to try again. Before this, a double click credited or refunded the overpayment twice, and
+  a replace sent twice added two replacement lines. Tested in `cancelOrder.integration.test.ts` ("sent twice"), which
+  fails on the code before, and with the order lock and the refund guard taken out.
 - **It waits, with the reason, if the money can't be settled yet:** a payment still going through, an imported payment
   with no status, a live invoice, or a return tied to the sale. That's the same check a whole-sale cancel makes
   (`moneyProblem`). When no money moves, none of these stop the change.

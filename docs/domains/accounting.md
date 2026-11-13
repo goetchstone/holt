@@ -302,7 +302,17 @@ backs it up):
 - `AR_SALE` — `ARI-<invoiceNo>` at issuance: debit AR control, credit
   revenue, credit tax. `ARV-<invoiceNo>` is the mirrored reversal on void.
 - `AR_PAYMENT` — `ARP-<invoiceNo>-<paymentId>` per applied payment: debit
-  the `POS_PAYMENTS` GL for the method, credit AR control.
+  the `POS_PAYMENTS` GL for the method, credit AR control. A card checkout's
+  is posted in `completePayment`'s transaction with the payment's
+  COMPLETED status, its customer-ledger entry and its application
+  (`applyInvoiceCardPayment`), so a missing "Card" mapping posts none of them
+  and the webhook's retry posts all of them, the row marked
+  `processorConfirmedAt` meanwhile so the stale sweep leaves it until the
+  processor's retries run out (since
+  2026-11-13; before, the ledger entry committed alone and the journal never
+  followed). One that lands on an invoice already paid or voided applies
+  nothing and still posts its `ARP-` for the whole amount; the daily sales
+  journal skips every payment bound to an invoice, so its cash is booked once.
 
 GL resolution: `AR_TRANSACTIONS` / "Accounts Receivable" + "Invoice Sales"
 (required to issue; missing mappings refuse with an instructive error) and

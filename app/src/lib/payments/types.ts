@@ -147,6 +147,18 @@ export interface RefundRequest {
   idempotencyKey: string;
 }
 
+/**
+ * The most one HTTP request of a refund may take, per try. A refund runs inside the
+ * transaction that holds the payment's refund lock (lib/paymentService.ts REFUND_CALL_TX, five
+ * minutes), and the lock must outlast every request: a lock freed mid-call lets the refund be
+ * voided while the processor pays it out. Square's is a whole-request deadline (an abort
+ * signal): two requests, one minute at most. Stripe's is the SDK's `timeout`, which drops a
+ * connection that goes this long with nothing arriving: two requests, each tried twice, so
+ * about two minutes when the processor stops answering, though a response still trickling in
+ * isn't cut off.
+ */
+export const REFUND_REQUEST_TIMEOUT_MS = 30_000;
+
 export interface RefundResult {
   /** The processor's refund id, stored on the refund Payment row. Null when the
    *  provider completed no remote call (e.g. nothing to refund upstream). */
