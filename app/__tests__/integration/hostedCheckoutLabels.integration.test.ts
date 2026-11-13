@@ -488,6 +488,20 @@ describe("one open checkout per order or invoice (real DB)", () => {
 
     expect(forced).toMatchObject({ amount: 500 });
     expect(await pendingCount({ invoiceId: invoice.id })).toBe(1);
+
+    // Paid at the processor and not recorded yet: not a CONFLICT, which the invoice screen
+    // offers to void and replace, but a refusal it shows as it is, forced or not.
+    await prisma.payment.updateMany({
+      where: { invoiceId: invoice.id, status: "PENDING" },
+      data: { processorConfirmedAt: new Date() },
+    });
+    for (const force of [false, true]) {
+      await expect(caller.billing.paymentLink({ id: invoice.id, force })).rejects.toMatchObject({
+        code: "PRECONDITION_FAILED",
+        message: expect.stringContaining("went through"),
+      });
+    }
+    expect(await pendingCount({ invoiceId: invoice.id })).toBe(1);
   });
 
   it("an open checkout does not block the invoice email: it goes without the pay button", async () => {

@@ -65,13 +65,17 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     }
     if (err instanceof CheckoutAlreadyOpenError) {
       const open = err.existing;
+      // A checkout the processor has said was paid can't be replaced, so it isn't a CONFLICT:
+      // the invoice screen offers to void and replace a CONFLICT. Its own message says what to
+      // do instead.
+      if (open.paidAtProcessor) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: err.message });
+      }
       throw new TRPCError({
         code: "CONFLICT",
-        // A paid one can't be replaced: its own message says what to do instead.
-        message: open.paidAtProcessor
-          ? err.message
-          : `A payment link for $${open.amount.toFixed(2)} is already open on this invoice ` +
-            `(started ${open.ageMinutes} min ago).`,
+        message:
+          `A payment link for $${open.amount.toFixed(2)} is already open on this invoice ` +
+          `(started ${open.ageMinutes} min ago).`,
       });
     }
     throw err;

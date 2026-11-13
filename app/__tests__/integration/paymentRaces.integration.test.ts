@@ -456,10 +456,15 @@ describe("an invoice paid by card through the webhook", () => {
     });
     await expect(replacing).rejects.toBeInstanceOf(CheckoutAlreadyOpenError);
     await expect(replacing).rejects.toThrow("went through");
-    // Nor by hand: the customer has paid it.
-    await expect(voidPendingPayment(payment.id, { voidedBy: "boss@example.com" })).rejects.toThrow(
-      "went through, so it can't be voided",
+    // Nor by hand: the customer has paid it. And nothing tells staff to refund it while it
+    // waits, since the processor's next try would then record money given back.
+    const refused = await voidPendingPayment(payment.id, { voidedBy: "boss@example.com" }).then(
+      () => null,
+      (err: Error) => err,
     );
+    expect(refused).toBeInstanceOf(VoidError);
+    expect(refused!.message).toContain("went through, so it can't be voided");
+    expect(refused!.message).not.toMatch(/refund/i);
     expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe(
       "PENDING",
     );

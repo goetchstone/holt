@@ -571,10 +571,12 @@ export async function voidPendingPayment(
     new VoidError(
       `Only a pending payment can be voided; payment ${paymentId} is ${(status ?? "without a status").toLowerCase()}.`,
     );
+  // No "refund it at the processor" here: the row is still waiting, and the processor's next
+  // try would record a payment the customer had been given back. That is the sweep's alert,
+  // once the retries have stopped and the row is failed.
   const paidAtProcessor = new VoidError(
     `The card processor says payment ${paymentId} went through, so it can't be voided. Fix what ` +
-      "stopped it being recorded (an alert said why) and the processor's next try records it, " +
-      "or refund it at the processor.",
+      "stopped it being recorded (an alert said why), and the processor's next try records it.",
   );
   return prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
