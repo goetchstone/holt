@@ -1476,6 +1476,31 @@ describe("a line change that leaves the customer overpaid", () => {
       expect((await calculateOrderBalance(order.id)).balanceDue).toBe(0);
     });
 
+    // A price rise from another tab (no money back) commits while a quantity cut is past its reads
+    // and waiting to refund. The cut's refund used to go out on the old line, and then the cut was
+    // refused: money back for a change that never happened.
+    it("refunds nothing for a change whose line moved before its refund went out", async () => {
+      const { order, second } = await twoLines([1000]);
+      const hold = await holdRows(
+        Prisma.sql`SELECT id FROM "SalesOrder" WHERE id = ${order.id} FOR UPDATE`,
+      );
+      const rise = change(order.id, second.id, { action: "update", unitPrice: 300 });
+      await waitForLockWaits(1);
+      const cut = change(order.id, second.id, {
+        action: "update",
+        quantity: 1,
+        destination: "ORIGINAL_PAYMENT",
+      });
+      await waitForLockWaits(2);
+      await hold.release();
+      const [rose, cutRes] = await Promise.all([rise, cut]);
+
+      expect([rose.status, cutRes.status]).toEqual([200, 409]);
+      expect(await prisma.payment.count({ where: { isRefund: true } })).toBe(0);
+      const line = await prisma.orderLineItem.findUniqueOrThrow({ where: { id: second.id } });
+      expect([Number(line.orderedQuantity), Number(line.netPrice)]).toEqual([2, 600]);
+    });
+
     // Two different changes from two tabs: the quantity from 2 to 1, and the unit price from 200
     // to 150, each worked out from the line as it was. The second used to pass the status check,
     // write a total worked out from the old line (one chair at $300), and settle nothing.

@@ -143,7 +143,7 @@ export async function handler(
           });
           return { refused: true };
         }
-        await refundOverpayment(orderId, itemId, over, destination, why, changedBy);
+        await refundOverpayment(orderId, itemId, lineItem, over, destination, why, changedBy);
         const onAccount = destination === "STORE_CREDIT" && customerId !== null;
         return { refused: false, settleIn: settleIn(onAccount ? { customerId } : null) };
       };

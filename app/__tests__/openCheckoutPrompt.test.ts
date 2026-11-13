@@ -18,6 +18,16 @@ describe("openCheckoutFrom", () => {
     ).toEqual({ amount: 400, ageMinutes: 12 });
   });
 
+  // Paid at the processor, waiting to be recorded: nothing to offer to replace.
+  it("is null for a checkout the processor has said was paid", () => {
+    expect(
+      openCheckoutFrom({
+        error: "Your payment of $400.00 went through",
+        existingPayment: { id: 7, amount: 400, ageMinutes: 4000, paidAtProcessor: true },
+      }),
+    ).toBeNull();
+  });
+
   it.each([
     ["no body", null],
     ["an ordinary error", { error: "No balance due on this order" }],

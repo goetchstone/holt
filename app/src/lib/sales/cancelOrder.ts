@@ -621,20 +621,54 @@ async function lockOrder(tx: Db, orderId: number): Promise<void> {
   await tx.$queryRaw`SELECT id FROM "SalesOrder" WHERE id = ${orderId} FOR NO KEY UPDATE`;
 }
 
+/** What a line change works from: the line's status, quantity and money as the request read it. */
+export type LineAsRead = Pick<
+  Prisma.OrderLineItemGetPayload<object>,
+  "lineItemStatus" | "orderedQuantity" | "netPrice" | "vatAmount"
+>;
+
+const sameAmount = (a: unknown, b: unknown) => Number(a ?? 0) === Number(b ?? 0);
+
 /**
- * Inside each refund's own transaction (processRefund's guard): with the order locked, what the
- * change still leaves overpaid is worked out again, and a refund bigger than that is refused.
- * Of the same change sent twice, the second's refund waits for the first's, then finds the
- * money gone back, and stops.
+ * With the order locked: the line is still as the request read it (status, quantity, price and
+ * tax), or the change stops (409) before it moves money or writes a total worked out from the
+ * old line. The one check for every step of a line change: each refund's guard and the change's
+ * own transaction.
+ */
+async function assertLineAsRead(tx: Db, lineItemId: number, asRead: LineAsRead): Promise<void> {
+  const line = await tx.orderLineItem.findUniqueOrThrow({
+    where: { id: lineItemId },
+    select: { lineItemStatus: true, orderedQuantity: true, netPrice: true, vatAmount: true },
+  });
+  if (
+    line.lineItemStatus !== asRead.lineItemStatus ||
+    !sameAmount(line.orderedQuantity, asRead.orderedQuantity) ||
+    !sameAmount(line.netPrice, asRead.netPrice) ||
+    !sameAmount(line.vatAmount, asRead.vatAmount)
+  ) {
+    throw new CancelOrderError(
+      "This line changed while this was on its way (sent twice, or changed in another tab). Reload the order to see where it stands.",
+    );
+  }
+}
+
+/**
+ * Inside each refund's own transaction (processRefund's guard): with the order locked, the line
+ * still as read, and what the change still leaves overpaid worked out again; a refund bigger
+ * than that is refused. Of the same change sent twice, the second's refund waits for the
+ * first's, then finds the money gone back, and stops; a change worked out from a line another
+ * change has since moved stops before its refund goes out.
  */
 async function stillOverpaid(
   tx: Db,
   orderId: number,
   lineItemId: number,
+  asRead: LineAsRead,
   lineTotal: number,
   amount: number,
 ): Promise<void> {
   await lockOrder(tx, orderId);
+  await assertLineAsRead(tx, lineItemId, asRead);
   const now = await overpaidAfterLineChange(orderId, lineItemId, lineTotal, tx);
   if (!now || now.toSettle < round2(amount)) {
     throw new CancelOrderError(
@@ -651,6 +685,7 @@ async function stillOverpaid(
 export async function refundOverpayment(
   orderId: number,
   lineItemId: number,
+  asRead: LineAsRead,
   over: Overpayment,
   destination: RefundDestination,
   reason: string,
@@ -678,7 +713,7 @@ export async function refundOverpayment(
       reason,
       createdBy: actor ?? undefined,
       guard: async (tx) => {
-        await stillOverpaid(tx, orderId, lineItemId, over.lineTotal, payment.amount);
+        await stillOverpaid(tx, orderId, lineItemId, asRead, over.lineTotal, payment.amount);
         // A live gift card being cancelled comes back off its card with its money: the first
         // refund's. A card already back refuses it, so a cancel sent twice can't refund twice.
         if (i === 0) await takeBackLineCard(tx, lineItemId, actor);
@@ -687,14 +722,6 @@ export async function refundOverpayment(
     await log(payment.amount);
   }
 }
-
-/** What a line change works from: the line's status, quantity and money as the request read it. */
-export type LineAsRead = Pick<
-  Prisma.OrderLineItemGetPayload<object>,
-  "lineItemStatus" | "orderedQuantity" | "netPrice" | "vatAmount"
->;
-
-const sameAmount = (a: unknown, b: unknown) => Number(a ?? 0) === Number(b ?? 0);
 
 /**
  * First in the transaction that changes the line: the order locked, the line still as the
@@ -722,21 +749,7 @@ export async function settleLineChange(
   },
 ): Promise<boolean> {
   await lockOrder(tx, change.orderId);
-  const line = await tx.orderLineItem.findUniqueOrThrow({
-    where: { id: change.lineItemId },
-    select: { lineItemStatus: true, orderedQuantity: true, netPrice: true, vatAmount: true },
-  });
-  const { asRead } = change;
-  if (
-    line.lineItemStatus !== asRead.lineItemStatus ||
-    !sameAmount(line.orderedQuantity, asRead.orderedQuantity) ||
-    !sameAmount(line.netPrice, asRead.netPrice) ||
-    !sameAmount(line.vatAmount, asRead.vatAmount)
-  ) {
-    throw new CancelOrderError(
-      "This line changed while this was on its way (sent twice, or changed in another tab). Reload the order to see where it stands.",
-    );
-  }
+  await assertLineAsRead(tx, change.lineItemId, change.asRead);
   const over = await overpaidAfterLineChange(
     change.orderId,
     change.lineItemId,

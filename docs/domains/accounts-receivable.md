@@ -169,10 +169,12 @@ Lifecycle (all in `lib/billing/invoiceService.ts`, pure math in
   journal for the full amount + PAID). A failure there (no
   `POS_PAYMENTS`/"Card" mapping, or webhook metadata naming another invoice)
   writes nothing and leaves the payment PENDING, marked
-  `processorConfirmedAt` so the stale sweep never fails it and a forced new
-  link can't replace it; the processor's retry posts it whole once what
-  stopped it is fixed. A metadata mismatch fails every retry the same way,
-  and waits, alerted, for a person. Until 2026-11-13 the application ran in a
+  `processorConfirmedAt` so neither the stale sweep, a void nor a forced new
+  link ends it; the processor's retry posts it whole once what stopped it is
+  fixed. After the processor's retry window (`PROCESSOR_RETRY_WINDOW_MS`,
+  three days) the sweep fails it with an alert to record the money by hand,
+  and the invoice can take a new link (`pos.md`). A metadata mismatch fails
+  every retry the same way, and ends the same way. Until 2026-11-13 the application ran in a
   second transaction after the ledger entry committed, and a retry never came
   back for it. A card checkout that lands on an invoice already paid or voided
   applies nothing but still posts its `ARP-` journal for the whole amount

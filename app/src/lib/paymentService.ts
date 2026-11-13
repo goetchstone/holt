@@ -483,6 +483,16 @@ export async function recordPendingPayment(
  */
 export const PENDING_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * How long a checkout the processor said was paid, but Holt couldn't post
+ * (`processorConfirmedAt`), waits for the processor's retry before
+ * `sweepStalePendingPayments` lets it go: Stripe retries a webhook it got an
+ * error for over up to three days in live mode. After that no retry is
+ * coming, so the row is failed with an alert to record the money by hand or
+ * refund it, and the order or invoice can take a new link again.
+ */
+export const PROCESSOR_RETRY_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
 export interface ActivePendingPayment {
   id: number;
   amount: number;
@@ -547,7 +557,9 @@ export async function findActivePendingPayment(
  * The move is one conditional UPDATE (WHERE status = PENDING): a webhook's
  * completePayment landing at the same moment holds the row, and this then
  * finds it COMPLETED and refuses, instead of voiding a payment whose ledger
- * entry just posted. A refund waiting on its processor can't be voided while
+ * entry just posted. A checkout the processor has said was paid
+ * (`processorConfirmedAt`) is never voided, by this or by a forced new link:
+ * the customer has paid it, and a new link would charge them twice. A refund waiting on its processor can't be voided while
  * the processor has the call: callProcessorAndSettle holds the payment's
  * refund lock for it, so money can't go out with the row voided.
  */
@@ -559,9 +571,15 @@ export async function voidPendingPayment(
     new VoidError(
       `Only a pending payment can be voided; payment ${paymentId} is ${(status ?? "without a status").toLowerCase()}.`,
     );
+  const paidAtProcessor = new VoidError(
+    `The card processor says payment ${paymentId} went through, so it can't be voided. Fix what ` +
+      "stopped it being recorded (an alert said why) and the processor's next try records it, " +
+      "or refund it at the processor.",
+  );
   return prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
     if (payment.status !== "PENDING") throw notPending(payment.status);
+    if (payment.processorConfirmedAt !== null) throw paidAtProcessor;
     if (payment.isRefund && payment.originalPaymentId !== null) {
       const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`
         SELECT pg_try_advisory_xact_lock(${REFUND_LOCK_SPACE}::int, ${payment.originalPaymentId}::int) AS locked`;
@@ -572,7 +590,7 @@ export async function voidPendingPayment(
       }
     }
     const moved = await tx.payment.updateMany({
-      where: { id: paymentId, status: "PENDING" },
+      where: { id: paymentId, status: "PENDING", processorConfirmedAt: null },
       data: {
         status: "VOIDED",
         updatedBy: opts.voidedBy ?? undefined,
@@ -580,11 +598,13 @@ export async function voidPendingPayment(
       },
     });
     if (moved.count === 0) {
-      // Moved since the read above: completed, or voided by another request.
+      // Moved since the read above: completed, voided by another request, or
+      // marked paid at the processor by a completion that couldn't post.
       const now = await tx.payment.findUniqueOrThrow({
         where: { id: paymentId },
-        select: { status: true },
+        select: { status: true, processorConfirmedAt: true },
       });
+      if (now.status === "PENDING" && now.processorConfirmedAt !== null) throw paidAtProcessor;
       throw notPending(now.status);
     }
     if (payment.salesOrderId !== null) {
@@ -618,7 +638,9 @@ export class CheckoutAlreadyOpenError extends Error {
       existing.paidAtProcessor
         ? `The card processor says the $${existing.amount.toFixed(2)} payment on this ${what} ` +
             `went through, but it hasn't been recorded yet (an alert said why). It can't be ` +
-            `replaced with a new link: fix what stopped it, and the processor's next try records it.`
+            `replaced with a new link: fix what stopped it, and the processor's next try ` +
+            `records it. If it isn't recorded within three days, Holt alerts again and this ` +
+            `${what} can take a new link.`
         : `A payment link for $${existing.amount.toFixed(2)} is already open on this ` +
             `${what} (started ${existing.ageMinutes} min ` +
             `ago). If the customer says it never arrived, retry with force:true to void it and ` +
@@ -775,6 +797,54 @@ export async function sweepStalePendingPayments(): Promise<StalePendingSweepResu
     });
   }
 
+  // A checkout the processor said was paid but Holt couldn't post waits for
+  // the processor's retry, then is let go with an alert: no retry is coming,
+  // and the money needs recording by hand (or refunding at the processor).
+  const retryCutoff = new Date(Date.now() - PROCESSOR_RETRY_WINDOW_MS);
+  const unposted = await prisma.payment.findMany({
+    where: { status: "PENDING", isRefund: false, processorConfirmedAt: { lt: retryCutoff } },
+    select: {
+      id: true,
+      salesOrderId: true,
+      invoiceId: true,
+      paymentAmount: true,
+      paymentDate: true,
+      processorConfirmedAt: true,
+      processorType: true,
+    },
+  });
+  for (const p of unposted) {
+    const moved = await prisma.payment.updateMany({
+      where: { id: p.id, status: "PENDING", processorConfirmedAt: { lt: retryCutoff } },
+      data: { status: "FAILED" },
+    });
+    if (moved.count === 0) continue;
+    const amount = Number(p.paymentAmount);
+    const on = p.invoiceId !== null ? `invoice ${p.invoiceId}` : `order ${p.salesOrderId}`;
+    await reportOpsAlert({
+      title: "Card payment taken but never recorded",
+      detail:
+        `The card processor took $${amount.toFixed(2)} for ${on} and Holt couldn't record it ` +
+        `(an earlier alert said why); the processor has stopped retrying. Payment ${p.id} is ` +
+        `now marked failed, so ${on} can take a new link. Record the money by hand, or refund ` +
+        `it at the processor.`,
+      context: {
+        paymentId: p.id,
+        amount,
+        salesOrderId: p.salesOrderId,
+        invoiceId: p.invoiceId,
+        processorType: p.processorType,
+        confirmedAt: p.processorConfirmedAt,
+      },
+    });
+    swept.push({
+      id: p.id,
+      salesOrderId: p.salesOrderId,
+      amount,
+      ageHours: Math.round((Date.now() - p.paymentDate.getTime()) / 3_600_000),
+    });
+  }
+
   return {
     swept: swept.length,
     totalAmount: round2(swept.reduce((sum, p) => sum + p.amount, 0)),
@@ -838,10 +908,11 @@ export async function reportUntrackedCheckoutPaid(
  * AR-ledger entry, an order's gift cards, and for an invoice's checkout its
  * application and AR_PAYMENT journal (applyInvoiceCardPayment). If any of it
  * fails, none of it is written and the row stays PENDING, marked
- * `processorConfirmedAt` so the stale sweep (and a forced new checkout) leave
- * it alone: the processor's retry finds it and posts it whole once whatever
- * stopped it is fixed. A failure a retry can't fix (webhook metadata naming
- * another invoice) stays PENDING, alerted, for a person. (#137)
+ * `processorConfirmedAt` so the stale sweep, a void and a forced new checkout
+ * leave it alone: the processor's retry finds it and posts it whole once
+ * whatever stopped it is fixed. Once the processor's retries run out
+ * (PROCESSOR_RETRY_WINDOW_MS) the sweep fails it with an alert, for a person
+ * to record by hand. (#137)
  *
  * The move is one conditional UPDATE (WHERE status = PENDING), and only the
  * call that makes it writes the rest: of two deliveries at once (Square sends
@@ -1060,8 +1131,9 @@ export async function retryProcessorRefund(refundPaymentId: number): Promise<Pay
 /**
  * How long the transaction around a processor refund call may stay open. The
  * provider's requests are bounded well inside it (REFUND_REQUEST_TIMEOUT_MS:
- * about two minutes for Stripe's two requests tried twice, one for Square's
- * two), because the refund lock lives only as long as this transaction: if it
+ * one minute for Square's two; about two for Stripe's two tried twice when
+ * Stripe stops answering, its limit being the SDK's idle timeout), because the
+ * refund lock lives only as long as this transaction: if it
  * timed out with the call still running, the lock would be gone and the refund
  * could be voided while the processor paid it out. Should it run out anyway,
  * the transaction rolls back having written nothing, and the PENDING row the

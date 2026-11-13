@@ -368,7 +368,9 @@ on the account. That needs `payment.refund`.
   `settleLineChange`: the line's status, quantity, price and tax must be as the request read them (a second cancel,
   replace or price change finds the line changed and answers 409, and so does a change from another tab worked out from
   the old line, which used to write a total from it: one chair at the old quantity's price), and the credit is what's
-  over now, not what was read; a refund destination with money still over (more came
+  over now, not what was read; each refund's guard makes the same check (`assertLineAsRead`), so a change whose line
+  moved before its refund refunds nothing. A change landing while a card refund is with the processor is the one gap:
+  the refund has gone out, and the first change is then refused (tracked); a refund destination with money still over (more came
   in meanwhile) is refused, to try again. Before this, a double click credited or refunded the overpayment twice, and
   a replace sent twice added two replacement lines. Tested in `cancelOrder.integration.test.ts` ("sent twice"), which
   fails on the code before, and with the order lock and the refund guard taken out.

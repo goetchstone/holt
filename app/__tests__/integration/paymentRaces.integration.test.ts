@@ -456,6 +456,10 @@ describe("an invoice paid by card through the webhook", () => {
     });
     await expect(replacing).rejects.toBeInstanceOf(CheckoutAlreadyOpenError);
     await expect(replacing).rejects.toThrow("went through");
+    // Nor by hand: the customer has paid it.
+    await expect(voidPendingPayment(payment.id, { voidedBy: "boss@example.com" })).rejects.toThrow(
+      "went through, so it can't be voided",
+    );
     expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe(
       "PENDING",
     );
@@ -469,6 +473,50 @@ describe("an invoice paid by card through the webhook", () => {
     );
     expect(await ledger(customer.id, "PAYMENT")).toEqual([-500]);
     expect(await applied(invoiceId)).toEqual([500]);
+  });
+});
+
+describe("a paid checkout the processor stopped retrying", () => {
+  it("is let go with an alert to record it by hand, and the invoice can take a new link", async () => {
+    await seedOrgAndGl({ card: false });
+    const { customer, invoiceId } = await issuedInvoice(500);
+    const payment = await invoiceCheckout(customer.id, invoiceId, 500);
+    mockCompletion = {
+      providerTxnId: payment.processorTxnId!,
+      metadata: { invoiceId: String(invoiceId) },
+    };
+    expect((await deliver(stripeWebhook, "/api/stripe/webhook")).statusCode).toBe(500);
+    jest.mocked(reportOpsAlert).mockClear();
+
+    // Two days on, the processor is still retrying: it stays.
+    const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { paymentDate: daysAgo(2), processorConfirmedAt: daysAgo(2) },
+    });
+    expect((await sweepStalePendingPayments()).swept).toBe(0);
+
+    // Past the three days the processor retries for: failed, alerted, and the invoice is free.
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { paymentDate: daysAgo(4), processorConfirmedAt: daysAgo(4) },
+    });
+    const swept = await sweepStalePendingPayments();
+
+    expect(swept.payments.map((p) => p.id)).toEqual([payment.id]);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe(
+      "FAILED",
+    );
+    // (The webhook's failure also reports itself as a new error, asynchronously; not this.)
+    const neverRecorded = jest
+      .mocked(reportOpsAlert)
+      .mock.calls.map(([a]) => a)
+      .filter((a) => a.title === "Card payment taken but never recorded");
+    expect(neverRecorded).toHaveLength(1);
+    expect(neverRecorded[0]).toMatchObject({
+      context: { paymentId: payment.id, invoiceId, amount: 500 },
+    });
+    expect(await ledger(customer.id, "PAYMENT")).toEqual([]);
   });
 });
 

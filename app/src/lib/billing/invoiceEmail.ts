@@ -55,6 +55,7 @@ export async function sendInvoiceEmail(
             openPaymentId: linkErr.existing.id,
             openAmount: linkErr.existing.amount,
             openAgeMinutes: linkErr.existing.ageMinutes,
+            paidAtProcessor: linkErr.existing.paidAtProcessor,
           },
         );
       } else {

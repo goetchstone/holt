@@ -67,9 +67,11 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
       const open = err.existing;
       throw new TRPCError({
         code: "CONFLICT",
-        message:
-          `A payment link for $${open.amount.toFixed(2)} is already open on this invoice ` +
-          `(started ${open.ageMinutes} min ago).`,
+        // A paid one can't be replaced: its own message says what to do instead.
+        message: open.paidAtProcessor
+          ? err.message
+          : `A payment link for $${open.amount.toFixed(2)} is already open on this invoice ` +
+            `(started ${open.ageMinutes} min ago).`,
       });
     }
     throw err;

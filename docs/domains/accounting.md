@@ -307,7 +307,8 @@ backs it up):
   COMPLETED status, its customer-ledger entry and its application
   (`applyInvoiceCardPayment`), so a missing "Card" mapping posts none of them
   and the webhook's retry posts all of them, the row marked
-  `processorConfirmedAt` meanwhile so the stale sweep leaves it (since
+  `processorConfirmedAt` meanwhile so the stale sweep leaves it until the
+  processor's retries run out (since
   2026-11-13; before, the ledger entry committed alone and the journal never
   followed). One that lands on an invoice already paid or voided applies
   nothing and still posts its `ARP-` for the whole amount; the daily sales
