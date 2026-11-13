@@ -15,7 +15,7 @@ import { resolveCredential } from "@/lib/integrationCredentials";
 import { prisma } from "@/lib/prisma";
 import {
   completePayment,
-  onPaymentReceived,
+  followUpWebhookPayment,
   reportUntrackedCheckoutPaid,
 } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
@@ -106,29 +106,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cardBrand: completion.cardBrand,
       };
 
-      // The charge is confirmed; now post it to the books. If any step throws,
-      // the money has moved at Square but our ledger is out of sync -- the
-      // most important failure to surface. Alert, then 500 so Square retries.
+      // The charge is confirmed; now post it to the books. If that throws, the
+      // money has moved at Square but isn't in our books -- the most important
+      // failure to surface. Alert, then 500 so Square retries.
+      let completed: Awaited<ReturnType<typeof completePayment>>;
       try {
         // One transaction: COMPLETED, the AR-ledger entry, an order's gift
         // cards, and an invoice's application and AR_PAYMENT journal. A
-        // failure writes none of it and leaves the row PENDING, so Square's
-        // retry finds it and posts it whole. Square sends payment.created and
+        // failure writes none of it and leaves the row PENDING (marked paid at
+        // the processor, so the stale sweep leaves it), and Square's retry
+        // finds it and posts it whole. Square sends payment.created and
         // payment.updated for one payment: the second finds it COMPLETED and
         // writes nothing (completePayment's conditional update).
-        const completed = await completePayment(pendingPayment.id, extraData, {
+        completed = await completePayment(pendingPayment.id, extraData, {
           metadataInvoiceId: invoiceId ? Number(invoiceId) : undefined,
         });
-
-        if (!completed) {
-          // Another delivery completed it first (silent), or it was voided or
-          // expired meanwhile: money Holt stopped tracking (alert).
-          await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
-        } else if (completed.salesOrderId) {
-          // Promote QUOTE → ORDER and create draft POs. Not money, and not
-          // retried: a retry finds the row COMPLETED.
-          await onPaymentReceived(completed.salesOrderId);
-        }
       } catch (err) {
         logError("Square webhook: failed to post confirmed payment to the ledger", err, {
           paymentId: pendingPayment.id,
@@ -146,6 +138,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           },
         });
         return res.status(500).json({ error: "Failed to post payment to the ledger" });
+      }
+
+      if (!completed) {
+        // Another delivery completed it first (silent), or it was voided or
+        // expired meanwhile: money Holt stopped tracking (alert).
+        await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
+      } else if (completed.salesOrderId) {
+        // Promote QUOTE → ORDER and create draft POs. Not money, and not
+        // retried (a retry finds the row COMPLETED): a failure is alerted.
+        await followUpWebhookPayment(completed.salesOrderId, provider.displayName, {
+          paymentId: completed.id,
+          squareOrderId: completion.providerTxnId,
+        });
       }
     } else {
       // No PENDING row: a retry of a completed one (silent), or a link Holt

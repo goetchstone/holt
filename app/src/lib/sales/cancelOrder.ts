@@ -688,23 +688,31 @@ export async function refundOverpayment(
   }
 }
 
+/** What a line change works from: the line's status, quantity and money as the request read it. */
+export type LineAsRead = Pick<
+  Prisma.OrderLineItemGetPayload<object>,
+  "lineItemStatus" | "orderedQuantity" | "netPrice" | "vatAmount"
+>;
+
+const sameAmount = (a: unknown, b: unknown) => Number(a ?? 0) === Number(b ?? 0);
+
 /**
  * First in the transaction that changes the line: the order locked, the line still as the
- * request read it, and what the change leaves overpaid worked out again. Of a change sent
- * twice, the second waits here for the first, then finds the line cancelled or replaced and
- * stops (409), so it neither changes it again nor settles its money again; a second price
- * change finds nothing more over. What's over now goes on the account when that's where the
- * caller may put it (`credit`), written here with the change. Any other way the refunds went
- * before this transaction, so anything still over means money came in meanwhile, and the
- * change is refused, to try again. Returns whether it credited.
+ * request read it (status, quantity, price and tax), and what the change leaves overpaid worked
+ * out again. Of a change sent twice, or two changes from two tabs, the second waits here for
+ * the first, then finds the line different and stops (409), so it neither writes a total
+ * worked out from the old line nor settles its money again. What's over now goes on the
+ * account when that's where the caller may put it (`credit`), written here with the change.
+ * Any other way the refunds went before this transaction, so anything still over means money
+ * came in meanwhile, and the change is refused, to try again. Returns whether it credited.
  */
 export async function settleLineChange(
   tx: Db,
   change: {
     orderId: number;
     lineItemId: number;
-    /** The line's status when the request read it. */
-    lineStatus: string;
+    /** The line when the request read it, before any lock. */
+    asRead: LineAsRead;
     /** The line's total after the change. */
     lineTotal: number;
     /** Set when what's over goes on this customer's account, and the caller may put it there. */
@@ -716,9 +724,15 @@ export async function settleLineChange(
   await lockOrder(tx, change.orderId);
   const line = await tx.orderLineItem.findUniqueOrThrow({
     where: { id: change.lineItemId },
-    select: { lineItemStatus: true },
+    select: { lineItemStatus: true, orderedQuantity: true, netPrice: true, vatAmount: true },
   });
-  if (line.lineItemStatus !== change.lineStatus) {
+  const { asRead } = change;
+  if (
+    line.lineItemStatus !== asRead.lineItemStatus ||
+    !sameAmount(line.orderedQuantity, asRead.orderedQuantity) ||
+    !sameAmount(line.netPrice, asRead.netPrice) ||
+    !sameAmount(line.vatAmount, asRead.vatAmount)
+  ) {
     throw new CancelOrderError(
       "This line changed while this was on its way (sent twice, or changed in another tab). Reload the order to see where it stands.",
     );

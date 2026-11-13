@@ -39,16 +39,25 @@ jest.mock("@/lib/integrationCredentials", () => ({
 jest.mock("@/lib/opsAlert", () => ({
   reportOpsAlert: jest.fn(async () => undefined),
 }));
+// The real thing, so a test can make the step after a payment fail once.
+jest.mock("@/lib/sales/salePos", () => {
+  const actual = jest.requireActual("@/lib/sales/salePos");
+  return { ...actual, raiseSpecialOrderPos: jest.fn(actual.raiseSpecialOrderPos) };
+});
 
 import { reportOpsAlert } from "@/lib/opsAlert";
+import { raiseSpecialOrderPos } from "@/lib/sales/salePos";
 import stripeWebhook from "@/pages/api/stripe/webhook";
 import squareWebhook from "@/pages/api/square/webhook";
 import { stripeProvider } from "@/lib/payments/stripeProvider";
 import {
+  CheckoutAlreadyOpenError,
   completePayment,
   expirePendingPayment,
   processRefund,
   RefundProcessorError,
+  startHostedCheckout,
+  sweepStalePendingPayments,
   voidPendingPayment,
   VoidError,
 } from "@/lib/paymentService";
@@ -59,6 +68,7 @@ import {
   recordInvoicePayment,
   voidInvoice,
 } from "@/lib/billing/invoiceService";
+import { generateSalesJournal } from "@/lib/journalEntry";
 
 async function deliver(handler: unknown, url: string) {
   const req = Object.assign(Readable.from([Buffer.from("{}")]), {
@@ -185,6 +195,27 @@ describe("a checkout completing", () => {
     expect(reportOpsAlert).not.toHaveBeenCalled();
   });
 
+  // The steps after a payment (a quote becomes an order, its purchase orders) aren't money and
+  // a retry never runs them: the retry finds the payment COMPLETED. The webhook used to answer
+  // 500 for them with an alert saying the payment hadn't reached the ledger, when it had.
+  it("answers 200 and says what didn't run when the order's next steps fail after it posted", async () => {
+    const { customer, order, payment } = await openCheckout(400);
+    mockCompletion = {
+      providerTxnId: payment.processorTxnId!,
+      metadata: { orderId: String(order.id) },
+    };
+    jest.mocked(raiseSpecialOrderPos).mockRejectedValueOnce(new Error("vendor has no address"));
+
+    const res = await deliver(stripeWebhook, "/api/stripe/webhook");
+
+    expect(res.statusCode).toBe(200);
+    expect(await ledger(customer.id, "PAYMENT")).toEqual([-400]);
+    expect(reportOpsAlert).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(reportOpsAlert).mock.calls[0][0].title).toContain(
+      "the order's next steps didn't run",
+    );
+  });
+
   it("writes nothing for a checkout voided before its completion arrived", async () => {
     const { customer, payment } = await openCheckout(400);
     await voidPendingPayment(payment.id, { voidedBy: "boss@example.com" });
@@ -258,18 +289,30 @@ describe("a refund waiting on the card processor", () => {
     });
 
     const refunding = processRefund(payment.id, { amount: 150, reason: "Scratched" });
-    await processorHasIt;
-    const pending = await prisma.payment.findFirstOrThrow({ where: { isRefund: true } });
-    expect(pending.status).toBe("PENDING");
+    let pendingId = 0;
+    try {
+      // A refund that fails before it reaches the processor says so, rather than timing out.
+      await Promise.race([
+        processorHasIt,
+        refunding.then(() => {
+          throw new Error("the refund settled without calling the processor");
+        }),
+      ]);
+      const pending = await prisma.payment.findFirstOrThrow({ where: { isRefund: true } });
+      expect(pending.status).toBe("PENDING");
+      pendingId = pending.id;
 
-    const voiding = voidPendingPayment(pending.id, { voidedBy: "boss@example.com" });
-    await expect(voiding).rejects.toThrow(VoidError);
-    await expect(voiding).rejects.toThrow("with the card processor");
-
-    answer({ refundId: "re_race_1" });
+      const voiding = voidPendingPayment(pending.id, { voidedBy: "boss@example.com" });
+      await expect(voiding).rejects.toThrow(VoidError);
+      await expect(voiding).rejects.toThrow("with the card processor");
+    } finally {
+      // Always let the processor answer, so the refund's transaction (and its lock) ends here
+      // and not five minutes into the next test.
+      answer({ refundId: "re_race_1" });
+    }
     const refund = await refunding;
 
-    expect(refund).toMatchObject({ id: pending.id, status: "COMPLETED" });
+    expect(refund).toMatchObject({ id: pendingId, status: "COMPLETED" });
     expect(await ledger(customer.id, "REFUND_ISSUED")).toEqual([150]);
   });
 
@@ -378,6 +421,55 @@ describe("an invoice paid by card through the webhook", () => {
       "PAID",
     );
   });
+
+  // The retry only posts it while the row is still PENDING. The stale sweep used to fail any
+  // PENDING checkout a day after its link was made, paid or not, and a forced new link voided
+  // it: the processor's next retry then found nothing to post, and the money had no record.
+  it("keeps a paid checkout that couldn't post for the retry: the sweep and a new link leave it", async () => {
+    const { cash } = await seedOrgAndGl({ card: false });
+    const { customer, invoiceId } = await issuedInvoice(500);
+    const payment = await invoiceCheckout(customer.id, invoiceId, 500);
+    mockCompletion = {
+      providerTxnId: payment.processorTxnId!,
+      metadata: { invoiceId: String(invoiceId) },
+    };
+
+    expect((await deliver(stripeWebhook, "/api/stripe/webhook")).statusCode).toBe(500);
+    const marked = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(marked.status).toBe("PENDING");
+    expect(marked.processorConfirmedAt).not.toBeNull();
+
+    // A day and more after the link was made.
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { paymentDate: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+    });
+    expect((await sweepStalePendingPayments()).swept).toBe(0);
+    expect(await expirePendingPayment(payment.id)).toBeNull();
+    const replacing = startHostedCheckout({
+      target: { invoiceId },
+      amount: 500,
+      force: true,
+      description: "Invoice",
+      metadata: {},
+      urls: { successUrl: "http://localhost/ok", cancelUrl: "http://localhost/no" },
+    });
+    await expect(replacing).rejects.toBeInstanceOf(CheckoutAlreadyOpenError);
+    await expect(replacing).rejects.toThrow("went through");
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe(
+      "PENDING",
+    );
+
+    await prisma.systemGLMapping.create({
+      data: { section: "POS_PAYMENTS", label: "Card", glAccountId: cash.id },
+    });
+    expect((await deliver(stripeWebhook, "/api/stripe/webhook")).statusCode).toBe(200);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe(
+      "COMPLETED",
+    );
+    expect(await ledger(customer.id, "PAYMENT")).toEqual([-500]);
+    expect(await applied(invoiceId)).toEqual([500]);
+  });
 });
 
 describe("an invoice's row, locked by everything that changes it", () => {
@@ -418,6 +510,48 @@ describe("an invoice's row, locked by everything that changes it", () => {
     expect((await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).status).toBe(
       "PAID",
     );
+  });
+
+  // Of the two above, when the check takes the lock first the card applies nothing, and still
+  // posts its own AR_PAYMENT journal for the whole amount. The day's sales journal skipped an
+  // invoice payment only when it had an application, so it booked that card's cash again.
+  it("books a card payment that lands on a paid invoice once, by its own journal", async () => {
+    const { cash } = await seedOrgAndGl();
+    const { customer, invoiceId } = await issuedInvoice(500);
+    const card = await invoiceCheckout(customer.id, invoiceId, 500);
+    await recordInvoicePayment(invoiceId, { amount: 500, method: "CHECK" });
+
+    await completePayment(card.id, undefined, { metadataInvoiceId: invoiceId });
+
+    expect(await applied(invoiceId)).toEqual([500]);
+    expect(await prisma.journalEntry.count({ where: { journalType: "AR_PAYMENT" } })).toBe(2);
+
+    // A walk-in's $100 in cash the same day, into a till account of its own, so the day's
+    // journal has something to post besides the two invoice payments it must leave out.
+    const gl = (code: string, name: string, accountType: string) =>
+      prisma.gLAccount.create({ data: { code, name, accountType } });
+    const till = await gl("1-1000", "Till", "ASSET");
+    const overShort = await gl("5-5900", "Cash Over/Short", "EXPENSE");
+    await prisma.systemGLMapping.createMany({
+      data: [
+        { section: "POS_PAYMENTS", label: "Cash", glAccountId: till.id },
+        { section: "POS_TRANSACTIONS", label: "Over/Short", glAccountId: overShort.id },
+      ],
+    });
+    await prisma.payment.create({
+      data: {
+        paymentAmount: 100,
+        paymentDate: new Date(),
+        status: "COMPLETED",
+        paymentType: "Cash",
+      },
+    });
+
+    const day = await generateSalesJournal(new Date());
+    const lines = day.journalEntry?.lines ?? [];
+    expect(lines.find((l) => l.glAccount.id === till.id)?.debit).toBe(100);
+    // The card's $500 is in its own AR_PAYMENT journal, not here again.
+    expect(lines.filter((l) => l.glAccount.id === cash.id)).toEqual([]);
   });
 
   it("lets a void or a payment through when they land together, never both", async () => {

@@ -360,11 +360,15 @@ on the account. That needs `payment.refund`.
   the processor's retry window it answers 400, and someone checks the processor's dashboard.
 - **Both go in the order's history,** `REFUND_ISSUED` and `CREDIT_ISSUED`, with the line, the reason and who did it.
 - **The same change sent twice settles once (ledger audit 2026-11-11).** What's over is first worked out with no lock,
-  to ask the store; every step that moves money works it out again with the order's row locked (`FOR NO KEY UPDATE`),
-  in its own transaction (`lib/sales/cancelOrder.ts`). Each refund's guard (`stillOverpaid`, inside `processRefund`'s
+  to ask the store; every new refund or credit works it out again with the order's row locked (`FOR NO KEY UPDATE`),
+  in its own transaction (`lib/sales/cancelOrder.ts`). A refund left PENDING by an earlier processor error is finished
+  first, under its own refund lock, so it is sent once; of a change sent twice, both can write its `REFUND_ISSUED`
+  history line (tracked in the roadmap). Each refund's guard (`stillOverpaid`, inside `processRefund`'s
   reserve) refuses a refund bigger than what the change still leaves over. The line change's transaction starts with
-  `settleLineChange`: the line must be as the request read it (a second cancel or replace finds it changed and answers
-  409), and the credit is what's over now, not what was read; a refund destination with money still over (more came
+  `settleLineChange`: the line's status, quantity, price and tax must be as the request read them (a second cancel,
+  replace or price change finds the line changed and answers 409, and so does a change from another tab worked out from
+  the old line, which used to write a total from it: one chair at the old quantity's price), and the credit is what's
+  over now, not what was read; a refund destination with money still over (more came
   in meanwhile) is refused, to try again. Before this, a double click credited or refunded the overpayment twice, and
   a replace sent twice added two replacement lines. Tested in `cancelOrder.integration.test.ts` ("sent twice"), which
   fails on the code before, and with the order lock and the refund guard taken out.

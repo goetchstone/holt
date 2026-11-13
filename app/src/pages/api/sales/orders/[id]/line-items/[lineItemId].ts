@@ -98,7 +98,7 @@ export async function handler(
       // A change that leaves more paid than is owed has to say where the rest goes, as
       // cancelling the whole sale does (DECISIONS 52). `refused` means it has answered.
       // `settleIn` runs first in the change's own transaction: it locks the order, checks the
-      // line is as read, and settles what's over then (lib/sales/cancelOrder.ts
+      // line's status, quantity, price and tax are as read, and settles what's over then (lib/sales/cancelOrder.ts
       // settleLineChange), so a change sent twice settles once. It returns whether it credited.
       const settleOverpayment = async (
         newLineTotal: number,
@@ -112,7 +112,7 @@ export async function handler(
             settleLineChange(tx, {
               orderId,
               lineItemId: itemId,
-              lineStatus: lineItem.lineItemStatus,
+              asRead: lineItem,
               lineTotal: newLineTotal,
               credit,
               reason: why,

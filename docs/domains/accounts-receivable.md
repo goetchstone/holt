@@ -168,10 +168,15 @@ Lifecycle (all in `lib/billing/invoiceService.ts`, pure math in
   `applyInvoiceCardPayment` (application capped at the open balance +
   journal for the full amount + PAID). A failure there (no
   `POS_PAYMENTS`/"Card" mapping, or webhook metadata naming another invoice)
-  writes nothing and leaves the payment PENDING, so the processor's retry
-  posts it whole; until 2026-11-13 the application ran in a second
-  transaction after the ledger entry committed, and a retry never came back
-  for it. A repeat delivery writes nothing (`completePayment` moves the row
+  writes nothing and leaves the payment PENDING, marked
+  `processorConfirmedAt` so the stale sweep never fails it and a forced new
+  link can't replace it; the processor's retry posts it whole once what
+  stopped it is fixed. A metadata mismatch fails every retry the same way,
+  and waits, alerted, for a person. Until 2026-11-13 the application ran in a
+  second transaction after the ledger entry committed, and a retry never came
+  back for it. A card checkout that lands on an invoice already paid or voided
+  applies nothing but still posts its `ARP-` journal for the whole amount
+  (the money is on the customer's account as an overpayment). A repeat delivery writes nothing (`completePayment` moves the row
   only from PENDING); the unique journal number and existing-application
   check stay as a second guard.
 - **Void**: only with zero applications. ISSUED voids post the reversing
@@ -190,7 +195,11 @@ Lifecycle (all in `lib/billing/invoiceService.ts`, pure math in
   the invoice before its ledger entry for that reason).
 
 Double-posting guards: `generateSalesJournal` SKIPS payments with
-`salesOrderId NULL` + applications (the invoice flow posted their journal);
+`salesOrderId NULL` that are bound to an invoice (`invoiceId`) or applied to
+one (the invoice flow posted their journal). By the binding since
+2026-11-13: it used to skip only payments with an application, and booked a
+card payment that applied nothing a second time
+(`paymentRaces.integration.test.ts`);
 tripwire in `__tests__/invoiceAuthoring.test.ts`. The AR drift check folds
 `computeStandaloneInvoiceSource` (ISSUED/PAID totals minus applications)
 into the source side so billed customers tie out —

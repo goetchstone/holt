@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import {
   completePayment,
   expirePendingPayment,
-  onPaymentReceived,
+  followUpWebhookPayment,
   reportUntrackedCheckoutPaid,
 } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
@@ -125,29 +125,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cardBrand: completion.cardBrand,
       };
 
-      // The charge is confirmed; now post it to the books. If any step throws,
-      // the money has moved at Stripe but our ledger is out of sync — the most
-      // important failure to surface. Alert, then 500 so Stripe retries.
+      // The charge is confirmed; now post it to the books. If that throws, the
+      // money has moved at Stripe but isn't in our books -- the most important
+      // failure to surface. Alert, then 500 so Stripe retries.
+      let completed: Awaited<ReturnType<typeof completePayment>>;
       try {
         // One transaction: COMPLETED, the AR-ledger entry, an order's gift
         // cards, and an invoice's application and AR_PAYMENT journal. A
-        // failure writes none of it and leaves the row PENDING, so Stripe's
-        // retry finds it and posts it whole. Routing is structural
+        // failure writes none of it and leaves the row PENDING (marked paid at
+        // the processor, so the stale sweep leaves it), and Stripe's retry
+        // finds it and posts it whole. Routing is structural
         // (Payment.invoiceId, set at link creation); the metadata id is only a
-        // cross-check, and a mismatch refuses the completion. (#137)
-        const completed = await completePayment(pendingPayment.id, extraData, {
+        // cross-check, and a mismatch refuses the completion on every retry,
+        // for a person to resolve. (#137)
+        completed = await completePayment(pendingPayment.id, extraData, {
           metadataInvoiceId: invoiceId ? Number(invoiceId) : undefined,
         });
-
-        if (!completed) {
-          // Another delivery completed it first (silent), or it was voided or
-          // expired meanwhile: money Holt stopped tracking (alert).
-          await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
-        } else if (completed.salesOrderId) {
-          // Promote QUOTE → ORDER and create draft POs. Not money, and not
-          // retried: a retry finds the row COMPLETED.
-          await onPaymentReceived(completed.salesOrderId);
-        }
       } catch (err) {
         logError("Stripe webhook: failed to post confirmed payment to the ledger", err, {
           paymentId: pendingPayment.id,
@@ -165,6 +158,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           },
         });
         return res.status(500).json({ error: "Failed to post payment to the ledger" });
+      }
+
+      if (!completed) {
+        // Another delivery completed it first (silent), or it was voided or
+        // expired meanwhile: money Holt stopped tracking (alert).
+        await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
+      } else if (completed.salesOrderId) {
+        // Promote QUOTE → ORDER and create draft POs. Not money, and not
+        // retried (a retry finds the row COMPLETED): a failure is alerted.
+        await followUpWebhookPayment(completed.salesOrderId, provider.displayName, {
+          paymentId: completed.id,
+          sessionId: completion.providerTxnId,
+        });
       }
     } else {
       // No PENDING row: a retry of a completed one (silent), or a session Holt

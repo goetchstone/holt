@@ -1409,9 +1409,15 @@ describe("a line change that leaves the customer overpaid", () => {
     const holdBuyer = (customerId: number) =>
       holdRows(Prisma.sql`SELECT id FROM "Customer" WHERE id = ${customerId} FOR UPDATE`);
 
-    async function twice(orderId: number, lineId: number, customerId: number, body: object) {
+    async function twice(
+      orderId: number,
+      lineId: number,
+      customerId: number,
+      body: object,
+      otherBody: object = body,
+    ) {
       const hold = await holdBuyer(customerId);
-      const both = Promise.all([change(orderId, lineId, body), change(orderId, lineId, body)]);
+      const both = Promise.all([change(orderId, lineId, body), change(orderId, lineId, otherBody)]);
       await waitForLockWaits(2);
       await hold.release();
       return (await both).map((r) => r.status).sort();
@@ -1464,9 +1470,32 @@ describe("a line change that leaves the customer overpaid", () => {
         unitPrice: 100,
         destination: "STORE_CREDIT",
       });
-      // The second finds the price already there: nothing more is over, so it credits nothing.
-      expect(statuses).toEqual([200, 200]);
+      // The second finds the line's price changed since it read it, and stops.
+      expect(statuses).toEqual([200, 409]);
       expect(await getBalance(buyer!.id)).toBe(200);
+      expect((await calculateOrderBalance(order.id)).balanceDue).toBe(0);
+    });
+
+    // Two different changes from two tabs: the quantity from 2 to 1, and the unit price from 200
+    // to 150, each worked out from the line as it was. The second used to pass the status check,
+    // write a total worked out from the old line (one chair at $300), and settle nothing.
+    it("refuses a change worked out from a line another change has just moved", async () => {
+      const { order, buyer, second } = await twoLines([1000]);
+      const statuses = await twice(
+        order.id,
+        second.id,
+        buyer!.id,
+        { action: "update", quantity: 1, destination: "STORE_CREDIT" },
+        { action: "update", unitPrice: 150, destination: "STORE_CREDIT" },
+      );
+      expect(statuses).toEqual([200, 409]);
+      const line = await prisma.orderLineItem.findUniqueOrThrow({ where: { id: second.id } });
+      const won =
+        Number(line.orderedQuantity) === 1
+          ? { netPrice: 200, credit: 200 }
+          : { netPrice: 300, credit: 100 };
+      expect(Number(line.netPrice)).toBe(won.netPrice);
+      expect(await getBalance(buyer!.id)).toBe(won.credit);
       expect((await calculateOrderBalance(order.id)).balanceDue).toBe(0);
     });
   });

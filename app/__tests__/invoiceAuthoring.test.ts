@@ -219,8 +219,11 @@ describe("sales-journal exclusion tripwire", () => {
   // standalone-invoice-payment skip would credit the deposit GL instead of
   // relieving AR and double-count cash (the invoice flow posts its own
   // AR_PAYMENT journal). Source-text check per CLAUDE.md rule 12 — the
-  // behavior itself is exercised in invoiceLifecycle.integration.test.ts.
-  it("generateSalesJournal still skips invoice-applied orphan payments", () => {
+  // behavior itself is exercised in invoiceLifecycle.integration.test.ts and,
+  // for a card payment bound to an invoice that applied nothing,
+  // paymentRaces.integration.test.ts. The skip is by the invoice binding as
+  // well as by an application (2026-11-13).
+  it("generateSalesJournal still skips invoice-bound and invoice-applied orphan payments", () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const fs = require("fs") as typeof import("fs");
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -229,6 +232,8 @@ describe("sales-journal exclusion tripwire", () => {
       path.join(__dirname, "..", "src", "lib", "journalEntry.ts"),
       "utf8",
     );
-    expect(src).toMatch(/salesOrderId === null && payment\.applications\.length > 0/);
+    expect(src).toMatch(
+      /payment\.salesOrderId === null &&\s*\(payment\.invoiceId !== null \|\| payment\.applications\.length > 0\)/,
+    );
   });
 });

@@ -488,6 +488,8 @@ export interface ActivePendingPayment {
   amount: number;
   createdAt: Date;
   ageMinutes: number;
+  /** The processor said it was paid and it hasn't posted yet (`processorConfirmedAt`). */
+  paidAtProcessor: boolean;
 }
 
 /**
@@ -503,6 +505,9 @@ export interface ActivePendingPayment {
  * payment link is already open, started 12 minutes ago") rather than a bare
  * refusal — the whole point is that the operator needs to know THIS,
  * specifically, not just that something went wrong.
+ *
+ * A checkout the processor has said was paid, waiting to post
+ * (`processorConfirmedAt`), counts at any age: the customer has paid it.
  */
 export async function findActivePendingPayment(
   target: CheckoutTarget,
@@ -514,9 +519,9 @@ export async function findActivePendingPayment(
       ...targetWhere(target),
       status: "PENDING",
       isRefund: false,
-      paymentDate: { gte: cutoff },
+      OR: [{ paymentDate: { gte: cutoff } }, { processorConfirmedAt: { not: null } }],
     },
-    orderBy: { paymentDate: "desc" },
+    orderBy: [{ processorConfirmedAt: { sort: "asc", nulls: "last" } }, { paymentDate: "desc" }],
   });
   if (!pending) return null;
   return {
@@ -524,6 +529,7 @@ export async function findActivePendingPayment(
     amount: Number(pending.paymentAmount),
     createdAt: pending.paymentDate,
     ageMinutes: Math.max(0, Math.round((Date.now() - pending.paymentDate.getTime()) / 60_000)),
+    paidAtProcessor: pending.processorConfirmedAt !== null,
   };
 }
 
@@ -607,11 +613,16 @@ export class CheckoutAlreadyOpenError extends Error {
     readonly existing: ActivePendingPayment,
     target: CheckoutTarget,
   ) {
+    const what = "orderId" in target ? "order" : "invoice";
     super(
-      `A payment link for $${existing.amount.toFixed(2)} is already open on this ` +
-        `${"orderId" in target ? "order" : "invoice"} (started ${existing.ageMinutes} min ` +
-        `ago). If the customer says it never arrived, retry with force:true to void it and ` +
-        `send a new one.`,
+      existing.paidAtProcessor
+        ? `The card processor says the $${existing.amount.toFixed(2)} payment on this ${what} ` +
+            `went through, but it hasn't been recorded yet (an alert said why). It can't be ` +
+            `replaced with a new link: fix what stopped it, and the processor's next try records it.`
+        : `A payment link for $${existing.amount.toFixed(2)} is already open on this ` +
+            `${what} (started ${existing.ageMinutes} min ` +
+            `ago). If the customer says it never arrived, retry with force:true to void it and ` +
+            `send a new one.`,
     );
     this.name = "CheckoutAlreadyOpenError";
   }
@@ -652,7 +663,10 @@ export async function startHostedCheckout(
 ): Promise<CheckoutResult> {
   const existing = await findActivePendingPayment(input.target);
   if (existing) {
-    if (!input.force) throw new CheckoutAlreadyOpenError(existing, input.target);
+    // A checkout the customer has paid is never voided for a new one: they would pay twice.
+    if (!input.force || existing.paidAtProcessor) {
+      throw new CheckoutAlreadyOpenError(existing, input.target);
+    }
     await voidPendingPayment(existing.id, {
       voidedBy: input.actor,
       reason: "Replaced by a new checkout (force)",
@@ -706,11 +720,12 @@ export async function startHostedCheckout(
  * sweeper and the webhook can both hit (the customer pays at the exact moment
  * the row goes stale), and "already resolved, leave it alone" is correct, not
  * an error. Never a PENDING refund: it waits on a processor that may have
- * paid it out.
+ * paid it out. Never a checkout the processor has said was paid
+ * (`processorConfirmedAt`): it waits for its completion to post.
  */
 export async function expirePendingPayment(paymentId: number): Promise<Payment | null> {
   const moved = await prisma.payment.updateMany({
-    where: { id: paymentId, status: "PENDING", isRefund: false },
+    where: { id: paymentId, status: "PENDING", isRefund: false, processorConfirmedAt: null },
     data: { status: "FAILED" },
   });
   if (moved.count === 0) return null;
@@ -736,8 +751,15 @@ export async function sweepStalePendingPayments(): Promise<StalePendingSweepResu
   const cutoff = new Date(Date.now() - PENDING_SESSION_LIFETIME_MS);
   const stale = await prisma.payment.findMany({
     // Never a PENDING refund: it waits on a processor that may have paid it
-    // out, and failing it would let the same money be refunded again.
-    where: { status: "PENDING", isRefund: false, paymentDate: { lt: cutoff } },
+    // out, and failing it would let the same money be refunded again. Never a
+    // checkout the processor has said was paid: failing it would leave the
+    // money with no record, and the processor's retry finding nothing to post.
+    where: {
+      status: "PENDING",
+      isRefund: false,
+      paymentDate: { lt: cutoff },
+      processorConfirmedAt: null,
+    },
     select: { id: true, salesOrderId: true, paymentAmount: true, paymentDate: true },
   });
 
@@ -815,8 +837,11 @@ export async function reportUntrackedCheckoutPaid(
  * transaction — called when a processor webhook confirms the charge: the
  * AR-ledger entry, an order's gift cards, and for an invoice's checkout its
  * application and AR_PAYMENT journal (applyInvoiceCardPayment). If any of it
- * fails, none of it is written and the row stays PENDING, so the processor's
- * retry finds it and posts it whole. (#137)
+ * fails, none of it is written and the row stays PENDING, marked
+ * `processorConfirmedAt` so the stale sweep (and a forced new checkout) leave
+ * it alone: the processor's retry finds it and posts it whole once whatever
+ * stopped it is fixed. A failure a retry can't fix (webhook metadata naming
+ * another invoice) stays PENDING, alerted, for a person. (#137)
  *
  * The move is one conditional UPDATE (WHERE status = PENDING), and only the
  * call that makes it writes the rest: of two deliveries at once (Square sends
@@ -838,6 +863,29 @@ export async function completePayment(
     cardBrand?: string;
   },
   opts: { metadataInvoiceId?: number } = {},
+): Promise<Payment | null> {
+  try {
+    return await completeInOneTransaction(paymentId, extraData, opts);
+  } catch (err) {
+    // Nothing posted, and the processor has the money: mark the row so nothing ends it before
+    // the retry posts it. Its own write, after the rollback; a failure here is logged and the
+    // completion's own error is what the webhook reports.
+    await prisma.payment
+      .updateMany({
+        where: { id: paymentId, status: "PENDING", isRefund: false, processorConfirmedAt: null },
+        data: { processorConfirmedAt: new Date() },
+      })
+      .catch((markErr) =>
+        logError(`Could not mark payment ${paymentId} as paid at the processor`, markErr),
+      );
+    throw err;
+  }
+}
+
+async function completeInOneTransaction(
+  paymentId: number,
+  extraData: Parameters<typeof completePayment>[1],
+  opts: { metadataInvoiceId?: number },
 ): Promise<Payment | null> {
   return prisma.$transaction(async (tx) => {
     const moved = await tx.payment.updateMany({
@@ -1010,10 +1058,16 @@ export async function retryProcessorRefund(refundPaymentId: number): Promise<Pay
 }
 
 /**
- * How long the transaction around a processor refund call may stay open: past
- * Stripe's own worst case (an 80s timeout, tried three times). If it runs out
+ * How long the transaction around a processor refund call may stay open. The
+ * provider's requests are bounded well inside it (REFUND_REQUEST_TIMEOUT_MS:
+ * about two minutes for Stripe's two requests tried twice, one for Square's
+ * two), because the refund lock lives only as long as this transaction: if it
+ * timed out with the call still running, the lock would be gone and the refund
+ * could be voided while the processor paid it out. Should it run out anyway,
  * the transaction rolls back having written nothing, and the PENDING row the
- * reserve committed is the record, for a retry with the same key.
+ * reserve committed is the record, for a retry with the same key. The
+ * provider's credential lookup takes a second pooled connection, so a pool
+ * held to one connection would wait here for this transaction to end.
  */
 const REFUND_CALL_TX = { maxWait: 10_000, timeout: 5 * 60_000 };
 
@@ -1213,6 +1267,34 @@ export async function refundToStoreCreditTx(
     createdBy: input.createdBy,
   });
   return row;
+}
+
+/**
+ * A processor webhook's steps after its payment posted (onPaymentReceived: a quote becomes an
+ * order, its purchase orders are raised). Not money, and never retried: the processor's retry
+ * finds the payment COMPLETED and posts nothing. So a failure is reported for a person to
+ * finish from the order, and the webhook still answers 200. It used to answer 500 with an
+ * alert saying the payment hadn't reached the ledger, when it had.
+ */
+export async function followUpWebhookPayment(
+  salesOrderId: number,
+  processorName: string,
+  context: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await onPaymentReceived(salesOrderId);
+  } catch (err) {
+    logError(`${processorName} webhook: payment posted, its follow-up steps failed`, err, {
+      salesOrderId,
+      ...context,
+    });
+    await reportOpsAlert({
+      title: `${processorName} payment posted; the order's next steps didn't run`,
+      detail:
+        "The payment and its ledger entry are recorded. Turning the quote into an order, or raising its purchase orders, failed, and the processor's retry won't run it again: finish it from the order.",
+      context: { salesOrderId, ...context },
+    });
+  }
 }
 
 // Called after a payment is completed (from webhook, manual entry, or POS).

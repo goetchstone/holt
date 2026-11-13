@@ -27,6 +27,13 @@ import type {
   VerifiedWebhookEvent,
   WebhookVerifyRequest,
 } from "@/lib/payments/types";
+import { REFUND_REQUEST_TIMEOUT_MS } from "@/lib/payments/types";
+
+/** Both of a refund's requests: bounded, so the refund lock outlasts them. */
+const REFUND_REQUEST: Stripe.RequestOptions = {
+  timeout: REFUND_REQUEST_TIMEOUT_MS,
+  maxNetworkRetries: 1,
+};
 
 function toMinorUnits(amount: number): number {
   return Math.round(amount * 100);
@@ -146,7 +153,11 @@ export const stripeProvider: PaymentProvider = {
       // Holt stores the CHECKOUT SESSION id, but Stripe refunds a payment
       // intent — that indirection lives here rather than in paymentService, so
       // callers just hand over whatever the original payment recorded.
-      const session = await stripe.checkout.sessions.retrieve(req.providerTxnId);
+      const session = await stripe.checkout.sessions.retrieve(
+        req.providerTxnId,
+        {},
+        REFUND_REQUEST,
+      );
       const paymentIntentId =
         typeof session.payment_intent === "string" ? session.payment_intent : null;
       if (!paymentIntentId) return { refundId: null };
@@ -158,7 +169,7 @@ export const stripeProvider: PaymentProvider = {
           reason: "requested_by_customer",
           metadata: { holt_refund_key: req.idempotencyKey },
         },
-        { idempotencyKey: req.idempotencyKey },
+        { ...REFUND_REQUEST, idempotencyKey: req.idempotencyKey },
       );
       return { refundId: refund.id };
     } catch (err: unknown) {
