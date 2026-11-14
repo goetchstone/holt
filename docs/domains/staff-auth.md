@@ -691,3 +691,24 @@ has one. `StaffMember.pinHash` holds a scrypt hash in the password's format
 
 The rules for who may discount, and who may approve, are in pos.md, "Discounts
 and manager approval".
+
+**Credentials never leave the server (2026-11-14).** `passwordHash` and
+`pinHash` (and the PIN lockout columns) are read only by the code that signs in,
+sets or resets a password or PIN, and checks a manager's PIN. Everything that answers with a staff row names its columns,
+an allowlist, never a strip-list:
+
+- the staff screens' routes (`/api/staff`, `/api/staff/[id]`) select
+  `STAFF_RECORD_SELECT` (`lib/staffRecord.ts`). They used an `include`, which
+  returns every column, so both hashes reached the browser of whoever manages
+  staff;
+- an installer's linked staff member and a delivery run's driver are sent as
+  `{ id, displayName }` (they were `staffMember: true` / `driver: true`);
+- the data export (Admin › Export Data) selects each entity's `columns` from
+  `lib/genericExport.ts`. It used to read every column and strip a short list of
+  secret names, and `pinHash` was not on it, so the Staff CSV carried it.
+  `__tests__/genericExportColumns.test.ts` holds every exported model's columns
+  to the schema: each is exported or excluded with a reason, and no exported
+  column may carry a credential-shaped name.
+
+Real-DB proof: `__tests__/integration/staffCredentialsStayHome.integration.test.ts`
+and `__tests__/integration/genericExport.integration.test.ts`.

@@ -12,6 +12,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (method === "GET") {
     try {
+      // ?all=true returns every template, for pickers (CategoryModal): a store's
+      // label templates are configuration, a short list.
+      const fetchAll = req.query.all === "true";
       const page = Number.parseInt(req.query.page as string) || 1;
       const limit = Number.parseInt(req.query.limit as string) || 10;
       const search = (req.query.search as string)?.trim() || "";
@@ -31,8 +34,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const [templates, total] = await Promise.all([
         prisma.labelTemplate.findMany({
           where,
-          skip,
-          take: limit,
+          ...(fetchAll ? {} : { skip, take: limit }),
           orderBy: { created: "desc" },
         }),
         prisma.labelTemplate.count({ where }),
