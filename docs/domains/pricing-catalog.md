@@ -44,6 +44,16 @@ product history. (Corrected 2026-11-14: this line used to claim a unique constra
 
 **Product search** (`GET /api/products`, SEC-13 2026-09-24) serves seven screens: All Products, Create Variant, New Quote, Detailed Sales' "Edit line item", POS, Reconcile Photos and New Transfer. It takes `{ anyOf }` of their keys (`catalog.read`, `catalog.write`, `sales.write`, `pos.operate`, `inventory.count`, `inventory.transfer`), so granting a role any of those screens in Roles also grants the search. It returns product scalars plus vendor/department/category/type **names**: never the vendor row (account number, discounts, markup, terms, contacts), staff emails or the wholesale price-list inputs. `baseCost` still goes to every admitted role; a separate "View cost" switch is SEC-14.
 
+**The route pages and has no `all`.** A picker searches it as you type
+(`hooks/useProductSearch`), never asks `?all=true`: Create Variant's
+master-product picker once did and offered the first 10 products. Every
+`"/api/...?all=true"` request in `src/` must reach a route that reads
+`query.all`, or `__tests__/allListRequestTripwire.test.ts` fails. A picker says
+"No matching ..." only when the hook's `status` is `done`, meaning the held
+results answer exactly what is typed (`lib/searchAsYouTypeStatus.ts`). During the
+debounce window `isSearching` is still false and the results are the previous
+query's.
+
 ## Retail is changed in one place
 
 GAP-06 part A, 2026-11-14, DECISIONS 58. A stocked product's selling price is
