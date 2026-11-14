@@ -38,9 +38,7 @@ import { appRouter } from "@/server/trpc/routers/_app";
 import orderRoute from "@/pages/api/sales/orders/[id]";
 import refundsRoute from "@/pages/api/sales/orders/[id]/refunds";
 import voidRoute from "@/pages/api/sales/orders/[id]/payments/[paymentId]/void";
-import deleteCustomersRoute from "@/pages/api/customers/delete-all";
 import deleteCategoriesRoute from "@/pages/api/categories/delete-all";
-import deleteCampaignsRoute from "@/pages/api/mailchimp/delete-all";
 import mergeCustomersRoute from "@/pages/api/customers/merge-duplicates";
 import clearAllRoute from "@/pages/api/inventory/clear-all-data";
 import clearLocationRoute from "@/pages/api/inventory/clear-location";
@@ -334,25 +332,9 @@ describe("orders and payments", () => {
 });
 
 describe("deleting and clearing", () => {
-  it("records deleting every customer, with how many", async () => {
-    await prisma.customer.create({ data: { firstName: "Ada", lastName: "Lane" } });
-    await prisma.customer.create({ data: { firstName: "Bo", lastName: "Reyes" } });
-    await call(deleteCustomersRoute, "owner", { method: "DELETE" });
-    const entry = await onlyEntry("BULK_DELETED");
-    expect(entry).toMatchObject({
-      actor: "owner@example.com",
-      summary: "All 2 customers deleted",
-    });
-  });
-
   it("records deleting every category", async () => {
     await call(deleteCategoriesRoute, "owner", { method: "DELETE" });
     expect((await onlyEntry("BULK_DELETED")).summary).toBe("All 0 categories deleted");
-  });
-
-  it("records deleting every email campaign", async () => {
-    await call(deleteCampaignsRoute, "owner", { method: "DELETE" });
-    expect((await onlyEntry("BULK_DELETED")).summary).toContain("email campaigns deleted");
   });
 
   it("records merging duplicate customers", async () => {

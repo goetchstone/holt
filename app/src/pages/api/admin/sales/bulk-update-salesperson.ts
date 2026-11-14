@@ -2,6 +2,12 @@
 //
 // Bulk update salesperson assignments on multiple orders at once.
 // Manager-only. All changes are logged to OrderChangeLog.
+//
+// A row's splitWithId means three things: absent keeps the order's split as it
+// is, null removes it, a staff id splits with them. The screen's "Keep each
+// order's split" sends no key, so absent and null must never be read the same
+// way: `row.splitWithId ?? null` once wiped the split, and the partner's
+// commission with it, on every order reassigned with the split at "No change".
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -11,12 +17,17 @@ import { loadActiveConfirmations } from "@/lib/payPeriodLockGuard";
 import { isAttributionLocked } from "@/lib/payPeriodLock";
 import { getAppSettings } from "@/lib/appSettings";
 import { nextSplitPercent, splitPercentProblem } from "@/lib/commissionSplit";
+import {
+  KEPT_SPLIT_IS_NEW_SALESPERSON,
+  type BulkSalespersonError,
+} from "@/lib/sales/bulkSalespersonShared";
 
 export const config = { api: { bodyParser: { sizeLimit: "5mb" } } };
 
 interface UpdateRow {
   orderId: number;
   salesPersonId: number | null;
+  /** Absent: keep the order's split. null: no split. A number: split with them. */
   splitWithId?: number | null;
   /** The salesperson's share of a split (GAP-07); absent keeps the order's,
    *  or gives a new split the store's default (lib/commissionSplit.ts). */
@@ -49,7 +60,7 @@ export default requirePermission(
     const { defaultSplitPercent } = await getAppSettings();
 
     let updated = 0;
-    const errors: { orderId: number; reason: string }[] = [];
+    const errors: BulkSalespersonError[] = [];
 
     // Process in batches
     const BATCH_SIZE = 50;
@@ -75,12 +86,14 @@ export default requirePermission(
             continue;
           }
 
+          // Absent keeps the order's split; only an explicit null clears it.
+          const resolvedSplit = row.splitWithId === undefined ? order.splitWithId : row.splitWithId;
+
           // Pay-period lock guard.
-          const resolvedSplitForLock = row.splitWithId ?? null;
           if (
             isAttributionLocked(
               order.orderDate,
-              [order.salesPersonId, order.splitWithId, row.salesPersonId, resolvedSplitForLock],
+              [order.salesPersonId, order.splitWithId, row.salesPersonId, resolvedSplit],
               activeConfirmations,
             )
           ) {
@@ -97,14 +110,19 @@ export default requirePermission(
             continue;
           }
 
-          const resolvedSplit = row.splitWithId ?? null;
           if (resolvedSplit !== null && !staffById.has(resolvedSplit)) {
             errors.push({ orderId: row.orderId, reason: "Split salesperson not found" });
             continue;
           }
 
           if (row.salesPersonId !== null && row.salesPersonId === resolvedSplit) {
-            errors.push({ orderId: row.orderId, reason: "Primary and split are the same" });
+            // A kept split whose partner is the new salesperson is the
+            // manager's next decision, not a typo: say which choice resolves it.
+            const reason =
+              row.splitWithId === undefined
+                ? KEPT_SPLIT_IS_NEW_SALESPERSON
+                : "Primary and split are the same";
+            errors.push({ orderId: row.orderId, reason });
             continue;
           }
 

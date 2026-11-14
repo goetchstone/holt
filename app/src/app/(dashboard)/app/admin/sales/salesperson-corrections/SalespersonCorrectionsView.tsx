@@ -15,6 +15,12 @@ import { Loader2, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
 import { splitLabel } from "@/lib/commissionSplit";
+import {
+  bulkSalespersonFailures,
+  bulkSalespersonSummary,
+  type BulkSalespersonFailure,
+  type BulkSalespersonResult,
+} from "@/lib/sales/bulkSalespersonShared";
 
 interface StaffOption {
   id: number;
@@ -61,6 +67,9 @@ export function SalespersonCorrectionsView() {
   // Bulk assignment
   const [bulkPrimary, setBulkPrimary] = useState<number | "">("");
   const [bulkSplit, setBulkSplit] = useState<number | "" | "clear">("");
+  // Orders the last bulk update refused, by order number and reason. They stay
+  // on screen after the toast fades, so the manager can act on each one.
+  const [failures, setFailures] = useState<BulkSalespersonFailure[]>([]);
 
   useEffect(() => {
     axios
@@ -129,23 +138,28 @@ export function SalespersonCorrectionsView() {
     }
 
     setSaving(true);
+    setFailures([]);
     try {
-      const resolveSplit = () => {
-        if (bulkSplit === "clear") return null;
-        if (bulkSplit === "") return undefined;
-        return bulkSplit;
-      };
+      // The split field means three things to the route: no key keeps each
+      // order's split, null removes it, an id splits with that person. Leave
+      // the key out on "Keep" rather than sending undefined, so the request says
+      // what it means instead of leaning on JSON dropping it.
+      const split: { splitWithId?: number | null } =
+        bulkSplit === "" ? {} : { splitWithId: bulkSplit === "clear" ? null : bulkSplit };
       const updates = selectedOrders.map((o) => ({
         orderId: o.id,
         salesPersonId: bulkPrimary as number,
-        splitWithId: resolveSplit(),
+        ...split,
       }));
 
       const res = await axios.post("/api/admin/sales/bulk-update-salesperson", { updates });
-      const { updated, errors } = res.data;
-      toast.success(
-        `Updated ${updated} order(s).${errors?.length ? ` ${errors.length} failed.` : ""}`,
-      );
+      const result: BulkSalespersonResult = {
+        updated: res.data.updated ?? 0,
+        errors: res.data.errors ?? [],
+      };
+      setFailures(bulkSalespersonFailures(result.errors, selectedOrders));
+      const summary = bulkSalespersonSummary(result);
+      toast[summary.level](summary.message);
       searchOrders();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Bulk update failed."));
@@ -186,6 +200,10 @@ export function SalespersonCorrectionsView() {
         />
       )}
 
+      {failures.length > 0 && (
+        <BulkFailures failures={failures} onDismiss={() => setFailures([])} />
+      )}
+
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
@@ -206,6 +224,29 @@ export function SalespersonCorrectionsView() {
           No orders found. Try adjusting your filters.
         </p>
       )}
+    </div>
+  );
+}
+
+function BulkFailures({
+  failures,
+  onDismiss,
+}: Readonly<{ failures: BulkSalespersonFailure[]; onDismiss: () => void }>) {
+  return (
+    <div role="alert" className="border border-red-200 bg-red-50 rounded-lg p-4 text-sm">
+      <div className="flex items-start justify-between gap-4">
+        <p className="font-medium text-red-800">{failures.length} order(s) were not changed:</p>
+        <Button type="button" variant="secondary" onClick={onDismiss}>
+          Dismiss
+        </Button>
+      </div>
+      <ul className="mt-2 space-y-1 text-red-800">
+        {failures.map((f) => (
+          <li key={f.orderId}>
+            <span className="font-medium">{f.orderno}</span>: {f.reason}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -358,7 +399,7 @@ function BulkAssignControls({
         </div>
         <div>
           <label htmlFor="bulk-split" className="block text-xs text-brand-gray mb-1">
-            Split With (optional)
+            Split With
           </label>
           <select
             id="bulk-split"
@@ -373,8 +414,8 @@ function BulkAssignControls({
             }}
             className="border border-gray-300 rounded px-3 min-h-[44px] text-sm"
           >
-            <option value="">No change</option>
-            <option value="clear">Clear split</option>
+            <option value="">Keep each order&apos;s split</option>
+            <option value="clear">No split (remove it)</option>
             {staff
               .filter((s) => s.id !== bulkPrimary)
               .map((s) => (

@@ -67,7 +67,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
       where,
       include: {
         vehicle: true,
-        driver: true,
+        driver: { select: { id: true, displayName: true } },
         ...(includeStops ? stopsInclude : { _count: { select: { stops: true } } }),
       },
       orderBy: { runDate: "desc" },
@@ -112,7 +112,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
       },
       include: {
         vehicle: true,
-        driver: true,
+        driver: { select: { id: true, displayName: true } },
       },
     });
 

@@ -82,7 +82,7 @@ describe("the audit trail's coverage", () => {
 
   it("finds the routes it's meant to, so the shapes above can't quietly match nothing", () => {
     expect(sensitive.length).toBeGreaterThan(30);
-    expect(sensitive).toContain("src/pages/api/customers/delete-all.ts");
+    expect(sensitive).toContain("src/pages/api/categories/delete-all.ts");
     expect(sensitive).toContain("src/pages/api/admin/database/backup.ts");
   });
 

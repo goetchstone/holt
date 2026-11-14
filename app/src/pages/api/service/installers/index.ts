@@ -28,7 +28,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   try {
     const installers = await prisma.installer.findMany({
       where,
-      include: { staffMember: true },
+      include: { staffMember: { select: { id: true, displayName: true } } },
       orderBy: { name: "asc" },
     });
 
@@ -57,7 +57,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
         notes: notes || undefined,
         createdBy,
       },
-      include: { staffMember: true },
+      include: { staffMember: { select: { id: true, displayName: true } } },
     });
 
     return res.status(201).json(installer);
