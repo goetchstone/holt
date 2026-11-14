@@ -502,14 +502,22 @@ function ImportSectionPanel({ section }: Readonly<{ section: ImportSection }>) {
     const total = rows.length;
     let imported = 0;
     let errors = 0;
+    // Items whose retail the import kept (GAP-06): a locked price, none in the
+    // file, or no permission to change prices.
+    let lockedKept = 0;
+    let blankKept = 0;
+    let noPermissionKept = 0;
 
     setProgress({ imported: 0, total });
 
     for (let i = 0; i < total; i += CHUNK_SIZE) {
       const chunk = rows.slice(i, i + CHUNK_SIZE);
       try {
-        await axios.post(section.endpoint, { rows: chunk });
+        const res = await axios.post(section.endpoint, { rows: chunk });
         imported += chunk.length;
+        lockedKept += Number(res.data?.priceLockedKept) || 0;
+        blankKept += Number(res.data?.priceBlankKept) || 0;
+        noPermissionKept += Number(res.data?.priceNoPermissionKept) || 0;
       } catch {
         errors += chunk.length;
       }
@@ -517,13 +525,20 @@ function ImportSectionPanel({ section }: Readonly<{ section: ImportSection }>) {
     }
 
     setImporting(false);
+    const keptParts = [
+      lockedKept > 0 && `${lockedKept} with a locked price`,
+      blankKept > 0 && `${blankKept} with no price in the file`,
+      noPermissionKept > 0 &&
+        `${noPermissionKept} because changing a price needs the Change pricing permission`,
+    ].filter(Boolean);
+    const keptNote = keptParts.length > 0 ? ` Retail kept as it was: ${keptParts.join(", ")}.` : "";
     if (errors === 0) {
-      setResult({ success: true, message: `Successfully imported ${imported} rows.` });
+      setResult({ success: true, message: `Successfully imported ${imported} rows.${keptNote}` });
       toast.success(`${section.title}: imported ${imported} rows.`);
     } else {
       setResult({
         success: false,
-        message: `Imported ${imported} rows with ${errors} failures.`,
+        message: `Imported ${imported} rows with ${errors} failures.${keptNote}`,
       });
       toast.warn(`${section.title}: ${errors} rows failed.`);
     }

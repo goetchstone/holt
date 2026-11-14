@@ -5,13 +5,23 @@ import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { safeString, safeFloat, safeDate } from "@/lib/importHelpers";
 import { calculateRugPricing, mapConsignmentStatusRow } from "@/lib/consignment";
+import {
+  countKept,
+  emptyKeptCounts,
+  lockRetailRow,
+  recordImportPriceChanges,
+  retailFieldsForImport,
+} from "@/lib/pricing/retailWriter";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
+/** Changing an existing product's retail needs this as well (DECISIONS 58). */
+const PRICING = "catalog.pricing";
+
 export default requirePermission(
   "purchasing.write",
-  async (req: NextApiRequest, res: NextApiResponse, session) => {
+  async (req: NextApiRequest, res: NextApiResponse, session, access) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -21,6 +31,7 @@ export default requirePermission(
     }
 
     const userEmail = session.user.email;
+    const mayChangePrice = access.holds[PRICING];
 
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -51,6 +62,7 @@ export default requirePermission(
         let imported = 0;
         let skipped = 0;
         const errors: string[] = [];
+        const kept = emptyKeptCounts();
 
         for (const row of rows) {
           const barcode = safeString(row.barcode);
@@ -71,6 +83,15 @@ export default requirePermission(
               where: { productNumber: barcode, vendorId: vendor.id },
               select: { id: true },
             });
+            // A locked price, no cost to price from, or an importer who may not
+            // change prices keeps the product's own retail -- decided from its
+            // row locked FOR UPDATE (lib/pricing/retailWriter.ts).
+            const retail = existingProduct
+              ? retailFieldsForImport(await lockRetailRow(tx, existingProduct.id), retailPrice, {
+                  mayChangePrice,
+                })
+              : null;
+            if (retail) countKept(kept, retail.kept);
 
             const product = existingProduct
               ? await tx.product.update({
@@ -78,7 +99,7 @@ export default requirePermission(
                   data: {
                     name: productName,
                     baseCost: cost,
-                    baseRetail: retailPrice,
+                    ...retail!.data,
                     updatedBy: userEmail,
                   },
                   select: { id: true },
@@ -96,6 +117,10 @@ export default requirePermission(
                   },
                   select: { id: true },
                 });
+            await recordImportPriceChanges(tx, retail?.change ? [retail.change] : [], {
+              source: "CONSIGNMENT_IMPORT",
+              actor: userEmail,
+            });
 
             await tx.consignmentItem.upsert({
               where: { barcode },
@@ -146,7 +171,7 @@ export default requirePermission(
           }
         }
 
-        return { imported, skipped, errors };
+        return { imported, skipped, errors, ...kept };
       }, TX_TIMEOUT.LONG);
 
       return res.status(200).json(result);
@@ -155,4 +180,5 @@ export default requirePermission(
       return res.status(500).json({ error: message });
     }
   },
+  { also: [PRICING] },
 );

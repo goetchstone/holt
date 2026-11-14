@@ -303,3 +303,26 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_emailAccentColo
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_emailAccentColor_hex" CHECK (
   "emailAccentColor" IS NULL OR "emailAccentColor" ~ '^#[0-9a-fA-F]{6}$'
 );
+
+-- 20261114120000_price_tools
+-- A category's markup is a multiplier above zero; NULL follows the vendor's or the store's.
+ALTER TABLE "Category" DROP CONSTRAINT IF EXISTS "Category_defaultMarkup_positive";
+ALTER TABLE "Category" ADD CONSTRAINT "Category_defaultMarkup_positive" CHECK (
+  "defaultMarkup" IS NULL OR "defaultMarkup" > 0
+);
+-- The price ledger is never rewritten: a correction is another change.
+CREATE OR REPLACE FUNCTION enforce_product_price_change_append_only()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION
+    'ProductPriceChange is append-only (id=%): change a price again through lib/pricing/retailWriter.ts, never by changing history.',
+    OLD.id
+    USING ERRCODE = 'check_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS product_price_change_append_only ON "ProductPriceChange";
+CREATE TRIGGER product_price_change_append_only
+BEFORE UPDATE OR DELETE ON "ProductPriceChange"
+FOR EACH ROW
+EXECUTE FUNCTION enforce_product_price_change_append_only();

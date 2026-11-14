@@ -4,6 +4,8 @@
 // user selections (grade, options) and returns a full price breakdown.
 // No database dependency — operates entirely on passed-in data.
 
+import type { MarkupSource } from "@/lib/pricing/markup";
+
 export interface GradePrice {
   tierId: number;
   tierCode: string;
@@ -52,6 +54,9 @@ export interface ProductWithPricing {
   collection: string | null;
   gradePrices: GradePrice[];
   availableOptions: AvailableOption[];
+  /** This style's markup and where it came from (GAP-06); absent on older responses. */
+  markup?: number | null;
+  markupSource?: MarkupSource | null;
 }
 
 export interface PriceLineItem {
@@ -205,6 +210,9 @@ export interface WoodProductWithPricing {
   speciesPrices: SpeciesPrice[];
   axisPrices: AxisPrice[];
   availableOptions: AvailableOption[];
+  /** This style's markup and where it came from (GAP-06); absent on older responses. */
+  markup?: number | null;
+  markupSource?: MarkupSource | null;
 }
 
 /**

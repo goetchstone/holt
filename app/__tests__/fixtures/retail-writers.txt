@@ -1,0 +1,33 @@
+# Every source file that writes a product AND names baseRetail as a key (GAP-06,
+# rule 65). __tests__/retailWriters.test.ts scans src/ and fails when this list
+# and the code disagree, in either direction.
+#
+#   <path> | <kind> | <baseRetail keys> | <reason>
+#
+#   writer       goes through lib/pricing/retailWriter.ts for an EXISTING
+#                product's retail (applyRetailChanges, or retailFieldsForImport
+#                + recordImportPriceChanges). Must import it.
+#   create-only  writes baseRetail only on a product it is creating -- nothing
+#                to lock or ledger yet. The reason says why.
+#
+# The count is how many times the file names baseRetail as an object key
+# (`baseRetail:`, `"baseRetail":`, `["baseRetail"]:`, shorthand `baseRetail,` or
+# `{ baseRetail }`, or an assignment `x.baseRetail =` / `x["baseRetail"] =`),
+# selects (`baseRetail: true`) aside. It is a ratchet: a new one -- say a raw
+# `baseRetail: price` slipped back into an importer's update -- fails until a
+# person looks and updates this line. Interface fields and response shapes in
+# the same file count too; that is the price of a check that cannot be argued
+# with.
+src/lib/pricing/retailWriter.ts | writer | 5 | The writer itself.
+src/pages/api/products/[id].ts | writer | 2 | A person editing one product: applyRetailChanges (honourLock false); the other key is the GET response.
+src/pages/api/pricing/styles/[id]/index.ts | writer | 2 | A style edit's retail reaches its products through applyRetailChanges (honourLock true).
+src/pages/api/products/import-basic.ts | writer | 1 | Existing products through retailFieldsForImport; the key is a new product's create.
+src/lib/genericImportRunner.ts | writer | 1 | Existing products through retailFieldsForImport; the key is a new product's create.
+src/lib/adapters/legacyPos/runners.ts | writer | 7 | Stock-by-item and item export: existing products through retailFieldsForImport; the keys are creates, the prepared-row type and the import guard's own bookkeeping.
+src/pages/api/consignment/import/consignment-items.ts | writer | 1 | Existing products through retailFieldsForImport; the key is a new product's create.
+src/pages/api/consignment/import/manifest.ts | writer | 1 | Existing products through retailFieldsForImport; the key is a new product's create.
+src/pages/api/products/basic.ts | create-only | 1 | Creates one new product from the add-product form.
+src/pages/api/products/quick-create.ts | create-only | 1 | Creates one new product from the quick-add dialog.
+src/pages/api/sales/orders/create-from-cart.ts | create-only | 1 | Mints a made-to-order product for one sale, at the price it was sold.
+src/pages/api/purchasing/import-nuorder.ts | create-only | 1 | Creates a product only when none matches; an existing one is left as it is.
+src/pages/api/purchasing/import-wholesale-order.ts | create-only | 1 | Creates a product only when none matches; an existing one is left as it is.

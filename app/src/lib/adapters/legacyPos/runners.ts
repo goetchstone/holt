@@ -53,6 +53,18 @@ import { logger, logError } from "@/lib/logger";
 import { applyImportSync, planImportSync, type ImportStockRow } from "@/lib/inventory/importSync";
 import { findOrCreateInIndex, vendorNameIndex } from "@/lib/vendors/vendorByName";
 import { getConsignmentVendorIds } from "@/lib/consignmentVendor";
+import {
+  countKept,
+  emptyKeptCounts,
+  keptSummary,
+  lockRetailRow,
+  lockRetailRows,
+  recordImportPriceChanges,
+  retailFieldsForImport,
+  type ExistingRetail,
+  type ImportPriceChange,
+  type RetailKept,
+} from "@/lib/pricing/retailWriter";
 
 const BATCH_SIZE = 50;
 
@@ -1620,6 +1632,9 @@ export interface StockByItemImportResult {
   /** Rows whose On Hand is not a number. Skipped, never written as stock. */
   skippedUnparseableQty: number;
   unmappedLocations: string[];
+  /** Products whose retail the file left alone: locked, or no SellingPrice (GAP-06). */
+  priceLockedKept: number;
+  priceBlankKept: number;
   /**
    * Slice 5 (2026-05-12): EXPORTED buyer drafts whose barcodes matched
    * a Product UPC in this import run. Auto-flipped to FULFILLED with
@@ -1717,6 +1732,33 @@ export async function runStockByItemImport(
   for (const p of existingByExternalId) {
     if (p.externalId) productByExternalId.set(p.externalId, p.id);
   }
+  // Each product's retail and lock, read FOR UPDATE in the batch's transaction
+  // that writes it -- never from a read taken before the run, which a lock or
+  // a mass change made while the feed runs would have outdated
+  // (lib/pricing/retailWriter.ts lockRetailRows). Kept current as the batch
+  // changes them: an item has a row per location, and only its first may move
+  // the price. Cleared after each batch.
+  const retailById = new Map<number, ExistingRetail>();
+  const kept = emptyKeptCounts();
+  const keptProducts = new Map<number, RetailKept>();
+  /** The retail fields this row may write onto an existing product, with its ledger row written. */
+  const retailFor = async (
+    tx: Prisma.TransactionClient,
+    productId: number,
+    sellingPrice: number,
+  ) => {
+    const existing = retailById.get(productId) ?? (await lockRetailRow(tx, productId));
+    const retail = retailFieldsForImport(existing, sellingPrice);
+    if (retail.kept) keptProducts.set(existing.id, retail.kept);
+    if (retail.change) {
+      await recordImportPriceChanges(tx, [retail.change], {
+        source: "LEGACY_FEED",
+        actor: userEmail,
+      });
+      retailById.set(existing.id, { ...existing, baseRetail: retail.change.toRetail });
+    } else retailById.set(existing.id, existing);
+    return retail.data;
+  };
 
   let productsCreated = 0;
   let productsUpdated = 0;
@@ -1735,6 +1777,16 @@ export async function runStockByItemImport(
     const batch = records.slice(i, i + SBI_BATCH_SIZE);
 
     await prisma.$transaction(async (tx) => {
+      // The batch's known products, locked in one read, in id order.
+      retailById.clear();
+      const knownIds = batch.flatMap((row) => {
+        const id = productByExternalId.get(
+          Number.parseInt(String(row.Stockid || row.stockid || "").trim(), 10),
+        );
+        return id === undefined ? [] : [id];
+      });
+      for (const [id, row] of await lockRetailRows(tx, knownIds)) retailById.set(id, row);
+
       for (const row of batch) {
         const stockId = Number.parseInt(String(row.Stockid || row.stockid || "").trim(), 10);
         if (Number.isNaN(stockId)) continue;
@@ -1786,11 +1838,13 @@ export async function runStockByItemImport(
         // Upsert product
         let productId = productByExternalId.get(stockId);
         if (productId) {
+          // A blank SellingPrice or a locked price keeps the product's own.
+          const retailData = await retailFor(tx, productId, sellingPrice);
           await tx.product.update({
             where: { id: productId },
             data: {
               baseCost: Number.isNaN(costPrice) ? undefined : costPrice,
-              baseRetail: Number.isNaN(sellingPrice) ? undefined : sellingPrice,
+              ...retailData,
               departmentId,
               categoryId,
               updatedBy: userEmail,
@@ -1807,12 +1861,13 @@ export async function runStockByItemImport(
 
           if (existing) {
             productId = existing.id;
+            const retailData = await retailFor(tx, existing.id, sellingPrice);
             await tx.product.update({
               where: { id: productId },
               data: {
                 externalId: stockId,
                 baseCost: Number.isNaN(costPrice) ? undefined : costPrice,
-                baseRetail: Number.isNaN(sellingPrice) ? undefined : sellingPrice,
+                ...retailData,
                 updatedBy: userEmail,
               },
             });
@@ -1835,6 +1890,12 @@ export async function runStockByItemImport(
             });
             productId = product.id;
             productByExternalId.set(stockId, productId);
+            retailById.set(productId, {
+              id: productId,
+              baseRetail: product.baseRetail,
+              wasPrice: null,
+              priceLocked: false,
+            });
             productsCreated++;
           }
         }
@@ -1904,9 +1965,13 @@ export async function runStockByItemImport(
     notStocked: sync.notStocked,
     buyerDraftsAutoLinked,
   });
+  // Counted once per product, however many location rows it has.
+  for (const why of keptProducts.values()) countKept(kept, why);
+  const keptNote = keptSummary(kept);
 
   return {
-    message,
+    message: keptNote ? `${message}, retail ${keptNote}` : message,
+    ...kept,
     productsCreated,
     productsUpdated,
     positionsUpserted,
@@ -3480,6 +3545,9 @@ export interface ProductsImportResult {
   lineItemsRelinked: number;
   elapsedMs: number;
   errors: string[];
+  /** Existing products whose retail the file left alone: locked, or no selling price (GAP-06). */
+  priceLockedKept: number;
+  priceBlankKept: number;
 }
 
 export interface ProductsImportOptions {
@@ -3608,6 +3676,8 @@ interface ProcessProductsChunkResult {
   errors: string[];
   /** Part numbers + barcodes from this chunk — used for the post-import relink. */
   relinkScope: string[];
+  priceLockedKept: number;
+  priceBlankKept: number;
 }
 
 type ProductCreateData = Omit<PreparedProductRow, "activeFlag" | "barcode"> & {
@@ -3645,16 +3715,47 @@ function buildProductData(p: PreparedProductRow): ProductCreateData {
   return base;
 }
 
+/** An existing product the item export may update: its flags, and its retail and lock. */
+interface ExistingImportProduct extends ExistingRetail {
+  externalId: number | null;
+  isActive: boolean;
+  isDiscontinued: boolean;
+}
+
 async function fetchExistingProducts(
   externalIds: number[],
-): Promise<
-  Map<number, { id: number; externalId: number | null; isActive: boolean; isDiscontinued: boolean }>
-> {
+): Promise<Map<number, ExistingImportProduct>> {
   const existing = await prisma.product.findMany({
     where: { externalId: { in: externalIds } },
-    select: { id: true, externalId: true, isActive: true, isDiscontinued: true },
+    select: {
+      id: true,
+      externalId: true,
+      isActive: true,
+      isDiscontinued: true,
+      baseRetail: true,
+      wasPrice: true,
+      priceLocked: true,
+    },
   });
   return new Map(existing.map((p) => [p.externalId ?? 0, p]));
+}
+
+/**
+ * An existing product's update: everything the row carries, with its retail
+ * only where the one writer allows it (lib/pricing/retailWriter.ts) -- a
+ * locked price, or a blank selling price, leaves the product's own.
+ */
+function buildProductUpdate(
+  existing: ExistingRetail,
+  row: PreparedProductRow,
+): {
+  data: Prisma.ProductUncheckedUpdateInput;
+  kept: RetailKept | null;
+  change: ImportPriceChange | null;
+} {
+  const { baseRetail, ...rest } = buildProductData(row);
+  const retail = retailFieldsForImport(existing, baseRetail);
+  return { data: { ...rest, ...retail.data }, kept: retail.kept, change: retail.change };
 }
 
 async function refetchProductIds(externalIds: number[]): Promise<Map<number, number>> {
@@ -3665,19 +3766,25 @@ async function refetchProductIds(externalIds: number[]): Promise<Map<number, num
   return new Map(allProducts.map((p) => [p.externalId ?? 0, p.id]));
 }
 
+interface ProductToUpdate {
+  productId: number;
+  existing: ExistingRetail;
+  row: PreparedProductRow;
+}
+
 interface ClassifiedPrepared {
   toCreate: PreparedProductRow[];
-  toUpdate: { productId: number; row: PreparedProductRow }[];
+  toUpdate: ProductToUpdate[];
   skippedInactiveCount: number;
 }
 
 function classifyPrepared(
   prepared: PreparedProductRow[],
-  existingByOrdId: Map<number, { id: number; isActive: boolean; isDiscontinued: boolean }>,
+  existingByOrdId: Map<number, ExistingImportProduct>,
   options: ProductsImportOptions,
 ): ClassifiedPrepared {
   const toCreate: PreparedProductRow[] = [];
-  const toUpdate: { productId: number; row: PreparedProductRow }[] = [];
+  const toUpdate: ProductToUpdate[] = [];
   let skippedInactiveCount = 0;
   for (const p of prepared) {
     const existingRow = existingByOrdId.get(p.externalId);
@@ -3689,7 +3796,7 @@ function classifyPrepared(
       skippedInactiveCount++;
       continue;
     }
-    toUpdate.push({ productId: existingRow.id, row: p });
+    toUpdate.push({ productId: existingRow.id, existing: existingRow, row: p });
   }
   return { toCreate, toUpdate, skippedInactiveCount };
 }
@@ -3724,16 +3831,49 @@ async function runProductsBulkCreate(
   }
 }
 
+/**
+ * Update a set of existing products in the caller's transaction, deciding each
+ * one's retail from its row read FOR UPDATE here -- not from the chunk's
+ * earlier read, which a lock or a mass change made since would have outdated
+ * (lib/pricing/retailWriter.ts lockRetailRows). Returns what it decided, so
+ * the kept counts are those of the transaction that committed.
+ */
+async function updateProductsInTx(
+  tx: Prisma.TransactionClient,
+  toUpdate: readonly ProductToUpdate[],
+): Promise<RetailKept[]> {
+  const current = await lockRetailRows(
+    tx,
+    toUpdate.map((u) => u.productId),
+  );
+  const planned = toUpdate.map(({ productId, existing, row }) => ({
+    productId,
+    ...buildProductUpdate(current.get(productId) ?? existing, row),
+  }));
+  for (const { productId, data } of planned) {
+    await tx.product.update({ where: { id: productId }, data });
+  }
+  // Each changed retail's ledger row, in the same transaction as the change.
+  await recordImportPriceChanges(
+    tx,
+    planned.flatMap((p) => (p.change ? [p.change] : [])),
+    { source: "LEGACY_FEED", actor: null },
+  );
+  return planned.flatMap((p) => (p.kept ? [p.kept] : []));
+}
+
 async function runProductsBulkUpdate(
-  toUpdate: { productId: number; row: PreparedProductRow }[],
+  toUpdate: ProductToUpdate[],
   errors: string[],
+  kept: ReturnType<typeof emptyKeptCounts>,
 ): Promise<number> {
   if (toUpdate.length === 0) return 0;
-  const updateOps = toUpdate.map(({ productId, row }) =>
-    prisma.product.update({ where: { id: productId }, data: buildProductData(row) }),
-  );
   try {
-    await prisma.$transaction(updateOps);
+    const keptWhy = await prisma.$transaction(
+      (tx) => updateProductsInTx(tx, toUpdate),
+      TX_TIMEOUT.LONG,
+    );
+    for (const why of keptWhy) countKept(kept, why);
     return toUpdate.length;
   } catch (bulkErr) {
     logger.warn("products $transaction(update) failed, falling back to per-row update", {
@@ -3741,13 +3881,14 @@ async function runProductsBulkUpdate(
       chunkSize: toUpdate.length,
     });
     let updated = 0;
-    for (const { productId, row } of toUpdate) {
+    for (const one of toUpdate) {
       try {
-        await prisma.product.update({ where: { id: productId }, data: buildProductData(row) });
+        const keptWhy = await prisma.$transaction((tx) => updateProductsInTx(tx, [one]));
+        for (const why of keptWhy) countKept(kept, why);
         updated++;
       } catch (rowErr) {
         const msg = rowErr instanceof Error ? rowErr.message : "unknown";
-        errors.push(`[${row.productNumber}] update failed: ${msg}`);
+        errors.push(`[${one.row.productNumber}] update failed: ${msg}`);
       }
     }
     return updated;
@@ -3919,6 +4060,7 @@ async function processProductsImportChunk(
     }
   }
 
+  const kept = emptyKeptCounts();
   if (prepared.length === 0) {
     return {
       createdCount: 0,
@@ -3928,6 +4070,7 @@ async function processProductsImportChunk(
       upcsUpdated: 0,
       errors,
       relinkScope: [],
+      ...kept,
     };
   }
 
@@ -3940,7 +4083,7 @@ async function processProductsImportChunk(
   );
 
   const createdCount = await runProductsBulkCreate(toCreate, errors);
-  const updatedCount = await runProductsBulkUpdate(toUpdate, errors);
+  const updatedCount = await runProductsBulkUpdate(toUpdate, errors, kept);
 
   const finalByOrdId = await refetchProductIds(externalIds);
   const { upcsCreated, upcsUpdated } = await syncProductUpcs(prepared, finalByOrdId);
@@ -3955,6 +4098,7 @@ async function processProductsImportChunk(
     upcsUpdated,
     errors,
     relinkScope,
+    ...kept,
   };
 }
 
@@ -3978,6 +4122,7 @@ export async function runProductsImport(
     lineItemsRelinked: 0,
     elapsedMs: 0,
     errors: [],
+    ...emptyKeptCounts(),
   };
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -3998,6 +4143,8 @@ export async function runProductsImport(
     result.skippedInactiveCount += chunkResult.skippedInactiveCount;
     result.upcsCreated += chunkResult.upcsCreated;
     result.upcsUpdated += chunkResult.upcsUpdated;
+    result.priceLockedKept += chunkResult.priceLockedKept;
+    result.priceBlankKept += chunkResult.priceBlankKept;
     result.errors.push(...chunkResult.errors);
     for (const scope of chunkResult.relinkScope) relinkScopeSet.add(scope);
   }

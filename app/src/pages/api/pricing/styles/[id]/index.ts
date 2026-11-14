@@ -9,6 +9,8 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog, changedFieldNames } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { applyRetailChanges } from "@/lib/pricing/retailWriter";
+import { roundRetail } from "@/lib/pricing/rounding";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
@@ -65,6 +67,17 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, id: number, 
   if (!style) return res.status(404).json({ error: "Style not found" });
 
   const { fields, optionOverrides } = req.body;
+  // A style's retail is mirrored onto its products through the retail writer,
+  // so it must be a price: zero or more, or empty for none.
+  const sentRetail = fields?.baseRetail;
+  let styleRetail: number | null | undefined;
+  if (sentRetail !== undefined) {
+    styleRetail = sentRetail === null || sentRetail === "" ? null : Number(sentRetail);
+  }
+  if (styleRetail != null && !(Number.isFinite(styleRetail) && styleRetail >= 0)) {
+    return res.status(400).json({ error: "The retail price must be a number of zero or more." });
+  }
+  const actor = auditActor(session);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -123,7 +136,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, id: number, 
           if (moved.length > 0) {
             await auditLog(
               "STYLE_PRICE_CHANGED",
-              auditActor(session),
+              actor,
               {
                 summary: `${before.name}: ${moved.join(", ")} changed`,
                 details: { styleId: id, fields: moved },
@@ -137,14 +150,27 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, id: number, 
           if (data.name !== undefined) productData.name = data.name;
           if (data.description !== undefined) productData.description = data.description;
           if (data.baseCost !== undefined) productData.baseCost = data.baseCost;
-          if (data.baseRetail !== undefined) productData.baseRetail = data.baseRetail;
           if (data.mapPrice !== undefined) productData.mapPrice = data.mapPrice;
 
           if (Object.keys(productData).length > 0) {
             await tx.product.updateMany({
               where: { vendorStyleId: id },
-              data: productData,
+              data: { ...productData, updatedBy: actor },
             });
+          }
+          // Retail goes through the one writer: a locked product keeps its
+          // price, and every change is in its price ledger (GAP-06).
+          if (styleRetail !== undefined) {
+            const linked = await tx.product.findMany({
+              where: { vendorStyleId: id },
+              select: { id: true },
+            });
+            const toRetail = styleRetail === null ? null : roundRetail(styleRetail, "CENTS");
+            await applyRetailChanges(
+              tx,
+              linked.map((p) => ({ productId: p.id, toRetail })),
+              { source: "STYLE_EDIT", actor, honourLock: true, audit: "caller" },
+            );
           }
         }
       }

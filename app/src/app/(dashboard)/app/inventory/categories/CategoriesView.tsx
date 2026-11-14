@@ -97,6 +97,15 @@ export function CategoriesView() {
       render: (row: CategoryWithRelations) => yesNo(row.trackInventory),
     },
     {
+      key: "defaultMarkup",
+      label: "Markup",
+      accessor: "defaultMarkup",
+      width: "100px",
+      // Empty: its products follow their vendor's markup or the store's (GAP-06).
+      render: (row: CategoryWithRelations) =>
+        row.defaultMarkup == null ? "—" : `${Number(row.defaultMarkup)}×`,
+    },
+    {
       key: "labelTemplateName",
       label: "Label Template",
       accessor: "labelTemplateName",

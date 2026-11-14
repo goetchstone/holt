@@ -34,9 +34,167 @@ Both are created during import. VendorStyles are catalog templates ("frames" fro
 - **VendorStyle** — what's in the catalog. Configurable. Lives in `VendorStyle` + `StyleGradePrice` + `StyleAxisPrice` etc.
 - **Product** — what you can buy or stock. Linked to a VendorStyle via `vendorStyleId` when materialized from a configurator.
 
-Existing products are upserted by `(productNumber, vendorId)` unique constraint. Re-importing a price list updates VendorStyle pricing but does not blow away product history.
+**There is no unique constraint on `(productNumber, vendorId)`.** `Product`'s only
+unique key is `externalId` (`schema.prisma`, model `Product`). The product importers
+(`import-basic.ts`, the generic product import in `lib/genericImportRunner.ts`) find an
+existing product with `findFirst({ productNumber, vendorId })` and update it, or create
+one; two rows with the same pair are possible, and the importer updates the first it
+finds. Re-importing a price list updates VendorStyle pricing but does not blow away
+product history. (Corrected 2026-11-14: this line used to claim a unique constraint.)
 
 **Product search** (`GET /api/products`, SEC-13 2026-09-24) serves seven screens: All Products, Create Variant, New Quote, Detailed Sales' "Edit line item", POS, Reconcile Photos and New Transfer. It takes `{ anyOf }` of their keys (`catalog.read`, `catalog.write`, `sales.write`, `pos.operate`, `inventory.count`, `inventory.transfer`), so granting a role any of those screens in Roles also grants the search. It returns product scalars plus vendor/department/category/type **names**: never the vendor row (account number, discounts, markup, terms, contacts), staff emails or the wholesale price-list inputs. `baseCost` still goes to every admitted role; a separate "View cost" switch is SEC-14.
+
+## Retail is changed in one place
+
+GAP-06 part A, 2026-11-14, DECISIONS 58. A stocked product's selling price is
+`Product.baseRetail`, with `Product.wasPrice` the sale tag's "was" price. Both are
+stored, never derived, and the register charges `baseRetail`.
+
+**The one writer.** Every path that changes an EXISTING product's `baseRetail` or
+`wasPrice` goes through `lib/pricing/retailWriter.ts` (rule 42):
+
+| Entry point                                                                                                                       | Used by                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `applyRetailChanges(tx, changes, { source, actor, honourLock, audit })`                                                           | `PATCH /api/products/[id]` (honourLock false: a person editing one product), the mass price change, the vendor style edit (`pricing/styles/[id]`)            |
+| `lockRetailRows` / `lockRetailRow` + `retailFieldsForImport(existing, incoming, { mayChangePrice })` + `recordImportPriceChanges` | `import-basic.ts`, the generic product import, the legacy POS stock-by-item feed and item export (`adapters/legacyPos/runners.ts`), both consignment imports |
+| `setPriceLocks(tx, ids, locked, ...)`                                                                                             | the product's lock toggle, the mass change's Lock / Unlock                                                                                                   |
+
+`applyRetailChanges` locks the rows `FOR UPDATE` in id order, then reports each
+product as changed, unchanged, locked (kept), stale (its price moved since the caller
+looked) or missing. It refuses a price that isn't to the cent, and a was price of 0,
+naming the product -- but only a price that moves: a target equal to the stored value
+is the caller sending it back, so a retail stored past the cent (old imports wrote
+`cost × markup` unrounded; `Product.baseRetail` is unbounded) doesn't refuse a run
+that only changes the was price.
+
+**Tripwire.** `__tests__/retailWriters.test.ts` counts the places each file under
+`src/` writes `baseRetail` and compares them with `__tests__/fixtures/retail-writers.txt`,
+which classifies every such file as `writer` (goes through the writer) or
+`create-only: <reason>` (only ever creates products). It fails both ways: an unlisted
+file that writes retail, and a listed file that no longer does. It counts keys
+(`baseRetail:`, quoted or computed), shorthand (`{ baseRetail }` and `{ name,
+baseRetail }` on one line included) and assignments (`x.baseRetail =`,
+`x["baseRetail"] =`); its own tests hold each form.
+
+**Price lock.** `Product.priceLocked` (NOT NULL, default false). A locked price is kept
+by imports, mass price changes and style edits; a person editing that product on its
+page still changes it, and the page and edit form say it is locked. Locking needs
+`catalog.pricing` and is audited as `PRICE_LOCK_CHANGED`.
+
+**Importers.** For an existing product, a blank, zero or unreadable retail cell keeps
+the product's own price (writing 0 made it unsellable: `catalogRetailPrice` in
+`lib/pos/cartPricing.ts` treats 0 as no price), and a locked product keeps its price.
+Each importer decides from the product's row read `FOR UPDATE` (`lockRetailRows`)
+inside the transaction that writes it -- never from a read taken before that
+transaction, or once for the whole run -- so a price locked, or changed by a mass
+change, while an import runs is kept, and the ledger's "from" is the price actually
+replaced. The stock-by-item feed locks each batch's known products in one read at the
+batch's start; the item export locks each chunk's in its update transaction.
+`import-basic.ts` and both consignment imports also ask for `catalog.pricing` (gate
+`also`); without it an existing product keeps its price and the import counts it.
+Each importer reports `priceLockedKept`, `priceBlankKept` and `priceNoPermissionKept`;
+the generic import adds them, and a note, only when non-zero, so its result is
+otherwise unchanged. New products are created as before.
+
+**The ledger.** `ProductPriceChange`: product, retail and was price from and to,
+`source` (from the one list in `lib/pricing/priceChangeSources.ts`: MANUAL,
+MASS_CHANGE, IMPORT, LEGACY_FEED, CONSIGNMENT_IMPORT, STYLE_EDIT), the mass change's
+`batchId`, a note, the actor and the time. One row per changed product, in the same
+transaction as the change. A trigger refuses UPDATE and DELETE (copied into
+`prisma/testing/db-guards.sql`). There is no undo: a reversal is another change. The
+product page lists the latest 50, newest first (`GET /api/products/[id]` →
+`priceHistory`).
+
+**Permissions on a product's price** (`PATCH /api/products/[id]`): changing retail or
+the lock needs `catalog.pricing`, checked only when the value actually moves (the edit
+form resends every field); the was price stays on `catalog.write` (tag workflow,
+DECISIONS 43). Every built-in role holding `catalog.write` also holds
+`catalog.pricing` (`permissionCatalog.ts`), so the split only bites a store's own
+roles.
+
+**Mass price change.** Inventory → Mass Price Change
+(`app/(dashboard)/app/inventory/mass-price-change/`), gated `catalog.pricing`, routes
+under `pages/api/pricing/mass-change/` (`index` list, `options` for the filters,
+`preview`, `apply`, `lock`), contract in `lib/pricing/massChangeShared.ts`, server
+side in `lib/pricing/massChange.ts`.
+
+- Filter by vendor, department, category, text and lock; active products only. Pick
+  rows (kept across pages) or "all matching the filter", which the server resolves
+  again. More than 2,000 products is refused with a 400, never done in part.
+- Retail: cost × resolved markup (skipped, with the reason, when there's no cost or no
+  markup), ± a percent, or set to an amount; was price: keep, today's retail (a
+  markdown), or clear. Rounding is the store's rule unless the run picks another; an
+  amount typed is not rounded. A computed price that rounds to 0 (40 cents to the
+  nearest dollar) is skipped `ROUNDS_TO_ZERO`, never written. A row whose was price
+  would not be above its new retail (a price going up with FROM_CURRENT or KEEP, or
+  KEEP + FROM_CURRENT) is skipped `WAS_NOT_ABOVE`, because a sale tag refuses it
+  (`lib/labels/productTag.ts`); apply refuses such a row too (`wasAboveRetail` in
+  `massChangeShared.ts`).
+- Cost × markup needs "View cost" as well: preview answers 403 for it without
+  `catalog.cost` (its prices are cost × a markup the caller can see), and the screen
+  doesn't offer it. The other operations stay open to `catalog.pricing`.
+- Preview returns each row before and after with a skip reason (`MASS_CHANGE_SKIPS`).
+  Apply sends the previewed rows back; in ONE transaction the server refuses as stale
+  any row whose price moved since, keeps locked ones, writes the rest under a new
+  `batchId` with source MASS_CHANGE, and records one `PRICES_ADJUSTED` entry.
+- The list strips cost for a caller without "View cost" (`catalog.cost`, SEC-14) and
+  says `costVisible`.
+
+**Markup.** A markup is a multiplier (2.2 = cost × 2.2). `lib/pricing/markup.ts`
+`resolveMarkup` picks among the vendor's (`Vendor.defaultMarkup`), the category's
+(`Category.defaultMarkup`, Decimal(8,4), CHECK NULL or > 0) and the store's
+(`AppSettings.pricing.defaultMarkup`), in the order `AppSettings.pricing.markupPrecedence`
+says: `VENDOR_FIRST` (default, keeps every price a vendor markup gives today) or
+`CATEGORY_FIRST`. The store's is the fallback either way. 0, negative or unreadable
+counts as unset; with none, the catalog shows cost and invents no retail.
+
+- `GET /api/pricing/products` returns each style's own `markup` and `markupSource`
+  (a style's nullable `categoryId` falls back to vendor and store), and the three
+  configurators (`PriceConfigurator`, `SEConfigurator`, `WoodPriceConfigurator`) price
+  from the chosen style's markup and name its source in "Suggested Retail". The
+  vendor-level `defaultMarkup` (resolved) and `pricingStatus` stay for older clients;
+  `ownMarkup` is the vendor's own, which Admin → Vendor Pricing → Price Configurator's
+  vendor settings edit. Before 2026-11-14 that editor was filled from the resolved
+  markup, so saving a vendor's discount copied the store's markup onto the vendor.
+- `import-basic.ts`'s auto markup is a multiplier through `resolveMarkup` (it treated
+  the markup as a percent: a $100 item at 2.2 priced at $102.20).
+- Vendor markup (`PATCH /api/vendors/[id]`, `catalog.pricing`) is validated in
+  `lib/vendorPatch.ts` (finite > 0 or null). Category markup is set in Inventory →
+  Categories (PUT "only when sent", so other editors of a category don't clear it;
+  POST accepts one too); changing either needs `catalog.pricing`. Each change is
+  audited `MARKUP_CHANGED` in its transaction.
+
+**Rounding.** `lib/pricing/rounding.ts` `roundRetail(value, rule)`, worked in exact
+cents (half up), refusing negatives. Rules: `CENTS` (default, invents nothing),
+`WHOLE_UP`, `WHOLE_NEAREST`, `END_99`, `END_95`. The .99 / .95 rules round to the
+nearest whole dollar and take 1 or 5 cents off, so the left digit drops: 100.00 becomes
+99.99, 101.40 becomes 100.99 (owner, 2026-11-14). A price that rounds to no dollar stays
+$0, which the mass change skips. Applied to computed prices
+only: an import's auto markup and the mass change's markup and percent runs.
+
+**Store settings.** Admin → Settings → Pricing writes `AppSettings.pricing`
+(`defaultMarkup`, `markupPrecedence`, `retailRounding`) through
+`PUT /api/admin/settings`. What is sent is merged over what is stored; a save that
+changes nothing writes nothing; `SETTINGS_SAVED` names the keys that moved
+(`pricing.retailRounding`). `parsePricingConfig` reads it fail-closed.
+
+**Left open** (ROADMAP GAP-06):
+
+- Scheduled sale prices, trade-tier discounts, re-pricing open orders,
+  `ProductVariant.retail`, and server-side re-pricing of a configured line.
+- The imports gated on `admin.data` ("Destructive data operations") -- the generic
+  product import and the legacy POS feed and item export -- change an existing
+  product's retail without checking `catalog.pricing`; the lock and ledger apply.
+- `import-basic.ts`, the generic import and the legacy feed still create a NEW
+  product with the file's retail unrounded, so retail past the cent keeps arriving.
+- Nothing scans for raw `wasPrice` writes the way the tripwire does for `baseRetail`
+  (none exists outside the writer today).
+- A product created by the item export or quick-create with no price still gets
+  retail 0, not none.
+- The consignment imports compute their own retail (a fixed multiple of cost) and name
+  their department and category in code: deployment facts (rule 61).
+- The vendor-level `pricingStatus` says `UNCONFIGURED_MARKUP` when only categories
+  carry markups, though styles in those categories price.
 
 ## Grade auto-extension
 
@@ -122,7 +280,7 @@ away from the store-wide default.
 | ---------------- | --------------------- | -------------------------------------------------- | ------------------------------------ |
 | Wesley Hall      | Grade-based + SE      | [wesley-hall.md](vendors/wesley-hall.md)           | `wesleyHallParser.ts`, `seParser.ts` |
 | CR Laine         | Grade-based           | [cr-laine.md](vendors/cr-laine.md)                 | `crLaineExtractor.ts`                |
-| American Leather | Dual grade            | [american-leather.md](vendors/american-leather.md) | `dualGradeExtractor.ts`        |
+| American Leather | Dual grade            | [american-leather.md](vendors/american-leather.md) | `dualGradeExtractor.ts`              |
 | Ekornes          | MRP-based             | [ekornes.md](vendors/ekornes.md)                   | `ekornesParser.ts`                   |
 | Kingsley Bate    | Frame + Cushion       | [kingsley-bate.md](vendors/kingsley-bate.md)       | `kingsleyBateParser.ts`              |
 | Brown Jordan     | Retail grade          | [brown-jordan.md](vendors/brown-jordan.md)         | `brownJordanParser.ts`               |
@@ -168,4 +326,4 @@ Gap: no source-text tripwire ensuring that any new `pdf-parse`-using file isn't 
 
 ---
 
-Last verified: 2026-05-20
+Last verified: 2026-05-20; "Retail is changed in one place" and the unique-constraint correction 2026-11-14 against source.

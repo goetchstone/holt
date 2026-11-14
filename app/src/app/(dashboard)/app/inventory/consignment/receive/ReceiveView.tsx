@@ -183,10 +183,19 @@ export function ReceiveView() {
       });
       const errCount = res.data.errors?.length ?? 0;
       const imported = res.data.imported ?? rows.length;
+      // Items whose retail the manifest left as it was (GAP-06).
+      const keptParts = [
+        res.data.priceLockedKept > 0 && `${res.data.priceLockedKept} with a locked price`,
+        res.data.priceBlankKept > 0 && `${res.data.priceBlankKept} with no price in the file`,
+        res.data.priceNoPermissionKept > 0 &&
+          `${res.data.priceNoPermissionKept} because changing a price needs the Change pricing permission`,
+      ].filter(Boolean);
+      const keptNote =
+        keptParts.length > 0 ? ` Retail kept as it was: ${keptParts.join(", ")}.` : "";
       const msg =
-        errCount > 0
+        (errCount > 0
           ? `Imported ${imported} of ${rows.length} items. ${errCount} failed.`
-          : `Imported ${imported} items.`;
+          : `Imported ${imported} items.`) + keptNote;
       setResult({ success: errCount === 0, message: msg, imported, errors: res.data.errors });
       if (errCount > 0) {
         toast.warn(msg);

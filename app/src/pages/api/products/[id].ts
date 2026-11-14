@@ -4,14 +4,33 @@ import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { auditActor, auditLog } from "@/lib/audit";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import { auditActor } from "@/lib/audit";
 import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
 import { logError } from "@/lib/logger";
+import {
+  applyRetailChanges,
+  priceProblem,
+  sameMoney,
+  setPriceLocks,
+  type RetailChange,
+} from "@/lib/pricing/retailWriter";
+
+/** Changing a product's retail or its price lock needs "Change pricing"; its was price doesn't (DECISIONS 43, 58). */
+const PRICING = "catalog.pricing";
+
+/** How many of a product's price changes its screen lists, newest first. */
+const PRICE_HISTORY_SHOWN = 50;
 
 // Enough for what a law tag lists, and more than fits on one.
 const LAW_TAG_TEXT_MAX = 1000;
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   const { id } = req.query;
   const productId = Number.parseInt(id as string);
   if (Number.isNaN(productId)) return res.status(400).json({ error: "Invalid product ID" });
@@ -31,6 +50,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           collection: { select: { id: true, name: true } },
           upcs: { orderBy: { sortOrder: "asc" } },
           vendorStyle: { select: { id: true, styleNumber: true, name: true } },
+          priceChanges: {
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: PRICE_HISTORY_SHOWN,
+          },
         },
       });
 
@@ -54,6 +77,21 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         baseRetail: product.baseRetail != null ? Number(product.baseRetail) : null,
         mapPrice: product.mapPrice != null ? Number(product.mapPrice) : null,
         wasPrice: product.wasPrice != null ? Number(product.wasPrice) : null,
+        // Kept by imports, mass changes and style edits (GAP-06).
+        priceLocked: product.priceLocked,
+        // Its price ledger, newest first (lib/pricing/retailWriter.ts).
+        priceHistory: product.priceChanges.map((c) => ({
+          id: c.id,
+          fromRetail: c.fromRetail != null ? Number(c.fromRetail) : null,
+          toRetail: c.toRetail != null ? Number(c.toRetail) : null,
+          fromWas: c.fromWas != null ? Number(c.fromWas) : null,
+          toWas: c.toWas != null ? Number(c.toWas) : null,
+          source: c.source,
+          batchId: c.batchId,
+          note: c.note,
+          actor: c.actor,
+          createdAt: c.createdAt,
+        })),
         lawTagText: product.lawTagText,
         length: product.length,
         width: product.width,
@@ -110,6 +148,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         isDiscontinued,
         wasPrice,
         lawTagText,
+        priceLocked,
       } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- same untyped shape req.body had
 
       const validServiceTypes = ["MEASURE", "INSTALL", "DELIVERY", "HOUSE_CALL"];
@@ -153,6 +192,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       if (wasPrice !== undefined && wasPrice !== null && wasPrice !== "" && was == null) {
         return res.status(400).json({ error: "The was price must be a number." });
       }
+      const wasProblem = was == null ? null : priceProblem(was, "was");
+      if (wasProblem) return res.status(400).json({ error: wasProblem });
+      // Retail: absent leaves it, empty clears it, anything else must be a price.
+      const retail = parseOptionalFloat(baseRetail);
+      if (baseRetail !== undefined && baseRetail !== null && baseRetail !== "" && retail == null) {
+        return res.status(400).json({ error: "The retail price must be a number." });
+      }
+      if (priceLocked !== undefined && typeof priceLocked !== "boolean") {
+        return res.status(400).json({ error: "priceLocked must be true or false." });
+      }
       if (lawTagText !== undefined && lawTagText !== null && typeof lawTagText !== "string") {
         return res.status(400).json({ error: "The law tag wording must be text." });
       }
@@ -167,40 +216,66 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
       const before = await prisma.product.findUnique({
         where: { id: productId },
-        select: { baseRetail: true, wasPrice: true },
+        select: { baseRetail: true, wasPrice: true, priceLocked: true },
       });
-      const updatedProduct = await prisma.product.update({
-        where: { id: productId },
-        data: {
-          name: name || undefined,
-          productNumber: productNumber || undefined,
-          description: description === "" ? null : description,
-          season: season === "" ? null : season,
-          baseRetail: parseOptionalFloat(baseRetail),
-          wasPrice: was,
-          lawTagText: lawTagText === undefined ? undefined : lawTagText?.trim() || null,
-          length: parseOptionalFloat(length),
-          depth: parseOptionalFloat(depth),
-          height: parseOptionalFloat(height),
-          boxesPerUnit: boxes,
-          taxGroupId: taxGroup.value,
-          // Only when sent: a PATCH that leaves it out (a discontinued toggle)
-          // used to clear it.
-          serviceType: serviceType === undefined ? undefined : resolvedServiceType,
-          isDiscontinued,
-        },
-      });
+      if (!before) return res.status(404).json({ error: "Product not found" });
 
-      const moved = [
-        priceMove("retail", before?.baseRetail, updatedProduct.baseRetail),
-        priceMove("was", before?.wasPrice, updatedProduct.wasPrice),
-      ].filter(Boolean);
-      if (moved.length > 0) {
-        await auditLog("PRODUCT_PRICE_CHANGED", auditActor(session), {
-          summary: `${updatedProduct.name}: ${moved.join(", ")}`,
-          target: { type: "product", id: productId },
+      // The edit form sends every field back, so the gate is on a CHANGE: an
+      // unchanged retail or lock is no pricing decision.
+      const retailMoves = retail !== undefined && !sameMoney(before.baseRetail, retail);
+      const lockMoves = priceLocked !== undefined && priceLocked !== before.priceLocked;
+      // Checked only when it moves: a price an import stored past the cent is
+      // resent unchanged by the edit form and must not block the save.
+      const retailProblem = retailMoves && retail !== null ? priceProblem(retail!, "retail") : null;
+      if (retailProblem) return res.status(400).json({ error: retailProblem });
+      if ((retailMoves || lockMoves) && !access.holds[PRICING]) {
+        return res.status(403).json({
+          error: lockMoves
+            ? "Locking or unlocking a price needs the Change pricing permission."
+            : "Changing a retail price needs the Change pricing permission.",
         });
       }
+
+      const actor = auditActor(session);
+      const updatedProduct = await prisma.$transaction(async (tx) => {
+        await tx.product.update({
+          where: { id: productId },
+          data: {
+            name: name || undefined,
+            productNumber: productNumber || undefined,
+            description: description === "" ? null : description,
+            season: season === "" ? null : season,
+            lawTagText: lawTagText === undefined ? undefined : lawTagText?.trim() || null,
+            length: parseOptionalFloat(length),
+            depth: parseOptionalFloat(depth),
+            height: parseOptionalFloat(height),
+            boxesPerUnit: boxes,
+            taxGroupId: taxGroup.value,
+            // Only when sent: a PATCH that leaves it out (a discontinued toggle)
+            // used to clear it.
+            serviceType: serviceType === undefined ? undefined : resolvedServiceType,
+            isDiscontinued,
+            updatedBy: actor,
+          },
+        });
+        // Its price, through the one writer: a person editing this product
+        // changes it even when it is locked -- the lock stops automatic writers.
+        const change: RetailChange = { productId };
+        if (retailMoves) change.toRetail = retail;
+        if (was !== undefined) change.toWas = was;
+        if (change.toRetail !== undefined || change.toWas !== undefined) {
+          await applyRetailChanges(tx, [change], {
+            source: "MANUAL",
+            actor,
+            honourLock: false,
+            audit: "each",
+          });
+        }
+        if (priceLocked !== undefined) {
+          await setPriceLocks(tx, [productId], priceLocked, { actor, audit: "each" });
+        }
+        return tx.product.findUniqueOrThrow({ where: { id: productId } });
+      });
 
       return res.status(200).json(updatedProduct);
     } catch (err) {
@@ -212,11 +287,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requirePermission("catalog.write", handler);
-
-/** "retail 100 → 90", or null when it didn't move. */
-function priceMove(name: string, before: unknown, after: unknown): string | null {
-  const from = before === null || before === undefined ? null : Number(before);
-  const to = after === null || after === undefined ? null : Number(after);
-  return from === to ? null : `${name} ${from ?? "none"} → ${to ?? "none"}`;
-}
+export default requirePermission("catalog.write", handler, { also: [PRICING] });

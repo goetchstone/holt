@@ -4,6 +4,7 @@
 // Tab flow: Product → Grade → Options → Summary
 // Auto-advances on selection, iPad-friendly touch targets.
 
+import { styleMarkup, suggestedRetailLabel } from "@/lib/pricing/markup";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { ProductWithPricing, calculatePrice } from "@/lib/pricing/priceCalculator";
 import GradePriceGrid from "./GradePriceGrid";
@@ -53,7 +54,7 @@ export default function PriceConfigurator({
   products,
   vendorId,
   vendorName,
-  defaultMarkup,
+  defaultMarkup: vendorMarkup,
   defaultDiscount,
   mapEnforced,
   retailOnly = false,
@@ -62,6 +63,8 @@ export default function PriceConfigurator({
   const [activeTab, setActiveTab] = useState<TabId>("product");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<ProductWithPricing | null>(null);
+  // The chosen style's markup: its category's can differ from its vendor's (GAP-06).
+  const defaultMarkup = styleMarkup(selectedProduct, vendorMarkup);
   const [selectedTierId, setSelectedTierId] = useState<number | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Set<number>>(new Set());
   const [selectedFinishId, setSelectedFinishId] = useState<number | null>(null);
@@ -442,7 +445,7 @@ export default function PriceConfigurator({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
           {filteredProducts.slice(0, 100).map((p) => {
             const isSelected = selectedProduct?.id === p.id;
-            const priceMultiplier = retailOnly ? defaultMarkup : 1;
+            const priceMultiplier = retailOnly ? styleMarkup(p, vendorMarkup) : 1;
             const minPrice =
               priceMultiplier === null
                 ? null
@@ -1138,7 +1141,7 @@ export default function PriceConfigurator({
 
                   <div className="flex justify-between text-sm mt-2">
                     <span className="text-brand-gray">
-                      Suggested Retail ({defaultMarkup ?? "\u2014"}x)
+                      {suggestedRetailLabel(defaultMarkup, selectedProduct)}
                     </span>
                     <span className="font-semibold text-brand-black tabular-nums">
                       {formatCurrency(priceCalc.suggestedRetail)}

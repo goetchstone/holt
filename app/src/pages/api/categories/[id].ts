@@ -6,8 +6,20 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
+import type { Session } from "next-auth";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import { auditActor, auditLog } from "@/lib/audit";
+import { markupProblem, sameMarkup } from "@/lib/pricing/markup";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+/** A category's markup prices its products: changing it needs "Change pricing". */
+const PRICING = "catalog.pricing";
+
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid category ID" });
 
@@ -40,20 +52,56 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     const taxGroup = await readTaxGroupId(prisma, req.body.taxGroupId);
     if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
+    // Its markup (GAP-06): a multiplier, null to follow the vendor's or the
+    // store's, or absent to leave it -- the other editors of a category send
+    // no markup and must not clear it.
+    const markup: unknown = req.body.defaultMarkup === "" ? null : req.body.defaultMarkup;
+    if (markup !== undefined) {
+      const problem = markupProblem(markup);
+      if (problem) return res.status(400).json({ error: problem });
+    }
 
     try {
-      const updated = await prisma.category.update({
-        where: { id },
-        data: {
-          name,
-          departmentId: Number.parseInt(departmentId),
-          trackInventory: trackInventory ?? true,
-          accountGroupId: accountGroupId ? Number.parseInt(accountGroupId) : null,
-          labelTemplateId: labelTemplateId ? Number.parseInt(labelTemplateId) : null,
-          // Only when sent: this PUT otherwise replaces the whole row.
-          ...(taxGroup.value !== undefined && { taxGroupId: taxGroup.value }),
-        },
+      const updated = await prisma.$transaction(async (tx) => {
+        const before = await tx.category.findUnique({
+          where: { id },
+          select: { name: true, defaultMarkup: true },
+        });
+        const markupMoves =
+          before !== null && markup !== undefined && !sameMarkup(before.defaultMarkup, markup);
+        if (markupMoves && !access.holds[PRICING]) return "NEEDS_PRICING" as const;
+        const after = await tx.category.update({
+          where: { id },
+          data: {
+            name,
+            departmentId: Number.parseInt(departmentId),
+            trackInventory: trackInventory ?? true,
+            accountGroupId: accountGroupId ? Number.parseInt(accountGroupId) : null,
+            labelTemplateId: labelTemplateId ? Number.parseInt(labelTemplateId) : null,
+            // Only when sent: this PUT otherwise replaces the whole row.
+            ...(taxGroup.value !== undefined && { taxGroupId: taxGroup.value }),
+            ...(markupMoves && { defaultMarkup: markup as number | null }),
+          },
+        });
+        if (markupMoves) {
+          const from = before.defaultMarkup == null ? null : Number(before.defaultMarkup);
+          await auditLog(
+            "MARKUP_CHANGED",
+            auditActor(session),
+            {
+              summary: `${after.name}: category markup ${from ?? "none"} → ${markup ?? "none"}`,
+              details: { scope: "category", categoryId: id, from, to: markup as number | null },
+            },
+            tx,
+          );
+        }
+        return after;
       });
+      if (updated === "NEEDS_PRICING") {
+        return res
+          .status(403)
+          .json({ error: "Changing a category's markup needs the Change pricing permission." });
+      }
       return res.status(200).json(updated);
     } catch (err: unknown) {
       if (getErrorCode(err) === "P2025") {
@@ -91,4 +139,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requirePermission("catalog.write", handler);
+export default requirePermission("catalog.write", handler, { also: [PRICING] });

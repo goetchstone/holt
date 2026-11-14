@@ -45,6 +45,8 @@ interface PricingProductsResponse {
     name?: string;
     pricingModel?: string;
     defaultMarkup?: number;
+    /** The vendor's own markup; defaultMarkup falls back to the store's. */
+    ownMarkup?: number | null;
     defaultDiscount?: number;
     mapEnforced?: boolean;
     costMultiplier?: number | null;
@@ -201,6 +203,11 @@ export function ConfiguratorView() {
   const [dimensions, setDimensions] = useState<DimensionInfo[]>([]);
   const [vendorName, setVendorName] = useState("");
   const [defaultMarkup, setDefaultMarkup] = useState<number | null>(null);
+  // The vendor's own markup, which the settings panel edits. defaultMarkup is
+  // what prices (the store's when the vendor has none); editing that copied the
+  // store's markup onto the vendor on any save.
+  const [vendorMarkup, setVendorMarkup] = useState<number | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
   const [defaultDiscount, setDefaultDiscount] = useState(0);
   const [mapEnforced, setMapEnforced] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -234,10 +241,10 @@ export function ConfiguratorView() {
 
   // Sync editable settings when vendor data loads
   useEffect(() => {
-    setEditMarkup(defaultMarkup == null ? "" : String(defaultMarkup));
+    setEditMarkup(vendorMarkup == null ? "" : String(vendorMarkup));
     setEditDiscount(String(Math.round(defaultDiscount * 100)));
     setEditMapEnforced(mapEnforced);
-  }, [defaultMarkup, defaultDiscount, mapEnforced]);
+  }, [vendorMarkup, defaultDiscount, mapEnforced]);
 
   const saveVendorSettings = useCallback(async () => {
     if (!selectedVendorId) return;
@@ -258,9 +265,16 @@ export function ConfiguratorView() {
           mapEnforced: editMapEnforced,
         }),
       });
-      if (!resp.ok) throw new Error("Save failed");
-      setDefaultMarkup(markup);
+      if (!resp.ok) {
+        // The route says what was wrong, such as needing "Change pricing" (rule 11).
+        const body = await resp.json().catch(() => null);
+        throw new Error(body?.error || "Save failed");
+      }
+      setVendorMarkup(markup);
       setDefaultDiscount(discount);
+      // What prices now (its own markup, a category's, or the store's) is the
+      // server's to say: load it again.
+      setReloadTick((n) => n + 1);
       setMapEnforced(editMapEnforced);
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
@@ -315,6 +329,7 @@ export function ConfiguratorView() {
       const model = data.vendor?.pricingModel || "GRADE_BASED";
       setVendorName(data.vendor?.name || "");
       setDefaultMarkup(data.vendor?.defaultMarkup ?? null);
+      setVendorMarkup(data.vendor?.ownMarkup ?? null);
       setDefaultDiscount(data.vendor?.defaultDiscount || 0);
       setMapEnforced(data.vendor?.mapEnforced || false);
       setDimensions(data.dimensions || []);
@@ -348,7 +363,7 @@ export function ConfiguratorView() {
 
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+  }, [loadProducts, reloadTick]);
 
   const noProducts =
     !!selectedVendorId &&

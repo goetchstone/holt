@@ -6,6 +6,7 @@
 // Assembles a SKU from component codes and looks up pricing from
 // synthetic VendorStyles (e.g., SE-F21-XLS).
 
+import { styleMarkup, suggestedRetailLabel } from "@/lib/pricing/markup";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { ProductWithPricing, calculatePrice } from "@/lib/pricing/priceCalculator";
 import GradePriceGrid from "./GradePriceGrid";
@@ -71,7 +72,7 @@ export default function SEConfigurator({
   products,
   vendorId,
   vendorName,
-  defaultMarkup,
+  defaultMarkup: vendorMarkup,
   defaultDiscount,
   mapEnforced,
   retailOnly = false,
@@ -147,6 +148,8 @@ export default function SEConfigurator({
     if (!styleNumber) return null;
     return products.find((p) => p.productNumber === styleNumber) || null;
   }, [styleNumber, products]);
+  // The chosen style's markup: its category's can differ from its vendor's (GAP-06).
+  const defaultMarkup = styleMarkup(selectedProduct, vendorMarkup);
 
   // Get piece type name
   const pieceTypeName = useMemo(() => {
@@ -774,7 +777,7 @@ export default function SEConfigurator({
                   </div>
                   <div className="flex justify-between text-sm mt-2">
                     <span className="text-brand-gray">
-                      Suggested Retail ({defaultMarkup ?? "\u2014"}x)
+                      {suggestedRetailLabel(defaultMarkup, selectedProduct)}
                     </span>
                     <span className="font-semibold text-brand-black tabular-nums">
                       {formatCurrency(priceCalc.suggestedRetail)}
