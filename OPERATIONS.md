@@ -22,11 +22,15 @@ Throughout, replace the placeholders with your deployment's values:
 ## Architecture (30-second version)
 
 ```
-Internet -> Host -> Nginx (:8080) -> Next.js App (:3000) -> PostgreSQL (:5432)
+Internet -> Host -> Nginx (:80/:443) -> Next.js App (:3000, x APP_REPLICAS) -> PostgreSQL (:5432)
+Host cron/deploy/restore -> nginx-host (127.0.0.1:8080) -> Next.js App
 ```
 
-- Nginx handles HTTPS termination and forwards to port 8080
-- Nginx allows 50MB uploads and 300-second timeouts for large imports
+- Nginx terminates HTTPS on 443 and spreads requests across the app processes
+  (`APP_REPLICAS`, one by default; docs/HOSTING.md)
+- The app publishes no host port; the host's own jobs use `nginx-host`, a second small nginx on the
+  loopback-only 8080 with no TLS, so they keep working when the public certificate does not
+- Nginx allows 300MB uploads and 300-second timeouts for large imports (3600s on nginx-host)
 - The app connects to PostgreSQL inside Docker on port 5432 (host port 5433)
 - Database data is persisted in a Docker volume (`pgdata`)
 
@@ -63,7 +67,7 @@ The deploy script:
 
 1. Reads the current git commit hash (embedded for health verification)
 2. Builds the Docker image
-3. Restarts the `app` and `nginx` containers
+3. Restarts the `app`, `nginx` and `nginx-host` containers
 4. Waits, then hits `/api/health` to verify
 
 > On some older Docker hosts (including some NAS container hosts) BuildKit fails; set
@@ -125,7 +129,7 @@ docker exec -i <db-container> psql -U <db-user> -d postgres -c "CREATE DATABASE 
 docker exec -i <db-container> psql -U <db-user> -d <db-name> < /path/to/backup.sql
 
 # Restart
-docker compose up -d app nginx
+docker compose up -d app nginx nginx-host
 ```
 
 ### Backup via API
@@ -138,8 +142,10 @@ MANAGER-role users. This returns a SQL dump as a downloadable file.
 | Service | Image | Ports | Purpose |
 |---------|-------|-------|---------|
 | `db` | postgres:17-alpine | 5433:5432 | Database (always running) |
-| `app` | Built from `app/Dockerfile` | 3000:3000 | Next.js application |
-| `nginx` | nginx:1.27-alpine | 8080:80 | Reverse proxy |
+| `migrate` | Built from `app/Dockerfile` | none | Applies migrations once, before `app` starts |
+| `app` | Built from `app/Dockerfile` | none | Next.js application, `APP_REPLICAS` processes |
+| `nginx` | nginx:1.30.5-alpine | 80, 443 | Public reverse proxy, TLS |
+| `nginx-host` | nginx:1.30.5-alpine | 127.0.0.1:8080 | The host's own jobs (cron, deploy health gate, restore); no TLS |
 | `app-dev` | node:24-alpine | 3000:3000 | Dev mode (profile: dev) |
 
 **Volumes:**

@@ -124,9 +124,7 @@ describe("getTrafficStoreMap / invalidateTrafficStoreMap", () => {
   });
 
   it("serves the cached resolver on a second call within the TTL, without re-querying", async () => {
-    findManyMock.mockResolvedValueOnce([
-      { id: 1, name: "Downtown", trafficSourceNames: ["DT"] },
-    ]);
+    findManyMock.mockResolvedValueOnce([{ id: 1, name: "Downtown", trafficSourceNames: ["DT"] }]);
     const first = await getTrafficStoreMap();
     const second = await getTrafficStoreMap();
     expect(first).toBe(second); // same cached object, not just equal
@@ -138,7 +136,9 @@ describe("getTrafficStoreMap / invalidateTrafficStoreMap", () => {
     await getTrafficStoreMap();
 
     invalidateTrafficStoreMap();
-    findManyMock.mockResolvedValueOnce([{ id: 1, name: "Downtown", trafficSourceNames: ["DT", "DT2"] }]);
+    findManyMock.mockResolvedValueOnce([
+      { id: 1, name: "Downtown", trafficSourceNames: ["DT", "DT2"] },
+    ]);
     const map = await getTrafficStoreMap();
 
     expect(findManyMock).toHaveBeenCalledTimes(2);
@@ -152,7 +152,8 @@ describe("getTrafficStoreMap / invalidateTrafficStoreMap", () => {
       // Kick off a load. Its query is still pending -- nothing has resolved
       // yet, so this load is "in flight" exactly like a real request whose
       // DB round-trip hasn't come back.
-      const firstQuery = deferred<Array<{ id: number; name: string; trafficSourceNames: string[] }>>();
+      const firstQuery =
+        deferred<Array<{ id: number; name: string; trafficSourceNames: string[] }>>();
       findManyMock.mockImplementationOnce(() => firstQuery.promise);
       const firstCall = getTrafficStoreMap();
 

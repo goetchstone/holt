@@ -18,7 +18,7 @@ import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 import { paidNotYetRecordedMessage } from "@/lib/openCheckoutPrompt";
 
 // 5 requests per minute per IP -- payment creation should be rare
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 }, "portal-pay");
 
 export default limiter(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

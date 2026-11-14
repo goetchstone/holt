@@ -13,7 +13,7 @@ import { parseCommentCreateInput } from "@/lib/comments/requestBody";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 }, "blog-comments");
 
 function clientIp(req: NextApiRequest): string | null {
   const fwd = req.headers["x-forwarded-for"];

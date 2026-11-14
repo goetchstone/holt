@@ -10,7 +10,7 @@ import { isCountedLine } from "@/lib/salesOrderRevenue";
 import { isPaymentExcludedFromBalance, signedPaymentAmount } from "@/lib/paymentBalance";
 
 // 20 requests per minute per IP -- generous for legitimate use, stops enumeration
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 20 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 20 }, "portal-order");
 
 export default limiter(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

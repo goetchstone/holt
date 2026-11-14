@@ -15,6 +15,7 @@ import { decryptSecret, encryptSecret, lastFour } from "@/lib/secretCrypto";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
 import { isPracticeCopy } from "@/lib/practiceCopy";
+import { bumpCacheGenerations } from "@/lib/cacheGeneration";
 
 export interface MaskedCredential {
   provider: string;
@@ -32,18 +33,23 @@ export async function setCredential(
 ): Promise<void> {
   const ciphertext = encryptSecret(plaintext);
   const last = lastFour(plaintext);
-  await prisma.integrationCredential.upsert({
-    where: { organizationId_provider_field: { organizationId, provider, field } },
-    create: {
-      organizationId,
-      provider,
-      field,
-      ciphertext,
-      lastFour: last,
-      createdBy: actor,
-      updatedBy: actor,
-    },
-    update: { ciphertext, lastFour: last, updatedBy: actor },
+  await prisma.$transaction(async (tx) => {
+    await tx.integrationCredential.upsert({
+      where: { organizationId_provider_field: { organizationId, provider, field } },
+      create: {
+        organizationId,
+        provider,
+        field,
+        ciphertext,
+        lastFour: last,
+        createdBy: actor,
+        updatedBy: actor,
+      },
+      update: { ciphertext, lastFour: last, updatedBy: actor },
+    });
+    // Sign-in providers are built from stored keys and cached in every process
+    // (lib/auth/authProviders.ts); this tells all of them, this one included.
+    await bumpCacheGenerations(["authProviders"], tx);
   });
 }
 
@@ -85,8 +91,11 @@ export async function deleteCredential(
   provider: string,
   field: string,
 ): Promise<void> {
-  await prisma.integrationCredential.deleteMany({
-    where: { organizationId, provider, field },
+  await prisma.$transaction(async (tx) => {
+    await tx.integrationCredential.deleteMany({
+      where: { organizationId, provider, field },
+    });
+    await bumpCacheGenerations(["authProviders"], tx);
   });
 }
 

@@ -6,20 +6,25 @@
                                   Docker Host
                     +-----------------------------------+
                     |                                   |
-  iPad/Laptop ---->| Nginx (8080) --> Next.js (3000)   |
+  iPad/Laptop ---->| Nginx (443) --> Next.js (3000)    |
+                    |                 x APP_REPLICAS    |
                     |                    |              |
                     |                    v              |
                     |              PostgreSQL (5433)    |
                     |                                   |
                     +-----------------------------------+
                                     |
-                         Docker Compose (3 services)
+              Docker Compose (db, migrate, app, nginx, nginx-host)
 ```
 
-This is the reference self-hosted topology: a single Docker host running three
-Compose services, no load balancer, no CDN, no external database. Simplicity is
-intentional — a single store can run the whole stack on modest hardware (a NAS
-is enough). Central hosting runs one such stack per business — the same image,
+This is the reference self-hosted topology: a single Docker host running the
+Compose services (Postgres, a one-shot migration, the app, nginx, and a
+loopback-only nginx for the host's own jobs), no load
+balancer, no CDN, no external database. Simplicity is intentional — a single
+store can run the whole stack on modest hardware (a NAS is enough). A larger
+business runs the app as several processes on the same host behind the same
+nginx (`APP_REPLICAS`); sizing, and what is not yet supported, is in
+[HOSTING.md](./HOSTING.md). Central hosting runs one such stack per business — the same image,
 each with its own database — many isolated deployments rather than one shared
 cluster (see docs/TENANCY.md).
 

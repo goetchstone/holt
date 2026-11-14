@@ -51,7 +51,11 @@ describe("collectEnvProblems", () => {
     // starts, which is a bigger hole than the one the https rule closes.
     const insecure = (url: string, allow: string | undefined) =>
       collectEnvProblems(
-        { ...ok, NEXTAUTH_URL: url, ALLOW_INSECURE_NEXTAUTH_URL: allow } as unknown as NodeJS.ProcessEnv,
+        {
+          ...ok,
+          NEXTAUTH_URL: url,
+          ALLOW_INSECURE_NEXTAUTH_URL: allow,
+        } as unknown as NodeJS.ProcessEnv,
         true,
       ).some((p) => p.key === "NEXTAUTH_URL");
 

@@ -11,7 +11,7 @@ import { loadAvailableSlots } from "@/lib/booking/loadSlots";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 60 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 60 }, "bookings-availability");
 
 function toIso(slots: Slot[]) {
   return slots.map((s) => ({ startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString() }));

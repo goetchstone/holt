@@ -26,7 +26,7 @@ import { logError } from "@/lib/logger";
 import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 // Booking submissions should be infrequent per visitor.
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 10 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 10 }, "bookings");
 
 const listBookings = requireAuthWithRole(
   ["ADMIN"],

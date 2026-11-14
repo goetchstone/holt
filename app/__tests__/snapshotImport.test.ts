@@ -43,7 +43,11 @@ describe("resolveSnapshotImportRow", () => {
       { Stockid: "999", Stocklevel: "5", Stocklocation: "Warehouse" },
       maps(),
     );
-    expect(result).toMatchObject({ status: "unresolvedProduct", externalId: 999, location: "Warehouse" });
+    expect(result).toMatchObject({
+      status: "unresolvedProduct",
+      externalId: 999,
+      location: "Warehouse",
+    });
   });
 
   it("reports unresolvedLocation when the location matches no alias", () => {

@@ -63,6 +63,10 @@ fi
 DB_USER="${POSTGRES_USER:-dbuser_fbc}"
 DB_NAME="${DB_NAME_OVERRIDE:-${POSTGRES_DB:-fbc_prod_db}}"
 
+# --- Only the bundled database: the app may be using a managed one -----------
+. ./scripts/_bundled-db.sh
+require_bundled_db || exit 1
+
 # --- Resolve the container from THIS project, never by guessing a name -------
 CONTAINER="$(docker compose ps -q db 2>/dev/null || true)"
 if [ -z "$CONTAINER" ]; then
@@ -141,7 +145,7 @@ else
   [ "$GO_ON" = "yes" ] || { echo "Aborted."; exit 1; }
 fi
 
-echo -e "${YELLOW}[3/6] Stopping app container...${NC}"
+echo -e "${YELLOW}[3/6] Stopping the app (every process)...${NC}"
 docker compose stop app 2>/dev/null || docker compose stop app-dev 2>/dev/null || true
 echo "  Done"
 
@@ -191,9 +195,17 @@ if [ "$TABLE_COUNT" -eq 0 ]; then
   exit 1
 fi
 
-docker compose up -d app > /dev/null 2>&1 || true
-sleep 3
-HEALTH=$(curl -s http://localhost:3000/api/health 2>/dev/null || echo '{"status":"unreachable"}')
+# `up app` runs the compose `migrate` service first (app depends on it), so a
+# backup taken before the last upgrade is brought up to date before any app
+# process starts. The processes start fresh, so nothing they cache predates the
+# restore.
+docker compose up -d app nginx-host > /dev/null 2>&1 || true
+HEALTH='{"status":"unreachable"}'
+for _ in $(seq 1 30); do
+  HEALTH=$(curl -sf "${APP_BASE_URL:-http://127.0.0.1:8080}/api/health" 2>/dev/null) && break
+  HEALTH='{"status":"unreachable"}'
+  sleep 2
+done
 echo "  Health: $HEALTH"
 
 echo ""

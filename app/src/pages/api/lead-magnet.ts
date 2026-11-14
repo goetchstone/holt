@@ -34,4 +34,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(200).json({ ok: true });
 }
 
-export default rateLimit({ windowMs: 60_000, maxRequests: 6 })(handler);
+export default rateLimit({ windowMs: 60_000, maxRequests: 6 }, "lead-magnet")(handler);

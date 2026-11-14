@@ -76,6 +76,7 @@ const ALL_TABLES = [
   "BuyerDraftItem",
   "BuyerDraftPoRealPoLink",
   "BuyerDraftPurchaseOrder",
+  "CacheGeneration",
   "CalendarBlock",
   "CampaignTarget",
   "Category",
@@ -181,6 +182,7 @@ const ALL_TABLES = [
   "PurchaseOrder",
   "PurchaseOrderCharge",
   "PurchaseOrderItem",
+  "RateLimitWindow",
   "ReceivingRecord",
   "Reconciliation",
   "ReferralSource",
@@ -293,6 +295,10 @@ export async function resetTestDb(): Promise<void> {
   const { clearVendorPrefixCacheForTesting } = await import("@/lib/vendorPrefixService");
   const { clearImportRunnerCachesForTesting } = await import("@/lib/adapters/legacyPos/runners");
   const { clearLocationCache } = await import("@/lib/storeLocationResolver");
+  // The TRUNCATE emptied CacheGeneration too; a snapshot read before it must not
+  // stand for up to two seconds into the next test.
+  const { forgetCacheGenerations } = await import("@/lib/cacheGeneration");
+  forgetCacheGenerations();
   clearAutoCreateCachesForTesting();
   clearVendorPrefixCacheForTesting();
   clearImportRunnerCachesForTesting();

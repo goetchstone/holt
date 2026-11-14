@@ -14,6 +14,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { bumpCacheGenerations } from "@/lib/cacheGeneration";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
@@ -129,20 +130,25 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
         : ((await prisma.storeLocation.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ??
             0) + 1;
 
-    const location = await prisma.storeLocation.create({
-      data: {
-        name,
-        code: code.toUpperCase(),
-        type,
-        address: address || null,
-        city: city || null,
-        state: state || null,
-        zip: zip || null,
-        externalLocationName: externalLocationName || null,
-        isActive: isActive !== undefined ? isActive : true,
-        sortOrder: resolvedSortOrder,
-        createdBy: session.user?.email || null,
-      },
+    // Cached by name in every app process; see the PUT in [id].ts.
+    const location = await prisma.$transaction(async (tx) => {
+      const created = await tx.storeLocation.create({
+        data: {
+          name,
+          code: code.toUpperCase(),
+          type,
+          address: address || null,
+          city: city || null,
+          state: state || null,
+          zip: zip || null,
+          externalLocationName: externalLocationName || null,
+          isActive: isActive !== undefined ? isActive : true,
+          sortOrder: resolvedSortOrder,
+          createdBy: session.user?.email || null,
+        },
+      });
+      await bumpCacheGenerations(["stores"], tx);
+      return created;
     });
 
     return res.status(201).json(location);

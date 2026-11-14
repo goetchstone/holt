@@ -70,17 +70,6 @@ export const VENDOR_REFERENCES = {
 
 type Tx = Prisma.TransactionClient;
 
-let merges = 0;
-
-/**
- * How many merges this process has made. A cache of vendor ids (the POS
- * import's Unknown Vendor) is stale once this changes: its vendor may be the
- * one merged away.
- */
-export function vendorMergeCount(): number {
-  return merges;
-}
-
 /** The rows moved by a plain vendorId change (Prisma delegate), with what the plan calls one and many. */
 export const MOVED = [
   ["product", "item", "items"],
@@ -465,7 +454,6 @@ export async function mergeVendor(
       });
       return plan;
     }, TX_TIMEOUT.LONG);
-    merges++;
     return merged;
   } catch (err) {
     if (err instanceof VendorMergeError) throw err;

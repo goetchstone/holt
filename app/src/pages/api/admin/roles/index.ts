@@ -29,6 +29,7 @@ import {
   stripBaselinePermissions,
 } from "@/lib/auth/permissionCatalog";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
+import { bumpCacheGenerations } from "@/lib/cacheGeneration";
 import {
   ROLE_SELECT,
   buildCatalogPayload,
@@ -172,6 +173,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, actor: stri
         },
         tx,
       );
+      // Every other app process drops its grant table within 2s.
+      await bumpCacheGenerations(["roles"], tx);
       return tx.role.findUniqueOrThrow({ where: { id: role.id }, select: ROLE_SELECT });
     });
   } catch (err) {

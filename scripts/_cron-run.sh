@@ -16,7 +16,10 @@
 # owner actually sees, not a line buried in a log nobody reads.
 #
 # Required env: AUTO_IMPORT_API_KEY (matches app/.env.local).
-# Optional env: APP_BASE_URL (default http://localhost:3000),
+# Optional env: APP_BASE_URL (default http://127.0.0.1:8080 -- nginx-host,
+#               the loopback-only nginx for the host's own jobs; the app itself
+#               has no host port, since it may run as several processes. See
+#               docker-compose.yml and nginx/nginx-host.conf),
 #               OPS_ALERT_WEBHOOK (Slack/Discord/any JSON endpoint).
 
 run_cron() {
@@ -29,7 +32,7 @@ run_cron() {
     return 1
   fi
 
-  base_url="${APP_BASE_URL:-http://localhost:3000}"
+  base_url="${APP_BASE_URL:-http://127.0.0.1:8080}"
   url="${base_url}${api_path}"
 
   # Capture body and HTTP status in one request. The body is everything before

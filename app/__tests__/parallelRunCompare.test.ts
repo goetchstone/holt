@@ -23,7 +23,11 @@ describe("listDays", () => {
 
   it("handles a single day and month boundaries", () => {
     expect(listDays("2026-06-05", "2026-06-05")).toEqual(["2026-06-05"]);
-    expect(listDays("2026-05-30", "2026-06-01")).toEqual(["2026-05-30", "2026-05-31", "2026-06-01"]);
+    expect(listDays("2026-05-30", "2026-06-01")).toEqual([
+      "2026-05-30",
+      "2026-05-31",
+      "2026-06-01",
+    ]);
   });
 
   it("rejects inverted or malformed ranges", () => {

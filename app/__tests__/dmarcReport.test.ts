@@ -5,15 +5,8 @@
 // multiple/zero auth entries, self-closing elements, namespaces, trailing
 // whitespace). IPs use RFC 5737 documentation ranges; domains use example.com.
 
-import {
-  parseDmarcReport,
-  summarizeReports,
-  DmarcParseError,
-} from "@/lib/dmarc/report";
-import {
-  decompressToXml,
-  DmarcDecompressError,
-} from "@/lib/dmarc/decompress";
+import { parseDmarcReport, summarizeReports, DmarcParseError } from "@/lib/dmarc/report";
+import { decompressToXml, DmarcDecompressError } from "@/lib/dmarc/decompress";
 
 // Microsoft-style: namespaces on <feedback>, <version>, sp+fo, dkim children
 // ordered domain/selector/result, envelope_to/from present, IPv6 source.
@@ -160,7 +153,11 @@ describe("parseDmarcReport — real-world structural variations", () => {
     const rec = r.records[0]!;
     expect(rec.sourceIp).toBe("2001:db8::1");
     expect(rec.count).toBe(5);
-    expect(rec.authDkim[0]).toMatchObject({ domain: "example.com", selector: "google", result: "pass" });
+    expect(rec.authDkim[0]).toMatchObject({
+      domain: "example.com",
+      selector: "google",
+      result: "pass",
+    });
     expect(rec.envelopeTo).toBe("dest.example");
   });
 
@@ -170,7 +167,11 @@ describe("parseDmarcReport — real-world structural variations", () => {
     expect(r.extraContactInfo).toContain("support.google.com");
     expect(r.records).toHaveLength(2);
     expect(r.records[0]!.authDkim).toHaveLength(2);
-    expect(r.records[0]!.authDkim[0]).toMatchObject({ domain: "mandrillapp.com", selector: "mte1", result: "pass" });
+    expect(r.records[0]!.authDkim[0]).toMatchObject({
+      domain: "mandrillapp.com",
+      selector: "mte1",
+      result: "pass",
+    });
     // the quarantined, zero-dkim, spf-permerror record
     const bad = r.records[1]!;
     expect(bad.authDkim).toHaveLength(0);
@@ -206,10 +207,14 @@ describe("parseDmarcReport — rejection / safety", () => {
     expect(() => parseDmarcReport("")).toThrow(DmarcParseError);
   });
   it("rejects a DOCTYPE/ENTITY payload (XXE / billion-laughs)", () => {
-    expect(() => parseDmarcReport('<!DOCTYPE feedback [<!ENTITY x "y">]><feedback></feedback>')).toThrow(/document-type/i);
+    expect(() =>
+      parseDmarcReport('<!DOCTYPE feedback [<!ENTITY x "y">]><feedback></feedback>'),
+    ).toThrow(/document-type/i);
   });
   it("rejects non-feedback XML", () => {
-    expect(() => parseDmarcReport("<html><body>nope</body></html>")).toThrow(/DMARC aggregate report/i);
+    expect(() => parseDmarcReport("<html><body>nope</body></html>")).toThrow(
+      /DMARC aggregate report/i,
+    );
   });
   it("rejects feedback without required children", () => {
     expect(() => parseDmarcReport("<feedback></feedback>")).toThrow(DmarcParseError);
@@ -237,7 +242,9 @@ describe("summarizeReports — aggregation correctness", () => {
     expect(s.quarantined).toBe(4);
     expect(s.rejected).toBe(0);
     // the quarantined source is flagged
-    expect(s.failingSources.some((f) => f.sourceIp === "203.0.113.99" && f.quarantined === 4)).toBe(true);
+    expect(s.failingSources.some((f) => f.sourceIp === "203.0.113.99" && f.quarantined === 4)).toBe(
+      true,
+    );
     // selector discovery surfaces the selectors seen
     expect(s.selectorsSeen).toEqual(expect.arrayContaining(["google", "k2", "k3", "mte1", "k1"]));
     // top source is Google's 100-count sender
@@ -283,7 +290,9 @@ describe("decompressToXml — format handling & safety", () => {
   });
 
   it("rejects non-archive, non-XML bytes", async () => {
-    await expect(decompressToXml(new Uint8Array([1, 2, 3, 4, 5]))).rejects.toThrow(DmarcDecompressError);
+    await expect(decompressToXml(new Uint8Array([1, 2, 3, 4, 5]))).rejects.toThrow(
+      DmarcDecompressError,
+    );
   });
 
   it("rejects a doubly-gzipped payload (no recursion)", async () => {
@@ -321,7 +330,7 @@ async function makeZip(specs: ZipSpec[]): Promise<Uint8Array> {
       const raw = new TextEncoder().encode(s.content);
       const data = s.method === 8 ? await deflateRaw(raw) : raw;
       return { ...s, raw, data, comp: data.length, uncomp: raw.length };
-    })
+    }),
   );
 
   const locals: number[] = [];
@@ -330,9 +339,19 @@ async function makeZip(specs: ZipSpec[]): Promise<Uint8Array> {
     const nameB = strBytes(b.name);
     localOffsets.push(locals.length);
     locals.push(
-      ...u32le(0x04034b50), ...u16le(20), ...u16le(0), ...u16le(b.method),
-      ...u16le(0), ...u16le(0), ...u32le(0), ...u32le(b.comp), ...u32le(b.uncomp),
-      ...u16le(nameB.length), ...u16le(0), ...nameB, ...b.data
+      ...u32le(0x04034b50),
+      ...u16le(20),
+      ...u16le(0),
+      ...u16le(b.method),
+      ...u16le(0),
+      ...u16le(0),
+      ...u32le(0),
+      ...u32le(b.comp),
+      ...u32le(b.uncomp),
+      ...u16le(nameB.length),
+      ...u16le(0),
+      ...nameB,
+      ...b.data,
     );
   }
 
@@ -341,18 +360,36 @@ async function makeZip(specs: ZipSpec[]): Promise<Uint8Array> {
   built.forEach((b, i) => {
     const nameB = strBytes(b.name);
     central.push(
-      ...u32le(0x02014b50), ...u16le(20), ...u16le(20), ...u16le(0), ...u16le(b.method),
-      ...u16le(0), ...u16le(0), ...u32le(0),
-      ...u32le(b.comp), ...u32le(b.zip64 ? 0xffffffff : b.uncomp),
-      ...u16le(nameB.length), ...u16le(0), ...u16le(0), ...u16le(0), ...u16le(0),
-      ...u32le(0), ...u32le(localOffsets[i]!), ...nameB
+      ...u32le(0x02014b50),
+      ...u16le(20),
+      ...u16le(20),
+      ...u16le(0),
+      ...u16le(b.method),
+      ...u16le(0),
+      ...u16le(0),
+      ...u32le(0),
+      ...u32le(b.comp),
+      ...u32le(b.zip64 ? 0xffffffff : b.uncomp),
+      ...u16le(nameB.length),
+      ...u16le(0),
+      ...u16le(0),
+      ...u16le(0),
+      ...u16le(0),
+      ...u32le(0),
+      ...u32le(localOffsets[i]!),
+      ...nameB,
     );
   });
 
   const eocd = [
-    ...u32le(0x06054b50), ...u16le(0), ...u16le(0),
-    ...u16le(built.length), ...u16le(built.length),
-    ...u32le(central.length), ...u32le(cdStart), ...u16le(0),
+    ...u32le(0x06054b50),
+    ...u16le(0),
+    ...u16le(0),
+    ...u16le(built.length),
+    ...u16le(built.length),
+    ...u32le(central.length),
+    ...u32le(cdStart),
+    ...u16le(0),
   ];
 
   return new Uint8Array([...locals, ...central, ...eocd]);

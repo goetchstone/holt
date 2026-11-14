@@ -17,6 +17,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { cacheGeneration, forgetCacheGenerations } from "@/lib/cacheGeneration";
 
 export interface ResolvedStoreLocation {
   id: number;
@@ -102,36 +103,41 @@ export function buildTrafficStoreMap(rows: TrafficSourceStoreLocation[]): Traffi
 // path force a rebuild sooner than that.
 const CACHE_TTL_MS = 60_000;
 
-let cached: { map: TrafficStoreMap; expiresAt: number } | null = null;
+let cached: { map: TrafficStoreMap; expiresAt: number; generation: string } | null = null;
 
-// Bumped by invalidateTrafficStoreMap(). Without this, a load that was
+// Counts invalidateTrafficStoreMap() calls. Without this, a load that was
 // already in flight when an invalidation happens can resolve AFTER it and
 // unconditionally overwrite `cached` with the stale (pre-invalidation) map
 // -- re-pinning it for a full fresh TTL and silently undoing the
-// invalidation it raced with. A load only gets to install its result if the
-// generation it started under is still current when it finishes; otherwise
+// invalidation it raced with. A load only gets to install its result if no
+// invalidation happened between its start and its finish; otherwise
 // something newer has already started (or finished) and its own result
 // must win instead.
-let generation = 0;
+let localInvalidations = 0;
 
 /**
  * Returns the cached resolver, rebuilding it from StoreLocation if the
- * cache is empty or older than CACHE_TTL_MS.
+ * cache is empty, older than CACHE_TTL_MS, or filed under an older "stores"
+ * cache generation than the current one -- a preset apply in ANOTHER process
+ * bumps it (lib/cacheGeneration.ts).
  */
 export async function getTrafficStoreMap(): Promise<TrafficStoreMap> {
-  const now = Date.now();
-  if (cached && now < cached.expiresAt) return cached.map;
+  // Taken before anything awaits; see localInvalidations above.
+  const startedAt = localInvalidations;
+  const generation = await cacheGeneration("stores");
+  if (cached && Date.now() < cached.expiresAt && cached.generation === generation) {
+    return cached.map;
+  }
 
-  const startedAtGeneration = generation;
   const rows = await prisma.storeLocation.findMany({
     select: { id: true, name: true, trafficSourceNames: true },
   });
   const map = buildTrafficStoreMap(rows);
   // Only pin this result if no invalidation happened while the query was in
-  // flight. A stale generation means a fresher load already landed (or is
+  // flight. One that did means a fresher load already landed (or is
   // still in flight and will land) -- this result must not clobber it.
-  if (generation === startedAtGeneration) {
-    cached = { map, expiresAt: Date.now() + CACHE_TTL_MS };
+  if (localInvalidations === startedAt) {
+    cached = { map, expiresAt: Date.now() + CACHE_TTL_MS, generation };
   }
   return map;
 }
@@ -143,5 +149,6 @@ export async function getTrafficStoreMap(): Promise<TrafficStoreMap> {
  */
 export function invalidateTrafficStoreMap(): void {
   cached = null;
-  generation++;
+  localInvalidations++;
+  forgetCacheGenerations();
 }

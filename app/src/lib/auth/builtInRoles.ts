@@ -27,7 +27,7 @@
 // should hold it. Roles the deployment invented (isSystem = false) are never
 // touched at all.
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -38,6 +38,8 @@ import {
   stripBaselinePermissions,
 } from "@/lib/auth/permissionCatalog";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
+import { bumpCacheGenerations } from "@/lib/cacheGeneration";
+import { getErrorCode } from "@/lib/errorCode";
 
 export interface SyncBuiltInRolesResult {
   rolesCreated: number;
@@ -57,6 +59,45 @@ export interface SyncBuiltInRolesOpts {
   prisma?: PrismaClient;
   /** Compute and report the diff; write nothing. */
   dryRun?: boolean;
+}
+
+const ROLE_STATE_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  rank: true,
+  grantsAllPermissions: true,
+  isSystem: true,
+  grantsCustomized: true,
+  permissions: { select: { id: true, permission: true } },
+} as const;
+
+function findRole(client: PrismaClient, key: string) {
+  return client.role.findUnique({ where: { key }, select: ROLE_STATE_SELECT });
+}
+
+/**
+ * Create a built-in role, or find the one another process just created.
+ *
+ * Every app process runs the reconcile at boot (src/instrumentation.ts), so two
+ * processes starting together can both find a new role missing and both create
+ * it. Role.key is unique: the loser's create fails with P2002, and it carries on
+ * with the row the winner made, as if it had found it.
+ */
+async function createRole(
+  client: PrismaClient,
+  key: string,
+  identity: Omit<Prisma.RoleCreateInput, "key">,
+): Promise<{ createdId: number | null; existing: Awaited<ReturnType<typeof findRole>> }> {
+  try {
+    const row = await client.role.create({ data: { key, ...identity }, select: { id: true } });
+    return { createdId: row.id, existing: null };
+  } catch (err) {
+    if (getErrorCode(err) !== "P2002") throw err;
+    const existing = await findRole(client, key);
+    if (!existing) throw err;
+    return { createdId: null, existing };
+  }
 }
 
 /**
@@ -102,19 +143,7 @@ export async function syncBuiltInRoles(
 
   for (const def of BUILT_IN_ROLES) {
     const wantsWildcard = def.permissions === "*";
-    const existing = await client.role.findUnique({
-      where: { key: def.key },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        rank: true,
-        grantsAllPermissions: true,
-        isSystem: true,
-        grantsCustomized: true,
-        permissions: { select: { id: true, permission: true } },
-      },
-    });
+    let existing = await findRole(client, def.key);
 
     // --- identity ---------------------------------------------------------
     const identity = {
@@ -129,16 +158,20 @@ export async function syncBuiltInRoles(
     let currentGrants: { id: number; permission: string }[];
     let grantsCustomized: boolean;
 
+    let createdId: number | null = null;
+    if (!existing && !dryRun) {
+      const made = await createRole(client, def.key, identity);
+      createdId = made.createdId;
+      existing = made.existing;
+    }
+
     if (!existing) {
       result.unchanged = false;
       result.rolesCreated++;
       // -1 on a dry run: there is no row to hang grants off, but the grant diff
       // below still has to run so `--dry-run` reports what a real run WOULD
       // write. Nothing reads roleId on that path because every write is skipped.
-      roleId = dryRun
-        ? -1
-        : (await client.role.create({ data: { key: def.key, ...identity }, select: { id: true } }))
-            .id;
+      roleId = createdId ?? -1;
       currentGrants = [];
       grantsCustomized = false;
     } else {
@@ -215,8 +248,13 @@ export async function syncBuiltInRoles(
   }
 
   // Any write here changes who can do what. The cache must not hand out the
-  // pre-sync table for up to its TTL afterwards.
-  if (!dryRun && !result.unchanged) invalidateRoleGrantCache();
+  // pre-sync table for up to its TTL afterwards, in this process or any other.
+  // The writes above are not one transaction, so the bump comes after all of
+  // them (lib/cacheGeneration.ts: never before).
+  if (!dryRun && !result.unchanged) {
+    await bumpCacheGenerations(["roles"], client);
+    invalidateRoleGrantCache();
+  }
 
   return result;
 }

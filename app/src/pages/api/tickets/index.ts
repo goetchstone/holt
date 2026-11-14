@@ -27,7 +27,7 @@ import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
 const OPEN_STATUSES = TICKET_STATUS_VALUES.filter((s) => isOpenTicketStatus(s));
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 }, "tickets");
 
 const listTickets = requireAuthWithRole(
   STAFF_ROLES,

@@ -16,7 +16,7 @@ import { verifyBookingToken } from "@/lib/booking/icsToken";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 30 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 30 }, "booking-ics");
 
 export default limiter(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

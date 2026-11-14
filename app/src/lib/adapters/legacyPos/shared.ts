@@ -19,7 +19,7 @@ export {
 import { safeString, safeFloat } from "@/lib/importHelpers";
 import type { PaymentMethod } from "@prisma/client";
 import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
-import { vendorMergeCount } from "@/lib/vendors/mergeVendor";
+import { cacheGeneration } from "@/lib/cacheGeneration";
 import { legacyPosEnv } from "@/lib/adapters/legacyPos/storedNames";
 // ---------------------------------------------------------------------------
 // Tax label parsing (the POS "Tax Amount" column values)
@@ -483,18 +483,26 @@ interface FindProductOptions {
   createdBy?: string;
 }
 
-// Module-level caches for the auto-create fallback buckets. These IDs
-// are stable for the lifetime of the process; the underlying Vendor /
-// Department / Category rows are created on first use and reused for
+// Module-level caches for the auto-create fallback buckets. The underlying
+// Vendor / Department / Category rows are created on first use and reused for
 // every subsequent auto-create that lacks an explicit one.
 //
-// In integration tests, these caches MUST be cleared between TRUNCATE
-// resets — the cached id survives the JS module load while the
-// underlying row gets wiped, leading to FK violations on the next
-// auto-create. `resetTestDb()` calls `clearAutoCreateCachesForTesting()`
-// to handle this.
-let cachedUnknownVendorId: { id: number; merges: number } | null = null;
-let cachedUncategorizedTaxonomy: { departmentId: number; categoryId: number } | null = null;
+// A cached id is checked before it is used, because the row can go away under
+// a running process: a vendor merge in ANY process deletes the vendor it
+// merges away, and that may be Unknown Vendor. One primary-key read per call
+// says whether the row is still there; a miss re-resolves by name. A database
+// restore (in any process) bumps the "imports" cache generation, since an id
+// from the old database may name a different row in the new one
+// (lib/cacheGeneration.ts).
+//
+// `resetTestDb()` still clears both after its TRUNCATE, so an integration test
+// starts with nothing cached.
+let cachedUnknownVendorId: { id: number; generation: string } | null = null;
+let cachedUncategorizedTaxonomy: {
+  departmentId: number;
+  categoryId: number;
+  generation: string;
+} | null = null;
 
 /**
  * Test-only helper: reset the module-level auto-create caches so the
@@ -502,8 +510,7 @@ let cachedUncategorizedTaxonomy: { departmentId: number; categoryId: number } | 
  * Unknown Vendor / Uncategorized rows against the (truncated) test DB.
  *
  * Called by `lib/testing/withTestDb.ts:resetTestDb()`. Production code
- * should never call this — the caches are correct under live DB
- * operation because rows aren't truncated mid-process.
+ * never needs it: each cached id is checked against the database before use.
  */
 export function clearAutoCreateCachesForTesting(): void {
   cachedUnknownVendorId = null;
@@ -511,24 +518,40 @@ export function clearAutoCreateCachesForTesting(): void {
 }
 
 /**
- * The shared fallback vendor, found by name (earlier names too) or made. The id
- * is cached until a vendor merge in this process, which may have merged it away.
+ * The shared fallback vendor, found by name (earlier names too) or made. The
+ * cached id is used only while its row still exists and the database has not
+ * been replaced since it was found.
  */
 export async function ensureUnknownVendorId(prisma: PrismaClient): Promise<number> {
-  const merges = vendorMergeCount();
-  if (cachedUnknownVendorId?.merges === merges) return cachedUnknownVendorId.id;
+  const generation = await cacheGeneration("imports");
+  if (cachedUnknownVendorId?.generation === generation) {
+    const still = await prisma.vendor.findUnique({
+      where: { id: cachedUnknownVendorId.id },
+      select: { id: true },
+    });
+    if (still) return still.id;
+  }
   const id = await findOrCreateVendorId(prisma, "Unknown Vendor", {
     ignoreCase: true,
     data: { pricingModel: "FLAT" },
   });
-  cachedUnknownVendorId = { id, merges };
+  cachedUnknownVendorId = { id, generation };
   return id;
 }
 
 async function ensureUncategorizedTaxonomy(
   prisma: PrismaClient,
 ): Promise<{ departmentId: number; categoryId: number }> {
-  if (cachedUncategorizedTaxonomy) return cachedUncategorizedTaxonomy;
+  const generation = await cacheGeneration("imports");
+  const hit = cachedUncategorizedTaxonomy;
+  if (hit?.generation === generation) {
+    // The category names its department, so one read answers for both.
+    const still = await prisma.category.findFirst({
+      where: { id: hit.categoryId, departmentId: hit.departmentId },
+      select: { id: true },
+    });
+    if (still) return { departmentId: hit.departmentId, categoryId: hit.categoryId };
+  }
 
   let dept = await prisma.department.findFirst({
     where: { name: { equals: "Uncategorized", mode: "insensitive" } },
@@ -555,8 +578,8 @@ async function ensureUncategorizedTaxonomy(
     });
   }
 
-  cachedUncategorizedTaxonomy = { departmentId: dept.id, categoryId: cat.id };
-  return cachedUncategorizedTaxonomy;
+  cachedUncategorizedTaxonomy = { departmentId: dept.id, categoryId: cat.id, generation };
+  return { departmentId: dept.id, categoryId: cat.id };
 }
 
 export async function findProduct(

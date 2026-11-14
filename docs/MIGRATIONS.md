@@ -49,8 +49,8 @@ cd app
 npx prisma db pull            # Verify schema matches
 npx prisma generate           # Regenerate client
 npx prisma migrate resolve --applied YYYYMMDD_name
-docker compose up -d --build app
-curl http://localhost:3000/api/health
+docker compose up -d --build app    # the `migrate` service runs first
+curl http://127.0.0.1:8080/api/health
 ```
 
 ## Rolling Back

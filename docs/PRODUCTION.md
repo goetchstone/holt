@@ -42,7 +42,12 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
      that pointed at the old 8080).
   2. Substitute the domain in `nginx/nginx.conf`:
      `sed -i '' 's/REPLACE_ME_DOMAIN/<your-domain>/g' nginx/nginx.conf`
-     (drop the `''` on Linux).
+     (drop the `''` on Linux). It is the only tracked file you edit; when a
+     release changes it, take the new one and do this again
+     (docs/DEPLOYMENTS.md, "nginx.conf"). The host's own jobs do not go
+     through this file or its certificate: they use `nginx-host`
+     (`nginx/nginx-host.conf`, §4), which keeps working before the
+     certificate exists.
   3. Run `./scripts/init-letsencrypt.sh <your-domain> <your-email>` (add
      `--staging` first if you want a dry run against Let's Encrypt's
      rate-limit-free staging environment before spending your real quota).
@@ -67,13 +72,19 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
 ## 3. Database, migrations, backups
 
 - ☑ `scripts/deploy.sh` now migrates with the NEW image **before** swapping
-  the app (no schema-mismatch window), then health-gates and exits non-zero
-  on failure. Additive migrations are zero-error; **destructive** ones
+  the app (no schema-mismatch window), then health-gates every app process and
+  exits non-zero on failure. Migrations run in the compose `migrate` service,
+  once, before any app process starts -- on deploy, on a fresh `docker compose
+  up`, and on `scripts/restore-db.sh` alike. The app processes themselves never
+  migrate (`RUN_MIGRATIONS=false` on `app`), so several of them cannot race. Additive migrations are zero-error; **destructive** ones
   (drop/rename a column the running code still reads) need a two-phase
   deploy: ship the code that no longer uses the column, deploy, THEN ship the
   migration that drops it.
-- ☑ `/api/health` reports DB + AppSettings readiness; the app container has a
-  healthcheck + `stop_grace_period`.
+- ☑ `/api/health` reports DB + AppSettings readiness; each app process's
+  container has a healthcheck + `stop_grace_period`.
+- ☐ Choose the server size and the number of app processes (`APP_REPLICAS`,
+  `PG_POOL_MAX`) for the business: docs/HOSTING.md. One process is right for
+  one store.
 - ☐ Schedule `scripts/backup-db.sh` (cron/Task Scheduler) with off-box
   retention. **Do a restore drill before go-live** — run
   `./scripts/restore-drill.sh` (restores the latest backup into a
@@ -91,6 +102,11 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
 Each is a manually-callable endpoint until a scheduler invokes it. Use a
 Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 
+- ☑ The jobs call the app through `nginx-host`, a second small nginx on the
+  loopback only, `http://127.0.0.1:8080` (`APP_BASE_URL` overrides it). The app
+  has no host port of its own, since it may run as several processes, and
+  `nginx-host` has no certificate, so the jobs do not depend on the public
+  site's TLS.
 - ☐ Run `./scripts/install-cron.sh` to register all nine jobs below in one
   idempotent step (`--dry-run` previews the crontab it would install and
   changes nothing; `--uninstall` removes them). See the manifest at the
@@ -137,7 +153,8 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 
 ## 8. First-boot bootstrap (every new deployment)
 
-- ☐ Apply migrations (`scripts/deploy.sh` does this).
+- ☐ Apply migrations (`scripts/deploy.sh` does this, as does a first
+  `docker compose up -d`, through the `migrate` service).
 - ☐ `npm run create-admin <email> <password>` for the first SUPER_ADMIN.
 - ☐ The deployment's own content: run its seed (brand + CMS pages), kept outside
   the repo (`docs/DEPLOYMENTS.md`, "A deployment's own kit"), or build the pages

@@ -15,7 +15,8 @@
 set -e
 
 INPUT_FILE="${1:-/tmp/combined_invoices.json}"
-API_URL="${API_URL:-http://localhost:3000/api/POS/import/invoices}"
+# Through nginx-host on the loopback: the app has no host port (docker-compose.yml).
+API_URL="${API_URL:-http://127.0.0.1:8080/api/POS/import/invoices}"
 BATCH_SIZE=5000
 
 if [ ! -f "$INPUT_FILE" ]; then
