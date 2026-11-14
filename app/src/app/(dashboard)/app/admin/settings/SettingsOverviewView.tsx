@@ -1062,6 +1062,9 @@ function ModuleSettingsIndex({
 
 export function SettingsOverviewView() {
   const [settings, setSettings] = useState<ResolvedAppSettings | null>(null);
+  // The version the shown settings were loaded at. Sent back with a save, so a
+  // save made by someone else since is refused rather than overwritten.
+  const [settingsVersion, setSettingsVersion] = useState<string | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean>>({});
   // null until loaded: an empty list must not read as "no districts exist" when
   // it only means the request failed.
@@ -1077,6 +1080,7 @@ export function SettingsOverviewView() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(serverError(data, "Failed to load settings"));
       setSettings(data.settings);
+      setSettingsVersion(data.settingsVersion ?? null);
       setFeatures(
         Object.fromEntries(
           MODULES.map((m) => [m.key, isFeatureEnabled(data.settings.features ?? {}, m.key)]),
@@ -1142,6 +1146,7 @@ export function SettingsOverviewView() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          settingsVersion: settingsVersion ?? undefined,
           appName: settings.appName,
           companyName: settings.companyName,
           tagline: settings.tagline,
@@ -1180,6 +1185,7 @@ export function SettingsOverviewView() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(serverError(data, "Failed to save settings"));
       setSettings(data.settings);
+      setSettingsVersion(data.settingsVersion ?? null);
       toast.success("Settings saved. Reload to see theme changes.");
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to save settings"));
@@ -1198,6 +1204,7 @@ export function SettingsOverviewView() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          settingsVersion: settingsVersion ?? undefined,
           currency: settings.currency,
           locale: settings.locale,
           timezone: settings.timezone,
@@ -1207,6 +1214,7 @@ export function SettingsOverviewView() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(serverError(data, "Failed to confirm currency and timezone"));
       const saved: ResolvedAppSettings = data.settings;
+      setSettingsVersion(data.settingsVersion ?? null);
       setSettings((prev) =>
         prev
           ? {

@@ -38,6 +38,7 @@ import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
+import { bumpCacheGenerations } from "@/lib/cacheGeneration";
 import type { RoleGrantRow } from "@/lib/auth/permissionResolver";
 import {
   LOCKOUT_PERMISSION,
@@ -289,6 +290,8 @@ async function handlePut(id: number, req: NextApiRequest, res: NextApiResponse, 
         );
       }
 
+      // Every other app process drops its grant table within 2s.
+      await bumpCacheGenerations(["roles"], tx);
       return tx.role.findUniqueOrThrow({
         where: { id },
         select: { ...ROLE_SELECT, _count: { select: { staff: true } } },
@@ -399,6 +402,7 @@ async function handleDelete(id: number, req: NextApiRequest, res: NextApiRespons
         },
         tx,
       );
+      await bumpCacheGenerations(["roles"], tx);
     });
   } catch (err) {
     if (err instanceof RefusedError) return res.status(err.status).json({ error: err.message });

@@ -4,11 +4,7 @@
 // shell over these + fetch/enqueueEmail; the value worth pinning is the channel
 // resolution (empty env = no channel, never a crash) and the payload shapes.
 
-import {
-  resolveOpsAlertChannels,
-  buildWebhookPayload,
-  buildAlertEmail,
-} from "@/lib/opsAlert";
+import { resolveOpsAlertChannels, buildWebhookPayload, buildAlertEmail } from "@/lib/opsAlert";
 
 describe("resolveOpsAlertChannels", () => {
   it("returns no channels when nothing is configured", () => {

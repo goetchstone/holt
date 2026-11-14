@@ -20,9 +20,10 @@
 // for ROLE_GRANT_CACHE_TTL_MS with explicit invalidation on write. The staff row
 // is deliberately NOT cached: staleness there is the exact security bug the
 // catalog header describes (deactivate someone, they keep working). Staleness in
-// the grant table for a few seconds is a different and much smaller risk, and
+// the grant table for a few seconds is a different and much smaller risk:
 // invalidateRoleGrantCache() collapses it to zero for any change this process
-// makes.
+// makes, and the "roles" cache generation to at most two seconds in every other
+// process (lib/cacheGeneration.ts).
 //
 // Net round trips per gated request, for either kind of gate: one (the staff
 // row), plus a second only when the check FAILS (the privileged count, which
@@ -32,6 +33,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { cacheGeneration, forgetCacheGenerations } from "@/lib/cacheGeneration";
 import {
   BUILT_IN_ROLES,
   PERMISSION_KEYS,
@@ -124,28 +126,36 @@ export function buildRoleGrantTable(rows: RoleGrantRow[]): RoleGrantTable {
 // would put a join against RolePermission on the hot path of every route the
 // sweep eventually touches. A process-lifetime singleton is the other extreme:
 // an operator who revokes payment.refund would keep granting it until the next
-// deploy, which is a security bug, not an inconvenience. 30s is the window in
-// which a change made by ANOTHER process (a second container, a psql session,
-// the seeder in a one-off migrate container) becomes visible here;
-// invalidateRoleGrantCache() below makes any change made by THIS process
-// visible immediately, and every in-app write path calls it.
+// deploy, which is a security bug, not an inconvenience.
+//
+// Two things end a cached table before its TTL. invalidateRoleGrantCache() below
+// drops it in the process that made a change, at once. The "roles" cache
+// generation (lib/cacheGeneration.ts), bumped in the same transaction as every
+// Role/RolePermission write, ends it in every OTHER process within
+// CACHE_GENERATION_CHECK_MS (2s). The TTL is left as the backstop for a change
+// made outside the app (a psql session) that bumps nothing.
 export const ROLE_GRANT_CACHE_TTL_MS = 30_000;
 
-let cached: { table: RoleGrantTable; expiresAt: number } | null = null;
+let cached: { table: RoleGrantTable; expiresAt: number; generation: string } | null = null;
 
 // Bumped by invalidateRoleGrantCache(). Without it, a load already in flight
 // when an invalidation happens can resolve AFTER it and reinstall the stale
 // table for a full fresh TTL — silently undoing the invalidation it raced with.
 // Same pattern, and the same reason, as lib/trafficStoreMap.ts.
-let generation = 0;
+let localInvalidations = 0;
 
 export async function getRoleGrantTable(
   client: PrismaClient = defaultPrisma,
 ): Promise<RoleGrantTable> {
-  const now = Date.now();
-  if (cached && now < cached.expiresAt) return cached.table;
+  // Taken before anything awaits, so an invalidation during the generation read
+  // counts as one that raced with this load.
+  const startedAt = localInvalidations;
+  // Read before loading: the table loaded below is at least this new.
+  const generation = await cacheGeneration("roles");
+  if (cached && Date.now() < cached.expiresAt && cached.generation === generation) {
+    return cached.table;
+  }
 
-  const startedAtGeneration = generation;
   const rows = await client.role.findMany({
     select: {
       id: true,
@@ -156,21 +166,25 @@ export async function getRoleGrantTable(
     },
   });
   const table = buildRoleGrantTable(rows);
-  if (generation === startedAtGeneration) {
-    cached = { table, expiresAt: Date.now() + ROLE_GRANT_CACHE_TTL_MS };
+  if (localInvalidations === startedAt) {
+    cached = { table, expiresAt: Date.now() + ROLE_GRANT_CACHE_TTL_MS, generation };
   }
   return table;
 }
 
 /**
- * Drop the cached grant table. MUST be called by every path that writes Role or
- * RolePermission — the built-in role seeder, the (future) custom-role admin
- * GUI, a config-preset apply that carries roles. A revocation that takes up to
- * 30s to bite is a security bug; this is what makes it immediate.
+ * Drop the cached grant table in THIS process. MUST be called by every path that
+ * writes Role or RolePermission — the built-in role seeder, the role admin API,
+ * a config-preset apply that carries roles — after the write commits, and each
+ * of those paths also bumps the "roles" cache generation in the write's own
+ * transaction so the other processes follow (lib/cacheGeneration.ts). A
+ * revocation that takes up to 30s to bite is a security bug; this is what makes
+ * it immediate here and within 2s everywhere else.
  */
 export function invalidateRoleGrantCache(): void {
-  generation++;
+  localInvalidations++;
   cached = null;
+  forgetCacheGenerations();
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { cacheGeneration, forgetCacheGenerations } from "@/lib/cacheGeneration";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
 import type { Branding } from "@/lib/branding";
 import { parseBookingConfig, BOOKING_DEFAULTS, type BookingConfig } from "@/lib/booking/config";
@@ -428,16 +429,42 @@ function parsePortalTokenTtlHours(raw: unknown): number | null {
   return null;
 }
 
-const cache = new Map<number, { value: ResolvedAppSettings; expires: number }>();
+// Read on nearly every request (the session callback, branding), so cached. A
+// save drops the copy in the process that made it (invalidateAppSettingsCache)
+// and bumps the "settings" cache generation, which ends the copy in every other
+// process within CACHE_GENERATION_CHECK_MS (lib/cacheGeneration.ts). The TTL is
+// the backstop for a change made outside the app.
+const cache = new Map<
+  number,
+  { value: ResolvedAppSettings; expires: number; generation: string }
+>();
 const CACHE_TTL_MS = 60_000;
 
+// A load that started before an invalidation must not file its result after it.
+let localInvalidations = 0;
+
+/**
+ * The settings straight from the database, never from the cache. For the
+ * settings screen, which must show what is stored now: it saves every field
+ * it shows, so showing a copy would save the copy back over a newer change.
+ */
+export async function readAppSettingsNow(
+  orgId: number = DEFAULT_ORG_ID,
+): Promise<ResolvedAppSettings> {
+  const row = await prisma.appSettings.findUnique({ where: { organizationId: orgId } });
+  return resolveAppSettings(row as AppSettingsRow | null);
+}
+
 export async function getAppSettings(orgId: number = DEFAULT_ORG_ID): Promise<ResolvedAppSettings> {
+  const startedAt = localInvalidations;
+  const generation = await cacheGeneration("settings");
   const hit = cache.get(orgId);
-  if (hit && hit.expires > Date.now()) return hit.value;
+  if (hit && hit.expires > Date.now() && hit.generation === generation) return hit.value;
   try {
-    const row = await prisma.appSettings.findUnique({ where: { organizationId: orgId } });
-    const value = resolveAppSettings(row as AppSettingsRow | null);
-    cache.set(orgId, { value, expires: Date.now() + CACHE_TTL_MS });
+    const value = await readAppSettingsNow(orgId);
+    if (localInvalidations === startedAt) {
+      cache.set(orgId, { value, expires: Date.now() + CACHE_TTL_MS, generation });
+    }
     return value;
   } catch (err) {
     logError("getAppSettings failed; falling back to defaults", err, { orgId });
@@ -450,9 +477,16 @@ export async function getAppSettings(orgId: number = DEFAULT_ORG_ID): Promise<Re
   }
 }
 
+/**
+ * Drop the cached settings in THIS process. A write calls it after it commits,
+ * having bumped the "settings" cache generation in its transaction so the other
+ * processes follow (lib/cacheGeneration.ts).
+ */
 export function invalidateAppSettingsCache(orgId?: number): void {
+  localInvalidations++;
   if (orgId === undefined) cache.clear();
   else cache.delete(orgId);
+  forgetCacheGenerations();
 }
 
 // Display-only branding subset, safe to ship to the client (no secrets, no

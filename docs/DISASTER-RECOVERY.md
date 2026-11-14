@@ -110,13 +110,29 @@ printing "Restore complete."
 Confirmation requires typing the **database name**, not a generic word — the
 last chance to notice the target is not the database you meant.
 
+It works only on the database container that comes with Holt, and refuses when
+the app's `DATABASE_URL` points anywhere else (a managed Postgres): it would
+restore into a database the app does not read. `backup-db.sh` refuses the same
+way, since it would back up the empty local one. Use the provider's own backups
+there (docs/HOSTING.md, "A managed database").
+
 The restore script will:
 
 1. Stop the app container
 2. Drop and recreate the database
 3. Restore from the backup file
-4. Restart the app container
+4. Restart the app containers (`up app` runs the `migrate` service first, so a
+   backup from before the last upgrade is brought up to date)
 5. Verify table count and health endpoint
+
+The in-app restore (**Admin → Setup → Database Backup**) does the same after its own
+restore: it runs the migrations, reconciles the built-in roles and makes every
+app process reload what it cached (`lib/databaseReplaced.ts`). Restarting an app
+process does not migrate any more (`RUN_MIGRATIONS=false`; the `migrate` service
+does it on `docker compose up`), so without that step a backup older than the
+last upgrade stayed on its old schema under "restored successfully". If that
+step fails, the screen says to run `docker compose up -d --force-recreate migrate
+app` on the server.
 
 ### Testing a Restore (Non-Destructive)
 

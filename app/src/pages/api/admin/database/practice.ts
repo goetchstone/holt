@@ -4,11 +4,8 @@
 // permission as the backup and restore routes beside it. Answers only on a practice
 // copy; lib/practiceCopyDatabase.ts refuses by the database's name as well.
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
-import { invalidateAppSettingsCache } from "@/lib/appSettings";
+import { bringReplacedDatabaseUpToDate } from "@/lib/databaseReplaced";
 import { auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { isPracticeCopy } from "@/lib/practiceCopy";
@@ -17,19 +14,6 @@ import {
   restoreStartingPoint,
   saveStartingPoint,
 } from "@/lib/practiceCopyDatabase";
-
-const run = promisify(execFile);
-
-/**
- * The starting point may predate the last upgrade, so it gets what a server does on
- * boot: migrations (docker-entrypoint.sh, the same CLI by the same path) and the
- * built-in roles (instrumentation.ts). Settings are cached, and those just changed.
- */
-async function bringUpToDate(): Promise<void> {
-  await run("node_modules/.bin/prisma", ["migrate", "deploy"], { timeout: 120_000 });
-  await syncBuiltInRoles();
-  invalidateAppSettingsCache();
-}
 
 export default requirePermission("admin.data", async (req, res, session) => {
   if (req.method !== "POST") {
@@ -56,7 +40,8 @@ export default requirePermission("admin.data", async (req, res, session) => {
       });
     } else {
       await restoreStartingPoint(databaseUrl);
-      await bringUpToDate();
+      // The starting point may predate the last upgrade (lib/databaseReplaced.ts).
+      await bringReplacedDatabaseUpToDate();
       await auditLog("PRACTICE_STARTED_OVER", actor, {
         summary: "This practice copy started over from its starting point",
       });

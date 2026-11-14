@@ -197,14 +197,18 @@ session passed a list naming DESIGNER, such as `REPORT_ROLES`.
 `roleListGates.integration.test.ts` runs every case through all three gates.
 
 **Caching.** The grant table (every `Role` plus its `RolePermission` rows) is
-cached for **30 seconds** with explicit invalidation — `invalidateRoleGrantCache()`,
-called by `syncBuiltInRoles()`, the Roles GUI's REST routes
-(`pages/api/admin/roles/`) and `applyPreset()`, and required of every future
-write path. The staff row is deliberately **not** cached; staleness there is the security bug
-the catalog header describes. Worst-case staleness for a grant change is
-therefore **30 seconds**, and only for a change made by a _different_ process
-(a second container, a psql session, a one-off migrate container). A change made
-in-process is visible immediately.
+cached for **30 seconds** with explicit invalidation. Every write path --
+`syncBuiltInRoles()`, the Roles GUI's REST routes (`pages/api/admin/roles/`) and
+`applyPreset()`, and every future one -- does two things: it bumps the `"roles"`
+cache generation in the write's own transaction (`bumpCacheGenerations`,
+`lib/cacheGeneration.ts`), and after commit it calls `invalidateRoleGrantCache()`.
+The staff row is deliberately **not** cached; staleness there is the security bug
+the catalog header describes. A change made in-process is visible immediately;
+in any OTHER app process (Holt may run several, docs/HOSTING.md) within
+`CACHE_GENERATION_CHECK_MS`, **2 seconds**, since each process re-reads the
+generations at most that often. Only a change that bumps nothing (a psql
+session) waits out the 30-second TTL. Tested across two module instances in
+`multiProcessCaches.integration.test.ts`.
 
 ### Not done yet (each is its own change)
 

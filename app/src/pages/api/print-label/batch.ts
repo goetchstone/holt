@@ -102,6 +102,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
 // before the permission check runs, which does DB queries on each call.
 // Auth-outermost would let anyone without a session drive that DB load. Do not
 // reorder. The same permission as the single tag (pages/api/print-label.ts).
-export default rateLimit({ windowMs: 60000, maxRequests: 10 })(
-  requirePermission({ anyOf: ["purchasing.receive", "warehouse.operate"] }, handler),
-);
+export default rateLimit(
+  { windowMs: 60000, maxRequests: 10 },
+  "print-label-batch",
+)(requirePermission({ anyOf: ["purchasing.receive", "warehouse.operate"] }, handler));

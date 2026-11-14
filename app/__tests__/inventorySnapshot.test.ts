@@ -9,10 +9,7 @@
 // file pins the math instead of mocking Prisma for a query with nothing to
 // get wrong.
 
-import {
-  summarizeInventoryAggregate,
-  type InventoryAggregateRow,
-} from "@/lib/inventory/snapshot";
+import { summarizeInventoryAggregate, type InventoryAggregateRow } from "@/lib/inventory/snapshot";
 
 function row(over: Partial<InventoryAggregateRow>): InventoryAggregateRow {
   return {
@@ -56,7 +53,9 @@ describe("summarizeInventoryAggregate", () => {
   });
 
   it("a single (product, store) row counts each dimension once", () => {
-    const summary = summarizeInventoryAggregate([row({ productId: 9, storeLocationId: 4, quantity: 12 })]);
+    const summary = summarizeInventoryAggregate([
+      row({ productId: 9, storeLocationId: 4, quantity: 12 }),
+    ]);
 
     expect(summary).toEqual({
       productCount: 1,

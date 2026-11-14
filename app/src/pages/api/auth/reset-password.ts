@@ -33,4 +33,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default rateLimit({ windowMs: 15 * 60_000, maxRequests: 10 })(handler);
+export default rateLimit({ windowMs: 15 * 60_000, maxRequests: 10 }, "reset-password")(handler);

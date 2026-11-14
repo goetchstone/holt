@@ -33,7 +33,7 @@ function effectiveRow(overrides: Partial<EffectiveRow> = {}): EffectiveRow {
     color: "",
     size: "",
     qty: 4,
-    cost: 44.50,
+    cost: 44.5,
     msrp: null,
     selling: null,
     department: "Home Acc",
@@ -171,7 +171,7 @@ describe("buildHomeAccessoryItemCreateBody", () => {
       vendorName: "K & K Interiors",
       partNumber: "KKI-15668B",
       productName: "13.5 Inch Brown Resin Horse",
-      cost: 44.50,
+      cost: 44.5,
       qty: 4,
       barcode: "842657186221",
       departmentId: 1,
@@ -191,25 +191,25 @@ describe("buildHomeAccessoryItemCreateBody", () => {
 
   it("retail falls back: selling, then msrp, then cost — never left blank", () => {
     const withSelling = buildHomeAccessoryItemCreateBody(
-      effectiveRow({ selling: 99.95, msrp: 120, cost: 44.50 }),
+      effectiveRow({ selling: 99.95, msrp: 120, cost: 44.5 }),
       1,
       ctx(),
     );
     expect(withSelling.retail).toBe(99.95);
 
     const withMsrpOnly = buildHomeAccessoryItemCreateBody(
-      effectiveRow({ selling: null, msrp: 45, cost: 18.00 }),
+      effectiveRow({ selling: null, msrp: 45, cost: 18.0 }),
       1,
       ctx(),
     );
     expect(withMsrpOnly.retail).toBe(45);
 
     const costOnly = buildHomeAccessoryItemCreateBody(
-      effectiveRow({ selling: null, msrp: null, cost: 44.50 }),
+      effectiveRow({ selling: null, msrp: null, cost: 44.5 }),
       1,
       ctx(),
     );
-    expect(costOnly.retail).toBe(44.50);
+    expect(costOnly.retail).toBe(44.5);
   });
 
   it("msrp stays null when nothing was typed and no markup applied — never guesses at retail", () => {

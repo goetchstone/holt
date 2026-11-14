@@ -119,10 +119,18 @@ docker compose --profile dev up      # hot-reload
 docker compose up -d --build         # production build
 ```
 
-The container applies migrations on start. A production build served over
-plain http on localhost additionally needs `ALLOW_INSECURE_NEXTAUTH_URL=true`
-— the https requirement is correct for a real deployment and only relaxes for
-loopback addresses.
+A one-shot `migrate` service applies migrations before the app starts. The app
+runs as `APP_REPLICAS` processes behind nginx (one by default) and has no host
+port of its own: browsers reach it through nginx on 443 once TLS is set up
+(docs/PRODUCTION.md §2), and the server's own jobs through a second nginx on
+`127.0.0.1:8080`. To try the production image on your own machine before that,
+`scripts/dev-app-up.sh` runs one process on <http://localhost:3000>. How big a
+server and how many processes a business needs, and where to host it, is in
+[docs/HOSTING.md](docs/HOSTING.md).
+
+A production build served over plain http on localhost additionally needs
+`ALLOW_INSECURE_NEXTAUTH_URL=true` — the https requirement is correct for a real
+deployment and only relaxes for loopback addresses.
 
 ## Configuration
 
@@ -170,6 +178,8 @@ npm run test:coverage  # Unit + integration coverage (gate input)
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — module map, data model, integrations
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — branch/PR workflow and quality gates
 - [OPERATIONS.md](./OPERATIONS.md) — deployment, monitoring, troubleshooting
+- [docs/HOSTING.md](./docs/HOSTING.md) — where to host Holt, how big a server, and
+  running it as more than one process
 - [docs/DEPLOYMENTS.md](./docs/DEPLOYMENTS.md) — white-label model: product = code,
   a deployment = data (branding, theme, CMS content, env); per-tenant setup
 - [docs/](./docs/) — deployment topology, CI, migrations, and domain runbooks

@@ -71,4 +71,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   });
 }
 
-export default rateLimit({ windowMs: 60_000, maxRequests: 5 })(handler);
+export default rateLimit({ windowMs: 60_000, maxRequests: 5 }, "ticket-public-attachment")(handler);

@@ -33,4 +33,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default rateLimit({ windowMs: 60_000, maxRequests: 30 })(handler);
+export default rateLimit({ windowMs: 60_000, maxRequests: 30 }, "stripe-session-status")(handler);

@@ -61,6 +61,7 @@ import { BUILT_IN_ROLES } from "@/lib/auth/permissionCatalog";
 import { invalidateRoleGrantCache, type RoleGrantRow } from "@/lib/auth/permissionResolver";
 import { countStaffHolding, lockoutMessage, LOCKOUT_PERMISSION } from "@/lib/auth/roleAdmin";
 import { invalidateTrafficStoreMap } from "@/lib/trafficStoreMap";
+import { bumpCacheGenerations } from "@/lib/cacheGeneration";
 import { placeTypeProblem } from "@/lib/inventory/placeTree";
 
 // ---------------------------------------------------------------------------
@@ -901,6 +902,8 @@ async function applyTrafficStoreMapping(
       for (const c of clears) {
         await tx.storeLocation.update({ where: { id: c.id }, data: { trafficSourceNames: [] } });
       }
+      // The other app processes rebuild their resolver within 2s.
+      await bumpCacheGenerations(["stores"], tx);
     }, TX_TIMEOUT.SHORT);
 
     // A running server's cached resolver (60s TTL) must not keep serving the
@@ -1768,6 +1771,8 @@ async function applyRoles(
           });
         }
       }
+      // The other app processes drop their grant table within 2s.
+      await bumpCacheGenerations(["roles"], tx);
     }, TX_TIMEOUT.SHORT);
 
     // Every write above changes who can do what. The resolver caches the whole

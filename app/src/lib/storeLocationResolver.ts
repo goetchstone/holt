@@ -5,9 +5,11 @@
 // StoreLocation.externalLocationName, case-insensitive.
 
 import { prisma } from "@/lib/prisma";
+import { cacheGeneration, forgetCacheGenerations } from "@/lib/cacheGeneration";
 
 let cachedMap: Map<string, number> | null = null;
 let cacheExpiry = 0;
+let cachedGeneration: string | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Builds a lookup map from all active store locations. Keys are lowercased
@@ -29,14 +31,19 @@ export async function buildLocationMap(tx?: any): Promise<Map<string, number>> {
   return map;
 }
 
-// Returns a cached location map, refreshing every 5 minutes.
+// Returns a cached location map, refreshing every 5 minutes, or sooner when
+// the "stores" cache generation moves (a restore, in any process; see
+// lib/cacheGeneration.ts).
 export async function getLocationMap(): Promise<Map<string, number>> {
+  const generation = await cacheGeneration("stores");
   const now = Date.now();
-  if (cachedMap && now < cacheExpiry) return cachedMap;
+  if (cachedMap && now < cacheExpiry && cachedGeneration === generation) return cachedMap;
 
-  cachedMap = await buildLocationMap();
+  const map = await buildLocationMap();
+  cachedMap = map;
   cacheExpiry = now + CACHE_TTL;
-  return cachedMap;
+  cachedGeneration = generation;
+  return map;
 }
 
 // Resolves a store location name string to a StoreLocation ID.
@@ -53,4 +60,6 @@ export async function resolveStoreLocationId(
 export function clearLocationCache(): void {
   cachedMap = null;
   cacheExpiry = 0;
+  cachedGeneration = null;
+  forgetCacheGenerations();
 }

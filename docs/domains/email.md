@@ -54,6 +54,19 @@ Configurable in **Settings → Integrations** (provider `smtp`, added to
   the response), and `deliverQueuedEmail(id)` (try one row now and return its
   status, for a screen that tells the sender whether it went). Both senders go
   through one `deliverRow`, so a retry sends exactly what the first try did.
+  `deliverRow` **claims** the row before sending: a compare-and-set on what it
+  read (status, attempts, scheduledAt) that pushes `scheduledAt` out by
+  `SEND_CLAIM_LEASE_MS` (15 minutes, `lib/email/state.ts`). Two drains -- the
+  cron and `enqueueAndSend`, or two app processes -- used to send the same row
+  twice; now the loser skips it. The claim counts the try, so a process that
+  dies mid-send (or a database error before the outcome is written) has used
+  one: the row is retried when the lease runs out, and when that was its last
+  try the next drain marks it FAILED with "interrupted before its result was
+  recorded" (`failInterruptedLastTries`) instead of leaving it PENDING for ever.
+  A screen's send-now (`deliverQueuedEmail`) leaves a row alone while another
+  drain's lease is on it (`isClaimedElsewhere`). The text queue
+  (`lib/sms/queue.ts`) claims, sweeps and guards the same way. Tested in
+  `multiProcessCaches.integration.test.ts`.
 
 ## Schema
 

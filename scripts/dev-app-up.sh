@@ -22,6 +22,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.." # repo root
 
+NAME=holt-app-local
+
 BUILD=0
 case "${1:-}" in
   --build | -b) BUILD=1 ;;
@@ -57,8 +59,16 @@ if [ "$BUILD" = "1" ]; then
   DOCKER_BUILDKIT=1 docker compose build app
 fi
 
-echo "Recreating app container (DB host -> host.docker.internal)..."
-DATABASE_URL="$DBURL_CONTAINER" docker compose up -d --no-deps app
+# The compose `app` service publishes no host port (it may run as several
+# processes behind nginx; docker-compose.yml), so this runs ONE process from the
+# same image and service config with the port published on this machine's
+# loopback, under a fixed name so a re-run replaces it. RUN_MIGRATIONS=true:
+# there is no `migrate` service run here, so the entrypoint migrates, as a single
+# process safely can.
+echo "Recreating app container $NAME (DB host -> host.docker.internal)..."
+docker rm -f "$NAME" >/dev/null 2>&1 || true
+DATABASE_URL="$DBURL_CONTAINER" docker compose run -d --no-deps --name "$NAME" \
+  --publish 127.0.0.1:3000:3000 -e RUN_MIGRATIONS=true app >/dev/null
 
 # Keep Docker's disk from filling -- a full build cache crashed the dev DB once.
 docker builder prune -af >/dev/null 2>&1 || true
@@ -75,6 +85,6 @@ echo
 if [ "$code" = "200" ]; then
   echo "OK -- app is up and serving 200."
 else
-  echo "WARN -- app not serving 200 (last=$code). Check: docker logs holt-app-1 --tail 40" >&2
+  echo "WARN -- app not serving 200 (last=$code). Check: docker logs $NAME --tail 40" >&2
   exit 1
 fi

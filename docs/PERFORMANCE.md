@@ -14,7 +14,7 @@
 
 | Limit | Value | Source |
 |-------|-------|--------|
-| Nginx upload | 50MB | `client_max_body_size` |
+| Nginx upload | 300MB | `client_max_body_size` in `nginx/nginx.conf` |
 | Body parser | 20MB | Per-route `bodyParser.sizeLimit` |
 | JSON payload | ~20MB effective | Limited by body parser |
 
@@ -42,17 +42,30 @@ The theoretical limit before hitting the 20MB body parser is approximately 80,00
 
 ### Connection Pool
 
-The Prisma client uses a single shared instance (singleton pattern in `lib/prisma.ts`) to prevent connection pool exhaustion in the Next.js dev server's hot-reload cycle. In production, the default Prisma connection pool size (based on `num_cpus * 2 + 1`) applies.
+The Prisma client uses a single shared instance per process (singleton pattern in
+`lib/prisma.ts`). Prisma 7 talks to Postgres through the `pg` driver adapter, so the
+pool is a `pg.Pool`, and its size is `PG_POOL_MAX` -- **10** when unset, and
+docker-compose.yml passes `PG_POOL_MAX=${PG_POOL_MAX:-10}` to every app process. The
+`connection_limit` and `pool_timeout` parameters some `DATABASE_URL`s carry are not
+read by `pg.Pool` and change nothing. (Prisma's old `num_cpus * 2 + 1` default belonged
+to its Rust engine, which this version no longer uses.)
+
+Each app process has its own pool, so a deployment opens up to
+`APP_REPLICAS x PG_POOL_MAX` connections. Keep that under Postgres's `max_connections`
+(100 by default) with room for backups, migrations and psql. How many processes and
+what size of server a deployment needs: [HOSTING.md](./HOSTING.md).
 
 ### Query Logging
 
 - **Development**: Prisma logs all SQL queries to stdout (`log: ["query"]`)
-- **Production**: Query logging is disabled (production Prisma default)
+- **Production**: errors only (`log: ["error"]` in `lib/prisma.ts`)
 
 ### Indexing
 
 Key indexes are managed by Prisma's schema and migration system:
 
-- Unique compound indexes on `(productNumber, vendorId)`, `(vendorStyleId, tierId)`, etc.
+- Unique compound indexes such as `(vendorStyleId, tierId)`. There is NO unique index
+  on `(productNumber, vendorId)`: `Product.productNumber` is a plain, unindexed column,
+  so two products may share a number, and a lookup by it scans.
 - Foreign key indexes on all relation fields
 - See `prisma/schema.prisma` `@@unique` annotations for the full list

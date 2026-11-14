@@ -9,7 +9,7 @@ import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 60 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 60 }, "services-public");
 
 export default limiter(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

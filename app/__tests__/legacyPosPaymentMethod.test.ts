@@ -20,22 +20,7 @@ import { join } from "node:path";
 import { resolvePaymentMode, resolvePaymentMethod } from "@/lib/adapters/legacyPos/shared";
 
 // The numeric codes the POS exports, from PAYMENT_MODE_MAP.
-const POS_CODES = [
-  "1",
-  "2",
-  "4",
-  "5",
-  "6",
-  "9",
-  "11",
-  "20",
-  "27",
-  "28",
-  "29",
-  "30",
-  "32",
-  "33",
-];
+const POS_CODES = ["1", "2", "4", "5", "6", "9", "11", "20", "27", "28", "29", "30", "32", "33"];
 
 describe("resolvePaymentMethod", () => {
   it("classifies every mode the adapter can decode", () => {
