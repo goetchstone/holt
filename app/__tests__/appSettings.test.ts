@@ -135,15 +135,42 @@ describe("themeToCssVars", () => {
 
 describe("resolveAppSettings pricing (USE-04 markup fallback)", () => {
   it("defaults to no store-wide markup (null) for a null row or an unset column", () => {
-    expect(resolveAppSettings(null).pricing).toEqual({ defaultMarkup: null });
-    expect(resolveAppSettings(row()).pricing).toEqual({ defaultMarkup: null });
-    expect(resolveAppSettings(row({ pricing: null })).pricing).toEqual({ defaultMarkup: null });
+    const unset = {
+      defaultMarkup: null,
+      markupPrecedence: "VENDOR_FIRST",
+      retailRounding: "CENTS",
+    };
+    expect(resolveAppSettings(null).pricing).toEqual(unset);
+    expect(resolveAppSettings(row()).pricing).toEqual(unset);
+    expect(resolveAppSettings(row({ pricing: null })).pricing).toEqual(unset);
   });
 
   it("honours a positive, finite markup", () => {
     expect(resolveAppSettings(row({ pricing: { defaultMarkup: 2.2 } })).pricing).toEqual({
       defaultMarkup: 2.2,
+      markupPrecedence: "VENDOR_FIRST",
+      retailRounding: "CENTS",
     });
+  });
+
+  it("honours a known precedence and rounding rule (GAP-06)", () => {
+    expect(
+      resolveAppSettings(
+        row({ pricing: { markupPrecedence: "CATEGORY_FIRST", retailRounding: "END_99" } }),
+      ).pricing,
+    ).toEqual({
+      defaultMarkup: null,
+      markupPrecedence: "CATEGORY_FIRST",
+      retailRounding: "END_99",
+    });
+  });
+
+  it("falls back to the defaults on an unknown precedence or rounding rule", () => {
+    const pricing = resolveAppSettings(
+      row({ pricing: { markupPrecedence: "category_first", retailRounding: "NICKELS" } }),
+    ).pricing;
+    expect(pricing.markupPrecedence).toBe("VENDOR_FIRST");
+    expect(pricing.retailRounding).toBe("CENTS");
   });
 
   it("fails closed on a non-positive, non-finite, or wrong-typed markup", () => {

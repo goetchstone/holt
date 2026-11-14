@@ -31,6 +31,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
     accountGroupId: "",
     labelTemplateId: "",
     taxGroupId: "",
+    defaultMarkup: "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -61,6 +62,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         accountGroupId: (category as any).accountGroupId?.toString() || "",
         labelTemplateId: category.labelTemplateId?.toString() || "",
         taxGroupId: category.taxGroupId?.toString() || "",
+        defaultMarkup: category.defaultMarkup == null ? "" : String(Number(category.defaultMarkup)),
       });
     } else {
       setForm({
@@ -70,6 +72,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         accountGroupId: "",
         labelTemplateId: "",
         taxGroupId: "",
+        defaultMarkup: "",
       });
     }
   }, [category]);
@@ -101,6 +104,9 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
       accountGroupId: form.accountGroupId ? Number.parseInt(form.accountGroupId) : null,
       labelTemplateId: form.labelTemplateId ? Number.parseInt(form.labelTemplateId) : null,
       taxGroupId: form.taxGroupId ? Number.parseInt(form.taxGroupId) : null,
+      // Empty follows the vendor's or the store's markup; the server says what's wrong with
+      // anything else, and that changing it needs "Change pricing".
+      defaultMarkup: form.defaultMarkup.trim() === "" ? null : Number(form.defaultMarkup),
     };
 
     // Basic validation
@@ -201,6 +207,25 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         value={form.taxGroupId}
         onChange={(v) => handleChange("taxGroupId", v)}
       />
+
+      <label htmlFor="category-markup" className="block mb-2 text-sm text-brand-blue">
+        Markup
+      </label>
+      <input
+        id="category-markup"
+        type="number"
+        min={0.0001}
+        step={0.01}
+        value={form.defaultMarkup}
+        placeholder="Follow the vendor's or the store's"
+        onChange={(e) => handleChange("defaultMarkup", e.target.value)}
+        className="w-full border border-brand-gray rounded-lg px-3 py-2 mb-1 font-serif text-brand-black"
+      />
+      <p className="mb-4 text-xs text-brand-gray">
+        What cost is multiplied by to suggest its products&apos; retail: 2.2 prices a $100 item at
+        $220. Leave it empty to use the vendor&apos;s markup, or the store&apos;s. Whether a
+        vendor&apos;s or a category&apos;s wins is set in Admin → Settings → Pricing.
+      </p>
 
       <label className="block mb-2 text-sm text-brand-blue">Label Template</label>
       {loadingTemplates ? (

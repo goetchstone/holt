@@ -5,10 +5,21 @@ import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { prisma } from "@/lib/prisma";
 import { safeString, safeFloat } from "@/lib/importHelpers";
 import { calculateRugPricing } from "@/lib/consignment";
+import {
+  countKept,
+  emptyKeptCounts,
+  lockRetailRow,
+  recordImportPriceChanges,
+  retailFieldsForImport,
+  type RetailKept,
+} from "@/lib/pricing/retailWriter";
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
+
+/** Changing an existing product's retail needs this as well (DECISIONS 58). */
+const PRICING = "catalog.pricing";
 
 interface ManifestRow {
   rugNumber?: string;
@@ -67,7 +78,7 @@ interface RowError {
 
 export default requirePermission(
   "purchasing.write",
-  async (req: NextApiRequest, res: NextApiResponse, session) => {
+  async (req: NextApiRequest, res: NextApiResponse, session, access) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -86,6 +97,7 @@ export default requirePermission(
     }
 
     const userEmail = session.user.email;
+    const mayChangePrice = access.holds[PRICING];
 
     try {
       // Set up vendor, department, and receipt outside the per-row loop so they
@@ -112,6 +124,7 @@ export default requirePermission(
         retailPrice: number;
       }[] = [];
       const errors: RowError[] = [];
+      const kept = emptyKeptCounts();
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -125,12 +138,23 @@ export default requirePermission(
           const size = safeString(row.size) || "";
           const productName = [quality, size].filter(Boolean).join(" ") || barcode;
 
+          let retailKept: RetailKept | null = null;
           // Each row runs in its own transaction so a DB error on one row cannot
           // abort the PostgreSQL transaction state for subsequent rows.
           const item = await prisma.$transaction(async (tx) => {
             const existing = await tx.product.findFirst({
               where: { productNumber: barcode, vendorId: vendor.id },
+              select: { id: true },
             });
+            // A locked price, no cost to price from, or an importer who may not
+            // change prices keeps the product's own retail -- decided from its
+            // row locked FOR UPDATE (lib/pricing/retailWriter.ts).
+            const retail = existing
+              ? retailFieldsForImport(await lockRetailRow(tx, existing.id), retailPrice, {
+                  mayChangePrice,
+                })
+              : null;
+            retailKept = retail?.kept ?? null;
 
             const product = existing
               ? await tx.product.update({
@@ -138,7 +162,7 @@ export default requirePermission(
                   data: {
                     name: productName,
                     baseCost: cost,
-                    baseRetail: retailPrice,
+                    ...retail!.data,
                     // Backfill department/category for items imported before these fields existed
                     departmentId,
                     categoryId,
@@ -157,6 +181,10 @@ export default requirePermission(
                     createdBy: userEmail,
                   },
                 });
+            await recordImportPriceChanges(tx, retail?.change ? [retail.change] : [], {
+              source: "CONSIGNMENT_IMPORT",
+              actor: userEmail,
+            });
 
             const existingItem = await tx.consignmentItem.findUnique({
               where: { barcode },
@@ -202,6 +230,7 @@ export default requirePermission(
                 });
           });
 
+          countKept(kept, retailKept);
           items.push({
             id: item.id,
             barcode: item.barcode,
@@ -236,10 +265,12 @@ export default requirePermission(
         items,
         errors,
         lineItemsRelinked: relink.updated,
+        ...kept,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Import failed";
       return res.status(500).json({ error: message });
     }
   },
+  { also: [PRICING] },
 );

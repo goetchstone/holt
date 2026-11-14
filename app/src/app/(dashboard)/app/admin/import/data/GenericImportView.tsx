@@ -128,6 +128,12 @@ export function GenericImportView() {
         acc.imported += data.imported;
         acc.skipped += data.skipped;
         acc.errors.push(...data.errors);
+        // Products whose retail the import kept (GAP-06): summed across chunks, so
+        // each chunk's own note isn't repeated.
+        if (data.priceLockedKept)
+          acc.priceLockedKept = (acc.priceLockedKept ?? 0) + data.priceLockedKept;
+        if (data.priceBlankKept)
+          acc.priceBlankKept = (acc.priceBlankKept ?? 0) + data.priceBlankKept;
         setProgress({ done: Math.min(start + BATCH_SIZE, rows.length), total: rows.length });
       }
       setResult(acc);
@@ -293,6 +299,18 @@ export function GenericImportView() {
             Imported <span className="font-medium">{result.imported}</span>, skipped{" "}
             <span className="font-medium">{result.skipped}</span>.
           </p>
+          {((result.priceLockedKept ?? 0) > 0 || (result.priceBlankKept ?? 0) > 0) && (
+            <p className="mt-1 text-sm text-brand-gray">
+              Retail kept as it was:{" "}
+              {[
+                result.priceLockedKept && `${result.priceLockedKept} with a locked price`,
+                result.priceBlankKept && `${result.priceBlankKept} with no price in the file`,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+              .
+            </p>
+          )}
           {result.errors.length > 0 && (
             <div className="mt-3">
               <p className="text-sm font-medium text-red-600">

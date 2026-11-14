@@ -38,6 +38,9 @@ export const AUDIT_EVENTS = {
   PRODUCT_COST_CHANGED: { label: "Vendor cost changed", group: "prices" },
   STYLE_PRICE_CHANGED: { label: "Vendor style price changed", group: "prices" },
   PRICES_IMPORTED: { label: "Prices imported", group: "prices" },
+  PRICES_ADJUSTED: { label: "Mass price change", group: "prices" },
+  PRICE_LOCK_CHANGED: { label: "Price locked or unlocked", group: "prices" },
+  MARKUP_CHANGED: { label: "Markup changed", group: "prices" },
 
   ROLE_CHANGED: { label: "Role changed", group: "access" },
   STAFF_CHANGED: { label: "Staff member changed", group: "access" },

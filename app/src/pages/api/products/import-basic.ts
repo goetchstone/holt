@@ -7,9 +7,30 @@ import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { vendorIdByName } from "@/lib/vendors/vendorByName";
+import { getAppSettings } from "@/lib/appSettings";
+import { resolveMarkup } from "@/lib/pricing/markup";
+import { roundRetail } from "@/lib/pricing/rounding";
+import {
+  countKept,
+  emptyKeptCounts,
+  lockRetailRow,
+  recordImportPriceChanges,
+  retailFieldsForImport,
+} from "@/lib/pricing/retailWriter";
+
+/** Changing an existing product's retail needs this as well as "Edit catalog" (DECISIONS 58). */
+const PRICING = "catalog.pricing";
+
+/** A number from a cell, or null when the cell is blank or unreadable. */
+function cellNumber(raw: unknown): number | null {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return null;
+  const n = Number.parseFloat(String(raw));
+  return Number.isFinite(n) ? n : null;
+}
+
 export default requirePermission(
   "catalog.write",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session, access) => {
     if (req.method !== "POST") return res.status(405).end();
 
     const { records } = req.body;
@@ -24,8 +45,12 @@ export default requirePermission(
     // by barcode (UPC).
     const importedPartNos = new Set<string>();
     const importedUpcs = new Set<string>();
+    const kept = emptyKeptCounts();
+    const actor = session.user?.email ?? null;
+    const mayChangePrice = access.holds[PRICING];
 
     try {
+      const { pricing } = await getAppSettings();
       for (const record of records) {
         const vendor = await vendorNamed(record.vendorName);
         if (!vendor) throw new Error(`Vendor not found: ${record.vendorName}`);
@@ -55,18 +80,24 @@ export default requirePermission(
         });
         if (!type) throw new Error(`Type not found: ${record.typeName}`);
 
-        // Parse numbers
+        // Parse numbers. A blank retail cell is no price, not a price of 0.
         const cost = Number.parseFloat(record.cost || "0") || 0;
-        let retailPrice = Number.parseFloat(record.retailPrice || "0") || 0;
+        let retailPrice = cellNumber(record.retailPrice);
         const autoMarkup = String(record.autoMarkup || "FALSE").toUpperCase() === "TRUE";
 
-        // Optional auto markup
-        if (
-          (!record.retailPrice || record.retailPrice === "") &&
-          autoMarkup &&
-          vendor.defaultMarkup
-        ) {
-          retailPrice = cost * (1 + Number(vendor.defaultMarkup) / 100);
+        // Optional auto markup: cost times the markup that applies (vendor,
+        // category or store, lib/pricing/markup.ts), rounded by the store's
+        // rule. A markup is a multiplier -- 2.2 prices a $100 item at $220.
+        if (retailPrice === null && autoMarkup && cost > 0) {
+          const markup = resolveMarkup({
+            vendorMarkup: vendor.defaultMarkup,
+            categoryMarkup: category.defaultMarkup,
+            storeMarkup: pricing.defaultMarkup,
+            precedence: pricing.markupPrecedence,
+          });
+          // Rounding can take a small price to 0, which the register reads as no price.
+          const rounded = markup && roundRetail(cost * markup.multiplier, pricing.retailRounding);
+          if (rounded) retailPrice = rounded;
         }
 
         const productData = {
@@ -74,7 +105,6 @@ export default requirePermission(
           description: record.description || "",
           season: record.season || "",
           baseCost: cost,
-          baseRetail: retailPrice,
           departmentId: department.id,
           categoryId: category.id,
           typeId: type.id,
@@ -93,18 +123,34 @@ export default requirePermission(
             productNumber: record.productNumber,
             vendorId: vendor.id,
           },
+          select: { id: true },
         });
 
         let product;
         if (existingProduct) {
-          product = await prisma.product.update({
-            where: { id: existingProduct.id },
-            data: productData,
+          // An existing product keeps a locked price, its own price when the
+          // file has none, and its price when the importer may not change
+          // prices -- decided from its row as it stands, locked in this
+          // transaction (lib/pricing/retailWriter.ts).
+          product = await prisma.$transaction(async (tx) => {
+            const current = await lockRetailRow(tx, existingProduct.id);
+            const retail = retailFieldsForImport(current, retailPrice, { mayChangePrice });
+            countKept(kept, retail.kept);
+            const updated = await tx.product.update({
+              where: { id: existingProduct.id },
+              data: { ...productData, ...retail.data },
+            });
+            await recordImportPriceChanges(tx, retail.change ? [retail.change] : [], {
+              source: "IMPORT",
+              actor,
+            });
+            return updated;
           });
         } else {
           product = await prisma.product.create({
             data: {
               ...productData,
+              baseRetail: retailPrice,
               productNumber: record.productNumber,
               vendorId: vendor.id,
             },
@@ -143,12 +189,14 @@ export default requirePermission(
         success: true,
         productsImported: records.length,
         lineItemsRelinked: relink.updated,
+        ...kept,
       });
     } catch (error: unknown) {
       logError("Unexpected error", error);
       res.status(500).json({ error: "Internal server error" });
     }
   },
+  { also: [PRICING] },
 );
 
 /** The vendor a name means; an earlier name (a vendor merged away) finds the vendor it went to. */

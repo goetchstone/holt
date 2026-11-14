@@ -45,6 +45,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
       "The audit trail lists refunds, deletes, price changes, access changes and exports, with who did each and when.",
     screens: ["/app/admin/audit"],
   },
+  {
+    slug: "changing-prices",
+    title: "Changing many prices at once",
+    summary:
+      "Reprice products from cost and markup, by a percent or to an amount, mark them down, lock their prices, and read a product's price history.",
+    screens: ["/app/inventory/mass-price-change"],
+  },
 ];
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

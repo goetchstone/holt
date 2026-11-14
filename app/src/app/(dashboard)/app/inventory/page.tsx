@@ -30,6 +30,12 @@ const ITEMS: CardGridItem[] = [
     href: "/app/inventory/products",
   },
   {
+    title: "Mass Price Change",
+    description:
+      "Reprice products from cost × markup, by a percent or to an amount, mark them down, or lock their prices.",
+    href: "/app/inventory/mass-price-change",
+  },
+  {
     title: "Vendors",
     description: "Manage product vendors",
     href: "/app/inventory/vendors",

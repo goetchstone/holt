@@ -76,6 +76,7 @@ async function main(): Promise<void> {
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { seedPriceBooks } = await import("./priceBooks");
+  const { seedPriceChanges } = await import("./priceChanges");
   const { ORG_SLUG } = await import("./org");
 
   // Hashed here only to fail before --reset wipes anything: no password chosen for
@@ -303,6 +304,8 @@ async function main(): Promise<void> {
   // Last, and with no RNG draws, so nothing above shifts.
   const sourcesResult = await seedProductSources(prisma, catalog.vendorIds, catalog.products);
   const mergeResult = await seedVendorMerge(prisma, SUPPLIER_NAME);
+  // A markdown and a price lock (GAP-06). Last, with no RNG draws.
+  const priceChangeResult = await seedPriceChanges(prisma, catalog.products);
   // The job a store runs on a schedule, so a client's lifetime spend and lead tier are real.
   // Last, with no RNG draws, so nothing above shifts.
   const { recalculateCustomerLevels } = await import("@/lib/customerLeveling");
@@ -348,6 +351,9 @@ async function main(): Promise<void> {
   );
   console.log(
     `Other vendors: ${sourcesResult.sources} items also bought from ${sourcesResult.vendors} other vendors`,
+  );
+  console.log(
+    `Price changes: ${priceChangeResult.changed} marked down, ${priceChangeResult.locked} locked`,
   );
   console.log(
     `Vendor merge: "${mergeResult.merged}" merged into ${mergeResult.into} (${mergeResult.moved} ${mergeResult.moved === 1 ? "record" : "records"} moved)`,

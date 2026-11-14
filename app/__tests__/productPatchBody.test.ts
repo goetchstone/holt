@@ -19,19 +19,25 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 const update = jest.fn();
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    product: {
-      findUnique: async () => ({ baseRetail: null, wasPrice: null }),
-      update: (...args: unknown[]) => update(...args),
+jest.mock("@/lib/prisma", () => {
+  const product = {
+    findUnique: async () => ({ baseRetail: null, wasPrice: null, priceLocked: false }),
+    findUniqueOrThrow: async () => ({ id: 7 }),
+    update: (...args: unknown[]) => update(...args),
+  };
+  return {
+    prisma: {
+      product,
+      // The PATCH writes in one transaction; the mock hands the same client in.
+      $transaction: (fn: (tx: unknown) => unknown) => fn({ product }),
     },
-  },
-}));
+  };
+});
 
 jest.mock("@/lib/auth/requireAuth", () => ({
   requirePermission:
     (_permission: string, handler: (...a: unknown[]) => unknown) => (req: unknown, res: unknown) =>
-      handler(req, res, { user: { email: "catalog@example.com" } }),
+      handler(req, res, { user: { email: "catalog@example.com" } }, { holds: {} }),
 }));
 
 import handler from "@/pages/api/products/[id]";

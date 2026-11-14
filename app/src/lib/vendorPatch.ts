@@ -16,6 +16,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { parseLeadTimeDays } from "@/lib/vendorLeadTime";
+import { markupProblem } from "@/lib/pricing/markup";
 
 /** Plain-text contact details the edit modal can change. */
 export const VENDOR_DETAIL_FIELDS = ["address", "city", "state", "zip", "phone", "email"] as const;
@@ -26,17 +27,8 @@ export type VendorPatchParse =
 export function parseVendorPatch(body: Record<string, unknown>): VendorPatchParse {
   const data: Prisma.VendorUpdateInput = {};
 
-  // Pricing defaults, exactly as before: the configurator sends numbers or null.
-  if (body.defaultMarkup !== undefined) {
-    data.defaultMarkup = body.defaultMarkup as Prisma.VendorUpdateInput["defaultMarkup"];
-  }
-  if (body.defaultDiscount !== undefined) {
-    data.defaultDiscount = body.defaultDiscount as Prisma.VendorUpdateInput["defaultDiscount"];
-  }
-  if (typeof body.mapEnforced === "boolean") data.mapEnforced = body.mapEnforced;
-  if (typeof body.allowTradeDiscount === "boolean") {
-    data.allowTradeDiscount = body.allowTradeDiscount;
-  }
+  const pricingProblem = readPricingDefaults(body, data);
+  if (pricingProblem) return { ok: false, error: pricingProblem };
   // Drop ship (GAP-20): its POs can go straight to the customer.
   if (typeof body.dropShips === "boolean") data.dropShips = body.dropShips;
 
@@ -59,4 +51,29 @@ export function parseVendorPatch(body: Record<string, unknown>): VendorPatchPars
     return { ok: false, error: "No updatable fields in request" };
   }
   return { ok: true, data };
+}
+
+/**
+ * Pricing defaults: the configurator sends numbers or null. A markup is a
+ * multiplier above zero or nothing (lib/pricing/markup.ts); a 0 or a string
+ * used to be stored and then priced every style at nothing. Returns why the
+ * markup can't be saved, or null.
+ */
+function readPricingDefaults(
+  body: Record<string, unknown>,
+  data: Prisma.VendorUpdateInput,
+): string | null {
+  if (body.defaultMarkup !== undefined) {
+    const problem = markupProblem(body.defaultMarkup);
+    if (problem) return problem;
+    data.defaultMarkup = body.defaultMarkup as number | null;
+  }
+  if (body.defaultDiscount !== undefined) {
+    data.defaultDiscount = body.defaultDiscount as Prisma.VendorUpdateInput["defaultDiscount"];
+  }
+  if (typeof body.mapEnforced === "boolean") data.mapEnforced = body.mapEnforced;
+  if (typeof body.allowTradeDiscount === "boolean") {
+    data.allowTradeDiscount = body.allowTradeDiscount;
+  }
+  return null;
 }

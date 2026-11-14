@@ -217,6 +217,7 @@ const ALL_TABLES = [
   "StaffShift",
   "StockLocation",
   "StockMovement",
+  "ProductPriceChange",
   "StockAction",
   "BoxNote",
   "StockCount",
