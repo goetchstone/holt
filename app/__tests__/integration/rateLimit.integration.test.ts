@@ -17,7 +17,6 @@ type Limiter = typeof limiterA;
 
 let limiterB!: Limiter;
 jest.isolateModules(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   limiterB = require("@/lib/rateLimit");
 });
 
@@ -142,7 +141,6 @@ it("deletes expired windows as it goes", async () => {
   // A fresh module instance has not pruned yet, so its first check does.
   let limiterC!: Limiter;
   jest.isolateModules(() => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     limiterC = require("@/lib/rateLimit");
   });
   await limiterC.checkRateLimit(makeReq("203.0.113.40"), makeRes(), MINUTE, "login");

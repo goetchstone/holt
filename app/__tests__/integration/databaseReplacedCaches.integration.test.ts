@@ -116,7 +116,6 @@ const DUMP =
 function secondProcessResolver(): typeof ResolverModule {
   let mod!: typeof ResolverModule;
   jest.isolateModules(() => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     mod = require("@/lib/auth/permissionResolver");
   });
   return mod;
