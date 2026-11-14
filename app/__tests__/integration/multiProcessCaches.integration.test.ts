@@ -93,7 +93,6 @@ function secondProcess() {
     traffic: typeof trafficA;
   };
   jest.isolateModules(() => {
-    /* eslint-disable @typescript-eslint/no-require-imports */
     mods = {
       resolver: require("@/lib/auth/permissionResolver"),
       settings: require("@/lib/appSettings"),
@@ -102,7 +101,6 @@ function secondProcess() {
       locations: require("@/lib/storeLocationResolver"),
       traffic: require("@/lib/trafficStoreMap"),
     };
-    /* eslint-enable @typescript-eslint/no-require-imports */
   });
   return mods;
 }
