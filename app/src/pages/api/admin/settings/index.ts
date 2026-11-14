@@ -564,9 +564,10 @@ function parseIdleLogoff(body: Body, data: SettingsData): ParseError {
 }
 
 // How the store prices (GAP-06, lib/pricing/markup.ts and rounding.ts): the
-// store-wide markup, whether the vendor's or the category's markup wins, and how
-// a computed retail is rounded. Each key is optional -- what is sent is merged
-// over what is stored (handlePut), so saving one never clears the others.
+// store-wide markup, whether the vendor's or the category's markup wins, how
+// a computed retail is rounded, and whether a trade tier applies to a sale
+// price. Each key is optional -- what is sent is merged over what is stored
+// (handlePut), so saving one never clears the others.
 function parsePricing(body: Body, data: SettingsData): ParseError {
   const raw = body.pricing;
   if (raw === undefined) return null;
@@ -591,6 +592,13 @@ function parsePricing(body: Body, data: SettingsData): ParseError {
       return { error: `pricing.retailRounding must be one of ${RETAIL_ROUNDINGS.join(", ")}.` };
     }
     patch.retailRounding = sent.retailRounding;
+  }
+  // Whether a trade tier applies to a sale price too (GAP-06 part C).
+  if (sent.tradeDiscountOnSaleItems !== undefined) {
+    if (typeof sent.tradeDiscountOnSaleItems !== "boolean") {
+      return { error: "pricing.tradeDiscountOnSaleItems must be true or false." };
+    }
+    patch.tradeDiscountOnSaleItems = sent.tradeDiscountOnSaleItems;
   }
   data.pricing = patch;
   return null;

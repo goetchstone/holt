@@ -164,6 +164,19 @@ the refusal lives in the screens. `__tests__/noInventedMarkup.test.ts` fails on
 any new cost times a constant in `src`, and on either screen pricing without
 the helper. A cashier can still change a line's price once it is on the cart.
 
+**A trade customer's tier (GAP-06 part C, 2026-11-14, DECISIONS 61).** The customer
+search returns the customer's `tradeTier` (only an active one). On the register and
+New Quote each line keeps the `retail` it was listed at, whether the product may take
+a tier (`tradeEligible`, from the product lookup), whether someone typed its price
+(`priceTyped`), and the tier percent in its price (`tradePercent`). Adding a product,
+or picking, changing or removing the customer, prices every untyped line through
+`priceLineForTier` (`lib/pricing/tradeTier.ts`): an eligible line at retail less the
+tier, rounded to the cent, with "Trade 20%" under its price; a return, an ineligible
+product or a configured or custom line at its own price. Removing the customer
+restores retail. A price typed on a line keeps it from then on. The server judges the
+price it is sent (below); it doesn't set it. Detail:
+`docs/domains/pricing-catalog.md` "Trade tier pricing".
+
 ## Order creation from cart
 
 `POST /api/sales/orders/create-from-cart` (`pages/api/sales/orders/create-from-cart.ts`):
@@ -243,10 +256,13 @@ manager"). Holt ships the locked-down choice. `lib/sales/discountApproval.ts`:
   discount. Anyone else may take up to `AppSettings.discountLimitPercent` off a
   line (Settings › Discounts). That defaults to 0, so every such discount needs a
   manager until the store loosens it.
-- **What counts.** A line sold below its list price: a discount entered at the
-  register, a price typed below the product's retail (`catalogListUnits`), a
+- **What counts.** A line sold below its baseline: a discount entered at the
+  register, a price typed below the product's retail (`catalogLinePolicies`), a
   replacement or price edit below the line's recorded list, or a delivery fee
-  below its zone's (a waived fee is 100%). It is measured per line
+  below its zone's (a waived fee is 100%). The baseline is the list price, or on
+  a line a trade customer's tier applies to, the price the tier entitles them to
+  (GAP-06 part C): a trade sale at that price needs no PIN, and a further discount
+  is measured from it. It is measured per line
   (`largestDiscountPercent` in `lib/sales/discountPolicyShared.ts`), so a deep
   cut on one small line can't hide in a large sale. Returns are not discounts.
 - **Approval.** The screen (`components/sales/useDiscountApproval.tsx`) shows the
@@ -268,7 +284,9 @@ manager"). Holt ships the locked-down choice. `lib/sales/discountApproval.ts`:
 - **The saving.** `OrderLineItem.listPrice` is the unit price a line was listed
   at; lines written before 2026-10-30 have none. The order screen shows "List …
   · saved …" under a discounted line, and the receipt and the printed invoice
-  show "You saved".
+  show "You saved". A line sold at a trade tier's price also records
+  `tradeTierId` and `tradeDiscountPercent`, and the order screen adds
+  "Trade N%"; its `listPrice` stays the retail, so the saving is the whole one.
 - **Not covered:**
   - B2B proposals and the HD proposal import price their own lines and do not go
     through this;

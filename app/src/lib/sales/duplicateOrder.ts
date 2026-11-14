@@ -4,9 +4,11 @@
 // as the start of someone else's quote. The copy is a new QUOTE at TODAY'S
 // prices (owner, 2026-11-03):
 //
-//   - A catalog item is priced at its retail now (catalogListUnits). A custom or
-//     configured item is its own product, written at the price it was sold at
-//     (create-from-cart mints it with that retail), so it keeps that price.
+//   - A catalog item is priced at its retail now (catalogLinePolicies), or at
+//     the price the customer's trade tier entitles them to now (GAP-06 part
+//     C). A custom or configured item is its own product, written at the price
+//     it was sold at (create-from-cart mints it with that retail), so it keeps
+//     that price; it is priced by hand, so a tier doesn't touch it.
 //   - No discount comes across. A copied discount would skip the store's
 //     discount policy (GAP-06); staff give it again, under the policy.
 //   - The delivery fee is the zone's fee today, when the original charged one.
@@ -32,7 +34,12 @@ import {
   rateForLineAmount,
   resolveTaxDistrict,
 } from "@/lib/tax/resolveTaxRate";
-import { catalogListUnits, existingListUnit } from "@/lib/sales/discountApproval";
+import {
+  catalogLinePolicies,
+  existingListUnit,
+  listOnlyPolicy,
+  recordedTrade,
+} from "@/lib/sales/discountApproval";
 import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
@@ -167,10 +174,12 @@ export async function duplicateOrder(
   const now = input.now ?? new Date();
 
   // Today's list price: the product's retail now; a line with no product keeps
-  // the unit price it was listed at.
-  const listUnits = await catalogListUnits(
+  // the unit price it was listed at. Each line sells at its baseline: the list,
+  // or the customer's trade price today -- no discount, so no policy to run.
+  const policies = await catalogLinePolicies(
     tx,
-    lines.map((l) => ({ productId: l.productId, unitPrice: existingListUnit(l) })),
+    lines.map((l) => ({ productId: l.productId, fallback: listOnlyPolicy(existingListUnit(l)) })),
+    { customerId: source.customerId },
   );
   const taxDistrict = await resolveTaxDistrict(tx, {
     customerId: source.customerId,
@@ -180,7 +189,7 @@ export async function duplicateOrder(
   // Priced as create-from-cart prices a cart: once untaxed to learn each line's
   // amount, which picks its tax band, then with each line's own rate.
   const cart = lines.map((l, i) => ({
-    unitPrice: listUnits[i],
+    unitPrice: policies[i].baselineUnit,
     quantity: Number(l.orderedQuantity),
   }));
   const rates = priceCart(cart).items.map(
@@ -221,7 +230,11 @@ export async function duplicateOrder(
           barcode: "",
           orderedQuantity: l.orderedQuantity,
           netPrice: priced.items[i].netPrice,
-          listPrice: listUnits[i],
+          listPrice: policies[i].listUnit,
+          ...recordedTrade(policies[i], {
+            quantity: Number(l.orderedQuantity),
+            netPrice: priced.items[i].netPrice,
+          }),
           // OrderLineItem.cost is the LINE total, like netPrice.
           cost: saleUnitCost(l.product, writtenUnitCost(l)) * Number(l.orderedQuantity),
           vatRate: rates[i],

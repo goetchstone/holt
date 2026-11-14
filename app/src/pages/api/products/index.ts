@@ -20,6 +20,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
+import { tradeEligibleProducts } from "@/lib/pricing/tradeEligibility";
 
 const NAME_ONLY = { select: { name: true } } as const;
 
@@ -83,9 +84,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       prisma.product.count({ where }),
     ]);
 
+    // Whether a customer's trade tier may discount each one (GAP-06 part C):
+    // the register and New Quote price a trade customer's lines by it.
+    const tradeEligible = await tradeEligibleProducts(
+      prisma,
+      products.map((p) => p.id),
+    );
+
     // Convert Decimal fields to safe JSON, and flatten related names for display
     const safeProducts = products.map(({ vendor, category, department, type, ...p }) => ({
       ...p,
+      tradeEligible: tradeEligible.get(p.id) === true,
       baseRetail: p.baseRetail ? Number(p.baseRetail) : undefined,
       baseCost: p.baseCost ? Number(p.baseCost) : undefined, // Ensure cost is also converted
       created: p.created?.toISOString(),

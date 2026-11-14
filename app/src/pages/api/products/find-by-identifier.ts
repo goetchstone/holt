@@ -4,6 +4,13 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { tradeEligibleProducts } from "@/lib/pricing/tradeEligibility";
+
+/** The product, and whether a customer's trade tier may discount it (GAP-06 part C). */
+async function withTradeEligibility<T extends { id: number }>(product: T) {
+  const eligible = await tradeEligibleProducts(prisma, [product.id]);
+  return { ...product, tradeEligible: eligible.get(product.id) === true };
+}
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // CORRECTED: This API now accepts both GET and POST requests to be more resilient.
@@ -45,7 +52,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (upc && upc.product) {
-      return res.status(200).json(upc.product);
+      return res.status(200).json(await withTradeEligibility(upc.product));
     }
 
     // Step 2: If no UPC, search Product Numbers.
@@ -59,7 +66,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (product) {
-      return res.status(200).json(product);
+      return res.status(200).json(await withTradeEligibility(product));
     }
 
     return res

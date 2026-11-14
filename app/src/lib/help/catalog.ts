@@ -52,6 +52,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
       "Reprice products from cost and markup, by a percent or to an amount, mark them down, lock their prices, and read a product's price history.",
     screens: ["/app/inventory/mass-price-change"],
   },
+  {
+    slug: "trade-pricing",
+    title: "Trade pricing",
+    summary:
+      "Give trade customers a tier that takes a percent off retail, choose which vendors and sale items it covers, and how it prices sales and quotes.",
+    screens: ["/app/admin/setup/trade-tiers"],
+  },
 ];
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

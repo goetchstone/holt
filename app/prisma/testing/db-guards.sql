@@ -326,3 +326,10 @@ CREATE TRIGGER product_price_change_append_only
 BEFORE UPDATE OR DELETE ON "ProductPriceChange"
 FOR EACH ROW
 EXECUTE FUNCTION enforce_product_price_change_append_only();
+
+-- 20261114200000_trade_tier_pricing
+-- A recorded trade percent takes something off and no more than everything.
+ALTER TABLE "OrderLineItem" DROP CONSTRAINT IF EXISTS "OrderLineItem_tradeDiscountPercent_range";
+ALTER TABLE "OrderLineItem" ADD CONSTRAINT "OrderLineItem_tradeDiscountPercent_range" CHECK (
+  "tradeDiscountPercent" IS NULL OR ("tradeDiscountPercent" > 0 AND "tradeDiscountPercent" <= 100)
+);

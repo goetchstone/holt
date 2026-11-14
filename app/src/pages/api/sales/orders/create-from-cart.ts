@@ -37,9 +37,12 @@ import {
   type Approver,
   DiscountApprovalError,
   NO_EXTRA_ACCESS,
+  type LinePolicy,
   authorizeDiscount,
-  catalogListUnits,
+  catalogLinePolicies,
+  listOnlyPolicy,
   logDiscountApproval,
+  recordedTrade,
 } from "@/lib/sales/discountApproval";
 import { type DiscountLine, largestDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
@@ -150,8 +153,9 @@ export async function handler(
   if (split) return res.status(split.status).json({ error: split.error });
   const chargesDelivery = deliveryFee != null && deliveryFee !== 0;
 
-  // Each line's list price, and the deepest discount the sale gives, judged
-  // before anything is written: a manager's PIN is checked on its own, outside
+  // Each line's list price (and on a line the customer's trade tier applies
+  // to, the price it entitles them to), and the deepest discount the sale
+  // gives, judged before anything is written: a manager's PIN is checked on its own, outside
   // the sale's transaction, so a wrong try counts even when the sale is refused
   // (lib/sales/discountApproval.ts).
   const cartItems = goods.map((item) => ({
@@ -160,10 +164,11 @@ export async function handler(
     discounts: item.discounts,
     isReturn: item.isReturn,
   }));
-  let listUnits: number[];
+  let policies: LinePolicy[];
   let discount: { percent: number; approver: Approver | null };
   try {
-    ({ listUnits, discount } = await judgeCartDiscount({
+    ({ policies, discount } = await judgeCartDiscount({
+      customerId: customerId ?? null,
       items: goods,
       netPrices: priceCart(cartItems, { orderDiscount }).items.map((l) => l.netPrice),
       delivery:
@@ -367,8 +372,15 @@ export async function handler(
           // that duplication is exactly how the client and server used to
           // disagree. netPrice already reflects item + order discounts.
           netPrice: priced.items[idx].netPrice,
-          // What it was listed at, so the saving can be shown (GAP-06).
-          listPrice: listUnits[idx],
+          // What it was listed at, so the saving can be shown (GAP-06), and
+          // the trade tier when the line got its price.
+          listPrice: policies[idx].listUnit,
+          ...(item.isReturn
+            ? {}
+            : recordedTrade(policies[idx], {
+                quantity: Math.abs(item.quantity),
+                netPrice: priced.items[idx].netPrice,
+              })),
           // itemCost is per-unit (the product's cost, or the configurator's);
           // OrderLineItem.cost stores the LINE total, like netPrice.
           cost: itemCost * item.quantity,
@@ -646,18 +658,19 @@ async function cartHoldProblem(items: CartItem[]): Promise<string | null> {
   return null;
 }
 
-/** Each line's list price, the sale's deepest discount, and who approved it. */
+/** Each line's policy, the sale's deepest discount, and who approved it. */
 async function judgeCartDiscount(input: {
+  customerId: number | null;
   items: CartItem[];
   netPrices: number[];
   delivery: { customerId: number | null; charged: number } | null;
   access: CallerAccess;
   approval: unknown;
-}): Promise<{ listUnits: number[]; discount: { percent: number; approver: Approver | null } }> {
-  const listUnits = await cartListUnits(prisma, input.items);
+}): Promise<{ policies: LinePolicy[]; discount: { percent: number; approver: Approver | null } }> {
+  const policies = await cartLinePolicies(prisma, input.items, input.customerId);
   const percent = await cartDiscountPercent({
     items: input.items,
-    listUnits,
+    baselineUnits: policies.map((p) => p.baselineUnit),
     netPrices: input.netPrices,
     delivery: input.delivery,
   });
@@ -666,27 +679,37 @@ async function judgeCartDiscount(input: {
     access: input.access,
     approval: input.approval,
   });
-  return { listUnits, discount: { percent, approver } };
+  return { policies, discount: { percent, approver } };
 }
 
-/** Each cart line's unit list price (lib/sales/discountApproval.ts catalogListUnits). */
-function cartListUnits(db: typeof prisma, items: CartItem[]): Promise<number[]> {
-  return catalogListUnits(
+/**
+ * Each cart line's policy (lib/sales/discountApproval.ts catalogLinePolicies):
+ * a catalog product's price, and the customer's trade tier where it applies. A
+ * configured or custom line is priced by hand, so it is listed at its own price.
+ */
+function cartLinePolicies(
+  db: typeof prisma,
+  items: CartItem[],
+  customerId: number | null,
+): Promise<LinePolicy[]> {
+  return catalogLinePolicies(
     db,
     items.map((item) => ({
       productId: (item.type || "PRODUCT") === "PRODUCT" ? (item.productId ?? null) : null,
-      unitPrice: item.unitPrice,
+      fallback: listOnlyPolicy(item.unitPrice),
     })),
+    { customerId },
   );
 }
 
 /**
  * The deepest discount the sale gives: each line sold (returns are not
- * discounts) against its list, and a delivery fee charged below its zone's.
+ * discounts) against its baseline -- its list, or the price the customer's
+ * trade tier entitles them to -- and a delivery fee charged below its zone's.
  */
 async function cartDiscountPercent(input: {
   items: CartItem[];
-  listUnits: number[];
+  baselineUnits: number[];
   netPrices: number[];
   delivery: { customerId: number | null; charged: number } | null;
 }): Promise<number> {
@@ -694,7 +717,7 @@ async function cartDiscountPercent(input: {
   input.items.forEach((item, i) => {
     if (item.isReturn) return;
     lines.push({
-      listUnit: input.listUnits[i],
+      listUnit: input.baselineUnits[i],
       quantity: Math.abs(item.quantity),
       netPrice: input.netPrices[i],
     });

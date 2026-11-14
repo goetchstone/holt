@@ -28,6 +28,11 @@ Six fields on `Customer`:
 | `firstOrderDate` / `lastOrderDate` | For recency math |
 | `departmentCount` | How many of the 4 department groups they've bought from |
 
+`customerGroup` is a spend bucket, not a price group: nothing prices from it. What a
+trade customer pays is their trade tier (`Customer.tradeTierId`), given by a manager
+on the customer's Trade & Tax tab (`docs/domains/pricing-catalog.md` "Trade tier
+pricing"). `isTradeAccount` alone takes nothing off.
+
 ### How levels are assigned
 
 Every product belongs to a department, which maps to one of four groups:

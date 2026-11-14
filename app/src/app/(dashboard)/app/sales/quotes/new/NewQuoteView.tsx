@@ -23,6 +23,8 @@ import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
 import { catalogRetailPrice, noRetailPriceMessage } from "@/lib/pos/cartPricing";
+import { customerTradeTier, priceLineForTier, tradeLabel } from "@/lib/pricing/tradeTier";
+import { getErrorMessage } from "@/lib/toastError";
 import {
   SplitSaleField,
   emptySplit,
@@ -41,7 +43,16 @@ interface QuoteLineItem {
   productNumber: string;
   name: string;
   description: string;
+  /** The unit price it is quoted at: its retail, the customer's trade price, or a typed one. */
   price: number;
+  /** The unit retail it was listed at, so a trade tier can come on and off (GAP-06 part C). */
+  retail: number;
+  /** Whether a customer's trade tier may discount it: catalog products the lookup allows. */
+  tradeEligible: boolean;
+  /** Someone typed the price: a customer's tier never moves it. */
+  priceTyped: boolean;
+  /** The trade tier's percent in `price`, or null: shown as "Trade 20%". */
+  tradePercent: number | null;
   cost: number;
   quantity: number;
   vendor: string;
@@ -56,6 +67,20 @@ interface StoreLocationOption {
   id: number;
   name: string;
   type: string;
+}
+
+/**
+ * A line kept in sessionStorage across the configurator: one saved before the
+ * trade-tier fields existed reads as priced by hand at the price it carried.
+ */
+function restoredLine(raw: QuoteLineItem): QuoteLineItem {
+  return {
+    ...raw,
+    retail: typeof raw.retail === "number" ? raw.retail : raw.price,
+    tradeEligible: raw.tradeEligible === true,
+    priceTyped: raw.priceTyped === true,
+    tradePercent: typeof raw.tradePercent === "number" ? raw.tradePercent : null,
+  };
 }
 
 let lineCounter = 0;
@@ -79,6 +104,15 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
     clear: clearCustomerSearch,
   } = useCustomerSearch({ limit: 5 });
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
+  // A trade customer's tier prices the quote's eligible lines (GAP-06 part C).
+  const tradeTier = selectedCustomer?.tradeTier ?? null;
+  // Picking, changing or removing the customer re-prices every line no one
+  // typed a price on, so taking the customer off restores retail. The server
+  // still judges each price it is sent (lib/sales/discountApproval.ts).
+  const chooseCustomer = (customer: CustomerSearchResult | null) => {
+    setSelectedCustomer(customer);
+    setLines((prev) => prev.map((l) => priceLineForTier(l, customer?.tradeTier ?? null)));
+  };
 
   // Product search
   const {
@@ -133,7 +167,8 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
         if (!r.ok) throw new Error("not found");
         return r.json();
       })
-      .then((c) => setSelectedCustomer(c as CustomerSearchResult))
+      // The record carries its tier as stored; only an active one prices lines.
+      .then((c) => chooseCustomer({ ...c, tradeTier: customerTradeTier(c.tradeTier) }))
       .catch(() => {});
     // Only run when query params become available
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,7 +180,9 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
     if (pending) {
       try {
         const state = JSON.parse(pending);
-        if (Array.isArray(state.lines) && state.lines.length > 0) setLines(state.lines);
+        if (Array.isArray(state.lines) && state.lines.length > 0) {
+          setLines((state.lines as QuoteLineItem[]).map(restoredLine));
+        }
         if (state.selectedCustomer) setSelectedCustomer(state.selectedCustomer);
         if (state.orderNotes) setOrderNotes(state.orderNotes);
       } catch {
@@ -168,6 +205,11 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
             name: item.name || item.productNumber || "",
             description: item.description || "",
             price: Number(item.price) || 0,
+            // Priced by the configurator: a trade tier doesn't apply to it.
+            retail: Number(item.price) || 0,
+            tradeEligible: false,
+            priceTyped: false,
+            tradePercent: null,
             cost: Number(item.cost) || 0,
             quantity: 1,
             vendor: item.vendor || "",
@@ -205,6 +247,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
     baseRetail?: number | null;
     baseCost?: number | null;
     vendorName?: string;
+    tradeEligible?: boolean;
   }) => {
     const price = catalogRetailPrice(p);
     if (price === null) {
@@ -214,22 +257,29 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
 
     setLines([
       ...lines,
-      {
-        id: nextLineId(),
-        type: "PRODUCT",
-        productId: p.id,
-        productNumber: p.productNumber,
-        name: p.name || p.productNumber,
-        description: "",
-        price,
-        cost: p.baseCost ? Number(p.baseCost) : 0,
-        quantity: 1,
-        vendor: p.vendorName || "",
-        source: "FLOOR" as ItemSource,
-        fulfillment: "TAKE" as FulfillmentMethod,
-        pickLocationId: activeStore?.id ?? null,
-        holdUntil: null,
-      },
+      priceLineForTier(
+        {
+          id: nextLineId(),
+          type: "PRODUCT",
+          productId: p.id,
+          productNumber: p.productNumber,
+          name: p.name || p.productNumber,
+          description: "",
+          price,
+          retail: price,
+          tradeEligible: p.tradeEligible === true,
+          priceTyped: false,
+          tradePercent: null,
+          cost: p.baseCost ? Number(p.baseCost) : 0,
+          quantity: 1,
+          vendor: p.vendorName || "",
+          source: "FLOOR" as ItemSource,
+          fulfillment: "TAKE" as FulfillmentMethod,
+          pickLocationId: activeStore?.id ?? null,
+          holdUntil: null,
+        },
+        tradeTier,
+      ),
     ]);
     clearProductSearch();
   };
@@ -251,6 +301,11 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
         name: customForm.name.trim(),
         description: customForm.description.trim(),
         price,
+        // Priced by hand: a trade tier doesn't apply to it.
+        retail: price,
+        tradeEligible: false,
+        priceTyped: true,
+        tradePercent: null,
         cost: 0,
         quantity: qty,
         vendor: "",
@@ -326,11 +381,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
       toast.success(`Quote ${res.data.orderno} created`);
       router.push(`/app/sales/orders/${res.data.id}`);
     } catch (err: unknown) {
-      const msg =
-        axios.isAxiosError(err) && err.response?.data?.error
-          ? err.response.data.error
-          : "Failed to create quote";
-      toast.error(msg);
+      toast.error(getErrorMessage(err, "Failed to create quote"));
     } finally {
       setSubmitting(false);
     }
@@ -364,6 +415,11 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
               <p className="text-xs text-brand-gray">
                 {[selectedCustomer.email, selectedCustomer.phone].filter(Boolean).join(" | ")}
               </p>
+              {tradeTier && (
+                <p className="text-xs text-brand-gold mt-0.5">
+                  Trade tier: {tradeTier.name} ({tradeTier.discountPercent}% off retail)
+                </p>
+              )}
               {selectedCustomer.addresses?.length > 0 && (
                 <p className="text-xs text-brand-gray mt-0.5">
                   {selectedCustomer.addresses[0].address1}
@@ -376,7 +432,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
               )}
             </div>
             <button
-              onClick={() => setSelectedCustomer(null)}
+              onClick={() => chooseCustomer(null)}
               className="text-xs text-brand-gray underline"
             >
               Change
@@ -397,7 +453,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedCustomer(c);
+                      chooseCustomer(c);
                       clearCustomerSearch();
                     }}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-brand-linen border-b border-brand-gray/10 last:border-0"
@@ -406,6 +462,9 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
                       {c.firstName} {c.lastName}
                     </span>
                     {c.phone && <span className="text-brand-gray ml-2">{c.phone}</span>}
+                    {c.tradeTier && (
+                      <span className="text-brand-gold ml-2">{c.tradeTier.name}</span>
+                    )}
                     {c.addresses?.length > 0 && (
                       <span className="block text-[10px] text-brand-gray">
                         {c.addresses[0].city}, {c.addresses[0].state} {c.addresses[0].zip}
@@ -643,10 +702,24 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
                         step="0.01"
                         value={line.price}
                         onChange={(e) =>
-                          updateLine(line.id, { price: Number.parseFloat(e.target.value) || 0 })
+                          // A typed price is the salesperson's: a trade tier no longer moves it.
+                          updateLine(line.id, {
+                            price: Number.parseFloat(e.target.value) || 0,
+                            priceTyped: true,
+                            tradePercent: null,
+                          })
                         }
+                        aria-label={`Price of ${line.name}`}
                         className="w-24 text-right border border-brand-gray/30 rounded px-1 py-1 text-sm"
                       />
+                      {line.tradePercent !== null && (
+                        <p
+                          className="text-[10px] text-brand-gold mt-0.5"
+                          title={`Retail ${fmt(line.retail)} each`}
+                        >
+                          {tradeLabel(line.tradePercent)}
+                        </p>
+                      )}
                     </td>
                     <td className="p-3 text-right font-medium">
                       {fmt(line.price * line.quantity)}

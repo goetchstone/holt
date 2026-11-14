@@ -33,6 +33,7 @@ const SENSITIVE: RegExp[] = [
   /\/clear-[a-z-]+\.ts$/,
   /^src\/pages\/api\/pricing\/import\//,
   /^src\/pages\/api\/pricing\/mass-change\/(apply|lock)\.ts$/,
+  /^src\/pages\/api\/admin\/trade-tiers\//,
   /^src\/pages\/api\/admin\/roles\//,
   /^src\/pages\/api\/staff\/(index|\[id\])\.ts$/,
   /^src\/pages\/api\/admin\/staff\//,

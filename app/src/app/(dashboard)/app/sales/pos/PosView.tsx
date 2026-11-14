@@ -29,6 +29,7 @@ import {
   type CartDiscount,
   type DiscountType,
 } from "@/lib/pos/cartPricing";
+import { priceLineForTier, tradeLabel, type CustomerTradeTier } from "@/lib/pricing/tradeTier";
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
@@ -72,7 +73,16 @@ interface CartItem {
   productId: number;
   productNumber: string;
   name: string;
+  /** The unit price it sells for: its retail, the customer's trade price, or a typed one. */
   price: number;
+  /** The unit retail it was listed at, so a trade tier can come on and off (GAP-06 part C). */
+  retail: number;
+  /** Whether a customer's trade tier may discount it (the product lookup says). */
+  tradeEligible: boolean;
+  /** Someone typed the price: a customer's tier never moves it. */
+  priceTyped: boolean;
+  /** The trade tier's percent in `price`, or null: shown as "Trade 20%". */
+  tradePercent: number | null;
   cost: number;
   quantity: number;
   discounts: Discount[];
@@ -100,6 +110,8 @@ interface CustomerResult {
   lastName: string;
   email: string | null;
   phone: string | null;
+  /** Their trade tier while it is on (GAP-06 part C), else null. */
+  tradeTier?: CustomerTradeTier | null;
 }
 
 interface FoundProduct {
@@ -108,6 +120,8 @@ interface FoundProduct {
   name?: string | null;
   baseRetail?: number | null;
   baseCost?: number | null;
+  /** Whether a customer's trade tier may discount it (GAP-06 part C). */
+  tradeEligible?: boolean;
 }
 
 interface GiftCardInfo {
@@ -290,6 +304,15 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     clear: clearCustomerSearch,
   } = useCustomerSearch({ limit: 5 });
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
+  // A trade customer's tier prices the cart's eligible lines (GAP-06 part C).
+  const tradeTier = selectedCustomer?.tradeTier ?? null;
+  // Picking, changing or removing the customer re-prices every line no one
+  // typed a price on, so taking the customer off restores retail. The server
+  // still judges each price it is sent (lib/sales/discountApproval.ts).
+  const chooseCustomer = (customer: CustomerResult | null) => {
+    setSelectedCustomer(customer);
+    setCart((prev) => prev.map((item) => priceLineForTier(item, customer?.tradeTier ?? null)));
+  };
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("TAKEN");
   // The delivery fee as typed, and whether staff typed it or it follows the
   // zone (DeliveryFeeField).
@@ -411,21 +434,28 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         }
         return [
           ...prev,
-          {
-            productId: product.id,
-            productNumber: product.productNumber,
-            name: product.name || product.productNumber,
-            price,
-            cost: product.baseCost ? Number(product.baseCost) : 0,
-            quantity: 1,
-            discounts: [],
-            isReturn: returnMode,
-            inventorySummary,
-          },
+          priceLineForTier(
+            {
+              productId: product.id,
+              productNumber: product.productNumber,
+              name: product.name || product.productNumber,
+              price,
+              retail: price,
+              tradeEligible: product.tradeEligible === true,
+              priceTyped: false,
+              tradePercent: null,
+              cost: product.baseCost ? Number(product.baseCost) : 0,
+              quantity: 1,
+              discounts: [],
+              isReturn: returnMode,
+              inventorySummary,
+            },
+            tradeTier,
+          ),
         ];
       });
     },
-    [returnMode],
+    [returnMode, tradeTier],
   );
 
   // A GC quick code opens the card form with the preset's amount; a bare GC
@@ -612,9 +642,12 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   const applyPriceEdit = (idx: number) => {
     const val = Number.parseFloat(editPriceValue);
     if (Number.isNaN(val) || val < 0) return;
-    const updated = [...cart];
-    updated[idx].price = val;
-    setCart(updated);
+    // A typed price is the cashier's: a trade tier no longer moves it.
+    setCart(
+      cart.map((item, i) =>
+        i === idx ? { ...item, price: val, priceTyped: true, tradePercent: null } : item,
+      ),
+    );
     setEditingPriceIdx(null);
     setEditPriceValue("");
   };
@@ -1059,9 +1092,14 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
               <p className="text-xs text-brand-gray">
                 {selectedCustomer.email || selectedCustomer.phone || "No contact info"}
               </p>
+              {tradeTier && (
+                <p className="text-xs text-brand-gold mt-0.5">
+                  Trade tier: {tradeTier.name} ({tradeTier.discountPercent}% off retail)
+                </p>
+              )}
             </div>
             <button
-              onClick={() => setSelectedCustomer(null)}
+              onClick={() => chooseCustomer(null)}
               className="text-xs text-brand-gray underline min-h-[44px] px-2"
             >
               Change
@@ -1086,7 +1124,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedCustomer(c);
+                      chooseCustomer(c);
                       clearCustomerSearch();
                     }}
                     className="w-full text-left px-3 py-3 text-sm hover:bg-brand-linen border-b border-brand-gray/10 last:border-0 min-h-[44px]"
@@ -1096,6 +1134,9 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                     </span>
                     {c.phone && <span className="text-brand-gray ml-2">{c.phone}</span>}
                     {c.email && <span className="text-brand-gray ml-2">{c.email}</span>}
+                    {c.tradeTier && (
+                      <span className="text-brand-gold ml-2">{c.tradeTier.name}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2133,6 +2174,11 @@ function CartRow({
           {item.discounts.length > 0 && !isEditingPrice && (
             <p className="text-[10px] text-brand-gray line-through">
               {fmt(item.price * item.quantity)}
+            </p>
+          )}
+          {item.tradePercent !== null && !isEditingPrice && (
+            <p className="text-[10px] text-brand-gold" title={`Retail ${fmt(item.retail)} each`}>
+              {tradeLabel(item.tradePercent)}
             </p>
           )}
         </div>

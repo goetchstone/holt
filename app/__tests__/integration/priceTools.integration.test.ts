@@ -670,6 +670,7 @@ describe("the store's pricing settings", () => {
       defaultMarkup: 2.2,
       markupPrecedence: "VENDOR_FIRST",
       retailRounding: "END_99",
+      tradeDiscountOnSaleItems: false,
     });
     const entry = await prisma.auditEntry.findFirstOrThrow({ where: { event: "SETTINGS_SAVED" } });
     expect(entry.summary).toBe("Changed: pricing.retailRounding");
@@ -682,6 +683,7 @@ describe("the store's pricing settings", () => {
       defaultMarkup: null,
       markupPrecedence: "CATEGORY_FIRST",
       retailRounding: "END_99",
+      tradeDiscountOnSaleItems: false,
     });
   });
 

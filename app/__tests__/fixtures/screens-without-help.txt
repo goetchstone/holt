@@ -86,7 +86,6 @@
 /app/admin/setup/stores
 /app/admin/setup/tax
 /app/admin/setup/tax/load-zips
-/app/admin/setup/trade-tiers
 /app/admin/staff
 /app/admin/stock-ledger
 /app/admin/tools

@@ -22,6 +22,7 @@ import { Printer, FileText, Plus, X, RefreshCw, Clock, UserCog, Search, Copy } f
 import Modal from "@/components/ui/Modal";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { tradeLabel } from "@/lib/pricing/tradeTier";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { computeTotalPaid, signedPaymentAmount } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
@@ -29,6 +30,7 @@ import { ApplyStoreCredit } from "./ApplyStoreCredit";
 import { DeliveryFeePanel } from "./DeliveryFeePanel";
 import { QuoteLineHold } from "./QuoteLineHold";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
+import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 import { lineSaving } from "@/lib/sales/discountPolicyShared";
 import { SPLIT_PERCENT_MAX, SPLIT_PERCENT_MIN, splitLabel } from "@/lib/commissionSplit";
 import { type OrderFlagRef, openingAlerts } from "@/lib/sales/orderFlagsShared";
@@ -57,6 +59,8 @@ interface LineItem {
   netPrice: number;
   /** The unit price it was listed at (GAP-06); null on older lines. */
   listPrice?: number | null;
+  /** The trade tier's percent it was sold at (GAP-06 part C); null when none. */
+  tradeDiscountPercent?: number | null;
   vatRate?: number;
   vatAmount?: number;
   source?: string;
@@ -217,11 +221,23 @@ function CustomerField({
 }) {
   const [searching, setSearching] = useState(false);
   const { query, setQuery, results, clear } = useCustomerSearch({ limit: 8 });
+  const { send: sendWithApproval, modal: approvalModal } = useDiscountApproval();
 
   const linkCustomer = async (custId: number) => {
     try {
-      await axios.put(`/api/sales/orders/${orderId}`, { customerId: custId });
-      toast.success("Customer linked");
+      // A quote is priced for its new customer's trade tier (GAP-06 part C):
+      // the server says what it moved and what it kept, and asks for a
+      // manager when a kept price is a deeper discount for this customer.
+      const sent = await sendWithApproval((discountApproval) =>
+        axios.put<{
+          repricing?: { repriced: number; kept: number; message: string };
+        }>(`/api/sales/orders/${orderId}`, { customerId: custId, discountApproval }),
+      );
+      if (!sent) return;
+      const r = sent.data.repricing;
+      toast.success(
+        r && r.repriced + r.kept > 0 ? `Customer linked. ${r.message}` : "Customer linked",
+      );
       setSearching(false);
       clear();
       onLinked();
@@ -257,6 +273,7 @@ function CustomerField({
 
   return (
     <div>
+      {approvalModal}
       <strong>Customer:</strong>
       <div className="mt-1 flex items-center gap-2">
         <input
@@ -1672,6 +1689,7 @@ function LineSaving({
   return (
     <p className="text-xs text-green-700">
       List {formatCurrency(item.listPrice * item.orderedQuantity)} · saved {formatCurrency(saved)}
+      {item.tradeDiscountPercent != null && ` · ${tradeLabel(item.tradeDiscountPercent)}`}
     </p>
   );
 }

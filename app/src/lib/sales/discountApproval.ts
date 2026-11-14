@@ -14,6 +14,9 @@
 //     PIN for fifteen minutes.
 //
 // What counts as a discount, and how it is measured, is discountPolicyShared.ts.
+// What a discount is measured from is catalogLinePolicies below: the line's list
+// price, or on a line a customer's trade tier applies to, the price the tier
+// entitles them to (GAP-06 part C).
 // Every route that can sell below list calls authorizeDiscount() before its
 // transaction, and logDiscountApproval() inside it.
 
@@ -23,6 +26,10 @@ import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
 import { verifyPassword } from "@/lib/auth/password";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { catalogRetailPrice } from "@/lib/pos/cartPricing";
+import { parsePricingConfig } from "@/lib/appSettings";
+import { toCents } from "@/lib/pricing/rounding";
+import { entitledUnitPrice, tradeTierPercent, type TradeSettings } from "@/lib/pricing/tradeTier";
+import { loadCustomerTradeTier, tradeEligibleProducts } from "@/lib/pricing/tradeEligibility";
 import {
   APPROVAL_REQUIRED,
   type ApprovalRequiredBody,
@@ -178,29 +185,161 @@ export async function authorizeDiscount(
 }
 
 /**
- * Each line's unit list price: a catalog product's retail price
- * (catalogRetailPrice), else the price the line was written at. A price typed
- * below retail is then a discount like any other, not a way around one.
+ * How the discount policy sees one line (GAP-06). `listUnit` is what the line
+ * is listed at and OrderLineItem.listPrice records: a catalog product's retail
+ * today, else the price the line was written at. `baselineUnit` is what a
+ * discount is measured from: the list, or on a line a customer's trade tier
+ * applies to, the price that tier entitles them to (lib/pricing/tradeTier.ts,
+ * DECISIONS 61). A tier is a manager-set entitlement, not a cashier's discount,
+ * so a sale at the entitled price needs no PIN, and anything below it is a
+ * discount like any other.
+ */
+export interface LinePolicy {
+  listUnit: number;
+  baselineUnit: number;
+  /**
+   * The customer's tier on this line, when it applies. The id is null only on
+   * a line whose tier has since been deleted: its percent is still what it got.
+   */
+  trade: { tierId: number | null; percent: number } | null;
+}
+
+/** A line with nothing but a price: listed at it, and measured from it. */
+export function listOnlyPolicy(listUnit: number): LinePolicy {
+  return { listUnit, baselineUnit: listUnit, trade: null };
+}
+
+/**
+ * Each catalog product's price today, and whether that is a sale price.
+ *
+ * THE SEAM for scheduled sales (GAP-06 part B, lib/pricing/salePrice.ts): until
+ * it lands a product sells at its retail and is never on sale; with it, this
+ * reads effectiveRetailFor and nothing else here changes.
+ */
+async function catalogRetailFor(
+  db: PrismaTx,
+  productIds: readonly number[],
+): Promise<Map<number, { price: number | null; onSale: boolean }>> {
+  const products =
+    productIds.length > 0
+      ? await db.product.findMany({
+          where: { id: { in: [...productIds] } },
+          select: { id: true, baseRetail: true },
+        })
+      : [];
+  return new Map(
+    products.map((p) => [
+      p.id,
+      {
+        price: catalogRetailPrice({
+          baseRetail: p.baseRetail == null ? null : Number(p.baseRetail),
+        }),
+        onSale: false,
+      },
+    ]),
+  );
+}
+
+/** Whether the store lets a tier discount a sale price too (AppSettings.pricing). */
+async function tradeSettings(db: PrismaTx): Promise<TradeSettings> {
+  // Single-org-per-deployment (docs/TENANCY.md): at most one AppSettings row.
+  const row = await db.appSettings.findFirst({ select: { pricing: true } });
+  return {
+    tradeDiscountOnSaleItems: parsePricingConfig(row?.pricing).tradeDiscountOnSaleItems,
+  };
+}
+
+/**
+ * Each line's policy (LinePolicy). A line with a catalog product is listed at
+ * that product's price today; when `customerId` has an active tier and the
+ * product may take it (lib/pricing/tradeEligibility.ts), its baseline is the
+ * entitled price. A line with no product, or a product with no price, takes
+ * its `fallback`: a price typed below that is then a discount like any other,
+ * not a way around one. Every writer that runs the policy comes through here
+ * (rule 42): create-from-cart, add-line, replace-line and duplicateOrder.
+ */
+export async function catalogLinePolicies(
+  db: PrismaTx,
+  lines: readonly { productId: number | null; fallback: LinePolicy }[],
+  opts: { customerId?: number | null } = {},
+): Promise<LinePolicy[]> {
+  const ids = [...new Set(lines.flatMap((l) => (l.productId == null ? [] : [l.productId])))];
+  const retail = await catalogRetailFor(db, ids);
+  const priced = lines.map((line) => {
+    const today = line.productId == null ? undefined : retail.get(line.productId);
+    return today?.price == null
+      ? null
+      : { productId: line.productId as number, listUnit: today.price, onSale: today.onSale };
+  });
+  const traded = await tradePolicies(
+    db,
+    priced.flatMap((p) => (p ? [p] : [])),
+    opts.customerId,
+  );
+  let next = 0;
+  return lines.map((line, i) => (priced[i] ? traded[next++] : line.fallback));
+}
+
+/**
+ * The policy of lines listed at these prices, under the customer's trade tier
+ * now. catalogLinePolicies prices a new line at the product's price today; a
+ * quote changing hands keeps the list price each line recorded and asks only
+ * what the new customer's tier makes of it (lib/sales/quoteTradePricing.ts).
+ * `onSale` is whether that price is a sale price.
+ */
+export async function tradePolicies(
+  db: PrismaTx,
+  lines: readonly { productId: number; listUnit: number; onSale: boolean }[],
+  customerId: number | null | undefined,
+): Promise<LinePolicy[]> {
+  const tier = lines.length > 0 ? await loadCustomerTradeTier(db, customerId) : null;
+  if (!tier) return lines.map((l) => listOnlyPolicy(l.listUnit));
+  const eligible = await tradeEligibleProducts(
+    db,
+    lines.map((l) => l.productId),
+  );
+  const settings = await tradeSettings(db);
+  return lines.map((line) => {
+    const entitled = entitledUnitPrice({
+      effectiveRetail: line.listUnit,
+      onSale: line.onSale,
+      tier: { discountPercent: tier.discountPercent, isActive: true },
+      vendorAllows: eligible.get(line.productId) === true,
+      settings,
+    });
+    if (entitled.tierPercent === null || entitled.price === null) {
+      return listOnlyPolicy(line.listUnit);
+    }
+    return {
+      listUnit: line.listUnit,
+      baselineUnit: entitled.price,
+      trade: { tierId: tier.id, percent: entitled.tierPercent },
+    };
+  });
+}
+
+/** Whether each of these products sells at a sale price today (the catalogRetailFor seam). */
+export async function onSaleToday(
+  db: PrismaTx,
+  productIds: readonly number[],
+): Promise<Map<number, boolean>> {
+  const retail = await catalogRetailFor(db, [...new Set(productIds)]);
+  return new Map([...retail].map(([id, r]) => [id, r.onSale]));
+}
+
+/**
+ * Each line's unit list price, for a caller with no customer to price for
+ * (catalogLinePolicies' listUnit).
  */
 export async function catalogListUnits(
   db: PrismaTx,
   lines: readonly { productId: number | null; unitPrice: number }[],
 ): Promise<number[]> {
-  const ids = [...new Set(lines.flatMap((l) => (l.productId == null ? [] : [l.productId])))];
-  const products =
-    ids.length > 0
-      ? await db.product.findMany({
-          where: { id: { in: ids } },
-          select: { id: true, baseRetail: true },
-        })
-      : [];
-  const retail = new Map(
-    products.map((p) => [
-      p.id,
-      catalogRetailPrice({ baseRetail: p.baseRetail == null ? null : Number(p.baseRetail) }),
-    ]),
+  const policies = await catalogLinePolicies(
+    db,
+    lines.map((l) => ({ productId: l.productId, fallback: listOnlyPolicy(l.unitPrice) })),
   );
-  return lines.map((l) => (l.productId == null ? null : retail.get(l.productId)) ?? l.unitPrice);
+  return policies.map((p) => p.listUnit);
 }
 
 /**
@@ -216,6 +355,102 @@ export function existingListUnit(line: {
   if (line.listPrice != null) return Number(line.listPrice);
   const qty = Math.abs(Number(line.orderedQuantity)) || 1;
   return Math.abs(Number(line.netPrice)) / qty;
+}
+
+/**
+ * An existing line's policy, from what it recorded: its list price, and when it
+ * was sold at a trade tier's price, that price as its baseline -- the tier as it
+ * was then, not whatever the customer's tier is now.
+ */
+export function existingLinePolicy(line: {
+  listPrice: unknown;
+  netPrice: unknown;
+  orderedQuantity: unknown;
+  tradeTierId?: number | null;
+  tradeDiscountPercent?: unknown;
+}): LinePolicy {
+  const listUnit = existingListUnit(line);
+  const percent = tradeTierPercent(
+    line.tradeDiscountPercent == null
+      ? null
+      : { discountPercent: Number(line.tradeDiscountPercent) },
+  );
+  if (line.listPrice == null || percent === null) return listOnlyPolicy(listUnit);
+  return {
+    listUnit,
+    baselineUnit: toCents(listUnit * (1 - percent / 100)) / 100,
+    trade: { tierId: line.tradeTierId ?? null, percent },
+  };
+}
+
+/** An existing line as a policy reads it: what it recorded. */
+export interface RecordedLine {
+  productId: number | null;
+  listPrice: unknown;
+  netPrice: unknown;
+  orderedQuantity: unknown;
+  tradeTierId?: number | null;
+  tradeDiscountPercent?: unknown;
+}
+
+/**
+ * Existing lines' policies for a customer: what each line recorded
+ * (existingLinePolicy), or -- where it is lower -- what that customer's tier
+ * makes of the list price the line recorded. A line whose price was raised
+ * above its trade price no longer records its tier, yet the customer it is sold
+ * to is still entitled to it: bringing the price back down is not a discount.
+ * And a quote changing hands asks what each line was measured from under the
+ * customer it is leaving (lib/sales/quoteTradePricing.ts).
+ */
+export async function currentLinePolicies(
+  db: PrismaTx,
+  lines: readonly RecordedLine[],
+  customerId: number | null | undefined,
+): Promise<LinePolicy[]> {
+  const policies = lines.map(existingLinePolicy);
+  const tierable = lines.flatMap((line, i) =>
+    line.productId != null && line.listPrice != null
+      ? [{ i, productId: line.productId, listUnit: Number(line.listPrice) }]
+      : [],
+  );
+  if (tierable.length === 0 || customerId == null) return policies;
+  const onSale = await onSaleToday(
+    db,
+    tierable.map((l) => l.productId),
+  );
+  const tiered = await tradePolicies(
+    db,
+    tierable.map((l) => ({
+      productId: l.productId,
+      listUnit: l.listUnit,
+      onSale: onSale.get(l.productId) === true,
+    })),
+    customerId,
+  );
+  tierable.forEach((l, k) => {
+    if (tiered[k].baselineUnit < policies[l.i].baselineUnit - 0.005) policies[l.i] = tiered[k];
+  });
+  return policies;
+}
+
+/**
+ * The trade columns a written line records (OrderLineItem.tradeTierId,
+ * tradeDiscountPercent): set when the line got its tier -- sold, not given
+ * back, at no more than the entitled price -- so a report or a later edit knows
+ * why it is below list. Null otherwise.
+ */
+export function recordedTrade(
+  policy: LinePolicy,
+  line: { quantity: number; netPrice: number },
+): { tradeTierId: number | null; tradeDiscountPercent: number | null } {
+  const none = { tradeTierId: null, tradeDiscountPercent: null };
+  if (!policy.trade || !(line.quantity > 0)) return none;
+  const entitledTotal = toCents(policy.baselineUnit * line.quantity) / 100;
+  if (line.netPrice > entitledTotal + 0.005) return none;
+  return {
+    tradeTierId: policy.trade.tierId,
+    tradeDiscountPercent: policy.trade.percent,
+  };
 }
 
 /** Record on the order's history who approved a discount, and how deep. */

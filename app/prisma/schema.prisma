@@ -3387,6 +3387,15 @@ model OrderLineItem {
   productId       Int?
   product         Product?   @relation(fields: [productId], references: [id])
 
+  /// The customer's trade tier this line was sold under, and its percent then
+  /// (GAP-06 part C, lib/pricing/tradeTier.ts): set when the line got the tier's
+  /// price, so a report or a later edit knows why it is below listPrice. The
+  /// percent is the fact; the tier can change or be turned off afterwards.
+  /// 0 < percent <= 100 (CHECK in migration 20261114200000_trade_tier_pricing).
+  tradeTierId          Int?
+  tradeTier            TradeTier? @relation(fields: [tradeTierId], references: [id], onDelete: SetNull)
+  tradeDiscountPercent Decimal?   @db.Decimal(5, 2)
+
   taxDistrictId Int?
   taxDistrict   TaxDistrict? @relation(fields: [taxDistrictId], references: [id])
 
@@ -3448,6 +3457,7 @@ model OrderLineItem {
 
   @@unique([salesOrderId, lineNumber])
   @@index([productId])
+  @@index([tradeTierId])
 }
 
 enum InvoiceStatus {
@@ -5285,7 +5295,9 @@ model TradeTier {
   sortOrder       Int     @default(0)
   isActive        Boolean @default(true)
 
-  customers Customer[]
+  customers      Customer[]
+  /// The lines sold under this tier (OrderLineItem.tradeTierId).
+  orderLineItems OrderLineItem[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
