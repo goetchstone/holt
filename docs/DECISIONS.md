@@ -1894,6 +1894,10 @@ transactional and recorded (2026-11-11, see 57 and 58).
   answer on the store's day, read in the same function that decides the line's list and baseline
   (`catalogLinePolicies`, rule 42), and handed to the screens by the product lookups beside the setting
   (`lib/pricing/screenPricing.ts`), so the price a screen sends is the one the server accepts.
+  A line records whether its list was a sale price (`OrderLineItem.listOnSale`, written with `listPrice` by
+  `recordedList`), and a price edit or a quote changing hands asks the tier about the list with that recorded flag,
+  never with whether the item is on sale today. So the rule holds after a sale ends: a line listed at a sale price
+  still takes the tier only when the store says so, and one listed at the regular price takes it during a sale.
 - **A house call takes the customer's tier.** Its service line is a catalog product sold to that customer, so the same
   rules apply: the tier when the vendor allows it, a sale price only when the store says so.
 - **It is an entitlement, not a cashier's discount.** The discount policy measures from the entitled price, so a trade

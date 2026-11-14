@@ -27,6 +27,7 @@ import {
   currentLinePolicies,
   existingLinePolicy,
   logDiscountApproval,
+  recordedList,
   recordedTrade,
 } from "@/lib/sales/discountApproval";
 import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
@@ -465,7 +466,7 @@ export async function handler(
               partNo: replacement.partNo || lineItem.partNo,
               orderedQuantity: replQuantity,
               netPrice: replNetPrice,
-              listPrice: replPolicy.listUnit,
+              ...recordedList(replPolicy),
               ...recordedTrade(replPolicy, { quantity: replQuantity, netPrice: replNetPrice }),
               cost: 0,
               barcode: "",

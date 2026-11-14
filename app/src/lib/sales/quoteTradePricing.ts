@@ -9,7 +9,9 @@
 // trade price it recorded -- is re-priced. A line someone typed a price on, or
 // discounted, keeps its price and is counted as kept. The list price stays what
 // the line recorded (no retail is re-read), so changing the customer moves
-// only the tier. The caller re-prices only a quote no money has touched, the
+// only the tier, and whether the tier may come off a sale price is asked of
+// the sale flag the line recorded with its list (OrderLineItem.listOnSale).
+// The caller re-prices only a quote no money has touched, the
 // same rule as the tax (orders/[id].ts).
 //
 // A kept line is still judged for its new customer. Its discount was measured
@@ -31,7 +33,6 @@ import {
   currentLinePolicies,
   existingLinePolicy,
   logDiscountApproval,
-  onSaleToday,
   recordedTrade,
   tradePolicies,
 } from "@/lib/sales/discountApproval";
@@ -100,6 +101,7 @@ export async function planQuoteTrade(
           orderedQuantity: true,
           netPrice: true,
           listPrice: true,
+          listOnSale: true,
           tradeTierId: true,
           tradeDiscountPercent: true,
         },
@@ -110,18 +112,18 @@ export async function planQuoteTrade(
   if (lines.length === 0) return { lines: [], percent: 0 };
 
   // What each line was measured from under the customer it is leaving, and
-  // what the new customer's tier makes of the list price it recorded.
+  // what the new customer's tier makes of the list price it recorded -- with
+  // the sale flag recorded beside that list, not whether a sale is on today: a
+  // quote written at a sale price stays a sale-price list after the sale ends,
+  // and one written at the regular price is not a sale price because a sale
+  // started since.
   const before = await currentLinePolicies(db, lines, fromCustomerId);
-  const onSale = await onSaleToday(
-    db,
-    lines.map((l) => l.productId as number),
-  );
   const after = await tradePolicies(
     db,
     lines.map((l) => ({
       productId: l.productId as number,
       listUnit: Number(l.listPrice),
-      onSale: onSale.get(l.productId as number) === true,
+      onSale: l.listOnSale,
     })),
     toCustomerId,
   );

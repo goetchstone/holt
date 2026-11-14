@@ -23,7 +23,7 @@ The tier comes off an item's retail, rounded to the cent. It doesn't apply to:
 - protection plans, gift cards and delivery fees;
 - returns.
 
-**Items on sale:** by default the tier takes nothing more off an item that's on sale: a trade customer pays the sale price, like anyone else, with no manager needed. Taking the tier off the sale price as well would then be a discount, and follows your store's discount rules. To have the tier come off the sale price too, tick **Trade tiers apply to items on sale** in **Admin › Settings › Pricing**; the register and new quotes then price a trade customer's sale items at the sale price less their tier, with no manager needed.
+**Items on sale:** by default the tier takes nothing more off an item that's on sale: a trade customer pays the sale price, like anyone else, with no manager needed. Taking the tier off the sale price as well would then be a discount, and follows your store's discount rules. That stays true after the sale ends for anything sold or quoted at the sale price: changing its price later, or moving a quote to a trade customer, doesn't take the tier off a sale price either. Something quoted at its regular price gets the tier as usual, even if a sale has started since. To have the tier come off the sale price too, tick **Trade tiers apply to items on sale** in **Admin › Settings › Pricing**; the register and new quotes then price a trade customer's sale items at the sale price less their tier, with no manager needed.
 
 **House calls:** a house call booked for a trade customer is priced at their tier too, under the same rules.
 

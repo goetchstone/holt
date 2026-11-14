@@ -413,7 +413,7 @@ describe("a sale price and the store's setting", () => {
     const w = await world();
     const onSale = [{ productId: w.sofa.id, listUnit: 600, onSale: true }];
     const [off] = await tradePolicies(prisma, onSale, w.trade.id);
-    expect(off).toEqual({ listUnit: 600, baselineUnit: 600, trade: null });
+    expect(off).toEqual({ listUnit: 600, listOnSale: true, baselineUnit: 600, trade: null });
 
     await prisma.appSettings.update({
       where: { organizationId: DEFAULT_ORG_ID },
@@ -422,6 +422,7 @@ describe("a sale price and the store's setting", () => {
     const [on] = await tradePolicies(prisma, onSale, w.trade.id);
     expect(on).toEqual({
       listUnit: 600,
+      listOnSale: true,
       baselineUnit: 480,
       trade: { tierId: w.designer.id, percent: 20 },
     });

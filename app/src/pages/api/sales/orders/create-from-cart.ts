@@ -42,6 +42,7 @@ import {
   catalogLinePolicies,
   listOnlyPolicy,
   logDiscountApproval,
+  recordedList,
   recordedTrade,
 } from "@/lib/sales/discountApproval";
 import { type DiscountLine, largestDiscountPercent } from "@/lib/sales/discountPolicyShared";
@@ -374,7 +375,7 @@ export async function handler(
           netPrice: priced.items[idx].netPrice,
           // What it was listed at, so the saving can be shown (GAP-06), and
           // the trade tier when the line got its price.
-          listPrice: policies[idx].listUnit,
+          ...recordedList(policies[idx]),
           ...(item.isReturn
             ? {}
             : recordedTrade(policies[idx], {

@@ -40,6 +40,7 @@ import {
   catalogLinePolicies,
   existingListUnit,
   listOnlyPolicy,
+  recordedList,
   recordedTrade,
 } from "@/lib/sales/discountApproval";
 import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
@@ -235,7 +236,7 @@ export async function duplicateOrder(
           barcode: "",
           orderedQuantity: l.orderedQuantity,
           netPrice: priced.items[i].netPrice,
-          listPrice: policies[i].listUnit,
+          ...recordedList(policies[i]),
           ...recordedTrade(policies[i], {
             quantity: Number(l.orderedQuantity),
             netPrice: priced.items[i].netPrice,

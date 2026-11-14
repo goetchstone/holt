@@ -3427,6 +3427,13 @@ model OrderLineItem {
   /// (lib/sales/discountPolicyShared.ts). Null on lines written before it was
   /// recorded (2026-10-30).
   listPrice       Decimal?
+  /// Whether listPrice was a scheduled sale price when the line was written
+  /// (lib/pricing/salePrice.ts, DECISIONS 60). The list and its sale flag
+  /// travel together: a later price edit or a quote changing hands asks
+  /// whether a trade tier may come off this line's list from this, never from
+  /// whether the product happens to be on sale today (DECISIONS 61). Written
+  /// with listPrice through recordedList (lib/sales/discountApproval.ts).
+  listOnSale      Boolean    @default(false)
   cost            Decimal
   productId       Int?
   product         Product?   @relation(fields: [productId], references: [id])

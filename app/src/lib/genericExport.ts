@@ -342,6 +342,7 @@ export const EXPORT_ENTITIES: readonly ExportEntityDef[] = [
       "orderedQuantity",
       "netPrice",
       "listPrice",
+      "listOnSale",
       "tradeTierId",
       "tradeDiscountPercent",
       "cost",

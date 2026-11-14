@@ -37,6 +37,8 @@ import { catalogRetailPrice } from "@/lib/pos/cartPricing";
 import { duplicateOrder } from "@/lib/sales/duplicateOrder";
 import { handler as createFromCart } from "@/pages/api/sales/orders/create-from-cart";
 import { handler as addLine } from "@/pages/api/sales/orders/[id]/line-items";
+import { handler as lineRoute } from "@/pages/api/sales/orders/[id]/line-items/[lineItemId]";
+import { handler as orderRoute } from "@/pages/api/sales/orders/[id]";
 import customersRoute from "@/pages/api/customers/index";
 import productsRoute from "@/pages/api/products/index";
 import findRoute from "@/pages/api/products/find-by-identifier";
@@ -76,10 +78,15 @@ function makeRes() {
 }
 
 /** A route's handler as a cashier who may discount nothing on their own. */
-async function call(handler: Handler, query: Record<string, string>, body: unknown) {
+async function call(
+  handler: Handler,
+  query: Record<string, string>,
+  body: unknown,
+  method = "POST",
+) {
   const res = makeRes();
   const req = {
-    method: "POST",
+    method,
     query,
     body,
     cookies: {},
@@ -184,6 +191,14 @@ async function onSaleToday(items: { productId: number; salePrice: number }[]) {
   });
 }
 
+/** The sale ends: a manager ends it early (lib/pricing/salePrice.ts). */
+async function endSale(saleId: number) {
+  await prisma.sale.update({
+    where: { id: saleId },
+    data: { endedEarlyAt: new Date(), endedEarlyBy: "manager" },
+  });
+}
+
 /** A sale at the register for `customerId`, as the cashier. */
 function ring(w: World, customerId: number, productId: number, unitPrice: number) {
   return call(
@@ -203,6 +218,25 @@ async function lineOf(orderId: number) {
     orderBy: { lineNumber: "asc" },
   });
   return money(line);
+}
+
+/** The cashier re-enters the price of an order's first line. */
+async function editPrice(orderId: number, unitPrice: number) {
+  const line = await prisma.orderLineItem.findFirstOrThrow({
+    where: { salesOrderId: orderId },
+    orderBy: { lineNumber: "asc" },
+  });
+  return call(
+    lineRoute,
+    { id: String(orderId), lineItemId: String(line.id) },
+    { action: "update", unitPrice },
+    "PUT",
+  );
+}
+
+/** The cashier hands a quote to another customer. */
+function relink(orderId: number, customerId: number) {
+  return call(orderRoute, { id: String(orderId) }, { customerId }, "PUT");
 }
 
 const money = (line: {
@@ -447,5 +481,198 @@ describe("the screen and the server agree on a sale item", () => {
     expect(sentOn.status).toBe(201);
     expect(await lineOf(sentOn.body.id)).toMatchObject({ net: 480, tradePercent: 20 });
     expect(await approvals()).toBe(0);
+  });
+});
+
+// The two writers that judge a line already written -- a price edit
+// (currentLinePolicies) and a quote changing hands (planQuoteTrade) -- read the
+// list the line recorded with the sale flag recorded beside it
+// (OrderLineItem.listOnSale), never with whether the product is on sale today.
+// Paired with today's flag, a sale-price list read after the sale ended would
+// take the tier off the sale price with no PIN; a regular-price list read
+// while a sale is on would lose the tier the customer is entitled to.
+
+describe("re-entering the price of a line sold at a sale price", () => {
+  it("during the sale: the tier off the sale price needs a PIN with the setting off, and none with it on", async () => {
+    const w = await world();
+    await onSaleToday([{ productId: w.sofa.id, salePrice: 600 }]);
+    const sold = await ring(w, w.trade.id, w.sofa.id, 600);
+    expect(sold.status).toBe(201);
+
+    const off = await editPrice(sold.body.id, 480);
+    expect(off.status).toBe(403);
+    expect(off.body).toMatchObject({ code: "DISCOUNT_APPROVAL_REQUIRED", percent: 20 });
+
+    await tierOnSaleItems(true);
+    const on = await editPrice(sold.body.id, 480);
+    expect(on.status).toBe(200);
+    expect(await lineOf(sold.body.id)).toEqual({
+      list: 600,
+      net: 480,
+      tradePercent: 20,
+      tierId: w.designer.id,
+    });
+    expect(await approvals()).toBe(0);
+  });
+
+  it("after the sale ends, with the setting off: the tier off the recorded sale price still needs a PIN", async () => {
+    const w = await world();
+    const sale = await onSaleToday([{ productId: w.sofa.id, salePrice: 600 }]);
+    const sold = await ring(w, w.trade.id, w.sofa.id, 600);
+    expect(sold.status).toBe(201);
+    await endSale(sale.id);
+
+    const edit = await editPrice(sold.body.id, 480);
+    expect(edit.status).toBe(403);
+    expect(edit.body).toMatchObject({ code: "DISCOUNT_APPROVAL_REQUIRED", percent: 20 });
+    expect(await lineOf(sold.body.id)).toEqual({
+      list: 600,
+      net: 600,
+      tradePercent: null,
+      tierId: null,
+    });
+  });
+});
+
+describe("a quote changing hands across a sale", () => {
+  it("a walk-in's quote written at the sale price, handed to a trade customer during the sale and after it: no tier with the setting off", async () => {
+    const w = await world();
+    const sale = await onSaleToday([{ productId: w.sofa.id, salePrice: 600 }]);
+    const quote = await ring(w, w.walkIn.id, w.sofa.id, 600);
+    expect(quote.status).toBe(201);
+
+    const during = await relink(quote.body.id, w.trade.id);
+    expect(during.status).toBe(200);
+    expect(await lineOf(quote.body.id)).toEqual({
+      list: 600,
+      net: 600,
+      tradePercent: null,
+      tierId: null,
+    });
+
+    // Back to the walk-in, the sale ends, and it goes to the trade customer again.
+    expect((await relink(quote.body.id, w.walkIn.id)).status).toBe(200);
+    await endSale(sale.id);
+    const after = await relink(quote.body.id, w.trade.id);
+    expect(after.status).toBe(200);
+    expect(after.body.repricing).toMatchObject({ repriced: 0 });
+    expect(await lineOf(quote.body.id)).toEqual({
+      list: 600,
+      net: 600,
+      tradePercent: null,
+      tierId: null,
+    });
+    expect(await approvals()).toBe(0);
+  });
+
+  it("with the setting on, the same quote takes the tier off its sale price, after the sale too", async () => {
+    const w = await world();
+    const sale = await onSaleToday([{ productId: w.sofa.id, salePrice: 600 }]);
+    await tierOnSaleItems(true);
+    const quote = await ring(w, w.walkIn.id, w.sofa.id, 600);
+    expect(quote.status).toBe(201);
+    await endSale(sale.id);
+
+    const res = await relink(quote.body.id, w.trade.id);
+    expect(res.status).toBe(200);
+    expect(res.body.repricing).toMatchObject({ repriced: 1, kept: 0 });
+    expect(await lineOf(quote.body.id)).toEqual({
+      list: 600,
+      net: 480,
+      tradePercent: 20,
+      tierId: w.designer.id,
+    });
+    expect(await approvals()).toBe(0);
+  });
+
+  it("a quote written at the regular price takes the tier when handed over during a sale", async () => {
+    const w = await world();
+    const quote = await ring(w, w.walkIn.id, w.sofa.id, 1000);
+    expect(quote.status).toBe(201);
+    await onSaleToday([{ productId: w.sofa.id, salePrice: 600 }]);
+
+    const res = await relink(quote.body.id, w.trade.id);
+    expect(res.status).toBe(200);
+    expect(res.body.repricing).toMatchObject({ repriced: 1, kept: 0 });
+    expect(await lineOf(quote.body.id)).toEqual({
+      list: 1000,
+      net: 800,
+      tradePercent: 20,
+      tierId: w.designer.id,
+    });
+    expect(await approvals()).toBe(0);
+  });
+});
+
+describe("every writer records whether its list was a sale price", () => {
+  const flags = (orderId: number) =>
+    prisma.orderLineItem
+      .findMany({ where: { salesOrderId: orderId }, orderBy: { lineNumber: "asc" } })
+      .then((lines) => lines.map((l) => l.listOnSale));
+
+  it("the register, add-line, replace, duplicate and a house call", async () => {
+    const w = await world();
+    await makeStaff("mia", "MANAGER");
+    const regular = await ring(w, w.walkIn.id, w.sofa.id, 1000);
+    expect(await flags(regular.body.id)).toEqual([false]);
+
+    await onSaleToday([
+      { productId: w.sofa.id, salePrice: 600 },
+      { productId: w.visit.id, salePrice: 150 },
+    ]);
+    const atSale = await ring(w, w.walkIn.id, w.sofa.id, 600);
+    expect(await flags(atSale.body.id)).toEqual([true]);
+
+    const added = await call(
+      addLine,
+      { id: String(regular.body.id) },
+      { productName: "Sofa", productId: w.sofa.id, quantity: 1, unitPrice: 600 },
+    );
+    expect(added.status).toBe(201);
+    expect(await flags(regular.body.id)).toEqual([false, true]);
+
+    // Replacing a regular-price line with no product keeps its list and its flag.
+    const [first] = await prisma.orderLineItem.findMany({
+      where: { salesOrderId: regular.body.id },
+      orderBy: { lineNumber: "asc" },
+    });
+    const replaced = await call(
+      lineRoute,
+      { id: String(regular.body.id), lineItemId: String(first.id) },
+      { action: "replace", replacement: { productName: "Custom sofa", unitPrice: 1000 } },
+      "PUT",
+    );
+    expect(replaced.status).toBe(200);
+    const replacement = await prisma.orderLineItem.findUniqueOrThrow({
+      where: { id: replaced.body.replacementId },
+    });
+    expect({ list: Number(replacement.listPrice), onSale: replacement.listOnSale }).toEqual({
+      list: 1000,
+      onSale: false,
+    });
+
+    const settings = await getAppSettings();
+    const copy = await prisma.$transaction((tx) =>
+      duplicateOrder(tx, {
+        orderId: atSale.body.id,
+        actor: { email: "manager@example.com", displayName: "manager" },
+        settings,
+      }),
+    );
+    expect(await flags(copy.id)).toEqual([true]);
+
+    const booked = await asStaff(
+      houseCallsRoute,
+      "mia",
+      "POST",
+      {},
+      { customerId: String(w.walkIn.id) },
+    );
+    expect(booked.status).toBe(201);
+    const visit = await prisma.orderLineItem.findFirstOrThrow({
+      where: { productName: "HC-VISIT" },
+      orderBy: { id: "desc" },
+    });
+    expect(visit.listOnSale).toBe(true);
   });
 });

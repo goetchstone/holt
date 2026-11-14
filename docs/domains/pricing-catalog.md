@@ -374,9 +374,12 @@ while the customer is still unknown is re-priced when one is picked.
 **The discount policy.** `lib/sales/discountApproval.ts`. A tier is an entitlement a
 manager set, not a cashier's discount:
 
-- `LinePolicy { listUnit, baselineUnit, trade }`. `listUnit` stays the retail and is
-  what `OrderLineItem.listPrice` records, so the order screen and receipts show the
-  whole saving. `baselineUnit` is the entitled price, and a discount is measured from
+- `LinePolicy { listUnit, listOnSale, baselineUnit, trade }`. `listUnit` stays the
+  retail and is what `OrderLineItem.listPrice` records, so the order screen and
+  receipts show the whole saving. `listOnSale` is whether that list is a sale price,
+  recorded beside it as `OrderLineItem.listOnSale` (migration
+  `20261114210000_line_list_on_sale`): every writer spreads `recordedList(policy)`,
+  so the two are always written together. `baselineUnit` is the entitled price, and a discount is measured from
   it: a sale at the trade price needs no manager's PIN; anything below it is a
   discount like any other.
 - `catalogLinePolicies(db, lines, { customerId, today })` is the one function that
@@ -388,7 +391,10 @@ manager set, not a cashier's discount:
   custom cart line has no product to price, so it takes its own price.
 - A price edit on an existing line measures from `currentLinePolicies`: what the line
   recorded (`existingLinePolicy`), or what the order's customer's tier makes of the
-  list price it recorded, whichever is lower. Raising the price above the entitled
+  list price it recorded, whichever is lower. The tier is asked about that list with
+  the sale flag the line recorded beside it (`listOnSale`), never whether the product
+  is on sale today: a list written at a sale price stays one after the sale ends, and
+  a list written at the regular price isn't one because a sale started since. Raising the price above the entitled
   price clears the line's tier; bringing it back down to the entitled price is no
   discount and records the tier again (a customer whose tier has since gone keeps
   only what the line recorded).
@@ -414,7 +420,11 @@ doesn't set it, so the screens send the entitled `unitPrice`.
 Quote keep each line's `retail` (its price today, the sale price during a sale),
 `tradeEligible`, `onSale`, `tradeDiscountOnSaleItems`, `priceTyped` and `tradePercent`
 (`tierFieldsFromLookup`); picking, changing or removing the customer re-prices every
-untyped line through `priceLineForTier`, so taking the customer off restores retail. A
+untyped line through `priceLineForTier`, so taking the customer off restores retail.
+The register's scan and search fetch a product's stock before adding it, so
+`addProductToCart` prices the new line inside the cart updater from `tradeTierRef`,
+which `chooseCustomer` (the only setter of the customer) sets on every pick: a
+customer picked while the fetch is out prices that line too. A
 typed price sets `priceTyped`. A tier-priced sale line still says SALE: the screens
 pass an untyped line's `retail` to `lineSale`. The order screen shows "Trade N%" beside
 a line's saving.
@@ -424,7 +434,11 @@ quote with no payment (a pending one included) runs `repriceQuoteTrade`
 (`lib/sales/quoteTradePricing.ts`) and then `rerateQuoteTax`. Only lines still at the
 price they were written at (their list, or the trade price they recorded) are
 re-priced; a typed or discounted line keeps its price. Each re-priced line keeps its
-`listPrice` and gets a PRICE_CHANGE history entry. The response carries
+`listPrice` and gets a PRICE_CHANGE history entry. The new customer's tier is asked
+about each line's recorded list with its recorded `listOnSale`, as a price edit is:
+with the setting off, a walk-in's quote written at a sale price gets no tier when
+handed to a trade customer, during the sale or after it ends, and one written at the
+regular price gets the tier even while a sale is on. The response carries
 `repricing { repriced, kept, message }`, which the order screen shows.
 
 A kept line is still judged for its new customer (`planQuoteTrade`, before the
@@ -465,16 +479,20 @@ in its transaction.
 (every writer, the quote re-price, the route, the vendor audit and the setting, against
 the real database), `__tests__/integration/tradeTierSales.integration.test.ts` (a trade
 customer and a sale item with the setting off and on, at the register, adding a line,
-duplicate and a house call, and the lookups' price passing the server with no PIN).
+duplicate and a house call, and the lookups' price passing the server with no PIN; a
+price edit and a quote changing hands during a sale and after it ends, judged by the
+`listOnSale` each line recorded; every writer recording it),
+`__tests__/posTradeTierRef.test.ts` (the register prices a line added after a stock
+fetch for the customer picked during it: source-text tripwire, the unit project has no
+DOM renderer).
 
 **Left open:** a tier on proposals' typed B2B prices, per-category tier exclusions, a
 tier on configured lines, carrying a tier through a customer merge, billing invoices
-(the tRPC billing router). An existing line (a price edit, a quote changing hands)
-reads whether its product is on sale today, not whether it was when the line was
-written: no line records that it was sold at a sale price. So with the setting off, a
-line written at the regular price while its product is on sale today gets no tier from
-the customer's tier now (it keeps any it recorded), and one written at a sale price
-since ended can.
+(the tRPC billing router). Lines written before `listOnSale` existed were set by the
+migration, failing closed: a line whose list is below its product's regular price, or
+equals a price one of the product's sales set, reads as listed on sale. A product
+whose regular price was raised since such a line was written can read as on sale when
+it wasn't; that line then takes no tier off its list unless the store's setting is on.
 
 ## Grade auto-extension
 

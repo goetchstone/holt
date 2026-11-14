@@ -16,6 +16,7 @@ import {
   catalogLinePolicies,
   listOnlyPolicy,
   logDiscountApproval,
+  recordedList,
   recordedTrade,
 } from "@/lib/sales/discountApproval";
 import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
@@ -147,7 +148,7 @@ export async function handler(
             partNo: partNo || null,
             orderedQuantity: quantity,
             netPrice,
-            listPrice: policy.listUnit,
+            ...recordedList(policy),
             ...recordedTrade(policy, { quantity: Number(quantity), netPrice }),
             // itemCost is per-unit (the cost sent, or the product's cost);
             // OrderLineItem.cost stores the LINE total, like netPrice.

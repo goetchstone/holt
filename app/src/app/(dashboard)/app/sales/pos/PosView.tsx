@@ -328,12 +328,19 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
   // A trade customer's tier prices the cart's eligible lines (GAP-06 part C).
   const tradeTier = selectedCustomer?.tradeTier ?? null;
+  // The tier as of the latest customer pick, for a line added after an await:
+  // a scan or search fetches stock before it adds, and a customer picked while
+  // that fetch is out must price the new line too. A closure over `tradeTier`
+  // would still hold the tier from before the pick and add the line at retail.
+  const tradeTierRef = useRef<CustomerTradeTier | null>(null);
   // Picking, changing or removing the customer re-prices every line no one
   // typed a price on, so taking the customer off restores retail. The server
   // still judges each price it is sent (lib/sales/discountApproval.ts).
   const chooseCustomer = (customer: CustomerResult | null) => {
+    const tier = customer?.tradeTier ?? null;
+    tradeTierRef.current = tier;
     setSelectedCustomer(customer);
-    setCart((prev) => prev.map((item) => priceLineForTier(item, customer?.tradeTier ?? null)));
+    setCart((prev) => prev.map((item) => priceLineForTier(item, tier)));
   };
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("TAKEN");
   // The delivery fee as typed, and whether staff typed it or it follows the
@@ -442,6 +449,8 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
 
   const addProductToCart = useCallback(
     (product: FoundProduct, price: number, inventorySummary: InventorySummary[]) => {
+      // Priced inside the updater from the latest customer pick, never from
+      // this callback's render: the caller may have awaited stock first.
       setCart((prev) => {
         const existingIdx = prev.findIndex(
           (item) => item.productId === product.id && item.isReturn === returnMode,
@@ -469,12 +478,12 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
               isReturn: returnMode,
               inventorySummary,
             },
-            tradeTier,
+            tradeTierRef.current,
           ),
         ];
       });
     },
-    [returnMode, tradeTier],
+    [returnMode],
   );
 
   // A GC quick code opens the card form with the preset's amount; a bare GC
@@ -928,7 +937,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     setCart([]);
     setCardLines([]);
     setCardDraft(null);
-    setSelectedCustomer(null);
+    chooseCustomer(null);
     setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
     setReturnMode(false);
@@ -948,7 +957,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     setCart([]);
     setCardLines([]);
     setCardDraft(null);
-    setSelectedCustomer(null);
+    chooseCustomer(null);
     setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
     setReturnMode(false);

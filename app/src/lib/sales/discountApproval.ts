@@ -200,6 +200,13 @@ export async function authorizeDiscount(
  */
 export interface LinePolicy {
   listUnit: number;
+  /**
+   * Whether `listUnit` is a scheduled sale price (DECISIONS 60): recorded on
+   * the line beside it (OrderLineItem.listOnSale, recordedList), so a later
+   * edit or a quote changing hands asks the tier about the list it recorded,
+   * never about whether the product is on sale today.
+   */
+  listOnSale: boolean;
   baselineUnit: number;
   /**
    * The customer's tier on this line, when it applies. The id is null only on
@@ -209,8 +216,17 @@ export interface LinePolicy {
 }
 
 /** A line with nothing but a price: listed at it, and measured from it. */
-export function listOnlyPolicy(listUnit: number): LinePolicy {
-  return { listUnit, baselineUnit: listUnit, trade: null };
+export function listOnlyPolicy(listUnit: number, listOnSale = false): LinePolicy {
+  return { listUnit, listOnSale, baselineUnit: listUnit, trade: null };
+}
+
+/**
+ * The list columns a written line records (OrderLineItem.listPrice,
+ * listOnSale): its list, and whether that list was a sale price. Every writer
+ * spreads this, so the two are always written together.
+ */
+export function recordedList(policy: LinePolicy): { listPrice: number; listOnSale: boolean } {
+  return { listPrice: policy.listUnit, listOnSale: policy.listOnSale };
 }
 
 /**
@@ -286,10 +302,13 @@ export async function catalogLinePolicies(
 
 /**
  * The policy of lines listed at these prices, under the customer's trade tier
- * now. catalogLinePolicies prices a new line at the product's price today; a
- * quote changing hands keeps the list price each line recorded and asks only
- * what the new customer's tier makes of it (lib/sales/quoteTradePricing.ts).
- * `onSale` is whether that price is a sale price.
+ * now. catalogLinePolicies prices a new line at the product's price today; an
+ * existing line (a price edit, a quote changing hands) keeps the list price it
+ * recorded and asks only what the customer's tier makes of it
+ * (currentLinePolicies, lib/sales/quoteTradePricing.ts). `onSale` is whether
+ * that price is a sale price: today's answer for a new line, and for an
+ * existing one what the line recorded beside its list (listOnSale) -- never
+ * today's answer paired with a list from another day.
  */
 export async function tradePolicies(
   db: PrismaTx,
@@ -297,7 +316,7 @@ export async function tradePolicies(
   customerId: number | null | undefined,
 ): Promise<LinePolicy[]> {
   const tier = lines.length > 0 ? await loadCustomerTradeTier(db, customerId) : null;
-  if (!tier) return lines.map((l) => listOnlyPolicy(l.listUnit));
+  if (!tier) return lines.map((l) => listOnlyPolicy(l.listUnit, l.onSale));
   const eligible = await tradeEligibleProducts(
     db,
     lines.map((l) => l.productId),
@@ -312,24 +331,15 @@ export async function tradePolicies(
       settings,
     });
     if (entitled.tierPercent === null || entitled.price === null) {
-      return listOnlyPolicy(line.listUnit);
+      return listOnlyPolicy(line.listUnit, line.onSale);
     }
     return {
       listUnit: line.listUnit,
+      listOnSale: line.onSale,
       baselineUnit: entitled.price,
       trade: { tierId: tier.id, percent: entitled.tierPercent },
     };
   });
-}
-
-/** Whether each of these products sells at a sale price today (catalogRetailFor). */
-export async function onSaleToday(
-  db: PrismaTx,
-  productIds: readonly number[],
-  today?: string,
-): Promise<Map<number, boolean>> {
-  const retail = await catalogRetailFor(db, [...new Set(productIds)], today);
-  return new Map([...retail].map(([id, r]) => [id, r.onSale]));
 }
 
 /**
@@ -354,20 +364,24 @@ export function existingListUnit(line: {
  */
 export function existingLinePolicy(line: {
   listPrice: unknown;
+  listOnSale?: boolean;
   netPrice: unknown;
   orderedQuantity: unknown;
   tradeTierId?: number | null;
   tradeDiscountPercent?: unknown;
 }): LinePolicy {
   const listUnit = existingListUnit(line);
+  // A line that recorded no list price has none to have been on sale.
+  const listOnSale = line.listPrice != null && line.listOnSale === true;
   const percent = tradeTierPercent(
     line.tradeDiscountPercent == null
       ? null
       : { discountPercent: Number(line.tradeDiscountPercent) },
   );
-  if (line.listPrice == null || percent === null) return listOnlyPolicy(listUnit);
+  if (line.listPrice == null || percent === null) return listOnlyPolicy(listUnit, listOnSale);
   return {
     listUnit,
+    listOnSale,
     baselineUnit: toCents(listUnit * (1 - percent / 100)) / 100,
     trade: { tierId: line.tradeTierId ?? null, percent },
   };
@@ -377,6 +391,8 @@ export function existingLinePolicy(line: {
 export interface RecordedLine {
   productId: number | null;
   listPrice: unknown;
+  /** Whether listPrice was a sale price when the line was written (OrderLineItem.listOnSale). */
+  listOnSale: boolean;
   netPrice: unknown;
   orderedQuantity: unknown;
   tradeTierId?: number | null;
@@ -386,7 +402,9 @@ export interface RecordedLine {
 /**
  * Existing lines' policies for a customer: what each line recorded
  * (existingLinePolicy), or -- where it is lower -- what that customer's tier
- * makes of the list price the line recorded. A line whose price was raised
+ * makes of the list price the line recorded -- with the sale flag recorded
+ * beside it, so a tier comes off a sale-price list only when the store lets it,
+ * whether or not the sale is still on. A line whose price was raised
  * above its trade price no longer records its tier, yet the customer it is sold
  * to is still entitled to it: bringing the price back down is not a discount.
  * And a quote changing hands asks what each line was measured from under the
@@ -400,21 +418,20 @@ export async function currentLinePolicies(
   const policies = lines.map(existingLinePolicy);
   const tierable = lines.flatMap((line, i) =>
     line.productId != null && line.listPrice != null
-      ? [{ i, productId: line.productId, listUnit: Number(line.listPrice) }]
+      ? [
+          {
+            i,
+            productId: line.productId,
+            listUnit: Number(line.listPrice),
+            onSale: line.listOnSale === true,
+          },
+        ]
       : [],
   );
   if (tierable.length === 0 || customerId == null) return policies;
-  const onSale = await onSaleToday(
-    db,
-    tierable.map((l) => l.productId),
-  );
   const tiered = await tradePolicies(
     db,
-    tierable.map((l) => ({
-      productId: l.productId,
-      listUnit: l.listUnit,
-      onSale: onSale.get(l.productId) === true,
-    })),
+    tierable.map(({ productId, listUnit, onSale }) => ({ productId, listUnit, onSale })),
     customerId,
   );
   tierable.forEach((l, k) => {
