@@ -220,6 +220,8 @@ const ALL_TABLES = [
   "StockLocation",
   "StockMovement",
   "ProductPriceChange",
+  "Sale",
+  "SaleItem",
   "StockAction",
   "BoxNote",
   "StockCount",

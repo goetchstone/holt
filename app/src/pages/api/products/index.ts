@@ -13,6 +13,12 @@
 // (account number, discounts, markup, terms, contacts), as do staff emails
 // and the wholesale price-list inputs. baseCost still goes to every admitted
 // role, as before; whether cost gets its own switch is SEC-14.
+//
+// baseRetail is the price the register charges TODAY: a product in a scheduled
+// sale answers its sale price (lib/pricing/salePrice.ts, GAP-06 part B), with
+// regularRetail, onSale and saleEndsOn beside it. The screens price a line with
+// catalogRetailPrice(product) as before; a screen that edits the product
+// (ProductEditModal) writes regularRetail back, never the sale price.
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
@@ -20,6 +26,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
+import { effectiveRetailFor, retailResponseFields, saleToday } from "@/lib/pricing/salePrice";
 
 const NAME_ONLY = { select: { name: true } } as const;
 
@@ -83,10 +90,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       prisma.product.count({ where }),
     ]);
 
+    // The price each sells for today, sale or not (lib/pricing/salePrice.ts).
+    const retail = await effectiveRetailFor(products, await saleToday(), prisma);
+
     // Convert Decimal fields to safe JSON, and flatten related names for display
     const safeProducts = products.map(({ vendor, category, department, type, ...p }) => ({
       ...p,
-      baseRetail: p.baseRetail ? Number(p.baseRetail) : undefined,
+      ...retailResponseFields(retail.get(p.id)!),
       baseCost: p.baseCost ? Number(p.baseCost) : undefined, // Ensure cost is also converted
       created: p.created?.toISOString(),
       vendorName: vendor?.name,

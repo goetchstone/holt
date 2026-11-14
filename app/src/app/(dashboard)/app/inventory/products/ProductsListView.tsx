@@ -18,7 +18,11 @@ import ProductEditModal from "@/components/modals/ProductEditModal";
 import { Button } from "@/components/ui/button";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
+// baseRetail from /api/products is today's price (a sale price while a scheduled
+// sale is on, lib/pricing/salePrice.ts); regularRetail is the product's own.
 type ProductWithRelations = Product & {
+  regularRetail?: number | null;
+  onSale?: boolean;
   vendorName?: string;
   categoryName?: string;
   departmentName?: string;
@@ -86,7 +90,18 @@ export function ProductsListView() {
       accessor: "baseRetail",
       width: "90px",
       align: "right" as const,
-      render: (row: ProductWithRelations) => (row.baseRetail ? fmt(Number(row.baseRetail)) : ""),
+      // The product's regular price, as it is edited; a sale price today beside it.
+      render: (row: ProductWithRelations) => {
+        const regular = row.regularRetail !== undefined ? row.regularRetail : row.baseRetail;
+        return (
+          <>
+            {regular ? fmt(Number(regular)) : ""}
+            {row.onSale && row.baseRetail && (
+              <span className="block text-xs text-red-700">Sale {fmt(Number(row.baseRetail))}</span>
+            )}
+          </>
+        );
+      },
     },
     {
       key: "actions",

@@ -190,8 +190,13 @@ changes nothing writes nothing; `SETTINGS_SAVED` names the keys that moved
 
 **Left open** (ROADMAP GAP-06):
 
-- Scheduled sale prices, trade-tier discounts, re-pricing open orders,
+- Trade-tier and customer-group discounts (GAP-06 part C), re-pricing open quotes and
+  orders (also when a sale starts or ends: lines keep the price they were added at),
   `ProductVariant.retail`, and server-side re-pricing of a configured line.
+- Scheduled sales are store-wide: no per-store sale. A configured or custom line gets
+  no sale price.
+- An optional automation that sends or prints the morning's tags to change would be a
+  store setting (on/off, when, who), not a fixed job.
 - The imports gated on `admin.data` ("Destructive data operations") -- the generic
   product import and the legacy POS feed and item export -- change an existing
   product's retail without checking `catalog.pricing`; the lock and ledger apply.
@@ -205,6 +210,108 @@ changes nothing writes nothing; `SETTINGS_SAVED` names the keys that moved
   their department and category in code: deployment facts (rule 61).
 - The vendor-level `pricingStatus` says `UNCONFIGURED_MARKUP` when only categories
   carry markups, though styles in those categories price.
+
+## Scheduled sale prices
+
+GAP-06 part B, DECISIONS 60. Source read 2026-11-14: `lib/pricing/salePrice.ts`,
+`lib/pricing/sales.ts`, `lib/pricing/salesShared.ts`, `pages/api/pricing/sales/*`,
+`app/(dashboard)/app/inventory/sales/*`, `components/pricing/ProductPicker.tsx`,
+`lib/labels/productTag.ts`, `prisma/migrations/20261114180000_scheduled_sales/`.
+
+**A product's regular price is `Product.baseRetail`; a sale gives it a sale price for
+a run of the store's days.** `Sale { name, startsOn DATE, endsOn DATE (inclusive),
+note, createdBy, endedEarlyAt?, endedEarlyBy? }` and `SaleItem { saleId, productId,
+salePrice Decimal(10,2) }`, unique `(saleId, productId)`. CHECKs (copied into
+`prisma/testing/db-guards.sql`): `Sale_dates_ordered` (endsOn >= startsOn),
+`Sale_endedEarly_complete` (who and when together), `SaleItem_salePrice_positive`.
+Nothing is written when a sale starts or ends, and `baseRetail` never changes: the
+retail writer and its ledger are untouched by a sale.
+
+**One resolver, `lib/pricing/salePrice.ts`** (rule 42). A sale price applies while
+`startsOn <= today <= endsOn`, the sale isn't ended early, and it is below the regular
+price (a regular price cut below a scheduled sale price wins). "Today" is the store's
+day (`saleToday()`, `AppSettings.timezone`), never the browser's. Every reader goes
+through it:
+
+| Reader | What it gets |
+|---|---|
+| `GET /api/products`, `GET /api/products/find-by-identifier` | `baseRetail` is today's price (what `catalogRetailPrice` reads), plus `regularRetail`, `onSale`, `saleEndsOn` (`retailResponseFields`) |
+| `catalogListUnits` (`lib/sales/discountApproval.ts`) | The list price of a PRODUCT line: the sale price, so a sale line needs no manager PIN at `discountLimitPercent` 0, a further discount is measured from it, and `OrderLineItem.listPrice` records it |
+| `duplicateOrder` | Today's prices, through `catalogListUnits`, on the store's day |
+| `POST /api/service/house-calls` | The service line it books on a new quote: net and list price through `catalogListUnits`, so a house-call service on sale is booked at its sale price. A service product can go on a sale like any other |
+| Product, sale and law tags (`renderProductTag`) | `baseRetail` field = today's price; a SALE tag's was price = the regular price during a sale (`saleTagFields`) |
+
+Consumers of the two product routes that edit the product read `regularRetail`, never
+`baseRetail`: `components/modals/ProductEditModal.tsx` (it saves every field it shows,
+so it would have written the sale price as retail), and the All Products list's Retail
+column shows the regular price with "Sale $X" beside it. The register and New Quote
+search results (`components/sales/RetailPriceTag.tsx`), the POS cart row and the quote
+line show the sale price with the regular one struck through, from
+`lib/pos/cartPricing.ts` `catalogSale`, which only reads the route's `onSale`. A cart
+row or quote line says SALE only while its price is still the sale price it was added
+at (`lineSale`): typing another price over it drops the note.
+
+**Reports' retail value of stock stays on `baseRetail`** (the regular price), not the
+day's sale price.
+
+**One sale price per product per day.** No unique key can say it (a range overlap), and
+none is tried over a nullable column (rule 64). Every write of a sale's products locks
+those `Product` rows `FOR UPDATE` in id order (as the retail writer does), then looks
+for an item of another sale, not ended early, on an overlapping day, and refuses the
+write naming it. Two people scheduling the same product queue on the row lock; the
+second is refused. A sale ended early blocks nothing.
+
+**Screen and routes.** Inventory › Sales (`/app/inventory/sales`), gated
+`catalog.pricing`, like every route under `pages/api/pricing/sales/`:
+
+| Route | What |
+|---|---|
+| `GET /` | Every sale with its status on the store's day (`UPCOMING`, `ON`, `ENDED`) and product count, and `today` |
+| `POST /` | `{ name, startsOn, endsOn, note?, items? }`: one transaction, `SALE_SCHEDULED` |
+| `GET /[id]` | The sale and its products with regular and sale prices |
+| `PATCH /[id]` | Name and note any time; dates (both) and items only while `UPCOMING`; items replace the set; new dates re-check every product kept. `SALE_CHANGED` |
+| `DELETE /[id]` | Only `UPCOMING`. `SALE_DELETED` |
+| `POST /[id]/end` | Only `ON`: sets `endedEarlyAt`/`By`, rows stay as the record. `SALE_ENDED` |
+| `POST /preview` | `{ selection, pricing, startsOn, endsOn, saleId? }`: each product's sale price or skip reason. Writes nothing |
+| `GET /tags-to-change` | Products whose tag changes today (below) |
+
+- A sale starts today or later; a past start is refused.
+- Products are chosen with the mass change's filter and selection
+  (`components/pricing/ProductPicker.tsx`, shared with the mass change screen; list
+  from `GET /api/pricing/mass-change`, same 2,000 cap, "all matching" resolved again
+  on the server). A sale carries at most 2,000 products (`SALE_MAX_ITEMS`); the save
+  routes refuse more with `saleSizeProblem`'s message, and the editor shows the same
+  message against its draft and disables Save, since each preview round adds to it.
+- Pricing: `PERCENT_OFF` of the regular price, rounded by the run's rule or the
+  store's (`roundRetail`), or a typed `AMOUNT`, used as typed (`planSalePrice`).
+  Preview skips with a reason (`SALE_SKIPS`): `NO_RETAIL`, `OVERLAPS` (naming the
+  sale), `NOT_BELOW_REGULAR`, `ROUNDS_TO_ZERO`. Saving refuses such an item with a
+  400 ("Preview again") rather than skipping it.
+- The screen builds a draft: each preview's priced rows are added
+  (`addPreviewToItems`; a product already there takes the new price), rows can be
+  removed, and Save sends the whole set. For an existing sale it sends only what
+  changed (a started sale refuses dates or items even if unchanged).
+- Audit events are in the "prices" group, target type `sale`, written inside each
+  transaction; the routes are in `__tests__/auditCoverage.test.ts` SENSITIVE.
+
+**Tags to change** (`tagsToChange`): SALE tags for products in a sale starting today
+(and on sale today); PRODUCT tags for products whose sale ended yesterday or was ended
+early since the start of yesterday, and that aren't on sale today. A product whose old
+sale ended and whose new sale starts today is listed once, for the new SALE tag. The
+screen prints them through `POST /api/print-label/batch` with `kind` (see
+`docs/domains/printing.md`). Nothing prints them on a schedule.
+
+**Demo seed.** `prisma/seed/demo/sales.ts` writes one ended, one current and one
+upcoming sale with invented names through `createSale`.
+
+**Tests.** `__tests__/integration/scheduledSales.integration.test.ts` (overlap and the
+concurrent write, day boundaries in the store's time zone, every reader, tags, batch
+kind, lifecycle, preview, tags to change, audit, the seed);
+`__tests__/scheduledSales.test.ts` (resolver, status, parsers, tag fields);
+`__tests__/scheduledSalesScreen.test.ts` (the screen's draft and list helpers,
+`catalogSale`, `lineSale`, `saleSizeProblem`, batch splitting). The integration file
+also proves a sale is never counted against itself (date-only and same-product
+changes, the preview with `saleId`) and that a house call books the sale price.
 
 ## Grade auto-extension
 
@@ -336,4 +443,4 @@ Gap: no source-text tripwire ensuring that any new `pdf-parse`-using file isn't 
 
 ---
 
-Last verified: 2026-05-20; "Retail is changed in one place" and the unique-constraint correction 2026-11-14 against source.
+Last verified: 2026-05-20; "Retail is changed in one place", "Scheduled sale prices" and the unique-constraint correction 2026-11-14 against source.

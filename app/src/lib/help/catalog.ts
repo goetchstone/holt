@@ -52,6 +52,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
       "Reprice products from cost and markup, by a percent or to an amount, mark them down, lock their prices, and read a product's price history.",
     screens: ["/app/inventory/mass-price-change"],
   },
+  {
+    slug: "scheduled-sales",
+    title: "Scheduling a sale",
+    summary:
+      "Give products a sale price for a run of days, change or end the sale, and print the sale tags on and the regular tags back.",
+    screens: ["/app/inventory/sales"],
+  },
 ];
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

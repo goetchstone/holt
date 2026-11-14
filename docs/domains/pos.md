@@ -151,7 +151,26 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 ## A product's line price
 
 A scanned or searched product goes onto the cart at its retail price, from
-`lib/pos/cartPricing.ts:catalogRetailPrice`. New Quote uses the same helper. A
+`lib/pos/cartPricing.ts:catalogRetailPrice`. New Quote uses the same helper.
+
+During a scheduled sale (GAP-06 part B, DECISIONS 60) that price is the sale price:
+`GET /api/products` and `/api/products/find-by-identifier` answer today's price, on
+the store's day, in `baseRetail`, with `regularRetail`, `onSale` and `saleEndsOn`
+beside it (`lib/pricing/salePrice.ts`). The screens never decide "today":
+`catalogSale` only reads `onSale`. The search results show the regular price struck
+through beside the sale price (`RetailPriceTag`), and a POS cart row or quote line
+added at a sale price says SALE with the regular price struck through, while its
+price is still that sale price (`lineSale`; a typed-over price drops the note). On the
+server the line's list price is the sale price too (`catalogListUnits`), so a sale
+line needs no manager approval and a further discount is measured from the sale price
+(see "Discounts and manager approval"). Lines already saved on a quote or order keep
+their price when a sale starts or ends. A line still on an open POS cart or New Quote
+draft keeps the price it was added at on screen, but is judged when the cart is checked
+out or the quote saved (`create-from-cart`), against that moment's price: if the sale
+has ended since (its last day passed, or it was ended early), its sale price is now
+below the list price and counts as a discount, so at the default limit of 0 it asks
+for a manager's approval. Removing the line and adding it again takes today's price.
+Nothing re-fetches an open cart's prices. A
 product with no retail price is refused with a message naming where to set it
 (`noRetailPriceMessage`), and the search results label it "No price"
 (`components/sales/RetailPriceTag.tsx`). Zero counts as no price, because an
@@ -244,7 +263,8 @@ manager"). Holt ships the locked-down choice. `lib/sales/discountApproval.ts`:
   line (Settings › Discounts). That defaults to 0, so every such discount needs a
   manager until the store loosens it.
 - **What counts.** A line sold below its list price: a discount entered at the
-  register, a price typed below the product's retail (`catalogListUnits`), a
+  register, a price typed below the product's retail, or its sale price while a
+  scheduled sale is on (`catalogListUnits`), a
   replacement or price edit below the line's recorded list, or a delivery fee
   below its zone's (a waived fee is 100%). It is measured per line
   (`largestDiscountPercent` in `lib/sales/discountPolicyShared.ts`), so a deep
@@ -315,4 +335,4 @@ No auto-print on order confirmation yet (master plan G3 / Phase 1).
 
 ---
 
-Last verified: 2026-08-01
+Last verified: 2026-08-01; "A product's line price" during a scheduled sale 2026-11-14 against source.

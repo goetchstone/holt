@@ -23,6 +23,7 @@ import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
 import { verifyPassword } from "@/lib/auth/password";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { catalogRetailPrice } from "@/lib/pos/cartPricing";
+import { type EffectiveRetail, effectiveRetailFor, saleToday } from "@/lib/pricing/salePrice";
 import {
   APPROVAL_REQUIRED,
   type ApprovalRequiredBody,
@@ -178,13 +179,18 @@ export async function authorizeDiscount(
 }
 
 /**
- * Each line's unit list price: a catalog product's retail price
- * (catalogRetailPrice), else the price the line was written at. A price typed
- * below retail is then a discount like any other, not a way around one.
+ * Each line's unit list price: a catalog product's price today (its sale price
+ * while a scheduled sale is on, else its retail -- lib/pricing/salePrice.ts,
+ * read as catalogRetailPrice reads a price), else the price the line was
+ * written at. A price typed below that is then a discount like any other, not a
+ * way around one; a sale line at its sale price is no discount, and a further
+ * one is measured from the sale price. `today` is the store's business day
+ * (saleToday); a caller pricing for another moment passes its own.
  */
 export async function catalogListUnits(
   db: PrismaTx,
   lines: readonly { productId: number | null; unitPrice: number }[],
+  today?: string,
 ): Promise<number[]> {
   const ids = [...new Set(lines.flatMap((l) => (l.productId == null ? [] : [l.productId])))];
   const products =
@@ -194,11 +200,12 @@ export async function catalogListUnits(
           select: { id: true, baseRetail: true },
         })
       : [];
+  const effective =
+    products.length > 0
+      ? await effectiveRetailFor(products, today ?? (await saleToday()), db)
+      : new Map<number, EffectiveRetail>();
   const retail = new Map(
-    products.map((p) => [
-      p.id,
-      catalogRetailPrice({ baseRetail: p.baseRetail == null ? null : Number(p.baseRetail) }),
-    ]),
+    products.map((p) => [p.id, catalogRetailPrice({ baseRetail: effective.get(p.id)?.price })]),
   );
   return lines.map((l) => (l.productId == null ? null : retail.get(l.productId)) ?? l.unitPrice);
 }

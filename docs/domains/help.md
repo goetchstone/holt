@@ -48,6 +48,7 @@ Source read for this runbook: `lib/help/catalog.ts`, `lib/help/articles.ts`,
 | Building your own reports | `/app/tools/query-builder` |
 | Finding who did what | `/app/admin/audit` |
 | Changing many prices at once (GAP-06) | `/app/inventory/mass-price-change` |
+| Scheduling a sale (GAP-06 part B) | `/app/inventory/sales` |
 
 254 screens have none yet: see the fixture.
 

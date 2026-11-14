@@ -246,6 +246,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   ProductOptionOverride: { status: "todo", tranche: "special-order-pricing" },
   ProductPairing: { status: "todo", tranche: "catalog-depth" },
   ProductPriceChange: { status: "seeded", seeder: "demo" },
+  Sale: { status: "seeded", seeder: "demo" },
+  SaleItem: { status: "seeded", seeder: "demo" },
   ProductSource: { status: "seeded", seeder: "demo" },
   ProductSpeciesPrice: { status: "todo", tranche: "special-order-pricing" },
   ProductVariant: { status: "todo", tranche: "catalog-depth" },

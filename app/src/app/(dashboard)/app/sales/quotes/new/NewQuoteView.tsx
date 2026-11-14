@@ -22,7 +22,13 @@ import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
-import { catalogRetailPrice, noRetailPriceMessage } from "@/lib/pos/cartPricing";
+import {
+  catalogRetailPrice,
+  catalogSale,
+  lineSale,
+  noRetailPriceMessage,
+  type CatalogSale,
+} from "@/lib/pos/cartPricing";
 import {
   SplitSaleField,
   emptySplit,
@@ -34,6 +40,20 @@ import type { SplitSaleSetup } from "@/lib/commissionSplit";
 type ItemSource = "FLOOR" | "ORDER";
 type FulfillmentMethod = "TAKE" | "PICKUP" | "DELIVERY";
 
+/** SALE and the regular price struck through, while the line is at its sale price. */
+function LineSaleNote({
+  sale,
+  fmt,
+}: Readonly<{ sale: CatalogSale | null; fmt: (amount: number) => string }>) {
+  if (!sale) return null;
+  return (
+    <p className="mt-1 text-[10px] text-brand-gray">
+      <span className="rounded bg-red-100 px-1 py-0.5 font-semibold text-red-800">SALE</span>{" "}
+      Regular <s>{fmt(sale.regularPrice)}</s>
+    </p>
+  );
+}
+
 interface QuoteLineItem {
   id: string;
   type: "PRODUCT" | "CONFIGURED" | "CUSTOM";
@@ -42,6 +62,8 @@ interface QuoteLineItem {
   name: string;
   description: string;
   price: number;
+  /** The scheduled sale this line was added at (catalogSale), for show only; see lineSale. */
+  sale?: CatalogSale | null;
   cost: number;
   quantity: number;
   vendor: string;
@@ -203,6 +225,9 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
     productNumber: string;
     name: string;
     baseRetail?: number | null;
+    regularRetail?: number | null;
+    onSale?: boolean;
+    saleEndsOn?: string | null;
     baseCost?: number | null;
     vendorName?: string;
   }) => {
@@ -222,6 +247,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
         name: p.name || p.productNumber,
         description: "",
         price,
+        sale: catalogSale(p),
         cost: p.baseCost ? Number(p.baseCost) : 0,
         quantity: 1,
         vendor: p.vendorName || "",
@@ -464,7 +490,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
                         {p.vendorName && <span> -- {p.vendorName}</span>}
                       </p>
                     </div>
-                    <RetailPriceTag price={catalogRetailPrice(p)} fmt={fmt} />
+                    <RetailPriceTag price={catalogRetailPrice(p)} sale={catalogSale(p)} fmt={fmt} />
                   </div>
                 </button>
               ))}
@@ -647,6 +673,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
                         }
                         className="w-24 text-right border border-brand-gray/30 rounded px-1 py-1 text-sm"
                       />
+                      <LineSaleNote sale={lineSale(line.price, line.sale)} fmt={fmt} />
                     </td>
                     <td className="p-3 text-right font-medium">
                       {fmt(line.price * line.quantity)}

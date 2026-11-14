@@ -440,6 +440,7 @@ model Product {
   reorderPoints               ReorderPoint[]
   stockMovements              StockMovement[]
   priceChanges                ProductPriceChange[]
+  saleItems                   SaleItem[]
   inventoryExceptions         InventoryException[]
   reconciledUnidentifiedScans UnidentifiedScan[]
   returns                     Return[]
@@ -2118,6 +2119,49 @@ model ProductPriceChange {
 
   @@index([productId, createdAt])
   @@index([batchId])
+}
+
+// A scheduled sale (GAP-06 part B, DECISIONS 60): a sale price for some products
+// over a run of the store's days. Nothing is written to Product when it starts or
+// ends -- lib/pricing/salePrice.ts decides at read time, from the store's business
+// day, whether a product's sale price applies (startsOn <= today <= endsOn, and the
+// sale not ended early). The register, the quote, the discount policy's list price,
+// duplicateOrder and the tags all read it there (rule 42).
+//
+// One sale price per product per day: lib/pricing/sales.ts refuses an item whose
+// product is in another sale with overlapping dates, checked under the product's
+// row lock in the writing transaction. Dates and items change only before the sale
+// starts; once started it can only be ended early (endedEarlyAt), and its rows stay
+// as history. A CHECK keeps endsOn on or after startsOn, and the sale price above 0.
+model Sale {
+  id           Int        @id @default(autoincrement())
+  name         String
+  /// The first day it applies, in the store's own days (AppSettings.timezone).
+  startsOn     DateTime   @db.Date
+  /// The last day it applies, inclusive.
+  endsOn       DateTime   @db.Date
+  note         String?
+  createdBy    String
+  created      DateTime   @default(now())
+  updated      DateTime   @updatedAt
+  /// Set when someone ends it before endsOn; from then it applies no more.
+  endedEarlyAt DateTime?
+  endedEarlyBy String?
+  items        SaleItem[]
+
+  @@index([startsOn, endsOn])
+}
+
+model SaleItem {
+  id        Int     @id @default(autoincrement())
+  saleId    Int
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  salePrice Decimal @db.Decimal(10, 2)
+
+  @@unique([saleId, productId])
+  @@index([productId])
 }
 
 // The stock journal: every change to InventoryPosition, as the movement that

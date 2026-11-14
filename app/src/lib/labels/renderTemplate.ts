@@ -27,8 +27,10 @@ const PRODUCT_FIELDS = [
 
 export const LABEL_FIELDS = {
   PRODUCT: PRODUCT_FIELDS,
-  // baseRetail is what the register charges; wasPrice is Product.wasPrice.
-  SALE: [...PRODUCT_FIELDS, "wasPrice", "saving", "savingPercent"],
+  // baseRetail is what the register charges today. During a scheduled sale it is
+  // the sale price, wasPrice the regular retail and saleEnds the sale's last day;
+  // otherwise wasPrice is Product.wasPrice and saleEnds is blank.
+  SALE: [...PRODUCT_FIELDS, "wasPrice", "saving", "savingPercent", "saleEnds"],
   // The wording the law asks for is the template's; lawText is the product's own.
   LAW: ["name", "sku", "vendor", "barcode", "width", "depth", "height", "lawText"],
   SOLD: [

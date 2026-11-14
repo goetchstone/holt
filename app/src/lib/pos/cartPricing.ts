@@ -93,6 +93,44 @@ export function catalogRetailPrice(product: {
   return Number.isFinite(price) && price > 0 ? price : null;
 }
 
+/**
+ * A product's scheduled sale as the product routes answer it (GET /api/products,
+ * /api/products/find-by-identifier; lib/pricing/salePrice.ts): the regular price
+ * to show struck through beside catalogRetailPrice, and the sale's last day. Null
+ * when it isn't on sale today. The server decides "on sale" on the store's day;
+ * this only reads its answer, so the screens never decide today themselves.
+ */
+export function catalogSale(product: {
+  baseRetail?: number | string | null;
+  regularRetail?: number | string | null;
+  onSale?: boolean;
+  saleEndsOn?: string | null;
+}): CatalogSale | null {
+  if (product.onSale !== true) return null;
+  const price = catalogRetailPrice(product);
+  const regularPrice = catalogRetailPrice({ baseRetail: product.regularRetail });
+  if (price === null || regularPrice === null || regularPrice <= price) return null;
+  return { salePrice: price, regularPrice, endsOn: product.saleEndsOn ?? null };
+}
+
+/** A product's sale as catalogSale reads it: the sale price, the regular price, the last day. */
+export interface CatalogSale {
+  salePrice: number;
+  regularPrice: number;
+  endsOn: string | null;
+}
+
+/**
+ * The sale a cart or quote line still shows (SALE, regular price struck
+ * through), or null. A line keeps the sale it was added with only while its
+ * price is still that sale price: once someone types another price over it, the
+ * line no longer says it is on sale. Pure.
+ */
+export function lineSale(price: number, sale: CatalogSale | null | undefined): CatalogSale | null {
+  if (!sale) return null;
+  return Math.round(price * 100) === Math.round(sale.salePrice * 100) ? sale : null;
+}
+
 /** Why a product with no retail price cannot go onto a line, and what to set. */
 export function noRetailPriceMessage(product: {
   name?: string | null;

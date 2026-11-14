@@ -13,7 +13,7 @@
 // is hidden until previewed again. There is no undo: a reversal is another
 // mass change. Lock and unlock act on the selection directly.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -22,58 +22,30 @@ import { Button } from "@/components/ui/button";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
 import {
+  FilterBar,
+  ProductTable,
+  SelectionSummary,
+  pickerFieldCls,
+  pickerLabelCls,
+  plural,
+  useProductPicker,
+} from "@/components/pricing/ProductPicker";
+import {
   RETAIL_ROUNDINGS,
   RETAIL_ROUNDING_LABELS,
   isRetailRounding,
   type RetailRounding,
 } from "@/lib/pricing/rounding";
 import {
-  MASS_CHANGE_MAX_PRODUCTS,
   MASS_CHANGE_NOTE_MAX,
   MASS_CHANGE_SKIPS,
   type MassChangeApplyResult,
-  type MassChangeFilter,
   type MassChangeOperation,
   type MassChangePreviewRow,
-  type MassChangeSelection,
   type MassChangeSkip,
   type RetailOperation,
   type WasOperation,
 } from "@/lib/pricing/massChangeShared";
-
-const PAGE_SIZE = 50;
-
-interface Named {
-  id: number;
-  name: string;
-}
-
-interface Options {
-  vendors: Named[];
-  departments: Named[];
-  categories: (Named & { departmentId: number })[];
-}
-
-interface ListRow {
-  id: number;
-  productNumber: string;
-  name: string;
-  vendor: Named | null;
-  department: Named | null;
-  category: Named | null;
-  baseCost?: number | null;
-  baseRetail: number | null;
-  wasPrice: number | null;
-  priceLocked: boolean;
-}
-
-interface ListResponse {
-  total: number;
-  page: number;
-  pageSize: number;
-  costVisible: boolean;
-  rows: ListRow[];
-}
 
 interface PreviewResponse {
   rows: MassChangePreviewRow[];
@@ -97,21 +69,8 @@ const WAS_CHOICES: { value: WasOperation; label: string }[] = [
   { value: "CLEAR", label: "Clear the was price" },
 ];
 
-const LOCKED_CHOICES = [
-  { value: "", label: "Locked or not" },
-  { value: "unlocked", label: "Not locked" },
-  { value: "locked", label: "Locked" },
-] as const;
-
-const fieldCls =
-  "w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black min-h-[40px] bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue";
-const labelCls = "block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1";
-
-function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n.toLocaleString()} ${n === 1 ? one : many}`;
-}
-
-const idOrUndefined = (value: string) => (value ? Number(value) : undefined);
+const fieldCls = pickerFieldCls;
+const labelCls = pickerLabelCls;
 
 function sameCents(a: number | null, b: number | null): boolean {
   if (a === null || b === null) return a === b;
@@ -133,278 +92,6 @@ function PriceMove({
     <span className="tabular-nums">
       <span className="text-brand-gray">{show(from)}</span> → <strong>{show(to)}</strong>
     </span>
-  );
-}
-
-function FilterBar({
-  options,
-  filter,
-  onFilter,
-}: Readonly<{
-  options: Options | null;
-  filter: MassChangeFilter;
-  onFilter: (next: MassChangeFilter) => void;
-}>) {
-  const [searchInput, setSearchInput] = useState(filter.q ?? "");
-  const categories = useMemo(
-    () =>
-      (options?.categories ?? []).filter(
-        (c) => !filter.departmentId || c.departmentId === filter.departmentId,
-      ),
-    [options, filter.departmentId],
-  );
-  return (
-    <div className="bg-white border border-brand-gray/20 rounded-lg p-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div>
-          <label htmlFor="mpc-vendor" className={labelCls}>
-            Vendor
-          </label>
-          <select
-            id="mpc-vendor"
-            value={filter.vendorId ?? ""}
-            onChange={(e) => onFilter({ ...filter, vendorId: idOrUndefined(e.target.value) })}
-            className={fieldCls}
-          >
-            <option value="">Any vendor</option>
-            {options?.vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="mpc-department" className={labelCls}>
-            Department
-          </label>
-          <select
-            id="mpc-department"
-            value={filter.departmentId ?? ""}
-            onChange={(e) =>
-              onFilter({
-                ...filter,
-                departmentId: idOrUndefined(e.target.value),
-                categoryId: undefined,
-              })
-            }
-            className={fieldCls}
-          >
-            <option value="">Any department</option>
-            {options?.departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="mpc-category" className={labelCls}>
-            Category
-          </label>
-          <select
-            id="mpc-category"
-            value={filter.categoryId ?? ""}
-            onChange={(e) => onFilter({ ...filter, categoryId: idOrUndefined(e.target.value) })}
-            className={fieldCls}
-          >
-            <option value="">Any category</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="mpc-locked" className={labelCls}>
-            Price lock
-          </label>
-          <select
-            id="mpc-locked"
-            value={filter.locked ?? ""}
-            onChange={(e) =>
-              onFilter({
-                ...filter,
-                locked:
-                  e.target.value === "" ? undefined : (e.target.value as "locked" | "unlocked"),
-              })
-            }
-            className={fieldCls}
-          >
-            {LOCKED_CHOICES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="mpc-search" className={labelCls}>
-            Name or part #
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="mpc-search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onFilter({ ...filter, q: searchInput.trim() || undefined });
-              }}
-              placeholder="e.g. sofa, 1234"
-              className={fieldCls}
-            />
-            <Button
-              onClick={() => onFilter({ ...filter, q: searchInput.trim() || undefined })}
-              className="min-h-[40px] px-3"
-            >
-              Find
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProductTable({
-  rows,
-  loading,
-  total,
-  page,
-  costVisible,
-  selected,
-  allMatching,
-  onToggle,
-  onToggleAllOnPage,
-  onPage,
-}: Readonly<{
-  rows: ListRow[];
-  loading: boolean;
-  total: number;
-  page: number;
-  costVisible: boolean;
-  selected: Set<number>;
-  allMatching: boolean;
-  onToggle: (id: number) => void;
-  onToggleAllOnPage: () => void;
-  onPage: (page: number) => void;
-}>) {
-  const fmt = useMoneyFormatter();
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const allOnPage = rows.length > 0 && rows.every((r) => allMatching || selected.has(r.id));
-  const columns = costVisible ? 8 : 7;
-  return (
-    <div className="bg-white border border-brand-gray/20 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-brand-gray/20 bg-brand-linen">
-        <p className="text-sm text-brand-gray">
-          {loading ? "Loading…" : `${plural(total, "product")} — page ${page} of ${totalPages}`}
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onPage(Math.max(1, page - 1))}
-            disabled={page === 1}
-            className="px-2 py-1 text-sm text-brand-blue disabled:text-brand-gray/50"
-          >
-            ← Prev
-          </button>
-          <button
-            onClick={() => onPage(Math.min(totalPages, page + 1))}
-            disabled={page >= totalPages}
-            className="px-2 py-1 text-sm text-brand-blue disabled:text-brand-gray/50"
-          >
-            Next →
-          </button>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-brand-gray/20 text-left text-xs text-brand-gray uppercase tracking-wide">
-              <th className="px-3 py-2 w-8">
-                <input
-                  type="checkbox"
-                  aria-label="Select every product on this page"
-                  checked={allOnPage}
-                  disabled={allMatching}
-                  onChange={onToggleAllOnPage}
-                />
-              </th>
-              <th className="px-3 py-2">Part #</th>
-              <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Vendor</th>
-              <th className="px-3 py-2">Category</th>
-              {costVisible && <th className="px-3 py-2 text-right">Cost</th>}
-              <th className="px-3 py-2 text-right">Retail</th>
-              <th className="px-3 py-2 text-right">Was</th>
-            </tr>
-          </thead>
-          <tbody>
-            {!loading && rows.length === 0 ? (
-              <tr>
-                <td colSpan={columns} className="px-3 py-8 text-center text-brand-gray">
-                  No products match.
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => {
-                const isSelected = allMatching || selected.has(r.id);
-                return (
-                  <tr
-                    key={r.id}
-                    onClick={() => !allMatching && onToggle(r.id)}
-                    className={`border-b border-brand-gray/10 transition ${
-                      allMatching ? "" : "cursor-pointer"
-                    } ${isSelected ? "bg-brand-linen" : "hover:bg-brand-stripe"}`}
-                  >
-                    <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${r.name}`}
-                        checked={isSelected}
-                        disabled={allMatching}
-                        onChange={() => onToggle(r.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-brand-gray">
-                      {r.productNumber}
-                    </td>
-                    <td className="px-3 py-2 text-brand-black max-w-[280px]">
-                      <Link
-                        href={`/app/inventory/products/${r.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:underline"
-                      >
-                        {r.name}
-                      </Link>
-                      {r.priceLocked && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">
-                          <Lock className="h-3 w-3" aria-hidden /> Locked
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">{r.vendor?.name ?? "—"}</td>
-                    <td className="px-3 py-2 text-brand-gray">{r.category?.name ?? "—"}</td>
-                    {costVisible && (
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {r.baseCost == null ? "—" : fmt(r.baseCost)}
-                      </td>
-                    )}
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {r.baseRetail == null ? "—" : fmt(r.baseRetail)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {r.wasPrice == null ? "—" : fmt(r.wasPrice)}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
   );
 }
 
@@ -561,17 +248,8 @@ function ResultPanel({
 }
 
 export function MassPriceChangeView() {
-  const [options, setOptions] = useState<Options | null>(null);
-  const [filter, setFilter] = useState<MassChangeFilter>({});
-  const [page, setPage] = useState(1);
-  const [list, setList] = useState<ListResponse | null>(null);
-  // The list answers for one filter, page and reload; loading until it has.
-  const [reloadTick, setReloadTick] = useState(0);
-  const [loadedKey, setLoadedKey] = useState<string | null>(null);
-  const listKey = JSON.stringify({ filter, page, reloadTick });
-  const loading = loadedKey !== listKey;
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [allMatching, setAllMatching] = useState(false);
+  const picker = useProductPicker();
+  const { selection, count, tooMany, list } = picker;
 
   const [chosenKind, setRetailKind] = useState<RetailKind>("FROM_MARKUP");
   const [percent, setPercent] = useState("");
@@ -584,38 +262,6 @@ export function MassPriceChangeView() {
   const [result, setResult] = useState<MassChangeApplyResult | null>(null);
   const [busy, setBusy] = useState<"preview" | "apply" | "lock" | null>(null);
 
-  useEffect(() => {
-    axios
-      .get<Options>("/api/pricing/mass-change/options")
-      .then((res) => setOptions(res.data))
-      .catch((err) =>
-        toast.error(getErrorMessage(err, "Couldn't load the vendors and categories.")),
-      );
-  }, []);
-
-  useEffect(() => {
-    let live = true;
-    axios
-      .get<ListResponse>("/api/pricing/mass-change", {
-        params: { ...filter, page, pageSize: PAGE_SIZE },
-      })
-      .then((res) => {
-        if (live) setList(res.data);
-      })
-      .catch((err) => {
-        if (live) toast.error(getErrorMessage(err, "Couldn't load the products."));
-      })
-      .finally(() => {
-        if (live) setLoadedKey(listKey);
-      });
-    return () => {
-      live = false;
-    };
-  }, [filter, page, listKey]);
-
-  const reloadList = () => setReloadTick((n) => n + 1);
-
-  const total = list?.total ?? 0;
   // Cost × markup answers with cost, so it is offered only to someone who may
   // see cost (the preview refuses it otherwise, SEC-14).
   const costHidden = list?.costVisible === false;
@@ -624,13 +270,6 @@ export function MassPriceChangeView() {
     : RETAIL_KINDS;
   const retailKind: RetailKind =
     costHidden && chosenKind === "FROM_MARKUP" ? "PERCENT" : chosenKind;
-  const count = allMatching ? total : selected.size;
-
-  const selection: MassChangeSelection = useMemo(
-    () => (allMatching ? { filter } : { productIds: [...selected].sort((a, b) => a - b) }),
-    [allMatching, filter, selected],
-  );
-
   const operation: MassChangeOperation = useMemo(() => {
     let retail: RetailOperation;
     if (retailKind === "PERCENT") retail = { kind: "PERCENT", percent: Number(percent) };
@@ -642,38 +281,6 @@ export function MassPriceChangeView() {
   // A preview answers for one selection and one change; anything else hides it.
   const key = JSON.stringify({ selection, operation });
   const currentPreview = preview?.key === key ? preview : null;
-
-  const changeFilter = (next: MassChangeFilter) => {
-    setFilter(next);
-    setPage(1);
-  };
-
-  const toggleRow = useCallback((id: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const toggleAllOnPage = () => {
-    const rows = list?.rows ?? [];
-    setSelected((prev) => {
-      const next = new Set(prev);
-      const all = rows.every((r) => next.has(r.id));
-      for (const r of rows) {
-        if (all) next.delete(r.id);
-        else next.add(r.id);
-      }
-      return next;
-    });
-  };
-
-  const clearSelection = () => {
-    setSelected(new Set());
-    setAllMatching(false);
-  };
 
   const runPreview = async () => {
     setBusy("preview");
@@ -718,8 +325,8 @@ export function MassPriceChangeView() {
       setResult(res.data);
       setPreview(null);
       setNote("");
-      clearSelection();
-      reloadList();
+      picker.clearSelection();
+      picker.reload();
     } catch (err) {
       toast.error(getErrorMessage(err, "The price change failed; nothing was changed."));
     } finally {
@@ -740,7 +347,7 @@ export function MassPriceChangeView() {
         `${plural(changed, "price")} ${verb}${unchanged > 0 ? `; ${unchanged.toLocaleString()} already were` : ""}.`,
       );
       setPreview(null);
-      reloadList();
+      picker.reload();
     } catch (err) {
       toast.error(getErrorMessage(err, "The price locks weren't changed."));
     } finally {
@@ -748,7 +355,6 @@ export function MassPriceChangeView() {
     }
   };
 
-  const tooMany = count > MASS_CHANGE_MAX_PRODUCTS;
   const changeIsKeep = retailKind === "KEEP" && was === "KEEP";
 
   return (
@@ -767,42 +373,15 @@ export function MassPriceChangeView() {
         Markups and rounding are set in Admin → Settings → Pricing, and on each vendor and category.
       </p>
 
-      <FilterBar options={options} filter={filter} onFilter={changeFilter} />
+      <FilterBar
+        options={picker.options}
+        filter={picker.filter}
+        onFilter={picker.changeFilter}
+        idPrefix="mpc"
+      />
 
       <div className="bg-brand-linen border border-brand-gray/20 rounded-lg p-4 space-y-4">
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <p className="font-semibold text-brand-blue">
-            {allMatching
-              ? `All ${plural(total, "product")} matching the filter`
-              : `${plural(selected.size, "product")} chosen`}
-          </p>
-          {!allMatching && total > 0 && (
-            <button
-              onClick={() => setAllMatching(true)}
-              disabled={total > MASS_CHANGE_MAX_PRODUCTS}
-              className="text-brand-blue underline disabled:text-brand-gray disabled:no-underline"
-            >
-              Choose all {plural(total, "product")} matching the filter
-            </button>
-          )}
-          {(allMatching || selected.size > 0) && (
-            <button onClick={clearSelection} className="text-brand-gray underline">
-              Clear
-            </button>
-          )}
-        </div>
-        {tooMany && (
-          <p className="text-sm text-amber-800">
-            A mass price change takes at most {MASS_CHANGE_MAX_PRODUCTS.toLocaleString()} products
-            at a time. Narrow the filter or the selection.
-          </p>
-        )}
-        {!allMatching && total > MASS_CHANGE_MAX_PRODUCTS && (
-          <p className="text-xs text-brand-gray">
-            The filter matches more than {MASS_CHANGE_MAX_PRODUCTS.toLocaleString()} products;
-            narrow it to choose them all at once.
-          </p>
-        )}
+        <SelectionSummary picker={picker} capFor="A mass price change" />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
@@ -935,18 +514,7 @@ export function MassPriceChangeView() {
         />
       )}
 
-      <ProductTable
-        rows={list?.rows ?? []}
-        loading={loading}
-        total={total}
-        page={page}
-        costVisible={list?.costVisible ?? false}
-        selected={selected}
-        allMatching={allMatching}
-        onToggle={toggleRow}
-        onToggleAllOnPage={toggleAllOnPage}
-        onPage={setPage}
-      />
+      <ProductTable picker={picker} />
     </div>
   );
 }
