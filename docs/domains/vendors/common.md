@@ -108,11 +108,14 @@ the POS vendor mapping in `productEntryMapping.ts` bridges vendor names to POS s
 - **Adding a vendor** on the vendors screen refuses a name a vendor or earlier
   name already has, ignoring case (409), where it used to fail with a 500 on an
   exact duplicate and accept a case twin.
-- **Caches:** the POS import's cached Unknown Vendor id is re-read after
-  any merge in the process (`vendorMergeCount`). `lib/vendorPrefixService.ts`
-  caches prefixes with their vendor ids until restart; only the prefixes are
-  read (`vendorIdForNumber` has no callers), so a merge leaves nothing stale
-  that's used.
+- **Caches:** the POS import's cached Unknown Vendor id (and its Uncategorized
+  department/category) is checked with one primary-key read before each use and
+  re-resolved by name when the row is gone, so a merge in ANY app process is
+  seen at once. `lib/vendorPrefixService.ts` caches prefixes with their vendor
+  ids until the database is replaced (a restore bumps the `"imports"` cache
+  generation, `lib/cacheGeneration.ts`); only the prefixes are read
+  (`vendorIdForNumber` has no callers), so a merge leaves nothing stale that's
+  used.
 
 ## Server-Only Module Constraint
 

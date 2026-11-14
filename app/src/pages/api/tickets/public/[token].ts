@@ -13,7 +13,7 @@ import { parseTicketMessageInput } from "@/lib/tickets/requestBody";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 }, "ticket-public");
 
 async function handleGet(token: string, res: NextApiResponse) {
   const ticket = await prisma.ticket.findFirst({

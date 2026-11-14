@@ -12,6 +12,7 @@ import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 import { landingPlaceProblem } from "@/lib/inventory/places";
 import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
+import { bumpCacheGenerations } from "@/lib/cacheGeneration";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
@@ -103,32 +104,39 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         return res.status(400).json({ error: `moveMode must be one of ${MOVE_MODES.join(", ")}.` });
       }
 
-      const location = await prisma.storeLocation.update({
-        where: { id: locationId },
-        data: {
-          ...(name !== undefined && { name }),
-          ...(code !== undefined && { code: code.toUpperCase() }),
-          ...(type !== undefined && { type }),
-          ...(address !== undefined && { address }),
-          ...(city !== undefined && { city }),
-          ...(state !== undefined && { state }),
-          ...(zip !== undefined && { zip }),
-          ...(isActive !== undefined && { isActive }),
-          ...(sortOrder !== undefined && { sortOrder: Number.parseInt(sortOrder) }),
-          ...(externalLocationName !== undefined && {
-            externalLocationName: externalLocationName || null,
-          }),
-          ...(places.RECEIVING !== undefined && {
-            defaultReceivingStockLocationId: places.RECEIVING,
-          }),
-          ...(places.PICKUP !== undefined && { pickupStockLocationId: places.PICKUP }),
-          ...(places.RETURNS !== undefined && { returnsStockLocationId: places.RETURNS }),
-          ...(places.QUARANTINE !== undefined && { quarantineStockLocationId: places.QUARANTINE }),
-          ...(places.TRANSIT !== undefined && { transitStockLocationId: places.TRANSIT }),
-          ...(fulfilment !== undefined && { fulfilmentStoreLocationId: fulfilment }),
-          ...(moveMode !== undefined && { moveMode: moveMode || null }),
-          updatedBy: session.user?.email || null,
-        },
+      // A store's names are cached in every app process (the import's location
+      // map, the traffic map); the bump commits with the edit, so each of them
+      // reloads within CACHE_GENERATION_CHECK_MS (lib/cacheGeneration.ts).
+      const data = {
+        ...(name !== undefined && { name }),
+        ...(code !== undefined && { code: code.toUpperCase() }),
+        ...(type !== undefined && { type }),
+        ...(address !== undefined && { address }),
+        ...(city !== undefined && { city }),
+        ...(state !== undefined && { state }),
+        ...(zip !== undefined && { zip }),
+        ...(isActive !== undefined && { isActive }),
+        ...(sortOrder !== undefined && { sortOrder: Number.parseInt(sortOrder) }),
+        ...(externalLocationName !== undefined && {
+          externalLocationName: externalLocationName || null,
+        }),
+        ...(places.RECEIVING !== undefined && {
+          defaultReceivingStockLocationId: places.RECEIVING,
+        }),
+        ...(places.PICKUP !== undefined && { pickupStockLocationId: places.PICKUP }),
+        ...(places.RETURNS !== undefined && { returnsStockLocationId: places.RETURNS }),
+        ...(places.QUARANTINE !== undefined && {
+          quarantineStockLocationId: places.QUARANTINE,
+        }),
+        ...(places.TRANSIT !== undefined && { transitStockLocationId: places.TRANSIT }),
+        ...(fulfilment !== undefined && { fulfilmentStoreLocationId: fulfilment }),
+        ...(moveMode !== undefined && { moveMode: moveMode || null }),
+        updatedBy: session.user?.email || null,
+      };
+      const location = await prisma.$transaction(async (tx) => {
+        const updated = await tx.storeLocation.update({ where: { id: locationId }, data });
+        await bumpCacheGenerations(["stores"], tx);
+        return updated;
       });
 
       return res.status(200).json(location);
@@ -146,7 +154,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
   if (req.method === "DELETE") {
     try {
-      await prisma.storeLocation.delete({ where: { id: locationId } });
+      await prisma.$transaction(async (tx) => {
+        await tx.storeLocation.delete({ where: { id: locationId } });
+        await bumpCacheGenerations(["stores"], tx);
+      });
       return res.status(200).json({ success: true });
     } catch (error: unknown) {
       if (getErrorCode(error) === "P2003") {

@@ -6968,3 +6968,39 @@ model ErrorEvent {
   @@index([lastSeenAt])
   @@index([resolvedAt, lastSeenAt])
 }
+
+/// One counter per in-process cache, shared by every app process
+/// (lib/cacheGeneration.ts). A write that today drops a cache in its own process
+/// also bumps the cache's row here, in the same transaction, so every OTHER
+/// process sees the change within CACHE_GENERATION_CHECK_MS and reloads. A
+/// database restore or a practice start-over bumps every row.
+///
+/// `generation` only moves forward: a bump writes the larger of one more than
+/// before and the database clock in microseconds, so a restored dump that brings
+/// back an older row still lands on a value no process has seen.
+model CacheGeneration {
+  /// A key from CACHE_GENERATION_KEYS.
+  key        String   @id
+  generation BigInt
+  updated    DateTime @default(now())
+}
+
+/// How many requests one client made to one rate-limited route in one window
+/// (lib/rateLimit.ts). Kept in the database so a limit holds across every app
+/// process, rather than each process allowing its own full allowance.
+///
+/// A fixed window: the row for (bucket, clientKey, windowStart) counts up, and
+/// expires at the window's end. Expired rows are deleted by the limiter itself,
+/// at most once per process every few minutes.
+model RateLimitWindow {
+  /// The route's own name, e.g. "login" or "portal-pay".
+  bucket      String
+  /// The client, as lib/rateLimit.ts resolves it (an IP address).
+  clientKey   String
+  windowStart DateTime
+  count       Int      @default(0)
+  expiresAt   DateTime
+
+  @@id([bucket, clientKey, windowStart])
+  @@index([expiresAt])
+}

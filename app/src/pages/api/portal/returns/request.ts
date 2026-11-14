@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
 // 10 requests per minute per IP -- returns submission should be infrequent
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 10 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 10 }, "portal-return-request");
 
 export default limiter(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

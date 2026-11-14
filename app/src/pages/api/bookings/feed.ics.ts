@@ -14,7 +14,7 @@ import { bookingToIcsEvent } from "@/lib/booking/event";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 30 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 30 }, "bookings-feed");
 
 export default limiter(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

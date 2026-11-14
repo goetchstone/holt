@@ -536,7 +536,9 @@ describe("parseLegacyPosAddress", () => {
   });
 
   it("handles building/suite style prefix", () => {
-    const result = parseLegacyPosAddress("D13 North, 100 Test Road, Springfield, VT, United States");
+    const result = parseLegacyPosAddress(
+      "D13 North, 100 Test Road, Springfield, VT, United States",
+    );
     expect(result).toEqual({
       address1: "D13 North, 100 Test Road",
       city: "Springfield",

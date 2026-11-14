@@ -33,6 +33,9 @@ code.
 4. In **Admin → CMS**: build the public pages/posts/menus (or import them).
 5. Set `NEXTAUTH_URL` to the tenant domain so sitemap/canonical/OG use it; point
    DNS at the deployment.
+6. Size it for the business: the server, and how many app processes
+   (`APP_REPLICAS`, with `PG_POOL_MAX`) -- docs/HOSTING.md. The business owns the
+   server and the accounts it runs in.
 
 That's the entire white-label surface — no code changes.
 
@@ -149,9 +152,29 @@ Holt is the single source of truth for code. A deployment carries only its data
 layer. When Holt ships a feature or fix, every deployment gets it by pulling
 Holt: nothing to re-implement, nothing to merge back.
 
+### nginx.conf
+
+The one tracked file a deployment edits is `nginx/nginx.conf`: docs/PRODUCTION.md
+§2 has the installer put the domain into it. When a Holt release changes that file,
+`git pull` refuses ("local changes would be overwritten"). Take the new file and
+put the domain back:
+
+```
+git checkout -- nginx/nginx.conf
+git pull
+sed -i 's/REPLACE_ME_DOMAIN/<your-domain>/g' nginx/nginx.conf
+./scripts/deploy.sh
+```
+
+The release that let Holt run as several app processes (2026-11) changed it: the
+public server now includes `nginx/app-upstream.conf`, and the host's own jobs
+moved to a second nginx, `nginx-host` (`nginx/nginx-host.conf`), which nobody
+edits. `scripts/deploy.sh` refuses to start with an `nginx.conf` older than
+that, or one still holding `REPLACE_ME_DOMAIN`, and says the commands above.
+
 ## Local demo container rebuild (gotcha)
 
-The local demo runs the prod image (`holt-app-1`) against the
+The local demo runs the prod image (container `holt-app-local`) against the
 host's dev DB (`holt-dev-db`, port 5435).
 
 **Always bring it up with `scripts/dev-app-up.sh`** (`--build` to rebuild the
@@ -171,9 +194,15 @@ The script encapsulates the two things that bite a naive `docker compose up`:
   `DATABASE_URL` gives `ECONNREFUSED` on every query (and a blank-but-200
   build, since the `(site)` pages are `force-dynamic`). The script rewrites the
   host automatically.
-- **Passes `--no-deps`.** The compose `app` service `depends_on: db`, and that
-  `db` maps host `5433`, which collides with the other local project's Postgres.
-  `--no-deps` recreates only `app` and leaves the already-running dev DB alone.
+- **Passes `--no-deps`.** The compose `app` service `depends_on: db` (and on the
+  `migrate` service), and that `db` maps host `5433`, which collides with the
+  other local project's Postgres. `--no-deps` starts only the app and leaves the
+  already-running dev DB alone.
+- **Publishes `127.0.0.1:3000` itself.** The compose `app` service has no host
+  port (in production it may run as several processes behind nginx;
+  docs/HOSTING.md), so the script starts ONE process with `docker compose run`,
+  publishing the port on this machine's loopback, and lets that one process
+  migrate the database at boot (`RUN_MIGRATIONS=true`).
 
 The script also prunes build cache (a full cache once filled Docker's disk and
 crashed the dev DB) and polls `/` for a 200 before returning, so a failed

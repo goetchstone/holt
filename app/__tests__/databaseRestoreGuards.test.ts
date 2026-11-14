@@ -44,23 +44,54 @@ jest.mock("@/lib/privateTempFile", () => {
 // write logged after the suite ended, and Jest failed a run whose tests all passed.
 jest.mock("@/lib/audit", () => ({ auditLog: jest.fn().mockResolvedValue(undefined) }));
 
-jest.mock("child_process", () => ({
-  spawn: jest.fn((_cmd: string, args: string[]) => {
-    const record = { args, stdinChunks: [] as string[] };
-    spawned.push(record);
+// What ran, in order: each psql (spawn) and the Prisma CLI (execFile), so a test
+// can see the migrations run after the restore and not before it.
+const ran: string[] = [];
+// The migrations' outcome for the next restore; null is success.
+let mockMigrateError: Error | null = null;
 
-    const proc = new EventEmitter() as EventEmitter & {
-      stdin: PassThrough;
-      stderr: PassThrough;
-    };
-    proc.stdin = new PassThrough();
-    proc.stderr = new PassThrough();
-    proc.stdin.on("data", (c: Buffer) => record.stdinChunks.push(c.toString()));
-    // Resolve on the next tick, as a real close event would.
-    setImmediate(() => proc.emit("close", 0));
-    return proc;
-  }),
+// After a restore the route brings the database up to date: migrations
+// (execFile), then the built-in roles and every process's caches. This suite has
+// no database, so those two are stubbed.
+// A failure is logged; the recorder behind logError writes to a database this
+// suite does not have.
+jest.mock("@/lib/logger", () => ({
+  logError: jest.fn(),
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
+jest.mock("@/lib/auth/builtInRoles", () => ({ syncBuiltInRoles: jest.fn(async () => {}) }));
+jest.mock("@/lib/cacheGeneration", () => ({ bumpAllCacheGenerations: jest.fn(async () => {}) }));
+
+// One factory for both spellings: restore.ts imports "child_process" and
+// lib/databaseReplaced.ts "node:child_process".
+function mockChildProcess() {
+  return {
+    execFile: jest.fn(
+      (file: string, args: string[], _opts: unknown, cb: (err: Error | null) => void) => {
+        ran.push(`${file} ${args.join(" ")}`);
+        cb(mockMigrateError);
+      },
+    ),
+    spawn: jest.fn((_cmd: string, args: string[]) => {
+      const record = { args, stdinChunks: [] as string[] };
+      spawned.push(record);
+      ran.push("psql");
+
+      const proc = new EventEmitter() as EventEmitter & {
+        stdin: PassThrough;
+        stderr: PassThrough;
+      };
+      proc.stdin = new PassThrough();
+      proc.stderr = new PassThrough();
+      proc.stdin.on("data", (c: Buffer) => record.stdinChunks.push(c.toString()));
+      // Resolve on the next tick, as a real close event would.
+      setImmediate(() => proc.emit("close", 0));
+      return proc;
+    }),
+  };
+}
+jest.mock("child_process", () => mockChildProcess());
+jest.mock("node:child_process", () => mockChildProcess());
 
 jest.mock("@/lib/auth/requireAuth", () => ({
   // Bypass auth; enforcement is covered by roleDecision.test.ts,
@@ -116,6 +147,8 @@ describe("admin database restore guards", () => {
 
   beforeEach(async () => {
     spawned.length = 0;
+    ran.length = 0;
+    mockMigrateError = null;
     mockSpools.length = 0;
     jest.resetModules();
     process.env.DATABASE_URL = "postgresql://user:pw@localhost:5432/testdb";
@@ -206,5 +239,26 @@ describe("admin database restore guards", () => {
     for (const s of spawned) {
       expect(s.args).toContain("ON_ERROR_STOP=1");
     }
+  });
+
+  // App processes no longer migrate when they restart (RUN_MIGRATIONS=false), so
+  // a backup older than the last upgrade stayed on its old schema under a
+  // "restored successfully" message.
+  it("brings a restored backup up to date: migrations after the restore, not before", async () => {
+    const res = makeRes();
+    await handler(makeReq(`${HEADER}SELECT 1;\n${FOOTER}`), res);
+    expect(res.statusCode).toBe(200);
+    expect(ran).toEqual(["psql", "psql", "node_modules/.bin/prisma migrate deploy"]);
+    expect(res.payload).toMatchObject({ success: true, message: "Database restored successfully" });
+  });
+
+  it("says what to run on the server when the migrations fail after a restore", async () => {
+    mockMigrateError = new Error("P3009 migrate found failed migrations");
+    const res = makeRes();
+    await handler(makeReq(`${HEADER}SELECT 1;\n${FOOTER}`), res);
+    expect(res.statusCode).toBe(200);
+    const message = String((res.payload as { message: string }).message);
+    expect(message).not.toMatch(/successfully/);
+    expect(message).toMatch(/docker compose up -d --force-recreate migrate app/);
   });
 });

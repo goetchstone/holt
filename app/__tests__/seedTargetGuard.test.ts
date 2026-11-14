@@ -22,7 +22,15 @@ const forced = { forceUnsafe: true };
 
 describe("assertSafeSeedTarget", () => {
   it("allows a purpose-built scratch database", () => {
-    for (const db of ["holt_seed_demo", "demo", "scratch_db", "holt_sandbox", "sample_data", "ci", "holt_ci"]) {
+    for (const db of [
+      "holt_seed_demo",
+      "demo",
+      "scratch_db",
+      "holt_sandbox",
+      "sample_data",
+      "ci",
+      "holt_ci",
+    ]) {
       expect(assertSafeSeedTarget(url(db), safe)).toBe(db);
     }
   });
@@ -33,7 +41,10 @@ describe("assertSafeSeedTarget", () => {
   // that boots the app. Reading the name out of the workflow closes that loop --
   // renaming the database in CI now fails here rather than in a remote build.
   it("accepts the database the CI workflow actually creates", () => {
-    const workflow = readFileSync(join(__dirname, "..", "..", ".github", "workflows", "ci.yml"), "utf8");
+    const workflow = readFileSync(
+      join(__dirname, "..", "..", ".github", "workflows", "ci.yml"),
+      "utf8",
+    );
     const names = [...workflow.matchAll(/^\s*POSTGRES_DB:\s*(\S+)\s*$/gm)].map((m) => m[1]);
     expect(names.length).toBeGreaterThan(0);
     for (const db of new Set(names)) {
@@ -71,13 +82,31 @@ describe("assertSafeSeedTarget", () => {
     // hyphens, and tokens embedded in longer words are exactly where a
     // substring glob and a word-bounded regex part company.
     const NAMES = [
-      "holt_demo", "holt_seed_demo", "demo", "ci", "holt_ci", "ci_main", "scratch_db",
-      "holt_sandbox", "sample_data", "holt_samples", "holt-demo", "demolition_prod",
-      "seeded_archive", "sandboxes", "scratchpad_prod", "holt_prod", "acme_restored",
-      "postgres", "holt_2026_backup", "predemo", "demo_of_prod",
+      "holt_demo",
+      "holt_seed_demo",
+      "demo",
+      "ci",
+      "holt_ci",
+      "ci_main",
+      "scratch_db",
+      "holt_sandbox",
+      "sample_data",
+      "holt_samples",
+      "holt-demo",
+      "demolition_prod",
+      "seeded_archive",
+      "sandboxes",
+      "scratchpad_prod",
+      "holt_prod",
+      "acme_restored",
+      "postgres",
+      "holt_2026_backup",
+      "predemo",
+      "demo_of_prod",
     ];
     const disagreements = NAMES.filter((db) => shellAllows(db) !== guardAllows(db)).map(
-      (db) => `${db}: setup.sh=${shellAllows(db) ? "allow" : "refuse"} guard=${guardAllows(db) ? "allow" : "refuse"}`,
+      (db) =>
+        `${db}: setup.sh=${shellAllows(db) ? "allow" : "refuse"} guard=${guardAllows(db) ? "allow" : "refuse"}`,
     );
     expect(disagreements).toEqual([]);
   });

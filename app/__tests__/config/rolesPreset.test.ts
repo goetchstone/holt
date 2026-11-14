@@ -117,6 +117,8 @@ interface FakeDb {
     create: jest.Mock<Promise<Record<string, unknown>>, [{ data: Record<string, unknown> }]>;
   };
   $transaction: jest.Mock<Promise<unknown>, [(tx: FakeDb) => Promise<unknown>, unknown?]>;
+  /** The cache-generation bump the apply makes inside its transaction. */
+  $executeRaw: jest.Mock<Promise<number>, unknown[]>;
 }
 
 /** Active, user-linked staff — the only kind the lockout guard counts. */
@@ -216,6 +218,7 @@ function createFakeDb(seed: RoleSeed[] = [], staff: StaffLink[] = []) {
       }),
     },
     $transaction: jest.fn(async (fn) => fn(db)),
+    $executeRaw: jest.fn(async () => 1),
   };
 
   const grantsOf = (key: string) =>

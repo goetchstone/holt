@@ -28,7 +28,7 @@ The deploy script:
 1. Pulls latest from `origin/main`
 2. Embeds the git commit hash for health endpoint verification
 3. Builds the app image (set `DOCKER_BUILDKIT=0` on older hosts where BuildKit fails)
-4. Restarts app and nginx containers
+4. Restarts the app, nginx and nginx-host containers
 5. Verifies via health endpoint
 
 ### Manual Deploy
@@ -37,9 +37,9 @@ The deploy script:
 git pull origin main
 GIT_COMMIT=$(git rev-parse --short HEAD)
 echo "GIT_COMMIT=$GIT_COMMIT" >> .env
-DOCKER_BUILDKIT=0 docker compose build app
-docker compose up -d app nginx
-curl http://localhost:3000/api/health
+DOCKER_BUILDKIT=0 docker compose build migrate app
+docker compose up -d app nginx nginx-host   # runs `migrate` first, then the app processes
+curl http://127.0.0.1:8080/api/health
 ```
 
 ## Monitoring
@@ -368,8 +368,9 @@ Note: The API prevents removing the last ADMIN. You cannot demote the last activ
 | Service | Host Port | Container Port | Notes |
 |---------|-----------|----------------|-------|
 | PostgreSQL | 5433 | 5432 | Avoids conflict with a host-native Postgres |
-| Next.js | 3000 | 3000 | Direct app access |
-| Nginx | 8080 | 80 | Production reverse proxy |
+| Next.js | none | 3000 | No host port: it may run as several processes (`APP_REPLICAS`, docs/HOSTING.md) |
+| Nginx | 80, 443 | 80, 443 | Production reverse proxy |
+| nginx-host | 127.0.0.1:8080 | 8080 | The host's own jobs (cron, deploy health gate, restore); loopback only, no TLS |
 
 ## Backup Schedule
 

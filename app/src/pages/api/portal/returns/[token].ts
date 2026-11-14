@@ -6,7 +6,7 @@ import { toQty } from "@/lib/inventory/quantity";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
-const limiter = rateLimit({ windowMs: 60_000, maxRequests: 20 });
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 20 }, "portal-return");
 
 export default limiter(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

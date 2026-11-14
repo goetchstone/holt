@@ -12,6 +12,7 @@
 // did before any of this existed.
 
 import { prisma } from "@/lib/prisma";
+import { cacheGeneration } from "@/lib/cacheGeneration";
 import {
   isVendorNumber,
   ruleForNumber,
@@ -20,7 +21,9 @@ import {
   type VendorPrefixRule,
 } from "@/lib/vendorNumbering";
 
-let cachedRules: VendorPrefixRule[] | null = null;
+// Kept until the database is replaced: a restore, in any process, bumps the
+// "imports" cache generation (lib/cacheGeneration.ts).
+let cachedRules: { rules: VendorPrefixRule[]; generation: string } | null = null;
 
 /**
  * Test-only: drop the cache so the next call re-reads a truncated test database.
@@ -31,12 +34,13 @@ export function clearVendorPrefixCacheForTesting(): void {
 }
 
 export async function getVendorPrefixRules(): Promise<VendorPrefixRule[]> {
-  if (cachedRules) return cachedRules;
+  const generation = await cacheGeneration("imports");
+  if (cachedRules?.generation === generation) return cachedRules.rules;
   const rows = await prisma.vendorNumberPrefix.findMany({
     select: { vendorId: true, prefix: true, barcodePrefix: true },
   });
-  cachedRules = rows;
-  return cachedRules;
+  cachedRules = { rules: rows, generation };
+  return rows;
 }
 
 /** True when the number carries a configured vendor prefix. */

@@ -54,4 +54,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(200).json({ ok: true });
 }
 
-export default rateLimit({ windowMs: 15 * 60_000, maxRequests: 5 })(handler);
+export default rateLimit({ windowMs: 15 * 60_000, maxRequests: 5 }, "forgot-password")(handler);

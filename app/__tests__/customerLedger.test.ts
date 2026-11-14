@@ -237,7 +237,10 @@ describe("computeSourceBalance", () => {
 
   it("includes null-status payments (legacy POS imports) at full weight", () => {
     const balance = computeSourceBalance([
-      { lineItems: [activeLine(500)], payments: [{ paymentAmount: 500, isRefund: false, status: null }] },
+      {
+        lineItems: [activeLine(500)],
+        payments: [{ paymentAmount: 500, isRefund: false, status: null }],
+      },
     ]);
     expect(balance).toBe(0);
   });

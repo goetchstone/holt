@@ -200,5 +200,6 @@ procedures, including notes for NAS-hosted setups.
 ### Build Requirements
 
 - DB host port is 5433 (not 5432) to avoid conflicts with a host Postgres
-- Nginx reverse proxy on port 8080 with 50MB upload limit and 300s timeout
+- Nginx reverse proxy on 80/443 with a 300MB upload limit and 300s timeouts; the host's own jobs use
+  `nginx-host` on 127.0.0.1:8080 (docs/HOSTING.md)
 - Some older Docker hosts need `DOCKER_BUILDKIT=0`

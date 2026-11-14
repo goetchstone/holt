@@ -75,6 +75,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
 // Auth-outermost would let anyone without a session drive that DB load. Do not
 // reorder. The permission is the box labels' (pages/api/scan/box-labels.ts): this
 // was a role list that left out a buyer who could reach the receiving screen.
-export default rateLimit({ windowMs: 60000, maxRequests: 30 })(
-  requirePermission({ anyOf: ["purchasing.receive", "warehouse.operate"] }, handler),
-);
+export default rateLimit(
+  { windowMs: 60000, maxRequests: 30 },
+  "print-label",
+)(requirePermission({ anyOf: ["purchasing.receive", "warehouse.operate"] }, handler));

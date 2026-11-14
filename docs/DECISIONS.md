@@ -1786,6 +1786,52 @@ Rejected:
 
 → `docs/domains/pricing-catalog.md` "Retail is changed in one place"
 
+## 59. Holt runs as several identical app processes on one database, and anything they must agree on lives in that database (2026-11-14)
+
+**Decided:** The owner, 2026-11-14, said two things, and both stand. First, assume one deployment per business
+for now, in one place rather than spread across regions. Second, Holt should support regional deployment too,
+because "we don't half ass this". Regional means one deployment spread across cloud regions: one primary
+database with a standby in a second region, and app servers near each region's stores. It does not mean separate
+installs that federate. That work is wanted and planned, not ruled out; it is tracked as `ROADMAP.md` "Scale and
+deploy", S-7, and builds on the multi-server tier (S-2 to S-4). The goal is one business of up to 15-50 stores
+and 250-1,000 staff on one deployment it owns (docs/HOSTING.md). Step one is that Holt runs correctly as 2-4
+identical app processes behind nginx on one host (`APP_REPLICAS`), sharing one Postgres and one uploads volume.
+
+- **What processes must agree on is in Postgres, not memory.** Rate-limit counts (`RateLimitWindow`), a
+  generation per in-process cache (`CacheGeneration`, bumped in the writing transaction), send claims on the
+  email and text queues, and the locks already there. A process keeps only caches it can prove current: it
+  re-reads the generations at most every `CACHE_GENERATION_CHECK_MS` (2s), so a revoked permission stops
+  working everywhere within 2s. A restore or practice start-over bumps every generation.
+- **Migrations run once, in a one-shot `migrate` service**, before any app process starts; the processes run
+  with `RUN_MIGRATIONS=false`. Every `up` path (fresh install, deploy.sh, restore-db.sh) goes through it.
+- **The settings screen's version is the `"settings"` cache generation**, not `AppSettings.updated`. A save from
+  a page loaded before another save is refused with 409.
+- **The app publishes no host port.** The host's own jobs reach it through `nginx-host`, a second small nginx
+  on `127.0.0.1:8080` with no TLS (nginx/nginx-host.conf). A separate nginx because nginx will not start at
+  all when a certificate it names is missing; as one server block in nginx.conf, a missing certificate took
+  cron, the deploy's health gate and restore down with the site.
+
+Rejected:
+
+- **nginx rate limits instead of database ones.** One more place for policy to live, invisible to the app, and
+  gone the day there is a second nginx.
+- **Shorter TTLs instead of a shared generation.** Still wrong for the length of the TTL, and the caches with
+  no TTL (the import's ids) would still be wrong until restart.
+- **Postgres LISTEN/NOTIFY.** A dropped connection loses a notification silently; a counter read every 2s
+  cannot be missed.
+- **`AppSettings.updated` as the settings version.** The automations tick writes that row every few minutes,
+  so a page left open would be refused on every save.
+- **Migrating in every app process's entrypoint.** They race for Prisma's migration lock; a long migration
+  times the losers out.
+- **Several app servers (250-1,000 staff) now.** Uploads are on one server's disk, no connection pooler is
+  tested and there is no job queue. Planned; docs/HOSTING.md says what is missing.
+- **Regional deployment now.** It needs the multi-server tier first. Wanted and planned (ROADMAP S-7), not
+  rejected.
+- **The 8080 server as a block in nginx.conf.** One certificate problem stopped the host's own jobs as well
+  as the site.
+
+→ `docs/HOSTING.md`, `app/src/lib/cacheGeneration.ts`, `app/src/lib/rateLimit.ts`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

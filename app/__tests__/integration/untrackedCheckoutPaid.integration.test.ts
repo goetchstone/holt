@@ -38,6 +38,9 @@ jest.mock("@/lib/integrationCredentials", () => ({
 jest.mock("@/lib/opsAlert", () => ({
   reportOpsAlert: jest.fn(async () => undefined),
 }));
+// The first sighting of a logged error raises its own "New error" alert in the background
+// (lib/errorRecorder.ts), which made these alert counts timing-dependent; see paymentRaces.
+jest.mock("@/lib/errorRecorder", () => ({ recordError: jest.fn() }));
 
 import { reportOpsAlert } from "@/lib/opsAlert";
 import stripeWebhook from "@/pages/api/stripe/webhook";

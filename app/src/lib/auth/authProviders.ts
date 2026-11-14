@@ -27,6 +27,7 @@ import type { Provider } from "next-auth/providers/index";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { resolveCredential } from "@/lib/integrationCredentials";
+import { cacheGeneration } from "@/lib/cacheGeneration";
 import { authMethodFlagsFromEnv } from "./authMethodsServer";
 
 /**
@@ -168,16 +169,22 @@ export function buildAuthProviders(): Provider[] {
   return providers;
 }
 
-let cache: { providers: Provider[]; expires: number } | null = null;
+let cache: { providers: Provider[]; expires: number; generation: string } | null = null;
 const CACHE_TTL_MS = 60_000;
 
 /**
  * Build providers with keys resolved DB-first (Settings) then env, so keys
  * entered in the Settings UI drive login without a redeploy. Cached 60s to keep
  * the per-request /api/auth/* path from re-querying on every session poll.
+ * Saving or removing a stored key bumps the "authProviders" cache generation
+ * (lib/integrationCredentials.ts), which ends this copy in every process within
+ * CACHE_GENERATION_CHECK_MS (lib/cacheGeneration.ts).
  */
 export async function buildAuthProvidersAsync(): Promise<Provider[]> {
-  if (cache && cache.expires > Date.now()) return cache.providers;
+  const generation = await cacheGeneration("authProviders");
+  if (cache && cache.expires > Date.now() && cache.generation === generation) {
+    return cache.providers;
+  }
 
   const providers: Provider[] = [];
 
@@ -203,11 +210,6 @@ export async function buildAuthProvidersAsync(): Promise<Provider[]> {
 
   if (authMethodFlagsFromEnv().local) providers.push(localProvider());
 
-  cache = { providers, expires: Date.now() + CACHE_TTL_MS };
+  cache = { providers, expires: Date.now() + CACHE_TTL_MS, generation };
   return providers;
-}
-
-/** Clear the provider cache so a just-saved key takes effect immediately. */
-export function invalidateAuthProvidersCache(): void {
-  cache = null;
 }
