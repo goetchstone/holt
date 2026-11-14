@@ -187,6 +187,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/inventory/products/new": { permission: "catalog.write" },
   "/app/inventory/reconcile-photos": { permission: "inventory.count" },
   "/app/inventory/reconciled-items": { permission: "inventory.count" },
+  "/app/inventory/sales": { permission: "catalog.pricing" },
   "/app/inventory/summary-details": { permission: "inventory.read" },
   "/app/inventory/types": { permission: "catalog.read" },
   "/app/inventory/variance-apparel": { permission: "inventory.read" },

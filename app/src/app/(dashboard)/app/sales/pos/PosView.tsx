@@ -24,9 +24,12 @@ import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { getErrorMessage } from "@/lib/toastError";
 import {
   catalogRetailPrice,
+  catalogSale,
+  lineSale,
   noRetailPriceMessage,
   priceCart,
   type CartDiscount,
+  type CatalogSale,
   type DiscountType,
 } from "@/lib/pos/cartPricing";
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
@@ -73,6 +76,8 @@ interface CartItem {
   productNumber: string;
   name: string;
   price: number;
+  /** The scheduled sale this line was added at (catalogSale), for show only; see lineSale. */
+  sale: CatalogSale | null;
   cost: number;
   quantity: number;
   discounts: Discount[];
@@ -107,6 +112,9 @@ interface FoundProduct {
   productNumber: string;
   name?: string | null;
   baseRetail?: number | null;
+  regularRetail?: number | null;
+  onSale?: boolean;
+  saleEndsOn?: string | null;
   baseCost?: number | null;
 }
 
@@ -416,6 +424,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
             productNumber: product.productNumber,
             name: product.name || product.productNumber,
             price,
+            sale: catalogSale(product),
             cost: product.baseCost ? Number(product.baseCost) : 0,
             quantity: 1,
             discounts: [],
@@ -1166,7 +1175,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                       {p.categoryName && <span> -- {p.categoryName}</span>}
                     </p>
                   </div>
-                  <RetailPriceTag price={catalogRetailPrice(p)} fmt={fmt} />
+                  <RetailPriceTag price={catalogRetailPrice(p)} sale={catalogSale(p)} fmt={fmt} />
                 </div>
               </button>
             ))}
@@ -2034,6 +2043,7 @@ function CartRow({
   onCancelItemDiscount,
 }: CartRowProps) {
   const onHandHere = registerStoreName ? onHandAt(item, registerStoreName) : 0;
+  const onSale = lineSale(item.price, item.sale);
 
   return (
     <div className={`border-b border-brand-gray/10 p-3 ${item.isReturn ? "bg-red-50" : ""}`}>
@@ -2048,6 +2058,16 @@ function CartRow({
             )}
           </div>
           <p className="text-xs text-brand-gray">{item.productNumber}</p>
+          {onSale && (
+            <p className="text-xs mt-0.5">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-semibold">
+                SALE
+              </span>{" "}
+              <span className="text-brand-gray">
+                Regular <s>{fmt(onSale.regularPrice)}</s>
+              </span>
+            </p>
+          )}
           {registerStoreName && (
             <p className="text-xs mt-1">
               <span className="text-brand-gray">Source: </span>

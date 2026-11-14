@@ -36,6 +36,12 @@ const ITEMS: CardGridItem[] = [
     href: "/app/inventory/mass-price-change",
   },
   {
+    title: "Sales",
+    description:
+      "Schedule sale prices for a run of days, end a sale early, and print the tags that change today.",
+    href: "/app/inventory/sales",
+  },
+  {
     title: "Vendors",
     description: "Manage product vendors",
     href: "/app/inventory/vendors",

@@ -13,7 +13,12 @@ export interface ProductSearchResult {
   id: number;
   productNumber: string;
   name: string;
+  /** What the register charges today: a sale price while the product's sale is on. */
   baseRetail?: number | null;
+  /** The price off sale, and whether a scheduled sale applies today (lib/pricing/salePrice.ts). */
+  regularRetail?: number | null;
+  onSale?: boolean;
+  saleEndsOn?: string | null;
   baseCost?: number | null;
   vendorName?: string;
   departmentName?: string;

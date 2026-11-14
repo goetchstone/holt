@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
 import { logError } from "@/lib/logger";
 import { productCost } from "@/lib/purchasing/landedCostShared";
+import { catalogListUnits } from "@/lib/sales/discountApproval";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -153,8 +154,13 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
         });
         salesOrderId = order.id;
 
-        // Add house call product as line item if it exists
+        // Add house call product as line item if it exists, at its price today:
+        // its sale price while a scheduled sale is on (catalogListUnits ->
+        // lib/pricing/salePrice.ts, rule 42), which is also its list price.
         if (houseCallProduct) {
+          const [unit] = await catalogListUnits(tx, [
+            { productId: houseCallProduct.id, unitPrice: 0 },
+          ]);
           await tx.orderLineItem.create({
             data: {
               salesOrderId: order.id,
@@ -163,7 +169,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
               productName: houseCallProduct.name || "House Call",
               partNo: houseCallProduct.productNumber || "DC250",
               orderedQuantity: 1,
-              netPrice: houseCallProduct.baseRetail || 0,
+              netPrice: unit,
+              listPrice: unit,
               cost: productCost(houseCallProduct) ?? 0,
             },
           });

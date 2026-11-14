@@ -1786,6 +1786,49 @@ Rejected:
 
 → `docs/domains/pricing-catalog.md` "Retail is changed in one place"
 
+## 60. A sale price is scheduled on the store's days, decided at read time, and never touches the regular price (2026-11-14)
+
+**Decided:** GAP-06 part B, from the owner's standing rules rather than a new ruling: a tag's price is what the
+register charges (43), and typing a sale price at print time was rejected there in favour of scheduled sale prices;
+every value change is ledgered and transactional (57, 58); policy is the store's, with the strictest default
+(2026-10-30); automations are the store's settings, never a fixed job (2026-11-06).
+
+- **A sale is a name, a run of the store's days (first and last both included) and a sale price per product**
+  (`Sale`, `SaleItem`). Whether a price applies is decided when it is read, on the store's day
+  (`AppSettings.timezone`), never the browser's. Nothing is written when a sale starts or ends, and
+  `Product.baseRetail` stays the regular price: the retail writer and its ledger (58) don't move for a sale.
+- **One resolver,** `lib/pricing/salePrice.ts`, read by the product search and scan lookup, the discount policy's list
+  price (`catalogListUnits`), duplicate, a house call's service line and the tags (rule 42). A sale price applies only while it is below the
+  regular price, so a customer never pays more on sale than off it.
+- **The sale price is the list price.** A sale line needs no manager PIN at the default limit of 0, a further discount
+  is measured from the sale price, and `OrderLineItem.listPrice` records it.
+- **One sale price per product per day,** enforced in the writing transaction under a `FOR UPDATE` lock on the
+  products, since no unique key can say "ranges don't overlap" and none may be built over a nullable column (rule 64).
+- **What may change follows where the sale stands:** before it starts, everything, and it can be deleted; once on,
+  only its name and note, and it can be ended early; ended, only name and note. A started sale's rows are the record
+  of what was charged, so it is ended, never deleted or edited (the cancel-not-delete rule, 2026-11-06). A sale
+  starts today or later.
+- **During a sale a SALE tag prints the sale price with the regular price as "was", and a PRODUCT tag prints the sale
+  price,** both what the register charges (43). The screen lists the tags that change today and prints them in bulk
+  through the batch route with a `kind`. Reports' retail value of stock stays on the regular price.
+- **Every change is audited** (`SALE_SCHEDULED`, `SALE_CHANGED`, `SALE_ENDED`, `SALE_DELETED`, group "prices") in its
+  transaction.
+
+Rejected:
+
+- **Writing the sale price into `baseRetail` when a sale starts and back when it ends.** It needs a job that must run
+  at the store's midnight, and a missed or doubled run leaves the wrong price at the register and in the ledger. A
+  read-time decision can't be late.
+- **A sale price typed at print time** (rejected in 43): the tag and the register would disagree.
+- **Re-pricing open quotes and orders when a sale starts or ends.** Lines keep the price they were added at; changing
+  a customer's agreed price is a separate decision (left open).
+- **A fixed morning job that prints or emails the tags to change.** If wanted, it is an automation the store turns on
+  and sets up in Holt.
+
+Left open: per-store sales, customer-group discounts (part C), sale prices on configured and custom lines.
+
+→ `docs/domains/pricing-catalog.md` "Scheduled sale prices"
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

@@ -1,9 +1,22 @@
 // /app/src/pages/api/products/find-by-identifier.ts
+//
+// A scan or typed number to its product. baseRetail in the answer is the price
+// the register charges TODAY -- a sale price while the product's scheduled sale
+// is on (lib/pricing/salePrice.ts, GAP-06 part B) -- with regularRetail, onSale
+// and saleEndsOn beside it, as GET /api/products answers.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import type { Product } from "@prisma/client";
+import { effectiveRetailFor, retailResponseFields, saleToday } from "@/lib/pricing/salePrice";
+
+/** The product as the screens read it: its price today, sale or not. */
+async function withTodaysPrice(product: Product) {
+  const retail = await effectiveRetailFor([product], await saleToday(), prisma);
+  return { ...product, ...retailResponseFields(retail.get(product.id)!) };
+}
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // CORRECTED: This API now accepts both GET and POST requests to be more resilient.
@@ -45,7 +58,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (upc && upc.product) {
-      return res.status(200).json(upc.product);
+      return res.status(200).json(await withTodaysPrice(upc.product));
     }
 
     // Step 2: If no UPC, search Product Numbers.
@@ -59,7 +72,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (product) {
-      return res.status(200).json(product);
+      return res.status(200).json(await withTodaysPrice(product));
     }
 
     return res

@@ -20,7 +20,8 @@ export interface AuditFacts {
   details?: Prisma.InputJsonObject;
 }
 
-export type AuditTargetType = "order" | "customer" | "product" | "staff" | "vendor" | "role";
+export type AuditTargetType =
+  "order" | "customer" | "product" | "staff" | "vendor" | "role" | "sale";
 
 /**
  * Inside a transaction, pass it: the entry then stands or falls with the action, so
