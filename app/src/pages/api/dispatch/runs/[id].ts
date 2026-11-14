@@ -28,7 +28,7 @@ export async function handleGet(id: number, res: NextApiResponse) {
       where: { id },
       include: {
         vehicle: true,
-        driver: true,
+        driver: { select: { id: true, displayName: true } },
         stops: {
           orderBy: { stopOrder: "asc" },
           include: {
@@ -81,7 +81,7 @@ async function handlePut(
       },
       include: {
         vehicle: true,
-        driver: true,
+        driver: { select: { id: true, displayName: true } },
       },
     });
 

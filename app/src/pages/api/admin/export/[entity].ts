@@ -2,7 +2,8 @@
 //
 // Download a core business entity as CSV. The anti-lock-in guarantee: an
 // operator can pull all of their records out at any time, no support ticket
-// required. ADMIN only. Sensitive columns are stripped in the runner.
+// required. ADMIN only. Each entity sends only the columns its catalog entry
+// names (lib/genericExport.ts), so credentials never go out.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";

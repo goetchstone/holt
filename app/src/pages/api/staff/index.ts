@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { resolvePlanAssignment } from "@/lib/commissionPlans";
+import { STAFF_RECORD_SELECT } from "@/lib/staffRecord";
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   const where: Prisma.StaffMemberWhereInput = {};
@@ -22,7 +23,9 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   const staff = await prisma.staffMember.findMany({
     where,
     orderBy: { displayName: "asc" },
-    include: {
+    // Named columns only: never the password or PIN hash (lib/staffRecord.ts).
+    select: {
+      ...STAFF_RECORD_SELECT,
       user: { select: { email: true, name: true, image: true } },
       commissionPlan: { select: { id: true, name: true } },
       protectionCommissionPlan: { select: { id: true, name: true } },
@@ -73,7 +76,10 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
         isDesigner:
           typeof isDesigner === "boolean" ? isDesigner : assignment.role === DEFAULT_STAFF_ROLE,
       },
-      include: { user: { select: { email: true, name: true, image: true } } },
+      select: {
+        ...STAFF_RECORD_SELECT,
+        user: { select: { email: true, name: true, image: true } },
+      },
     });
     await auditLog("STAFF_CHANGED", auditActor(session), {
       summary: `${member.displayName} added as ${member.role}`,

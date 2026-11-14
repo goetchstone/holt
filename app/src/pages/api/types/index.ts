@@ -8,6 +8,9 @@ import { logError } from "@/lib/logger";
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     try {
+      // ?all=true returns every type, for pickers (TaxonomyPicker): a store's
+      // types are configuration, a short list, as departments and categories are.
+      const fetchAll = req.query.all === "true";
       const page = Number.parseInt(req.query.page as string) || 1;
       const limit = Number.parseInt(req.query.limit as string) || 10;
       const search = (req.query.search as string)?.trim() || "";
@@ -26,8 +29,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const [types, total] = await Promise.all([
         prisma.type.findMany({
           where,
-          skip,
-          take: limit,
+          ...(fetchAll ? {} : { skip, take: limit }),
           orderBy: { name: "asc" },
           include: { category: true }, // Include category for display and filtering
         }),

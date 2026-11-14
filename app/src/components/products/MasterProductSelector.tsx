@@ -1,4 +1,9 @@
 // /app/src/components/products/MasterProductSelector.tsx
+//
+// Create Variant's master-product picker. It searches /api/products as you type
+// (useProductSearch, as New Quote, POS and New Transfer do). It used to load
+// one dropdown from /api/products?all=true, but that route pages and has no
+// `all`, so the dropdown held the first 10 products by name and nothing else.
 
 "use client";
 
@@ -6,6 +11,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import FormInput from "@/components/form/FormInput";
 import { useFetchOptions } from "@/hooks/useFetchOptions";
+import { useProductSearch } from "@/hooks/useProductSearch";
 import { toast } from "react-toastify";
 
 // Define the Product type as expected from /api/products
@@ -42,8 +48,20 @@ export default function MasterProductSelector({
   const [isCreatingNewMaster, setIsCreatingNewMaster] = useState(false);
   const [saving, setSaving] = useState(false); // For master product creation save status
 
-  // Fetch all products (master items) for the dropdown
-  const [products, loadingProducts, errorProducts] = useFetchOptions("/api/products?all=true");
+  // Search master products server-side as the user types.
+  const {
+    query: productSearch,
+    setQuery: setProductSearch,
+    results: productResults,
+    status: searchStatus,
+    clear: clearProductSearch,
+  } = useProductSearch({ limit: 20 });
+
+  const chooseProduct = (product: Product | null) => {
+    onSelectedProductIdChange(product ? String(product.id) : "");
+    onSelectProduct(product);
+    clearProductSearch();
+  };
 
   // State for new master product creation form
   const [newMasterForm, setNewMasterForm] = useState({
@@ -105,13 +123,22 @@ export default function MasterProductSelector({
       if (res.ok) {
         const result = await res.json();
         toast.success("Master Product created!");
-        onSelectedProductIdChange(result.productId.toString()); // Select the newly created master product by its ID
+        // Select the new master as it was just saved, so its variants can be
+        // entered straight away.
+        const nameOf = (list: { id: string | number; name?: string }[], id: number) =>
+          list.find((o) => Number(o.id) === id)?.name;
+        chooseProduct({
+          id: result.productId,
+          name: payload.name,
+          productNumber: payload.productNumber,
+          vendorId: payload.vendorId,
+          departmentId: payload.departmentId,
+          categoryId: payload.categoryId,
+          vendorName: nameOf(vendors, payload.vendorId),
+          departmentName: nameOf(departments, payload.departmentId),
+          categoryName: nameOf(allCategories, payload.categoryId),
+        });
         setIsCreatingNewMaster(false); // Hide the master creation form
-
-        // If you want to force the 'products' dropdown to refresh and include the new master product:
-        // You would need a mechanism in useFetchOptions to trigger a re-fetch,
-        // or a manual re-fetch of products list here if it's critical.
-        // For simplicity, relying on the user to re-open the page or select will work for now.
       } else {
         const errorData = await res.json();
         toast.error(`Failed to create Master Product: ${errorData.error || "Unknown error"}`);
@@ -123,53 +150,63 @@ export default function MasterProductSelector({
     }
   };
 
-  // Display loading or error states for the main products dropdown
-  if (loadingProducts) {
-    return <div className="p-6 text-center text-brand-black font-serif">Loading products...</div>;
-  }
-
-  if (errorProducts) {
-    return (
-      <div className="p-6 text-center text-red-600 font-serif">
-        Error loading products: {errorProducts.message}
-      </div>
-    );
-  }
-
   return (
     <div className="mb-8 border p-4 rounded-lg bg-brand-linen">
       <h2 className="text-xl font-serif text-brand-black mb-4">Master Product</h2>
       {!isCreatingNewMaster ? (
-        // Select Existing Master Product Form
-        <div className="flex items-center gap-4">
+        // Find an existing master product
+        <div className="flex items-start gap-4">
           <label
-            htmlFor="masterProductSelect"
-            className="font-serif text-brand-black mb-1 block min-w-[120px]"
+            htmlFor="masterProductSearch"
+            className="font-serif text-brand-black mb-1 block min-w-[120px] pt-2"
           >
             Select Existing:
           </label>
-          <select
-            id="masterProductSelect"
-            value={selectedProductId}
-            onChange={(e) => {
-              const id = e.target.value;
-              onSelectedProductIdChange(id);
-              const product = products.find((p) => p.id === Number.parseInt(id));
-              if (product) {
-                onSelectProduct(product as Product);
-              } else {
-                onSelectProduct(null);
+          <div className="relative w-full">
+            <input
+              id="masterProductSearch"
+              type="text"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder={
+                selectedProductId
+                  ? "Search to choose a different master product..."
+                  : "Search by name or product number..."
               }
-            }}
-            className="border p-2 rounded w-full"
-          >
-            <option value="">-- Select a Master Product --</option>
-            {(products || []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.productNumber})
-              </option>
-            ))}
-          </select>
+              autoComplete="off"
+              className="border p-2 rounded w-full"
+            />
+            {/* "No matching products." only once a search for exactly this
+                text has come back; until then (debounce window or request
+                out) the held results answer older text, so none are offered. */}
+            {searchStatus !== "idle" && (
+              <div className="absolute z-10 mt-1 w-full bg-white border border-brand-gray/20 rounded shadow-lg max-h-64 overflow-y-auto">
+                {searchStatus === "searching" && (
+                  <div className="px-3 py-2 text-sm text-brand-gray">Searching...</div>
+                )}
+                {searchStatus === "done" && productResults.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-brand-gray">No matching products.</div>
+                )}
+                {searchStatus === "done" &&
+                  productResults.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => chooseProduct(p as unknown as Product)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-brand-stripe border-b border-brand-gray/10 min-h-[44px]"
+                    >
+                      <span className="text-brand-black">{p.name}</span>
+                      <span className="text-brand-gray ml-2">{p.productNumber}</span>
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+          {selectedProductId && (
+            <Button type="button" variant="secondary" onClick={() => chooseProduct(null)}>
+              Clear
+            </Button>
+          )}
           <Button
             type="button"
             variant="secondary"

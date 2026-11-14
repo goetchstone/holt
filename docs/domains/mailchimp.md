@@ -21,13 +21,13 @@ Admin UI: `/admin/automations/mailchimp-sync` — "Run All Steps" plus four indi
 
 ## Models
 
-| Model | Purpose |
-|---|---|
-| `MailchimpCampaign` | Campaign metadata (subject, send time, audience id, send count) |
-| `MailchimpCampaignStats` | Aggregate metrics (opens, clicks, bounces, unsubscribes) |
-| `MailchimpActivity` | Per-email engagement event (member id + email + campaign id + type + timestamp) |
-| `MailchimpSyncLog` | Audit log of sync runs |
-| `Lead` | Sales-qualified follow-up record (status, assignee, pinned flag, lastActionAt) |
+| Model                    | Purpose                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `MailchimpCampaign`      | Campaign metadata (subject, send time, audience id, send count)                 |
+| `MailchimpCampaignStats` | Aggregate metrics (opens, clicks, bounces, unsubscribes)                        |
+| `MailchimpActivity`      | Per-email engagement event (member id + email + campaign id + type + timestamp) |
+| `MailchimpSyncLog`       | Audit log of sync runs                                                          |
+| `Lead`                   | Sales-qualified follow-up record (status, assignee, pinned flag, lastActionAt)  |
 
 ## Audience sync
 
@@ -39,11 +39,11 @@ Tests pin the validation cases (`__tests__/mailchimpAudienceSync.test.ts`). Real
 
 `lib/mailchimpLeadIngestor.ts`. Converts new `MailchimpActivity` rows into `Lead` rows. Rules:
 
-| Activity type | Qualifies as a lead? |
-|---|---|
-| Click | **Always** |
-| Open | Only if the customer is high-value: peak level ≥ 3 OR wealth tier HIGH/VERY_HIGH/ULTRA_HIGH |
-| Bounce / unsubscribe | Never |
+| Activity type        | Qualifies as a lead?                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| Click                | **Always**                                                                                  |
+| Open                 | Only if the customer is high-value: peak level ≥ 3 OR wealth tier HIGH/VERY_HIGH/ULTRA_HIGH |
+| Bounce / unsubscribe | Never                                                                                       |
 
 **Dedup by email + active status** — if an ACTIVE lead (NEW/ASSIGNED/CONTACTED) already exists for the email, just bump `lastActionAt` instead of creating a duplicate.
 
@@ -69,10 +69,10 @@ Real-DB integration: `__tests__/integration/leadHousekeeping.integration.test.ts
 
 Ranks campaigns by attributed revenue within a 30-day window from open/click. Two key knobs on `AttributionOptions`:
 
-| Option | Default | Effect |
-|---|---|---|
-| `mode: "last-touch"` | **default** | Each purchase credited to the single most recent engagement within window. Summed revenue across campaigns equals true sales — no double-counting. |
-| `mode: "shared"` | opt-in | Per-campaign non-exclusive credit. Useful for conversion-rate comparisons. |
+| Option                       | Default     | Effect                                                                                                                                                                                                                   |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mode: "last-touch"`         | **default** | Each purchase credited to the single most recent engagement within window. Summed revenue across campaigns equals true sales — no double-counting.                                                                       |
+| `mode: "shared"`             | opt-in      | Per-campaign non-exclusive credit. Useful for conversion-rate comparisons.                                                                                                                                               |
 | `excludeNewCustomerDays: 60` | **60 days** | Drop any customer whose `Customer.firstOrderDate` falls inside the 60 days before a campaign's first engagement. Walk-ins added to the list on their first purchase would otherwise inflate the next campaign's numbers. |
 
 Both endpoints (`/api/mailchimp/campaigns/db` list, `/api/mailchimp/campaigns/[id]` detail) pull engagements + orders + `Customer.firstOrderDate` in parallel. Detail pulls cross-campaign engagements for engaged customers so last-touch resolves identically to the list.
@@ -97,13 +97,13 @@ After deploying any fix that touches revenue aggregation, run `POST /api/custome
 
 `/leads` (manager-facing). API returns:
 
-| Field | Visibility |
-|---|---|
-| `leadTier` (🔥 HOT / 🙂 WARM / 🙃 COOL / 😐 NEW) | All roles |
-| `leadScore` numeric | ADMIN/MANAGER/MARKETING only |
-| `wealthTier` | ADMIN/MARKETING only (NOT MANAGER) |
-| `recentEngagement` (last open/click + 30-day campaign count) | All roles |
-| `suggestedAction` hint per card | All roles |
+| Field                                                        | Visibility                         |
+| ------------------------------------------------------------ | ---------------------------------- |
+| `leadTier` (🔥 HOT / 🙂 WARM / 🙃 COOL / 😐 NEW)             | All roles                          |
+| `leadScore` numeric                                          | ADMIN/MANAGER/MARKETING only       |
+| `wealthTier`                                                 | ADMIN/MARKETING only (NOT MANAGER) |
+| `recentEngagement` (last open/click + 30-day campaign count) | All roles                          |
+| `suggestedAction` hint per card                              | All roles                          |
 
 The pipeline and My Clients build a score's input with `leadScoreInputFromCustomer`
 (`lib/leadScore.ts`), so both score a client the same way. My Clients shows the tier only.
@@ -114,14 +114,19 @@ The pipeline and My Clients build a score's input with `leadScoreInputFromCustom
 
 ## Manual sync endpoints (one-offs)
 
-| Endpoint | Use case |
-|---|---|
-| `/api/mailchimp/sync.ts` | Full pipeline (legacy, prefer the orchestrator) |
-| `/api/mailchimp/sync-activity.ts` | Just activity window |
-| `/api/mailchimp/sync-all-activity.ts` | Wider activity backfill (slow) |
-| `/api/mailchimp/sync-metrics.ts` | Just metrics window |
+| Endpoint                                    | Use case                                                                          |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| `/api/mailchimp/sync.ts`                    | Full pipeline (legacy, prefer the orchestrator)                                   |
+| `/api/mailchimp/sync-activity.ts`           | Just activity window                                                              |
+| `/api/mailchimp/sync-all-activity.ts`       | Wider activity backfill (slow)                                                    |
+| `/api/mailchimp/sync-metrics.ts`            | Just metrics window                                                               |
 | `/api/mailchimp/backfill-customer-links.ts` | Re-link `MailchimpActivity.customerId` for rows that didn't match on first ingest |
-| `/api/mailchimp/delete-all.ts` | Nuke + re-sync (ADMIN, dangerous) |
+
+There is no "delete everything" endpoint. `/api/mailchimp/delete-all.ts` (and its
+sibling `/api/customers/delete-all.ts`) wiped the campaign tables, or every
+customer, and nothing called them; both were removed 2026-11-14. History is
+kept, not wiped: a resync upserts campaign rows in place
+(`lib/mailchimpSyncRunners.ts`).
 
 ## Verification checklist (before touching Mailchimp code)
 
@@ -133,14 +138,14 @@ The pipeline and My Clients build a score's input with `leadScoreInputFromCustom
 
 ## Test coverage
 
-| Surface | Coverage |
-|---|---|
-| `campaignAttribution.ts` | 20 unit tests pinning last-touch vs shared math + edge cases |
-| `mailchimpAudienceSync.ts` | Unit + real-DB integration |
-| `mailchimpLeadIngestor.ts` | Real-DB integration |
-| `leadHousekeeping.ts` | Real-DB integration |
-| Revenue-status filter | Source-text tripwire + real-DB attribution test |
-| Sync runners | Real-DB integration (`mailchimpAudienceSync.runner.integration.test.ts`) |
+| Surface                    | Coverage                                                                 |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `campaignAttribution.ts`   | 20 unit tests pinning last-touch vs shared math + edge cases             |
+| `mailchimpAudienceSync.ts` | Unit + real-DB integration                                               |
+| `mailchimpLeadIngestor.ts` | Real-DB integration                                                      |
+| `leadHousekeeping.ts`      | Real-DB integration                                                      |
+| Revenue-status filter      | Source-text tripwire + real-DB attribution test                          |
+| Sync runners               | Real-DB integration (`mailchimpAudienceSync.runner.integration.test.ts`) |
 
 ## Known gaps
 
@@ -149,4 +154,5 @@ The pipeline and My Clients build a score's input with `leadScoreInputFromCustom
 - Lead `assignedTo` doesn't currently support multiple designers (e.g., for couples-team-handle)
 
 ---
+
 Last verified: 2026-05-20
