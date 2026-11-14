@@ -46,12 +46,11 @@ const ACCEPTED_CREDENTIAL_NAMES: Record<string, string> = {};
  */
 function looksLikeCredential(field: string): boolean {
   if (
-    /hash|secret|token|cipher|passw(or)?d|passcode|credential|api_?key|private_?key|key$/i.test(
-      field,
-    )
+    /hash|secret|token|cipher|passw(or)?d|passcode|credential|api_?key|private_?key/i.test(field)
   ) {
     return true;
   }
+  if (/key$/i.test(field)) return true;
   return /(^pin|Pin)(?![a-z])/.test(field);
 }
 
