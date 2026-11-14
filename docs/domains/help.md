@@ -47,6 +47,7 @@ Source read for this runbook: `lib/help/catalog.ts`, `lib/help/articles.ts`,
 | Cancelling or changing a sale | `/app/sales/orders/[id]` |
 | Building your own reports | `/app/tools/query-builder` |
 | Finding who did what | `/app/admin/audit` |
+| Changing many prices at once (GAP-06) | `/app/inventory/mass-price-change` |
 
 254 screens have none yet: see the fixture.
 

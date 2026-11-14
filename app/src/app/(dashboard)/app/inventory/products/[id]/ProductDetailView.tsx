@@ -18,6 +18,8 @@ import { OtherVendorsSection } from "./OtherVendorsSection";
 import { ReorderPointsSection } from "./ReorderPointsSection";
 import { ProductPictureSection } from "./ProductPictureSection";
 import { ProductTagsSection } from "./ProductTagsSection";
+import { PriceHistorySection, type PriceHistoryEntry } from "./PriceHistorySection";
+import { getErrorMessage } from "@/lib/toastError";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
 interface ProductDetails {
@@ -36,6 +38,10 @@ interface ProductDetails {
   baseRetail: number | null;
   mapPrice: number | null;
   wasPrice: number | null;
+  /** Kept by imports, mass price changes and style edits (GAP-06). */
+  priceLocked: boolean;
+  /** Its price ledger, newest first. */
+  priceHistory: PriceHistoryEntry[];
   lawTagText: string | null;
   length?: number;
   width?: number;
@@ -92,11 +98,13 @@ export function ProductDetailView({
   canEdit,
   canSetReorderPoints,
   canPrintTags,
+  canChangePricing,
 }: {
   id: string;
   canEdit: boolean;
   canSetReorderPoints: boolean;
   canPrintTags: boolean;
+  canChangePricing: boolean;
 }) {
   const fmt = useMoneyFormatter();
   const [product, setProduct] = useState<ProductDetails | null>(null);
@@ -108,8 +116,8 @@ export function ProductDetailView({
     try {
       const res = await axios.get(`/api/products/${encodeURIComponent(id)}`);
       setProduct(res.data);
-    } catch {
-      toast.error("Failed to load product.");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to load product."));
     } finally {
       setLoading(false);
     }
@@ -195,6 +203,7 @@ export function ProductDetailView({
             <p className="text-lg font-semibold">
               {product.baseRetail != null ? fmt(product.baseRetail) : "N/A"}
             </p>
+            {product.priceLocked && <p className="text-xs text-amber-800">Price locked</p>}
           </div>
           <div>
             <p className="text-brand-gray text-xs uppercase tracking-wide">MAP</p>
@@ -265,6 +274,14 @@ export function ProductDetailView({
         name={product.name}
         imageUrl={product.imageUrl}
         canEdit={canEdit}
+        onChanged={fetchProduct}
+      />
+
+      <PriceHistorySection
+        productId={product.id}
+        priceLocked={product.priceLocked}
+        history={product.priceHistory ?? []}
+        canChangePricing={canChangePricing}
         onChanged={fetchProduct}
       />
 

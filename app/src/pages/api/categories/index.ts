@@ -6,8 +6,20 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
+import type { Session } from "next-auth";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import { auditActor, auditLog } from "@/lib/audit";
+import { markupProblem, markupValue } from "@/lib/pricing/markup";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+/** A category's markup prices its products: setting one needs "Change pricing" (GAP-06). */
+const PRICING = "catalog.pricing";
+
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   try {
     if (req.method === "GET") {
       const fetchAll = req.query.all === "true";
@@ -58,24 +70,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(200).json({ categories: mappedCategories, total });
     }
 
-    if (req.method === "POST") {
-      const { name, departmentId, trackInventory, accountGroupId, labelTemplateId } = req.body;
-      const taxGroup = await readTaxGroupId(prisma, req.body.taxGroupId);
-      if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
-
-      const created = await prisma.category.create({
-        data: {
-          name,
-          departmentId,
-          trackInventory,
-          accountGroupId: accountGroupId ? Number.parseInt(accountGroupId) : null,
-          labelTemplateId: labelTemplateId || null,
-          taxGroupId: taxGroup.value ?? null,
-        },
-      });
-
-      return res.status(201).json(created);
-    }
+    if (req.method === "POST") return await handlePost(req, res, session, access);
 
     res.setHeader("Allow", ["GET", "POST"]);
     res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -85,4 +80,55 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requirePermission("catalog.write", handler);
+/** A new category, with its markup when one is given (needs "Change pricing", audited). */
+async function handlePost(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
+  const { name, departmentId, trackInventory, accountGroupId, labelTemplateId } = req.body;
+  const taxGroup = await readTaxGroupId(prisma, req.body.taxGroupId);
+  if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
+
+  // Its markup (GAP-06): a multiplier, or none to follow the vendor's or the store's.
+  const markup: unknown = req.body.defaultMarkup === "" ? null : (req.body.defaultMarkup ?? null);
+  const problem = markupProblem(markup);
+  if (problem) return res.status(400).json({ error: problem });
+  const multiplier = markupValue(markup);
+  if (multiplier !== null && !access.holds[PRICING]) {
+    return res
+      .status(403)
+      .json({ error: "Giving a category a markup needs the Change pricing permission." });
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const category = await tx.category.create({
+      data: {
+        name,
+        departmentId,
+        trackInventory,
+        accountGroupId: accountGroupId ? Number.parseInt(accountGroupId) : null,
+        labelTemplateId: labelTemplateId || null,
+        taxGroupId: taxGroup.value ?? null,
+        defaultMarkup: multiplier,
+      },
+    });
+    if (multiplier !== null) {
+      await auditLog(
+        "MARKUP_CHANGED",
+        auditActor(session),
+        {
+          summary: `${category.name}: category markup none → ${multiplier}`,
+          details: { scope: "category", categoryId: category.id, from: null, to: multiplier },
+        },
+        tx,
+      );
+    }
+    return category;
+  });
+
+  return res.status(201).json(created);
+}
+
+export default requirePermission("catalog.write", handler, { also: [PRICING] });

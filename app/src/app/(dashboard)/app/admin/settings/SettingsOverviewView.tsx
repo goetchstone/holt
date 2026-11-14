@@ -22,10 +22,11 @@ import { toast } from "react-toastify";
 import { Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
+import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { MODULES, getToggleableModules, getModulesForSettingsIndex } from "@/lib/modules";
 import { isFeatureEnabled } from "@/lib/featureCatalog";
 import { ImageUploadField } from "@/components/cms/admin/ImageUploadField";
-import type { ResolvedAppSettings } from "@/lib/appSettings";
+import type { PricingConfig, ResolvedAppSettings } from "@/lib/appSettings";
 import { derivePrefix, effectivePrefix } from "@/lib/numberingPrefix";
 import {
   LANDED_COST_SPLITS,
@@ -46,6 +47,17 @@ import {
   isSplitPercent,
   splitLabel,
 } from "@/lib/commissionSplit";
+import {
+  MARKUP_PRECEDENCES,
+  MARKUP_PRECEDENCE_LABELS,
+  isMarkupPrecedence,
+} from "@/lib/pricing/markup";
+import {
+  RETAIL_ROUNDINGS,
+  RETAIL_ROUNDING_LABELS,
+  isRetailRounding,
+  roundRetail,
+} from "@/lib/pricing/rounding";
 import {
   CLIENT_PROFILE_CHOICE_LABELS,
   DEFAULT_CLIENT_PROFILE_CHOICES,
@@ -489,6 +501,103 @@ function DiscountsSection({
           onChange={(e) => onChange(Math.round(Number(e.target.value) || 0))}
           className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
         />
+      </div>
+    </section>
+  );
+}
+
+// How the store prices (AppSettings.pricing, GAP-06, DECISIONS 58): the markup
+// that prices a product when neither its vendor nor its category has one,
+// whether the vendor's or the category's markup wins, and how a price worked out
+// from a markup or a percent is rounded. A price someone types is never rounded.
+const ROUNDING_EXAMPLE = 123.41;
+
+function PricingSection({
+  value,
+  onChange,
+}: Readonly<{ value: PricingConfig; onChange: (next: PricingConfig) => void }>) {
+  const fmt = useMoneyFormatter();
+  const [typed, setTyped] = useState(
+    value.defaultMarkup == null ? "" : String(value.defaultMarkup),
+  );
+  return (
+    <section id="pricing" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Pricing</h2>
+      <p className="text-xs text-brand-gray">
+        A markup is what cost is multiplied by to give retail: 2.2 prices a $100 item at $220. A
+        vendor can have one (Admin → Vendor Pricing → Price Configurator, its pricing settings) and
+        so can a category (Inventory → Categories); this one is used when neither does. With none at
+        all, Holt shows cost and works out no retail price. The rounding applies to prices Holt
+        works out, in an import or a mass price change, never to a price someone types.
+      </p>
+      <div className="grid max-w-3xl gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="store-markup" className="mb-1 block text-sm text-brand-gray">
+            Store markup (empty for none)
+          </label>
+          <input
+            id="store-markup"
+            type="number"
+            min={0.0001}
+            step={0.01}
+            value={typed}
+            placeholder="e.g. 2.2"
+            onChange={(e) => {
+              setTyped(e.target.value);
+              onChange({
+                ...value,
+                defaultMarkup: e.target.value.trim() === "" ? null : Number(e.target.value),
+              });
+            }}
+            className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+          />
+        </div>
+        <div>
+          <label htmlFor="markup-precedence" className="mb-1 block text-sm text-brand-gray">
+            When a vendor and a category both have one
+          </label>
+          <select
+            id="markup-precedence"
+            value={value.markupPrecedence}
+            onChange={(e) => {
+              if (isMarkupPrecedence(e.target.value)) {
+                onChange({ ...value, markupPrecedence: e.target.value });
+              }
+            }}
+            className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+          >
+            {MARKUP_PRECEDENCES.map((key) => (
+              <option key={key} value={key}>
+                {MARKUP_PRECEDENCE_LABELS[key]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="retail-rounding" className="mb-1 block text-sm text-brand-gray">
+            Round a worked-out retail price
+          </label>
+          <select
+            id="retail-rounding"
+            value={value.retailRounding}
+            onChange={(e) => {
+              if (isRetailRounding(e.target.value)) {
+                onChange({ ...value, retailRounding: e.target.value });
+              }
+            }}
+            className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+          >
+            {RETAIL_ROUNDINGS.map((key) => (
+              <option key={key} value={key}>
+                {RETAIL_ROUNDING_LABELS[key]}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-brand-gray">
+            {fmt(ROUNDING_EXAMPLE)} becomes{" "}
+            {fmt(roundRetail(ROUNDING_EXAMPLE, value.retailRounding))}.
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -1180,6 +1289,7 @@ export function SettingsOverviewView() {
           quoteHoldMaxDays: settings.quoteHoldMaxDays,
           landedCostSplit: settings.landedCostSplit,
           idleLogoffMinutes: settings.idleLogoffMinutes,
+          pricing: settings.pricing,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1311,6 +1421,10 @@ export function SettingsOverviewView() {
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, discountLimitPercent: percent } : prev))
         }
+      />
+      <PricingSection
+        value={settings.pricing}
+        onChange={(pricing) => setSettings((prev) => (prev ? { ...prev, pricing } : prev))}
       />
       <SplitSalesSection
         value={settings.defaultSplitPercent}

@@ -121,6 +121,12 @@ export default function ProductEditModal({
             value={form.baseRetail}
             onChange={(v) => handleChange("baseRetail", v)}
           />
+          {product.priceLocked && (
+            <p className="mt-1 text-xs text-amber-800">
+              This price is locked: imports and mass price changes keep it. A change made here still
+              applies.
+            </p>
+          )}
 
           <div className="mt-4">
             <label className="mb-1 block text-xs text-brand-gray">Service Type</label>

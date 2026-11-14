@@ -32,6 +32,7 @@ const SENSITIVE: RegExp[] = [
   /\/(delete-all|merge-duplicates|merge|bulk-reset-missing)\.ts$/,
   /\/clear-[a-z-]+\.ts$/,
   /^src\/pages\/api\/pricing\/import\//,
+  /^src\/pages\/api\/pricing\/mass-change\/(apply|lock)\.ts$/,
   /^src\/pages\/api\/admin\/roles\//,
   /^src\/pages\/api\/staff\/(index|\[id\])\.ts$/,
   /^src\/pages\/api\/admin\/staff\//,
@@ -53,6 +54,10 @@ const SENSITIVE: RegExp[] = [
 const NOT_RECORDED: Record<string, string> = {
   "src/pages/api/pricing/import/wholesale-prices.ts":
     "Recorded by lib/pricing/importWholesaleBook.ts, which does the import.",
+  "src/pages/api/pricing/mass-change/apply.ts":
+    "Recorded by lib/pricing/massChange.ts applyMassChange, in the change's own transaction.",
+  "src/pages/api/pricing/mass-change/lock.ts":
+    "Recorded by lib/pricing/massChange.ts lockMassChange, in the change's own transaction.",
   "src/pages/api/admin/buyer-drafts/export/items.ts":
     "A buyer's own draft items, for a vendor: no customer or sales data.",
   "src/pages/api/admin/buyer-drafts/export/pos.ts":
@@ -91,6 +96,13 @@ describe("the audit trail's coverage", () => {
 
   it("has the wholesale import record itself, as its route's reason says", () => {
     expect(read("src/lib/pricing/importWholesaleBook.ts")).toContain('auditLog("PRICES_IMPORTED"');
+  });
+
+  it("has the mass price change record itself, as its routes' reasons say", () => {
+    const massChange = read("src/lib/pricing/massChange.ts");
+    expect(massChange).toContain('"PRICES_ADJUSTED"');
+    expect(massChange).toContain('"PRICE_LOCK_CHANGED"');
+    expect(massChange.match(/auditLog\(/g)?.length).toBe(2);
   });
 
   it("has no stale reason: each names a real route that still records nothing", () => {

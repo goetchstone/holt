@@ -336,6 +336,13 @@ export interface GenericImportResult {
   imported: number;
   skipped: number;
   errors: string[];
+  /** Products whose retail the import kept: locked, or no price in the file (GAP-06). */
+  priceLockedKept?: number;
+  priceBlankKept?: number;
+  /** Always 0 here: this import is gated on admin.data and not checked for "Change pricing" (DECISIONS 58). */
+  priceNoPermissionKept?: number;
+  /** What the operator should know that isn't an error. */
+  notes?: string[];
 }
 
 function normalizeHeader(s: string): string {

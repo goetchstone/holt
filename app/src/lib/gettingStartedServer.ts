@@ -41,7 +41,7 @@ export async function loadGettingStartedFacts(): Promise<GettingStartedFacts> {
     }),
     prisma.taxDistrict.count({ where: { isActive: true } }),
     // gt excludes NULL, and a zero or negative markup is not honoured by the
-    // catalog either (pricing/products.ts resolveVendorMarkup), so it does not
+    // catalog either (lib/pricing/markup.ts resolveMarkup), so it does not
     // count as set.
     prisma.vendor.count({ where: { defaultMarkup: { gt: 0 } } }),
     prisma.staffMember.count({ where: { isActive: true } }),

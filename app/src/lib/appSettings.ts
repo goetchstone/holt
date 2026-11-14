@@ -23,12 +23,36 @@ import { IDLE_LOGOFF_DEFAULT_MINUTES, isIdleLogoffMinutes } from "@/lib/auth/idl
 import { QUOTE_HOLD_DEFAULT_MAX_DAYS, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
 import { EVEN_SPLIT_PERCENT, isSplitPercent } from "@/lib/commissionSplit";
 import {
+  DEFAULT_MARKUP_PRECEDENCE,
+  isMarkupPrecedence,
+  markupValue,
+  type MarkupPrecedence,
+} from "@/lib/pricing/markup";
+import {
+  DEFAULT_RETAIL_ROUNDING,
+  isRetailRounding,
+  type RetailRounding,
+} from "@/lib/pricing/rounding";
+import {
   DEFAULT_CLIENT_PROFILE_CHOICES,
   readClientProfileChoices,
   type ClientProfileChoices,
 } from "@/lib/clientProfile";
 
 export const DEFAULT_ORG_ID = 1;
+
+/** AppSettings.pricing, parsed (parsePricingConfig). */
+export interface PricingConfig {
+  defaultMarkup: number | null;
+  markupPrecedence: MarkupPrecedence;
+  retailRounding: RetailRounding;
+}
+
+export const DEFAULT_PRICING_CONFIG: PricingConfig = {
+  defaultMarkup: null,
+  markupPrecedence: DEFAULT_MARKUP_PRECEDENCE,
+  retailRounding: DEFAULT_RETAIL_ROUNDING,
+};
 
 // Default brand palette (hex). Keys mirror AppSettings.theme JSON.
 export const DEFAULT_THEME = {
@@ -86,9 +110,11 @@ export interface ResolvedAppSettings {
   /** The store whose "Unmatched — Needs Review" place takes POS stock rows the
    *  import cannot place. null = such rows are reported and not written. */
   unmatchedStockStoreLocationId: number | null;
-  /** Store-wide retail markup fallback. null = unset; the catalog then shows
-   * cost and refuses to invent a retail price when a vendor also lacks one. */
-  pricing: { defaultMarkup: number | null };
+  /** How the store prices (GAP-06): the store-wide markup fallback (null =
+   * unset; the catalog then shows cost and refuses to invent a retail price when
+   * vendor and category lack one too), whether vendor or category markup wins,
+   * and how a computed retail is rounded. */
+  pricing: PricingConfig;
   /** Google Drive/Slides project-creation config. A null folder or template =>
    * the Create Project route refuses (503) rather than writing into the wrong
    * Drive; the subfolder list defaults to the standard set. */
@@ -191,7 +217,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   bookingConfig: { ...BOOKING_DEFAULTS },
   sourceAdapterId: "none",
   unmatchedStockStoreLocationId: null,
-  pricing: { defaultMarkup: null },
+  pricing: { ...DEFAULT_PRICING_CONFIG },
   google: {
     drive: { projectsRootFolderId: null, projectSubfolders: [...DEFAULT_GOOGLE_SUBFOLDERS] },
     slides: { templatePresentationId: null },
@@ -288,7 +314,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
       theme: { ...DEFAULT_THEME },
       features: {},
       bookingConfig: { ...BOOKING_DEFAULTS },
-      pricing: { defaultMarkup: null },
+      pricing: { ...DEFAULT_PRICING_CONFIG },
       google: {
         drive: { projectsRootFolderId: null, projectSubfolders: [...DEFAULT_GOOGLE_SUBFOLDERS] },
         slides: { templatePresentationId: null },
@@ -379,13 +405,16 @@ function isoOrNull(value: Date | null | undefined): string | null {
 
 // A store-wide markup fallback is honoured only when it is an explicit, positive,
 // finite number. Anything else -- absent, null, zero, a string -- resolves to
-// "unset" so the catalog fails closed rather than inventing a retail price.
-function parsePricingConfig(raw: unknown): { defaultMarkup: number | null } {
-  if (isRecord(raw)) {
-    const m = raw.defaultMarkup;
-    if (typeof m === "number" && Number.isFinite(m) && m > 0) return { defaultMarkup: m };
-  }
-  return { defaultMarkup: null };
+// "unset" so the catalog fails closed rather than inventing a retail price. An
+// unknown precedence or rounding rule resolves to the default, which changes no
+// price anyone has today: vendor first, and to the cent.
+export function parsePricingConfig(raw: unknown): PricingConfig {
+  const config: PricingConfig = { ...DEFAULT_PRICING_CONFIG };
+  if (!isRecord(raw)) return config;
+  if (typeof raw.defaultMarkup === "number") config.defaultMarkup = markupValue(raw.defaultMarkup);
+  if (isMarkupPrecedence(raw.markupPrecedence)) config.markupPrecedence = raw.markupPrecedence;
+  if (isRetailRounding(raw.retailRounding)) config.retailRounding = raw.retailRounding;
+  return config;
 }
 
 // Google project-creation config, fail-closed like pricing: the folder and

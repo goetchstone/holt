@@ -177,6 +177,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/inventory/departments": { permission: "catalog.read" },
   "/app/inventory/freeze": { permission: "inventory.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
   "/app/inventory/hub": { permission: "inventory.read" },
+  "/app/inventory/mass-price-change": { permission: "catalog.pricing" },
   "/app/inventory/physical-count": { permission: "inventory.count" },
   "/app/inventory/product-variance/[externalId]": { permission: "inventory.read" },
   "/app/inventory/products": { permission: "catalog.read" },

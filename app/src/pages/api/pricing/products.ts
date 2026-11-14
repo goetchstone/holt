@@ -10,18 +10,46 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { DimensionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
-import { getAppSettings } from "@/lib/appSettings";
+import { getAppSettings, type PricingConfig } from "@/lib/appSettings";
+import { markupValue, resolveMarkup } from "@/lib/pricing/markup";
 
-// The retail markup for a vendor: its own if set, else the store-wide fallback,
-// else null. null is "unconfigured" -- the catalog then shows wholesale cost and
-// refuses to invent a retail price rather than falling back to a hardcoded
-// markup. A vendor markup of 0 is treated as unset (0x retail is meaningless).
-function resolveVendorMarkup(vendorMarkup: unknown, storeWide: number | null): number | null {
-  if (vendorMarkup != null) {
-    const n = Number(vendorMarkup);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  return storeWide;
+// The retail markup comes from lib/pricing/markup.ts: vendor, category and the
+// store-wide fallback, in the order the store chose. null is "unconfigured" --
+// the catalog then shows wholesale cost and refuses to invent a retail price
+// rather than falling back to a hardcoded markup.
+
+/**
+ * The vendor-level markup (no category), and whether the catalog can price at
+ * all. `defaultMarkup` is resolved -- the store's when the vendor has none -- so
+ * the vendor's own goes separately as `ownMarkup`: the editor of a vendor's
+ * markup shows and saves that one, never the store's fallback copied onto it.
+ */
+function vendorMarkupFields(vendorMarkup: unknown, pricing: PricingConfig) {
+  const markup = resolveMarkup({
+    vendorMarkup,
+    storeMarkup: pricing.defaultMarkup,
+    precedence: pricing.markupPrecedence,
+  });
+  return {
+    defaultMarkup: markup?.multiplier ?? null,
+    ownMarkup: markupValue(vendorMarkup),
+    pricingStatus: markup === null ? "UNCONFIGURED_MARKUP" : "OK",
+  };
+}
+
+/** One style's markup: its category's can win over (or stand in for) the vendor's. */
+function styleMarkupFields(
+  vendorMarkup: unknown,
+  category: { defaultMarkup: unknown } | null,
+  pricing: PricingConfig,
+) {
+  const markup = resolveMarkup({
+    vendorMarkup,
+    categoryMarkup: category?.defaultMarkup,
+    storeMarkup: pricing.defaultMarkup,
+    precedence: pricing.markupPrecedence,
+  });
+  return { markup: markup?.multiplier ?? null, markupSource: markup?.source ?? null };
 }
 
 /** Exported for the integration test, which calls it with a fake req/res; the
@@ -96,6 +124,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         seatDepth: true,
         imageUrl: true,
         collection: { select: { name: true } },
+        category: { select: { defaultMarkup: true } },
         gradePrices: {
           select: {
             id: true,
@@ -332,6 +361,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         seatDepth: p.seatDepth || null,
         imageUrl: p.imageUrl || null,
         collection: p.collection?.name || null,
+        // This style's own markup (GAP-06): its category's may differ from the vendor's.
+        ...styleMarkupFields(vendor.defaultMarkup, p.category, appSettings.pricing),
         gradePrices,
         availableOptions,
       };
@@ -342,11 +373,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         id: vendor.id,
         name: vendor.name,
         pricingModel: vendor.pricingModel,
-        defaultMarkup: resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup),
-        pricingStatus:
-          resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup) === null
-            ? "UNCONFIGURED_MARKUP"
-            : "OK",
+        ...vendorMarkupFields(vendor.defaultMarkup, appSettings.pricing),
         defaultDiscount: vendor.defaultDiscount ? Number(vendor.defaultDiscount) : 0,
         mapEnforced: vendor.mapEnforced,
       },
@@ -389,6 +416,7 @@ async function handleWoodVendor(
       baseRetail: true,
       mapPrice: true,
       imageUrl: true,
+      category: { select: { defaultMarkup: true } },
       speciesPrices: {
         select: {
           id: true,
@@ -511,6 +539,7 @@ async function handleWoodVendor(
       baseRetail: p.baseRetail ? Number(p.baseRetail) : null,
       mapPrice: p.mapPrice ? Number(p.mapPrice) : null,
       imageUrl: p.imageUrl || null,
+      ...styleMarkupFields(vendor.defaultMarkup, p.category, appSettings.pricing),
       speciesPrices,
       axisPrices,
       availableOptions,
@@ -535,11 +564,7 @@ async function handleWoodVendor(
       id: vendor.id,
       name: vendor.name,
       pricingModel: vendor.pricingModel,
-      defaultMarkup: resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup),
-      pricingStatus:
-        resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup) === null
-          ? "UNCONFIGURED_MARKUP"
-          : "OK",
+      ...vendorMarkupFields(vendor.defaultMarkup, appSettings.pricing),
       defaultDiscount: vendor.defaultDiscount ? Number(vendor.defaultDiscount) : 0,
       costMultiplier: vendor.costMultiplier ? Number(vendor.costMultiplier) : null,
       mapEnforced: vendor.mapEnforced,
@@ -744,11 +769,7 @@ async function handleFramePlusCushion(
       id: vendor.id,
       name: vendor.name,
       pricingModel: vendor.pricingModel,
-      defaultMarkup: resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup),
-      pricingStatus:
-        resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup) === null
-          ? "UNCONFIGURED_MARKUP"
-          : "OK",
+      ...vendorMarkupFields(vendor.defaultMarkup, appSettings.pricing),
       defaultDiscount: vendor.defaultDiscount ? Number(vendor.defaultDiscount) : 0,
       costMultiplier: vendor.costMultiplier ? Number(vendor.costMultiplier) : null,
       mapEnforced: vendor.mapEnforced,

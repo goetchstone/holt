@@ -11,6 +11,14 @@ import { findOrCreateCustomer, safeString, safeFloat } from "@/lib/importHelpers
 import { getImportEntity, type ColumnMapping, type GenericImportResult } from "@/lib/genericImport";
 import { logError } from "@/lib/logger";
 import { findOrCreateVendorId, findVendorByName } from "@/lib/vendors/vendorByName";
+import {
+  countKept,
+  emptyKeptCounts,
+  keptSummary,
+  lockRetailRow,
+  recordImportPriceChanges,
+  retailFieldsForImport,
+} from "@/lib/pricing/retailWriter";
 
 type RawRow = Record<string, unknown>;
 
@@ -408,6 +416,7 @@ async function importProducts(
   userEmail: string,
 ): Promise<GenericImportResult> {
   const result: GenericImportResult = { imported: 0, skipped: 0, errors: [] };
+  const kept = emptyKeptCounts();
 
   // Cache name->id resolutions so a catalog with one vendor doesn't issue a
   // lookup per row.
@@ -499,19 +508,32 @@ async function importProducts(
         select: { id: true },
       });
       if (existing) {
-        await prisma.product.update({
-          where: { id: existing.id },
-          data: {
-            name,
-            departmentId,
-            categoryId,
-            description,
-            baseCost,
-            baseRetail,
-            cartonQty,
-            updatedBy: userEmail,
-          },
+        // A locked price, or a blank retail cell, leaves the product's retail
+        // as it is -- decided from its row as it stands, locked in this
+        // transaction (lib/pricing/retailWriter.ts).
+        const retail = await prisma.$transaction(async (tx) => {
+          const current = await lockRetailRow(tx, existing.id);
+          const retail = retailFieldsForImport(current, baseRetail);
+          await tx.product.update({
+            where: { id: existing.id },
+            data: {
+              name,
+              departmentId,
+              categoryId,
+              description,
+              baseCost,
+              ...retail.data,
+              cartonQty,
+              updatedBy: userEmail,
+            },
+          });
+          await recordImportPriceChanges(tx, retail.change ? [retail.change] : [], {
+            source: "IMPORT",
+            actor: userEmail,
+          });
+          return retail;
         });
+        countKept(kept, retail.kept);
       } else {
         await prisma.product.create({
           data: {
@@ -534,5 +556,11 @@ async function importProducts(
     }
   }
 
+  // Reported only when an import kept a price, so a plain run reads as before.
+  const keptNote = keptSummary(kept);
+  if (keptNote) {
+    Object.assign(result, kept);
+    result.notes = [`Retail ${keptNote}.`];
+  }
   return result;
 }

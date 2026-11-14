@@ -18,11 +18,15 @@ import {
   DEFAULT_THEME,
   invalidateAppSettingsCache,
   isHexColor,
+  parsePricingConfig,
   PORTAL_TOKEN_TTL_MAX_HOURS,
+  type PricingConfig,
   readAppSettingsNow,
   type ThemeKey,
 } from "@/lib/appSettings";
 import { bumpCacheGenerations, readCacheGenerationNow } from "@/lib/cacheGeneration";
+import { MARKUP_PRECEDENCES, isMarkupPrecedence, markupProblem } from "@/lib/pricing/markup";
+import { RETAIL_ROUNDINGS, isRetailRounding } from "@/lib/pricing/rounding";
 import { parsePrefix } from "@/lib/numberingPrefix";
 import { isValidFeatureKey } from "@/lib/featureCatalog";
 import { parseBookingConfig } from "@/lib/booking/config";
@@ -592,6 +596,58 @@ function parseIdleLogoff(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// How the store prices (GAP-06, lib/pricing/markup.ts and rounding.ts): the
+// store-wide markup, whether the vendor's or the category's markup wins, and how
+// a computed retail is rounded. Each key is optional -- what is sent is merged
+// over what is stored (handlePut), so saving one never clears the others.
+function parsePricing(body: Body, data: SettingsData): ParseError {
+  const raw = body.pricing;
+  if (raw === undefined) return null;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return { error: "pricing must be an object" };
+  }
+  const sent = raw as Record<string, unknown>;
+  const patch: Partial<PricingConfig> = {};
+  if (sent.defaultMarkup !== undefined) {
+    const problem = markupProblem(sent.defaultMarkup);
+    if (problem) return { error: `pricing.defaultMarkup: ${problem}` };
+    patch.defaultMarkup = sent.defaultMarkup as number | null;
+  }
+  if (sent.markupPrecedence !== undefined) {
+    if (!isMarkupPrecedence(sent.markupPrecedence)) {
+      return { error: `pricing.markupPrecedence must be one of ${MARKUP_PRECEDENCES.join(", ")}.` };
+    }
+    patch.markupPrecedence = sent.markupPrecedence;
+  }
+  if (sent.retailRounding !== undefined) {
+    if (!isRetailRounding(sent.retailRounding)) {
+      return { error: `pricing.retailRounding must be one of ${RETAIL_ROUNDINGS.join(", ")}.` };
+    }
+    patch.retailRounding = sent.retailRounding;
+  }
+  data.pricing = patch;
+  return null;
+}
+
+/**
+ * The pricing to store: what was sent over what is stored. Undefined when it
+ * changes nothing, so an unchanged save neither writes nor records it.
+ */
+function mergedPricing(stored: unknown, sent: SettingsData["pricing"]): PricingConfig | undefined {
+  const current = parsePricingConfig(stored);
+  const next: PricingConfig = { ...current, ...(sent as Partial<PricingConfig>) };
+  const moved = (Object.keys(next) as (keyof PricingConfig)[]).some((k) => next[k] !== current[k]);
+  return moved || stored == null ? next : undefined;
+}
+
+/** "pricing.retailRounding" for each pricing key that moved: the audit names what changed. */
+function pricingFieldsChanged(stored: unknown, next: PricingConfig): string[] {
+  const current = parsePricingConfig(stored);
+  return (Object.keys(next) as (keyof PricingConfig)[])
+    .filter((k) => next[k] !== current[k])
+    .map((k) => `pricing.${k}`);
+}
+
 // The owner's two getting-started acknowledgements (lib/gettingStarted.ts):
 // true stamps the time now, false clears it. The server writes the time, never
 // the client -- the record is of when it was said, not of what a browser
@@ -638,6 +694,7 @@ const SETTINGS_PARSERS = [
   parseQuoteHoldMaxDays,
   parseLandedCostSplit,
   parseIdleLogoff,
+  parsePricing,
   parseAcknowledgements,
 ];
 
@@ -685,6 +742,11 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
       const before = await tx.appSettings.findUnique({
         where: { organizationId: DEFAULT_ORG_ID },
       });
+      if (data.pricing !== undefined) {
+        const pricing = mergedPricing(before?.pricing, data.pricing);
+        if (pricing === undefined) delete data.pricing;
+        else data.pricing = { ...pricing };
+      }
       await tx.appSettings.upsert({
         where: { organizationId: DEFAULT_ORG_ID },
         create: {
@@ -695,7 +757,11 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
         },
         update: { ...data, updatedBy: actor },
       });
-      const changed = changedFieldNames(before ?? {}, data);
+      const changed = changedFieldNames(before ?? {}, data).flatMap((field) =>
+        field === "pricing"
+          ? pricingFieldsChanged(before?.pricing, data.pricing as unknown as PricingConfig)
+          : [field],
+      );
       if (changed.length > 0) {
         await auditLog(
           "SETTINGS_SAVED",

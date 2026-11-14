@@ -8,7 +8,7 @@ sometimes right — the world changes — but do it knowing what the original
 trade was, not by accident.
 
 Each entry gives the decision, the alternative that was rejected, the reason,
-the cost accepted, and where the decision is *enforced* (a doc is a suggestion;
+the cost accepted, and where the decision is _enforced_ (a doc is a suggestion;
 a trigger, a hook, or a tripwire test is a decision that cannot be un-made by
 forgetting).
 
@@ -28,7 +28,7 @@ Shared-DB SaaS would first require `organizationId` on ~40 retail-core models
 plus scoping on every query — a large, all-or-nothing migration.
 
 **Enforced by:** architecture (separate databases). Models born in the
-white-label layer (CMS, bookings, tickets, invoices) *do* carry
+white-label layer (CMS, bookings, tickets, invoices) _do_ carry
 `organizationId`, so the door stays open without retrofitting the newer work.
 
 **Source:** [`docs/TENANCY.md`](TENANCY.md)
@@ -45,7 +45,7 @@ misstates both revenue and inventory.
 
 **Cost accepted:** the imported POS returns carry no restock/writeoff flag,
 so they book on a **named default** (restock) rather than a real disposition.
-That assumption is made visible rather than silent: an *Unclassified Returns*
+That assumption is made visible rather than silent: an _Unclassified Returns_
 report lists every return booked on the default so an accountant can adjust it.
 
 **Enforced by:** three named code paths (`CLASSIFIED_RESTOCK`,
@@ -80,7 +80,7 @@ Don't. It was dropped on purpose, 2026-04-28.
 
 **Rejected:** flipping from the legacy POS to Holt on a chosen date.
 
-**Why:** the cutover criterion is *evidence*, not a calendar — Holt and the
+**Why:** the cutover criterion is _evidence_, not a calendar — Holt and the
 legacy system both process the same days, and `scripts/parallel-run-compare.cjs`
 compares daily revenue, tax, cash and order counts. **Zero drift over a
 sustained window** is what earns the switch.
@@ -145,7 +145,7 @@ both directions without a schema change.
 **Cost accepted:** the link is recomputed rather than looked up, and it is a
 heuristic rather than a guarantee.
 
-**Note:** the *historical* import direction is different — it is 1:1 and uses a
+**Note:** the _historical_ import direction is different — it is 1:1 and uses a
 real unique FK, because idempotency there wants an exact indexed lookup. Same
 domain, opposite decision, for a documented reason.
 
@@ -180,8 +180,8 @@ contract itself (key, default, 404-on-off) is unchanged.
 
 **Rejected:** routing all processor calls to whichever provider is active.
 
-**Why:** two different questions get asked. *"Who should take this new payment?"*
-is an operator choice. *"Who handled this existing payment?"* is history, read
+**Why:** two different questions get asked. _"Who should take this new payment?"_
+is an operator choice. _"Who handled this existing payment?"_ is history, read
 off the payment row. If an organization switches processors, every previously
 captured payment must still refund through the processor that actually took the
 money.
@@ -217,7 +217,7 @@ accidentally join it and no live write can corrupt it.
 **Why:** a suppression is a claim about the world ("we install a patched build
 from the vendor's CDN, so the version string is misleading"). Claims go stale.
 Every entry in `osv-scanner.toml` carries an `ignoreUntil`, so an expired
-suppression *blocks a push* and forces someone to re-verify the reasoning
+suppression _blocks a push_ and forces someone to re-verify the reasoning
 against the current tree.
 
 **Cost accepted:** periodic re-review work, and occasional surprise when an
@@ -255,7 +255,7 @@ was actually fine.
 per-vendor payment code maps), and the obvious alternative of a
 database-only admin UI with no file representation.
 
-**Why:** a fact about *a* deployment compiled into *the* product means every
+**Why:** a fact about _a_ deployment compiled into _the_ product means every
 deployment that adds a store forks a TypeScript file. But database-only
 configuration is not reviewable, not diffable, and not reproducible across
 environments. So: a checked-in YAML/JSON file is the authoring and review
@@ -1474,6 +1474,7 @@ is practice?", "our importers could get real products even in a seeded test data
 
 Rejected: an env var (above); a schema copy inside one database, which can't restore sequences and
 triggers as cleanly; a dump (above). → `docs/domains/practice-copy.md`
+
 ## 48. A store decides what runs and when, and cron only wakes Holt (2026-11-06)
 
 **Decided (GAP-37):** owner, 2026-11-06: "Any automation should be something the user can
@@ -1735,6 +1736,55 @@ Rejected:
   an unused card; a used card's value has already been given.
 
 → `docs/domains/pos.md` "Gift cards", `docs/domains/accounting.md` "Gift cards sold on a sale"
+
+## 58. A product's retail has one writer and a ledger; a lock stops what's automatic, and markup and rounding are the store's (2026-11-14)
+
+**Decided:** GAP-06 part A, from the owner's standing rules rather than a new ruling: every value change is
+transactional with a ledger row ("everything must be transactional, be on a ledger", 2026-11-11, see 57); policy is
+the store's configuration with the strictest default (2026-10-30); a store sets up its own lists, never a closed
+hardcoded set (2026-10-29); a tag's price is what the register charges (43).
+
+- **One writer for an existing product's retail and was price,** `lib/pricing/retailWriter.ts`. Hand edits, the mass
+  price change, the vendor style edit and every importer go through it, and a tripwire
+  (`__tests__/retailWriters.test.ts` + `__tests__/fixtures/retail-writers.txt`) fails on a file that writes
+  `baseRetail` without being listed, and on a listed file that no longer does.
+- **Every change is a `ProductPriceChange` row** in the same transaction, from what to what, through what, by whom.
+  The table is append-only (a trigger refuses UPDATE and DELETE). There is no undo: a reversal is another change.
+- **A price lock stops anything automatic,** imports, mass changes and style edits, and not a person editing that one
+  product on purpose; the screen says it's locked. An import's blank or zero retail cell keeps an existing product's
+  price.
+- **Changing retail or the lock needs "Change pricing"** (`catalog.pricing`), checked only when the value moves, on
+  `PATCH /api/products/[id]` and the mass change, and on the imports gated on "Edit catalog" or "Write purchase
+  orders" (`import-basic.ts`, both consignment imports), which keep an existing product's price and count it when the
+  importer lacks it. The was price stays on "Edit catalog" for the tag workflow (43). Open: the imports gated on
+  "Destructive data operations" (`admin.data`: the generic product import, the legacy POS feed and item export) change
+  an existing product's retail without checking `catalog.pricing` (`docs/domains/pricing-catalog.md` "Left open").
+- **An importer decides from the row it locks,** `FOR UPDATE` in the transaction that writes it, never from a read
+  taken before: a lock or a mass change made while an import runs is kept, not overwritten.
+- **Cost × markup in a mass change needs "View cost" too.** Its prices are cost times a markup the caller can see, so
+  the preview would give back the cost the list strips (SEC-14). The rest of the mass change stays on "Change
+  pricing".
+- **Markup is a multiplier from vendor, category or store,** and whether the vendor's or the category's wins is a
+  store setting. The default, vendor first, keeps every price a vendor markup gives today.
+- **Rounding is a store setting naming a compiled rule** (rule 62): to the cent (the default, invents nothing), up or
+  to the nearest whole dollar, or just under the nearest whole dollar (.99 / .95: 100.00 becomes 99.99, the owner's
+  rule of 2026-11-14). It applies to prices Holt works out, never to a price typed.
+- **A mass change previews, then applies in one transaction,** refusing rows whose price moved since the preview, and
+  takes at most 2,000 products, refusing more rather than doing part. It never writes a computed retail that rounds
+  to 0 (no price at the register), nor a was price at or under the new retail (a sale tag refuses it): the preview
+  skips those rows with the reason.
+
+Rejected:
+
+- **A lock that also stops a person's hand edit.** The lock is there so a file or a bulk run can't undo a deliberate
+  price; stopping the deliberate edit would need an unlock first for no gain.
+- **Undo for a mass change.** Prices are ledgered, and a void would erase what the register charged in between.
+- **Rounding .99 / .95 up to the next such price** (100.00 to 100.99). Owner, 2026-11-14: "generally you only do that
+  if it moves the left digit down so 100 should be 99.99 not 100.99".
+- **Re-pricing on the screen and sending prices to apply unchecked.** The server works out the preview and refuses
+  stale rows, so a price changed by someone else in between is never silently overwritten.
+
+→ `docs/domains/pricing-catalog.md` "Retail is changed in one place"
 
 ## 59. Holt runs as several identical app processes on one database, and anything they must agree on lives in that database (2026-11-14)
 

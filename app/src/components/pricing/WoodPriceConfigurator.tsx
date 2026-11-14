@@ -5,12 +5,9 @@
 // Products with speciesPrices use: Product → Species → Options → Summary
 // Products with axisPrices use: Product → Species → Size → Options → Summary
 
+import { styleMarkup, suggestedRetailLabel } from "@/lib/pricing/markup";
 import { useState, useMemo, useEffect } from "react";
-import {
-  WoodProductWithPricing,
-  AvailableOption,
-  calculateWoodPrice,
-} from "@/lib/pricing/priceCalculator";
+import { WoodProductWithPricing, calculateWoodPrice } from "@/lib/pricing/priceCalculator";
 import StepTabs, { StepTabPanel, StepTabDefinition } from "@/components/ui/StepTabs";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,7 +58,7 @@ export default function WoodPriceConfigurator({
   products,
   dimensions,
   vendorName,
-  defaultMarkup,
+  defaultMarkup: vendorMarkup,
   defaultDiscount,
   mapEnforced,
   retailOnly = false,
@@ -70,6 +67,8 @@ export default function WoodPriceConfigurator({
   const [activeTab, setActiveTab] = useState<TabId>("product");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<WoodProductWithPricing | null>(null);
+  // The chosen style's markup: its category's can differ from its vendor's (GAP-06).
+  const defaultMarkup = styleMarkup(selectedProduct, vendorMarkup);
   const [selectedSpeciesTierId, setSelectedSpeciesTierId] = useState<number | null>(null);
   const [selectedWidthTierId, setSelectedWidthTierId] = useState<number | null>(null);
   const [selectedLengthTierId, setSelectedLengthTierId] = useState<number | null>(null);
@@ -723,7 +722,9 @@ export default function WoodPriceConfigurator({
               )}
               <div className="flex justify-between text-sm mt-2">
                 <span className="text-brand-gray">
-                  {retailOnly ? "Retail Price" : `Suggested Retail (${defaultMarkup ?? "\u2014"}x)`}
+                  {retailOnly
+                    ? "Retail Price"
+                    : suggestedRetailLabel(defaultMarkup, selectedProduct)}
                 </span>
                 <span className="font-semibold text-brand-black tabular-nums">
                   {formatCurrency(priceCalc.suggestedRetail)}
