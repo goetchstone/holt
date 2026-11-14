@@ -122,6 +122,7 @@ are estimates and they drift; check the provider's own prices.
 | On-site machine | hardware once, plus power and a business internet line | same |
 
 **Cloud.**
+
 - The account is the business's own, with its own billing and its own admin login.
 - Backups go off the server: to object storage in the same account, kept for at
   least 30 days, and a restore tried once before go-live (`scripts/restore-drill.sh`).
@@ -130,14 +131,17 @@ are estimates and they drift; check the provider's own prices.
   addresses.
 
 **Rented virtual server.**
+
 - The same list as the cloud. Turn on the provider's own snapshots as well, but
   keep the database backups too: a snapshot taken mid-write is not a clean backup.
 
 **Private server in a data centre.**
+
 - The same list, plus: know who replaces a failed disk and how fast, and keep the
   backups somewhere other than that data centre.
 
 **On-site, in the back office.**
+
 - A UPS (battery backup) that keeps the server up through short power cuts and
   shuts it down cleanly in a long one.
 - Backups that leave the building every night. A backup in the same room burns
