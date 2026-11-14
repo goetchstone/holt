@@ -12,6 +12,7 @@ import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering
 import { hasOrderFlag, SKIP_SAME_DAY_REWRITE_CLEANUP } from "@/lib/adapters/legacyPos/orderFlags";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
+import { cacheGeneration } from "@/lib/cacheGeneration";
 import {
   safeString,
   safeFloat,
@@ -72,16 +73,25 @@ const BATCH_SIZE = 50;
 // the user's email. Look up the User by email; if none exists yet (the
 // automation user, or a freshly OAuthed admin who hasn't had a User row
 // created yet via NextAuth), find or create a placeholder so the FK
-// always resolves to a real row. Cached for the lifetime of a single
-// runner invocation since it's the same email throughout.
+// always resolves to a real row. Cached by email for the life of the process:
+// User rows are never deleted, so an id stays good until the whole database is
+// replaced, and a restore bumps the "imports" cache generation for exactly that
+// (lib/cacheGeneration.ts).
 const resolveImportUserIdCache = new Map<string, string>();
+let importUserCacheGeneration: string | null = null;
 
 // Test-only: module caches survive across resetTestDb() TRUNCATEs and would
 // otherwise hand out ids of rows that no longer exist.
 export function clearImportRunnerCachesForTesting(): void {
   resolveImportUserIdCache.clear();
+  importUserCacheGeneration = null;
 }
 async function resolveImportUserId(email: string): Promise<string> {
+  const generation = await cacheGeneration("imports");
+  if (generation !== importUserCacheGeneration) {
+    resolveImportUserIdCache.clear();
+    importUserCacheGeneration = generation;
+  }
   const key = (email || "").toLowerCase();
   const cached = resolveImportUserIdCache.get(key);
   if (cached) return cached;

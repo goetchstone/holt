@@ -33,6 +33,7 @@ const SENSITIVE: RegExp[] = [
   /\/clear-[a-z-]+\.ts$/,
   /^src\/pages\/api\/pricing\/import\//,
   /^src\/pages\/api\/pricing\/mass-change\/(apply|lock)\.ts$/,
+  /^src\/pages\/api\/pricing\/sales\/(index|\[id\]|\[id\]\/end)\.ts$/,
   /^src\/pages\/api\/admin\/trade-tiers\//,
   /^src\/pages\/api\/admin\/roles\//,
   /^src\/pages\/api\/staff\/(index|\[id\])\.ts$/,
@@ -59,6 +60,12 @@ const NOT_RECORDED: Record<string, string> = {
     "Recorded by lib/pricing/massChange.ts applyMassChange, in the change's own transaction.",
   "src/pages/api/pricing/mass-change/lock.ts":
     "Recorded by lib/pricing/massChange.ts lockMassChange, in the change's own transaction.",
+  "src/pages/api/pricing/sales/index.ts":
+    "Recorded by lib/pricing/sales.ts createSale (SALE_SCHEDULED), in the sale's own transaction.",
+  "src/pages/api/pricing/sales/[id].ts":
+    "Recorded by lib/pricing/sales.ts updateSale and deleteSale (SALE_CHANGED, SALE_DELETED), in their transactions.",
+  "src/pages/api/pricing/sales/[id]/end.ts":
+    "Recorded by lib/pricing/sales.ts endSaleEarly (SALE_ENDED), in its transaction.",
   "src/pages/api/admin/buyer-drafts/export/items.ts":
     "A buyer's own draft items, for a vendor: no customer or sales data.",
   "src/pages/api/admin/buyer-drafts/export/pos.ts":
@@ -76,7 +83,7 @@ describe("the audit trail's coverage", () => {
 
   it("finds the routes it's meant to, so the shapes above can't quietly match nothing", () => {
     expect(sensitive.length).toBeGreaterThan(30);
-    expect(sensitive).toContain("src/pages/api/customers/delete-all.ts");
+    expect(sensitive).toContain("src/pages/api/categories/delete-all.ts");
     expect(sensitive).toContain("src/pages/api/admin/database/backup.ts");
   });
 
@@ -104,6 +111,14 @@ describe("the audit trail's coverage", () => {
     expect(massChange).toContain('"PRICES_ADJUSTED"');
     expect(massChange).toContain('"PRICE_LOCK_CHANGED"');
     expect(massChange.match(/auditLog\(/g)?.length).toBe(2);
+  });
+
+  it("has scheduled sales record themselves, as their routes' reasons say", () => {
+    const sales = read("src/lib/pricing/sales.ts");
+    for (const event of ["SALE_SCHEDULED", "SALE_CHANGED", "SALE_ENDED", "SALE_DELETED"]) {
+      expect(sales).toContain(`"${event}"`);
+    }
+    expect(sales.match(/auditLog\(/g)?.length).toBe(4);
   });
 
   it("has no stale reason: each names a real route that still records nothing", () => {

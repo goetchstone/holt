@@ -44,6 +44,16 @@ product history. (Corrected 2026-11-14: this line used to claim a unique constra
 
 **Product search** (`GET /api/products`, SEC-13 2026-09-24) serves seven screens: All Products, Create Variant, New Quote, Detailed Sales' "Edit line item", POS, Reconcile Photos and New Transfer. It takes `{ anyOf }` of their keys (`catalog.read`, `catalog.write`, `sales.write`, `pos.operate`, `inventory.count`, `inventory.transfer`), so granting a role any of those screens in Roles also grants the search. It returns product scalars plus vendor/department/category/type **names**: never the vendor row (account number, discounts, markup, terms, contacts), staff emails or the wholesale price-list inputs. `baseCost` still goes to every admitted role; a separate "View cost" switch is SEC-14.
 
+**The route pages and has no `all`.** A picker searches it as you type
+(`hooks/useProductSearch`), never asks `?all=true`: Create Variant's
+master-product picker once did and offered the first 10 products. Every
+`"/api/...?all=true"` request in `src/` must reach a route that reads
+`query.all`, or `__tests__/allListRequestTripwire.test.ts` fails. A picker says
+"No matching ..." only when the hook's `status` is `done`, meaning the held
+results answer exactly what is typed (`lib/searchAsYouTypeStatus.ts`). During the
+debounce window `isSearching` is still false and the results are the previous
+query's.
+
 ## Retail is changed in one place
 
 GAP-06 part A, 2026-11-14, DECISIONS 58. A stocked product's selling price is
@@ -181,8 +191,14 @@ changes nothing writes nothing; `SETTINGS_SAVED` names the keys that moved
 
 **Left open** (ROADMAP GAP-06):
 
-- Scheduled sale prices, re-pricing open orders,
+- Re-pricing open quotes and orders (also when a sale starts or ends: lines keep the
+  price they were added at; a quote changing hands is re-priced for its new customer's
+  tier, "Trade tier pricing"),
   `ProductVariant.retail`, and server-side re-pricing of a configured line.
+- Scheduled sales are store-wide: no per-store sale. A configured or custom line gets
+  no sale price.
+- An optional automation that sends or prints the morning's tags to change would be a
+  store setting (on/off, when, who), not a fixed job.
 - The imports gated on `admin.data` ("Destructive data operations") -- the generic
   product import and the legacy POS feed and item export -- change an existing
   product's retail without checking `catalog.pricing`; the lock and ledger apply.
@@ -197,11 +213,117 @@ changes nothing writes nothing; `SETTINGS_SAVED` names the keys that moved
 - The vendor-level `pricingStatus` says `UNCONFIGURED_MARKUP` when only categories
   carry markups, though styles in those categories price.
 
+## Scheduled sale prices
+
+GAP-06 part B, DECISIONS 60. Source read 2026-11-14: `lib/pricing/salePrice.ts`,
+`lib/pricing/sales.ts`, `lib/pricing/salesShared.ts`, `pages/api/pricing/sales/*`,
+`app/(dashboard)/app/inventory/sales/*`, `components/pricing/ProductPicker.tsx`,
+`lib/labels/productTag.ts`, `prisma/migrations/20261114190000_scheduled_sales/`.
+
+**A product's regular price is `Product.baseRetail`; a sale gives it a sale price for
+a run of the store's days.** `Sale { name, startsOn DATE, endsOn DATE (inclusive),
+note, createdBy, endedEarlyAt?, endedEarlyBy? }` and `SaleItem { saleId, productId,
+salePrice Decimal(10,2) }`, unique `(saleId, productId)`. CHECKs (copied into
+`prisma/testing/db-guards.sql`): `Sale_dates_ordered` (endsOn >= startsOn),
+`Sale_endedEarly_complete` (who and when together), `SaleItem_salePrice_positive`.
+Nothing is written when a sale starts or ends, and `baseRetail` never changes: the
+retail writer and its ledger are untouched by a sale.
+
+**One resolver, `lib/pricing/salePrice.ts`** (rule 42). A sale price applies while
+`startsOn <= today <= endsOn`, the sale isn't ended early, and it is below the regular
+price (a regular price cut below a scheduled sale price wins). "Today" is the store's
+day (`saleToday()`, `AppSettings.timezone`), never the browser's. Every reader goes
+through it:
+
+| Reader | What it gets |
+|---|---|
+| `GET /api/products`, `GET /api/products/find-by-identifier` | `baseRetail` is today's price (what `catalogRetailPrice` reads), plus `regularRetail`, `onSale`, `saleEndsOn` (`retailResponseFields`), with part C's trade fields beside them (`lib/pricing/screenPricing.ts`) |
+| `catalogLinePolicies` (`lib/sales/discountApproval.ts`, through `catalogRetailFor`) | The list price of a PRODUCT line and whether it is a sale price: the sale price, so a sale line needs no manager PIN at `discountLimitPercent` 0, a further discount is measured from it, and `OrderLineItem.listPrice` records it. For a trade customer, whether the tier applies to it ("Trade tier pricing") |
+| `duplicateOrder` | Today's prices, through `catalogLinePolicies`, on the store's day |
+| `POST /api/service/house-calls` | The service line it books on a new quote: net and list price through `catalogLinePolicies`, so a house-call service on sale is booked at its sale price, and a trade customer's at their tier as any catalog product. A service product can go on a sale like any other |
+| Product, sale and law tags (`renderProductTag`) | `baseRetail` field = today's price; a SALE tag's was price = the regular price during a sale (`saleTagFields`) |
+
+Consumers of the two product routes that edit the product read `regularRetail`, never
+`baseRetail`: `components/modals/ProductEditModal.tsx` (it saves every field it shows,
+so it would have written the sale price as retail), and the All Products list's Retail
+column shows the regular price with "Sale $X" beside it. The register and New Quote
+search results (`components/sales/RetailPriceTag.tsx`), the POS cart row and the quote
+line show the sale price with the regular one struck through, from
+`lib/pos/cartPricing.ts` `catalogSale`, which only reads the route's `onSale`. A cart
+row or quote line says SALE only while its price is still the sale price it was added
+at (`lineSale`): typing another price over it drops the note.
+
+**Reports' retail value of stock stays on `baseRetail`** (the regular price), not the
+day's sale price.
+
+**One sale price per product per day.** No unique key can say it (a range overlap), and
+none is tried over a nullable column (rule 64). Every write of a sale's products locks
+those `Product` rows `FOR UPDATE` in id order (as the retail writer does), then looks
+for an item of another sale, not ended early, on an overlapping day, and refuses the
+write naming it. Two people scheduling the same product queue on the row lock; the
+second is refused. A sale ended early blocks nothing.
+
+**Screen and routes.** Inventory › Sales (`/app/inventory/sales`), gated
+`catalog.pricing`, like every route under `pages/api/pricing/sales/`:
+
+| Route | What |
+|---|---|
+| `GET /` | Every sale with its status on the store's day (`UPCOMING`, `ON`, `ENDED`) and product count, and `today` |
+| `POST /` | `{ name, startsOn, endsOn, note?, items? }`: one transaction, `SALE_SCHEDULED` |
+| `GET /[id]` | The sale and its products with regular and sale prices |
+| `PATCH /[id]` | Name and note any time; dates (both) and items only while `UPCOMING`; items replace the set; new dates re-check every product kept. `SALE_CHANGED` |
+| `DELETE /[id]` | Only `UPCOMING`. `SALE_DELETED` |
+| `POST /[id]/end` | Only `ON`: sets `endedEarlyAt`/`By`, rows stay as the record. `SALE_ENDED` |
+| `POST /preview` | `{ selection, pricing, startsOn, endsOn, saleId? }`: each product's sale price or skip reason. Writes nothing |
+| `GET /tags-to-change` | Products whose tag changes today (below) |
+
+- A sale starts today or later; a past start is refused.
+- Products are chosen with the mass change's filter and selection
+  (`components/pricing/ProductPicker.tsx`, shared with the mass change screen; list
+  from `GET /api/pricing/mass-change`, same 2,000 cap, "all matching" resolved again
+  on the server). A sale carries at most 2,000 products (`SALE_MAX_ITEMS`); the save
+  routes refuse more with `saleSizeProblem`'s message, and the editor shows the same
+  message against its draft and disables Save, since each preview round adds to it.
+- Pricing: `PERCENT_OFF` of the regular price, rounded by the run's rule or the
+  store's (`roundRetail`), or a typed `AMOUNT`, used as typed (`planSalePrice`).
+  Preview skips with a reason (`SALE_SKIPS`): `NO_RETAIL`, `OVERLAPS` (naming the
+  sale), `NOT_BELOW_REGULAR`, `ROUNDS_TO_ZERO`. Saving refuses such an item with a
+  400 ("Preview again") rather than skipping it.
+- The screen builds a draft: each preview's priced rows are added
+  (`addPreviewToItems`; a product already there takes the new price), rows can be
+  removed, and Save sends the whole set. For an existing sale it sends only what
+  changed (a started sale refuses dates or items even if unchanged).
+- Audit events are in the "prices" group, target type `sale`, written inside each
+  transaction; the routes are in `__tests__/auditCoverage.test.ts` SENSITIVE.
+
+**Tags to change** (`tagsToChange`): SALE tags for products in a sale starting today
+(and on sale today); PRODUCT tags for products whose sale ended yesterday or was ended
+early since the start of yesterday, and that aren't on sale today. A product whose old
+sale ended and whose new sale starts today is listed once, for the new SALE tag. The
+screen prints them through `POST /api/print-label/batch` with `kind` (see
+`docs/domains/printing.md`). Nothing prints them on a schedule.
+
+**Demo seed.** `prisma/seed/demo/sales.ts` writes one ended, one current and one
+upcoming sale with invented names through `createSale`.
+
+**Tests.** `__tests__/integration/scheduledSales.integration.test.ts` (overlap and the
+concurrent write, day boundaries in the store's time zone, every reader, tags, batch
+kind, lifecycle, preview, tags to change, audit, the seed);
+`__tests__/scheduledSales.test.ts` (resolver, status, parsers, tag fields);
+`__tests__/scheduledSalesScreen.test.ts` (the screen's draft and list helpers,
+`catalogSale`, `lineSale`, `saleSizeProblem`, batch splitting). The integration file
+also proves a sale is never counted against itself (date-only and same-product
+changes, the preview with `saleId`) and that a house call books the sale price.
 ## Trade tier pricing
 
 GAP-06 part C, 2026-11-14, DECISIONS 61. A manager gives a customer a trade tier
 (`TradeTier`: a name and a `discountPercent`); on each eligible line of that
-customer's sales the price is the item's retail less the tier's percent.
+customer's sales the price is the item's price today (its retail, or its sale price
+while a scheduled sale is on and the store lets a tier apply to it) less the tier's
+percent. Joined with part B 2026-11-14; source read then: `lib/sales/discountApproval.ts`,
+`lib/pricing/screenPricing.ts`, `lib/pricing/tradeEligibility.ts`,
+`lib/pricing/tradeTier.ts`, `lib/sales/duplicateOrder.ts`,
+`pages/api/service/house-calls/index.ts`, `pages/api/products/*`.
 
 **The arithmetic, one home.** `lib/pricing/tradeTier.ts`, pure and client-safe:
 
@@ -222,15 +344,32 @@ customer's sales the price is the item's retail less the tier's percent.
 `madeToOrder` (a configured or custom line's one-off product, priced by hand), and its
 category isn't one a `PROTECTION_PLAN` commission plan names. Gift cards, delivery fees
 and returns are never priced by a tier. `GET /api/products` and
-`/api/products/find-by-identifier` return `tradeEligible` for each product, so the
+`/api/products/find-by-identifier` return `tradeEligible` for each product
+(`lib/pricing/screenPricing.ts` `screenPriceFields`, one home for both lookups), so the
 screens agree with the server.
 
-**Sale items.** `AppSettings.pricing.tradeDiscountOnSaleItems`, false by default (the
-strictest): an item on sale sells at its sale price with nothing more off. True: the
-tier comes off the sale price. `parsePricingConfig` reads it true only when stored as
-exactly `true`. Until scheduled sale prices (part B) land nothing is on sale:
-`catalogRetailFor` in `lib/sales/discountApproval.ts` is the seam, returning
-`{ price, onSale: false }`.
+**Sale items** (parts B and C together). `AppSettings.pricing.tradeDiscountOnSaleItems`,
+false by default (the strictest), read by `loadTradeSettings`
+(`lib/pricing/tradeEligibility.ts`) through the writer's transaction.
+`parsePricingConfig` reads it true only when stored as exactly `true`. Whether an item
+is on sale is the scheduled-sale resolver's answer on the store's day:
+`catalogRetailFor` in `lib/sales/discountApproval.ts` reads `effectiveRetailFor`
+(`lib/pricing/salePrice.ts`) and is the only place the policy learns a product's price
+and sale flag.
+
+| Trade customer, item on sale | Setting off (default) | Setting on |
+|---|---|---|
+| Sells at, with no PIN | the sale price | the sale price less the tier |
+| `listPrice` | the sale price | the sale price |
+| `tradeTierId`, `tradeDiscountPercent` | null | the tier, its percent |
+| The tier off the sale price | a cashier's discount (PIN at limit 0) | the entitlement |
+
+The product lookups carry `onSale` and the store's `tradeDiscountOnSaleItems` beside
+`tradeEligible` (`screenPriceFields`), each line keeps them (`tierFieldsFromLookup`),
+and `priceLineForTier` hands them to `entitledUnitPrice`, so the price a screen sends
+is the one the server accepts without a PIN. The setting rides on each product rather
+than its own route because a line must carry everything that prices it: a line added
+while the customer is still unknown is re-priced when one is picked.
 
 **The discount policy.** `lib/sales/discountApproval.ts`. A tier is an entitlement a
 manager set, not a cashier's discount:
@@ -240,18 +379,24 @@ manager set, not a cashier's discount:
   whole saving. `baselineUnit` is the entitled price, and a discount is measured from
   it: a sale at the trade price needs no manager's PIN; anything below it is a
   discount like any other.
-- `catalogLinePolicies(db, lines, { customerId })` builds it for create-from-cart,
-  add-line (`orders/[id]/line-items.ts`), replace-line (`line-items/[lineItemId].ts`)
-  and `duplicateOrder` (today's prices under the customer's tier today). A configured
-  or custom cart line has no product to price, so it takes its own price.
+- `catalogLinePolicies(db, lines, { customerId, today })` is the one function that
+  decides a catalog line's list and baseline, part B's sale price and part C's tier
+  together. It builds the policy for create-from-cart, add-line
+  (`orders/[id]/line-items.ts`), replace-line (`line-items/[lineItemId].ts`),
+  `duplicateOrder` (today's prices under the customer's tier today, on the store's day)
+  and a house call's service line (`POST /api/service/house-calls`). A configured or
+  custom cart line has no product to price, so it takes its own price.
 - A price edit on an existing line measures from `currentLinePolicies`: what the line
   recorded (`existingLinePolicy`), or what the order's customer's tier makes of the
   list price it recorded, whichever is lower. Raising the price above the entitled
   price clears the line's tier; bringing it back down to the entitled price is no
   discount and records the tier again (a customer whose tier has since gone keeps
   only what the line recorded).
-- `catalogListUnits` (no customer, no tier) is kept for scheduled sales' house-call
-  booking (part B), which then prices with no tier.
+- **A house call takes the tier.** Its service line is a catalog product sold to the
+  customer, so it gets the same eligibility rules (the vendor allows it, not a
+  protection plan, a sale price only when the store says so), sells at its baseline and
+  records the tier. Part B's `catalogListUnits` (list price with no customer) is gone:
+  it had no caller left once the house call priced for its customer.
 
 **Recorded on the line.** `OrderLineItem.tradeTierId` (FK, `ON DELETE SET NULL`;
 tiers are only deactivated) and `tradeDiscountPercent Decimal(5,2)`, CHECK
@@ -266,10 +411,13 @@ doesn't set it, so the screens send the entitled `unitPrice`.
 
 **The screens.** `GET /api/customers` returns `tradeTier { id, name, discountPercent }`
 (null unless active); `useCustomerSearch` carries it. The register (`PosView`) and New
-Quote keep each line's `retail`, `tradeEligible`, `priceTyped` and `tradePercent`;
-picking, changing or removing the customer re-prices every untyped line through
-`priceLineForTier`, so taking the customer off restores retail. A typed price sets
-`priceTyped`. The order screen shows "Trade N%" beside a line's saving.
+Quote keep each line's `retail` (its price today, the sale price during a sale),
+`tradeEligible`, `onSale`, `tradeDiscountOnSaleItems`, `priceTyped` and `tradePercent`
+(`tierFieldsFromLookup`); picking, changing or removing the customer re-prices every
+untyped line through `priceLineForTier`, so taking the customer off restores retail. A
+typed price sets `priceTyped`. A tier-priced sale line still says SALE: the screens
+pass an untyped line's `retail` to `lineSale`. The order screen shows "Trade N%" beside
+a line's saving.
 
 **A quote changing hands.** `PUT /api/sales/orders/[id]` with a new `customerId` on a
 quote with no payment (a pending one included) runs `repriceQuoteTrade`
@@ -312,18 +460,21 @@ in `__tests__/auditCoverage.test.ts`'s sensitive shapes).
 `PATCH /api/vendors/[id]` (`catalog.pricing`), audited `VENDOR_TRADE_DISCOUNT_CHANGED`
 in its transaction.
 
-**Tests.** `__tests__/tradeTier.test.ts` (the helper, `priceLineForTier`),
-`__tests__/integration/tradeTierPricing.integration.test.ts` (every writer, the
-quote re-price, the route, the vendor audit and the setting, against the real
-database).
+**Tests.** `__tests__/tradeTier.test.ts` (the helper, `priceLineForTier`,
+`tierFieldsFromLookup`), `__tests__/integration/tradeTierPricing.integration.test.ts`
+(every writer, the quote re-price, the route, the vendor audit and the setting, against
+the real database), `__tests__/integration/tradeTierSales.integration.test.ts` (a trade
+customer and a sale item with the setting off and on, at the register, adding a line,
+duplicate and a house call, and the lookups' price passing the server with no PIN).
 
 **Left open:** a tier on proposals' typed B2B prices, per-category tier exclusions, a
 tier on configured lines, carrying a tier through a customer merge, billing invoices
-(the tRPC billing router), and part B's house-call booking (`catalogListUnits`, no
-tier).
-A quote changing hands reads whether an item is on sale today, not when it was written.
-Once part B lands, the product lookups need a sale flag, or `tradeEligible` folding in
-"on sale and the store says no", for the screens to match the server on a sale item.
+(the tRPC billing router). An existing line (a price edit, a quote changing hands)
+reads whether its product is on sale today, not whether it was when the line was
+written: no line records that it was sold at a sale price. So with the setting off, a
+line written at the regular price while its product is on sale today gets no tier from
+the customer's tier now (it keeps any it recorded), and one written at a sale price
+since ended can.
 
 ## Grade auto-extension
 
@@ -455,4 +606,4 @@ Gap: no source-text tripwire ensuring that any new `pdf-parse`-using file isn't 
 
 ---
 
-Last verified: 2026-05-20; "Retail is changed in one place" and the unique-constraint correction 2026-11-14 against source.
+Last verified: 2026-05-20; "Retail is changed in one place", "Scheduled sale prices" and the unique-constraint correction 2026-11-14 against source.

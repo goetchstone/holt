@@ -1,36 +1,74 @@
 // /app/src/lib/rateLimit.ts
 //
-// In-memory sliding window rate limiter for API routes. No external
-// dependencies (Redis, etc.) -- appropriate for a single-instance
-// deployment.
+// Rate limiter for API routes, kept in Postgres so the limit holds across every
+// app process.
+//
+// It used to count in a Map in each process's memory. With several processes
+// behind nginx (docs/HOSTING.md) each one allowed its own full allowance, so
+// three processes let a client make three times the login attempts, password
+// resets and card payments the limit says. The count now lives in
+// RateLimitWindow, one row per (bucket, client, window), and each request adds
+// to it with one atomic INSERT ... ON CONFLICT DO UPDATE ... RETURNING. Two
+// processes counting the same client at the same moment both land in that one
+// row, and Postgres orders them.
+//
+// A fixed window, not a sliding one: a client gets maxRequests per window, and
+// the count starts again when the next window does. That allows up to twice the
+// limit across a window boundary, which every limit here tolerates (they blunt
+// guessing and spam, they do not meter).
+//
+// Expired rows are deleted here, at most once every PRUNE_INTERVAL_MS per
+// process, by one indexed DELETE. Nothing else has to run for the table to stay
+// small.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
-interface RateLimitEntry {
-  timestamps: number[];
-}
+import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 interface RateLimitConfig {
   windowMs: number;
   maxRequests: number;
 }
 
-const store = new Map<string, RateLimitEntry>();
+const PRUNE_INTERVAL_MS = 5 * 60 * 1000;
+let lastPrune = 0;
 
-// Prune expired entries every 5 minutes to prevent memory growth
-const PRUNE_INTERVAL = 5 * 60 * 1000;
-let lastPrune = Date.now();
+/** The start of the fixed window `now` falls in. Pure. */
+export function windowStartFor(now: number, windowMs: number): number {
+  return Math.floor(now / windowMs) * windowMs;
+}
 
-function pruneExpired(windowMs: number): void {
-  const now = Date.now();
-  if (now - lastPrune < PRUNE_INTERVAL) return;
+/** Seconds until the window starting at `windowStart` ends, never below 1. Pure. */
+export function retryAfterSeconds(now: number, windowStart: number, windowMs: number): number {
+  return Math.max(1, Math.ceil((windowStart + windowMs - now) / 1000));
+}
+
+async function pruneExpired(now: number): Promise<void> {
+  if (now - lastPrune < PRUNE_INTERVAL_MS) return;
   lastPrune = now;
-
-  const cutoff = now - windowMs;
-  for (const [key, entry] of store) {
-    entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
-    if (entry.timestamps.length === 0) store.delete(key);
+  try {
+    await prisma.rateLimitWindow.deleteMany({ where: { expiresAt: { lt: new Date(now) } } });
+  } catch (err) {
+    // A failed prune only leaves dead rows for the next one.
+    logError("Rate limit prune failed", err);
   }
+}
+
+/** Count one request and return the window's count including it. */
+async function countRequest(
+  bucket: string,
+  clientKey: string,
+  windowStart: number,
+  windowMs: number,
+): Promise<number> {
+  const rows = await prisma.$queryRaw<{ count: number }[]>`
+    INSERT INTO "RateLimitWindow" ("bucket", "clientKey", "windowStart", "count", "expiresAt")
+    VALUES (${bucket}, ${clientKey}, ${new Date(windowStart)}, 1, ${new Date(windowStart + windowMs)})
+    ON CONFLICT ("bucket", "clientKey", "windowStart")
+    DO UPDATE SET "count" = "RateLimitWindow"."count" + 1
+    RETURNING "count"`;
+  return Number(rows[0].count);
 }
 
 // Resolve the client IP for rate limiting. Behind the bundled nginx, every
@@ -49,7 +87,7 @@ function pruneExpired(windowMs: number): void {
 // both headers. With one, we prefer X-Real-IP and otherwise take the LAST
 // X-Forwarded-For hop -- the IP the proxy itself appended -- never the
 // spoofable left-most entry.
-function getClientKey(req: NextApiRequest): string {
+export function getClientKey(req: NextApiRequest): string {
   const socketIp = req.socket?.remoteAddress ?? "unknown";
 
   // No trusted proxy in front -> both headers are attacker-controlled -> key on
@@ -73,53 +111,52 @@ function getClientKey(req: NextApiRequest): string {
 /**
  * One-shot rate-limit check usable inside a handler that can't be wrapped
  * (e.g. the NextAuth catch-all, where only the credentials-callback POST
- * should be throttled, not every session read). Returns true when ALLOWED;
- * on the limit it writes the 429 + Retry-After and returns false, so the
- * caller just does `if (!checkRateLimit(...)) return;`. `bucket` namespaces
- * the counter so unrelated callers on the same IP don't share a window.
+ * should be throttled, not every session read). Resolves true when ALLOWED;
+ * on the limit it writes the 429 + Retry-After and resolves false, so the
+ * caller just does `if (!(await checkRateLimit(...))) return;`. `bucket`
+ * names the route, so unrelated routes on the same IP don't share a window.
+ *
+ * Counted in the database, so the limit is the same however many app
+ * processes serve the site. A request over the limit still counts, so a
+ * client that keeps hammering stays limited until the window ends.
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   req: NextApiRequest,
   res: NextApiResponse,
   config: RateLimitConfig,
-  bucket = "default",
-): boolean {
+  bucket: string,
+): Promise<boolean> {
   const now = Date.now();
-  const key = `${bucket}:${getClientKey(req)}`;
-  const cutoff = now - config.windowMs;
+  const windowStart = windowStartFor(now, config.windowMs);
+  await pruneExpired(now);
 
-  pruneExpired(config.windowMs);
+  const count = await countRequest(bucket, getClientKey(req), windowStart, config.windowMs);
 
-  let entry = store.get(key);
-  if (!entry) {
-    entry = { timestamps: [] };
-    store.set(key, entry);
-  }
-  entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
-
-  if (entry.timestamps.length >= config.maxRequests) {
-    const retryAfter = Math.ceil((entry.timestamps[0] + config.windowMs - now) / 1000);
+  res.setHeader("X-RateLimit-Limit", config.maxRequests.toString());
+  if (count > config.maxRequests) {
+    const retryAfter = retryAfterSeconds(now, windowStart, config.windowMs);
     res.setHeader("Retry-After", retryAfter.toString());
-    res.setHeader("X-RateLimit-Limit", config.maxRequests.toString());
     res.setHeader("X-RateLimit-Remaining", "0");
     res.status(429).json({ error: "Too many requests", code: "RATE_LIMIT_EXCEEDED", retryAfter });
     return false;
   }
-
-  entry.timestamps.push(now);
-  res.setHeader("X-RateLimit-Limit", config.maxRequests.toString());
-  res.setHeader("X-RateLimit-Remaining", (config.maxRequests - entry.timestamps.length).toString());
+  res.setHeader("X-RateLimit-Remaining", (config.maxRequests - count).toString());
   return true;
 }
 
-// Returns a handler wrapper that enforces rate limits per client IP.
-// Usage: export default rateLimit({ windowMs: 60000, maxRequests: 10 })(handler)
-export function rateLimit(config: RateLimitConfig) {
+/**
+ * Returns a handler wrapper that enforces a rate limit per client IP. `bucket`
+ * names the route: each route keeps its own count, so a client's lookups on
+ * one public route do not use up its allowance on another.
+ *
+ * Usage: export default rateLimit({ windowMs: 60000, maxRequests: 10 }, "my-route")(handler)
+ */
+export function rateLimit(config: RateLimitConfig, bucket: string) {
   return function wrap(
     handler: (req: NextApiRequest, res: NextApiResponse) => Promise<void | NextApiResponse>,
   ) {
     return async (req: NextApiRequest, res: NextApiResponse) => {
-      if (!checkRateLimit(req, res, config)) return;
+      if (!(await checkRateLimit(req, res, config, bucket))) return;
       return handler(req, res);
     };
   };

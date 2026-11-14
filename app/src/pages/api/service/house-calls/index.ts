@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
 import { logError } from "@/lib/logger";
 import { productCost } from "@/lib/purchasing/landedCostShared";
+import { catalogLinePolicies, listOnlyPolicy, recordedTrade } from "@/lib/sales/discountApproval";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -153,8 +154,19 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
         });
         salesOrderId = order.id;
 
-        // Add house call product as line item if it exists
+        // Add house call product as line item if it exists, at its price today:
+        // its sale price while a scheduled sale is on, which is also its list
+        // price, and for a trade customer the price their tier entitles them to
+        // under the same rules as any catalog product (the vendor allows it; a
+        // sale price only when the store says so). catalogLinePolicies is the
+        // one place a catalog line's list and baseline are decided (rule 42,
+        // DECISIONS 60 and 61). The line sells at its baseline: no discount.
         if (houseCallProduct) {
+          const [policy] = await catalogLinePolicies(
+            tx,
+            [{ productId: houseCallProduct.id, fallback: listOnlyPolicy(0) }],
+            { customerId: order.customerId },
+          );
           await tx.orderLineItem.create({
             data: {
               salesOrderId: order.id,
@@ -163,7 +175,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
               productName: houseCallProduct.name || "House Call",
               partNo: houseCallProduct.productNumber || "DC250",
               orderedQuantity: 1,
-              netPrice: houseCallProduct.baseRetail || 0,
+              netPrice: policy.baselineUnit,
+              listPrice: policy.listUnit,
+              ...recordedTrade(policy, { quantity: 1, netPrice: policy.baselineUnit }),
               cost: productCost(houseCallProduct) ?? 0,
             },
           });

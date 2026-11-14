@@ -77,6 +77,7 @@ async function main(): Promise<void> {
   const { seedJournalEntries } = await import("./journal");
   const { seedPriceBooks } = await import("./priceBooks");
   const { seedPriceChanges } = await import("./priceChanges");
+  const { seedSales } = await import("./sales");
   const { seedTradePricing } = await import("./tradePricing");
   const { ORG_SLUG } = await import("./org");
 
@@ -307,6 +308,8 @@ async function main(): Promise<void> {
   const mergeResult = await seedVendorMerge(prisma, SUPPLIER_NAME);
   // A markdown and a price lock (GAP-06). Last, with no RNG draws.
   const priceChangeResult = await seedPriceChanges(prisma, catalog.products);
+  // Scheduled sales: one ended, one on, one coming up (GAP-06 part B). Last, no RNG draws.
+  const scheduledSales = await seedSales(prisma, catalog.products, window.now);
   // Trade tiers on a few trade customers, and quotes at their tier (GAP-06 part C).
   // Last, with no RNG draws.
   const tradeResult = await seedTradePricing(prisma, window.now);
@@ -358,6 +361,9 @@ async function main(): Promise<void> {
   );
   console.log(
     `Price changes: ${priceChangeResult.changed} marked down, ${priceChangeResult.locked} locked`,
+  );
+  console.log(
+    `Scheduled sales: ${scheduledSales.sales} (${scheduledSales.items} products on them)`,
   );
   console.log(
     `Trade pricing: ${tradeResult.tiered} customers given a tier, ${tradeResult.quotes} quotes ` +

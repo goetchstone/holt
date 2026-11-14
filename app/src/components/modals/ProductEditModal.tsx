@@ -19,7 +19,11 @@ export default function ProductEditModal({
     productNumber: product.productNumber || "",
     description: product.description || "",
     season: product.season || "",
-    baseRetail: product.baseRetail ?? "",
+    // The regular price, never today's sale price: a product list row's
+    // baseRetail is what the register charges today (lib/pricing/salePrice.ts),
+    // and this form saves every field it shows.
+    baseRetail:
+      (product.regularRetail !== undefined ? product.regularRetail : product.baseRetail) ?? "",
     length: product.length ?? "",
     depth: product.depth ?? "",
     height: product.height ?? "",

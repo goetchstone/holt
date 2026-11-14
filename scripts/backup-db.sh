@@ -55,6 +55,10 @@ RETENTION_DAYS="${RETENTION_DAYS:-14}"
 BACKUP_REMOTE="${BACKUP_REMOTE:-}"
 BACKUP_REMOTE_CMD="${BACKUP_REMOTE_CMD:-rsync}"
 
+# Only the bundled database: a managed one's backups are its provider's.
+. ./scripts/_bundled-db.sh
+require_bundled_db || exit 1
+
 # Resolve the container from THIS compose project unless explicitly overridden.
 DB_CONTAINER="${DB_CONTAINER:-$(docker compose ps -q db 2>/dev/null || true)}"
 if [ -z "$DB_CONTAINER" ]; then

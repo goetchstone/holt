@@ -37,7 +37,7 @@ shared guard that replaced each page's own `getAppSettings()` /
   gate, calls `notFound()`) and `isModuleEnabled("dmarcTools")` (boolean, used
   by the API route below).
 - `src/pages/api/tools/dmarc-check.ts` — DNS checker API (Pages Router). Wrapped
-  in `rateLimit({ windowMs: 10m, maxRequests: 20 })`; module-gated (404 when
+  in `rateLimit({ windowMs: 10m, maxRequests: 20 }, "dmarc-check")`; module-gated (404 when
   off) via `isModuleEnabled`. DKIM is probed against a curated static-selector
   list — selector names aren't DNS-enumerable.
 - `src/lib/dmarc/decompress.ts` — client-side gzip/zip/xml decompression. Web

@@ -779,6 +779,25 @@ both values within 1-99.
   anyone else with 403;
 - on the order page's salesperson dialog and the bulk salesperson corrections.
 
+**The bulk corrections leave a split alone unless told.** A row's `splitWithId`
+(`pages/api/admin/sales/bulk-update-salesperson.ts`) is three-valued: absent
+keeps each order's split (partner and share), `null` removes it, a staff id
+splits with that person. The screen offers "Keep each order's split" (sends no
+key), "No split (remove it)" (sends `null`) and the staff list. Until
+2026-11-14 the route read a missing key as `?? null`, so reassigning orders with
+the split at "No change" removed every split partner, and their share of the
+commission with it. Keeping a split whose partner is the new salesperson is
+refused per row with a reason that names the fix (choose "No split (remove it)"
+or another partner: `KEPT_SPLIT_IS_NEW_SALESPERSON` in
+`lib/sales/bulkSalespersonShared.ts`); naming the same person for both in one row
+is refused as "Primary and split are the same". The screen lists every refused
+order by number with the route's reason, and the list stays until dismissed; the
+toast only summarises (`bulkSalespersonSummary`, unit-tested in
+`__tests__/bulkSalespersonShared.test.ts`). Real-DB proof:
+`__tests__/integration/bulkSalespersonSplit.integration.test.ts`. The single-order
+route (`orders/[id]/salesperson.ts`) still reads a missing `splitWithId` as
+"no split"; its only caller, the order page, always sends the key.
+
 Managers hold it by default; a store grants it to other roles in Admin › Setup ›
 Roles. The partner must be someone else on the staff, still working. A change of
 share on an order in a confirmed pay period is refused like any reassignment

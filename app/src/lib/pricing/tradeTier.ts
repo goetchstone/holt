@@ -169,10 +169,17 @@ export interface TierPricedLine {
   /** Whether the product may take a tier at all (the product lookups' `tradeEligible`). */
   tradeEligible: boolean;
   /**
-   * Whether the item is on sale today. Always false until scheduled sale prices
-   * (GAP-06 part B) give the product lookups a sale flag to read.
+   * Whether `retail` is a sale price today: the product lookups' `onSale`
+   * (lib/pricing/salePrice.ts). Missing reads as not on sale.
    */
   onSale?: boolean;
+  /**
+   * Whether the store lets a tier come off a sale price
+   * (AppSettings.pricing.tradeDiscountOnSaleItems), as the product lookups
+   * report it (lib/pricing/screenPricing.ts). Missing reads as off, the
+   * strictest choice.
+   */
+  tradeDiscountOnSaleItems?: boolean;
   /** Someone typed this line's price: a tier never moves it again. */
   priceTyped: boolean;
   /** A line coming back: a tier never prices one. */
@@ -183,19 +190,55 @@ export interface TierPricedLine {
   tradePercent: number | null;
 }
 
+/** What a product lookup (GET /api/products, find-by-identifier) says about a product's price. */
+export interface TierLookupFields {
+  onSale?: boolean;
+  tradeEligible?: boolean;
+  tradeDiscountOnSaleItems?: boolean;
+}
+
+/**
+ * The tier fields of a new register or New Quote line, from the product lookup
+ * it came from (lib/pricing/screenPricing.ts): listed at `retail` -- the price
+ * the lookup says it sells for today, its sale price while a sale is on --
+ * untyped, with no tier yet. Both screens build a line through this, then price
+ * it with priceLineForTier, so they read the same fields the server judges by.
+ */
+export function tierFieldsFromLookup(
+  product: TierLookupFields,
+  retail: number,
+): Pick<
+  TierPricedLine,
+  "retail" | "tradeEligible" | "onSale" | "tradeDiscountOnSaleItems" | "priceTyped" | "tradePercent"
+> & { price: number } {
+  return {
+    price: retail,
+    retail,
+    tradeEligible: product.tradeEligible === true,
+    onSale: product.onSale === true,
+    tradeDiscountOnSaleItems: product.tradeDiscountOnSaleItems === true,
+    priceTyped: false,
+    tradePercent: null,
+  };
+}
+
 /**
  * A line priced for the customer's tier, or for no tier (`tier` null): the
  * register and New Quote run every line through this when a product goes on and
  * whenever the customer changes, so removing the customer restores retail.
  * A line whose price someone typed keeps it; a return or an ineligible product
- * sells at its retail. The server judges the price it is sent with the same
- * arithmetic (lib/sales/discountApproval.ts), so the two agree.
+ * sells at its retail; a sale item takes the tier only when the store's
+ * setting the line carries says so, and then off the sale price. The server
+ * judges the price it is sent with the same arithmetic
+ * (lib/sales/discountApproval.ts catalogLinePolicies), so the two agree.
  */
 export function priceLineForTier<T extends TierPricedLine>(
   line: T,
   tier: CustomerTradeTier | null,
-  settings: TradeSettings = { tradeDiscountOnSaleItems: DEFAULT_TRADE_DISCOUNT_ON_SALE_ITEMS },
 ): T {
+  const settings: TradeSettings = {
+    tradeDiscountOnSaleItems: line.tradeDiscountOnSaleItems ?? DEFAULT_TRADE_DISCOUNT_ON_SALE_ITEMS,
+  };
   if (line.priceTyped) return line;
   if (line.isReturn || !line.tradeEligible) {
     return { ...line, price: line.retail, tradePercent: null };

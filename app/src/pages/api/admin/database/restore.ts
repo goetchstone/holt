@@ -29,6 +29,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError, logger } from "@/lib/logger";
 import { auditLog } from "@/lib/audit";
 import { createPrivateTempFile, type PrivateTempFile } from "@/lib/privateTempFile";
+import { bringReplacedDatabaseUpToDate } from "@/lib/databaseReplaced";
 
 // Pin the absolute path so a poisoned PATH (writable directory shadowing
 // /usr/bin) can never substitute our binary. Production container is
@@ -97,6 +98,26 @@ async function readEdges(
     return { head: headBuf.toString("utf8"), tail: tailBuf.toString("utf8"), size };
   } finally {
     await fh.close();
+  }
+}
+
+/**
+ * The restored backup may predate the last upgrade, and every app process holds
+ * cached copies (grants, settings, the import's ids) from the database that was
+ * just replaced. This migrates it, reconciles the built-in roles and makes every
+ * process reload within 2s (lib/databaseReplaced.ts). A restart no longer does
+ * the migrating: app processes run with RUN_MIGRATIONS=false, so only a
+ * `docker compose up` would, and an admin who saw "restored successfully" had no
+ * reason to run one. False when any step failed; the response then says what to
+ * run.
+ */
+async function bringUpToDate(actor: string): Promise<boolean> {
+  try {
+    await bringReplacedDatabaseUpToDate();
+    return true;
+  } catch (err) {
+    logError("Restore: could not bring the restored database up to date", err, { actor });
+    return false;
   }
 }
 
@@ -198,12 +219,20 @@ export default requirePermission(
       }
 
       logger.info("Database restore completed", { actor, bytes: size });
+      const upToDate = await bringUpToDate(actor);
       // Written after the restore, so it lands in the restored database and says so.
       await auditLog("DATABASE_RESTORED", actor, {
         summary: "Database restored from a backup",
         details: { bytes: size },
       });
-      return res.status(200).json({ success: true, message: "Database restored successfully" });
+      return res.status(200).json({
+        success: true,
+        message: upToDate
+          ? "Database restored successfully"
+          : "Database restored, but it could not be brought up to date. On the server, run " +
+            "docker compose up -d --force-recreate migrate app, which applies the migrations and " +
+            "restarts every app process so none keeps what it held from before.",
+      });
     } catch (err: unknown) {
       logError("Database restore error", err, { actor });
       if (err instanceof Error && "code" in err && err.code === "ENOENT") {

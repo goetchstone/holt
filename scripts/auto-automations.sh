@@ -5,7 +5,8 @@
 # 5 minutes (scripts/install-cron.sh). Holt decides what's due from the store's own
 # settings at Admin > Automations, so whether a job runs, and when, is never set here.
 #
-# Needs AUTO_IMPORT_API_KEY. APP_BASE_URL defaults to http://localhost:3000.
+# Needs AUTO_IMPORT_API_KEY. APP_BASE_URL defaults to http://127.0.0.1:8080 (nginx-host,
+# loopback only; see scripts/_cron-run.sh).
 
 DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 . "$DIR/_cron-run.sh"

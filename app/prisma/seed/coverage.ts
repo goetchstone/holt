@@ -46,6 +46,16 @@ export interface SeedCoverageEntry {
 }
 
 export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
+  CacheGeneration: {
+    status: "skipped",
+    reason:
+      "Runtime counters, not data: a write that changes a cached table bumps its row so every app process reloads (lib/cacheGeneration.ts). They appear as a side effect (the roles seed bumps one); there is nothing to seed, and a missing row reads as generation 0.",
+  },
+  RateLimitWindow: {
+    status: "skipped",
+    reason:
+      "Runtime request counts per client and window (lib/rateLimit.ts), written by live requests and deleted when they expire. Seeding them would only lock someone out.",
+  },
   BoxNote: {
     status: "skipped",
     reason: "Runtime floor notes, written when a handheld scans boxes; the demo has scanned none.",
@@ -236,6 +246,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   ProductOptionOverride: { status: "todo", tranche: "special-order-pricing" },
   ProductPairing: { status: "todo", tranche: "catalog-depth" },
   ProductPriceChange: { status: "seeded", seeder: "demo" },
+  Sale: { status: "seeded", seeder: "demo" },
+  SaleItem: { status: "seeded", seeder: "demo" },
   ProductSource: { status: "seeded", seeder: "demo" },
   ProductSpeciesPrice: { status: "todo", tranche: "special-order-pricing" },
   ProductVariant: { status: "todo", tranche: "catalog-depth" },

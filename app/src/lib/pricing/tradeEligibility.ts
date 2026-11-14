@@ -17,7 +17,12 @@
 // it never gets here; the writers leave those out.
 
 import type { PrismaTx } from "@/lib/inventory/allocation";
-import { customerTradeTier, type CustomerTradeTier } from "@/lib/pricing/tradeTier";
+import { parsePricingConfig } from "@/lib/appSettings";
+import {
+  customerTradeTier,
+  type CustomerTradeTier,
+  type TradeSettings,
+} from "@/lib/pricing/tradeTier";
 
 /** Whether each of these products may take a trade tier, by product id. */
 export async function tradeEligibleProducts(
@@ -65,4 +70,18 @@ export async function loadCustomerTradeTier(
     },
   });
   return customerTradeTier(customer?.tradeTier);
+}
+
+/**
+ * Whether the store lets a tier discount a sale price too
+ * (AppSettings.pricing.tradeDiscountOnSaleItems, off by default). Read through
+ * `db` so a writer judges a sale with the setting its transaction sees; the
+ * discount policy and the product lookups both read it here.
+ */
+export async function loadTradeSettings(db: PrismaTx): Promise<TradeSettings> {
+  // Single-org-per-deployment (docs/TENANCY.md): at most one AppSettings row.
+  const row = await db.appSettings.findFirst({ select: { pricing: true } });
+  return {
+    tradeDiscountOnSaleItems: parsePricingConfig(row?.pricing).tradeDiscountOnSaleItems,
+  };
 }

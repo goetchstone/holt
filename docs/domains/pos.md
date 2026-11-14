@@ -151,7 +151,26 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 ## A product's line price
 
 A scanned or searched product goes onto the cart at its retail price, from
-`lib/pos/cartPricing.ts:catalogRetailPrice`. New Quote uses the same helper. A
+`lib/pos/cartPricing.ts:catalogRetailPrice`. New Quote uses the same helper.
+
+During a scheduled sale (GAP-06 part B, DECISIONS 60) that price is the sale price:
+`GET /api/products` and `/api/products/find-by-identifier` answer today's price, on
+the store's day, in `baseRetail`, with `regularRetail`, `onSale` and `saleEndsOn`
+beside it (`lib/pricing/salePrice.ts`). The screens never decide "today":
+`catalogSale` only reads `onSale`. The search results show the regular price struck
+through beside the sale price (`RetailPriceTag`), and a POS cart row or quote line
+added at a sale price says SALE with the regular price struck through, while its
+price is still that sale price (`lineSale`; a typed-over price drops the note). On the
+server the line's list price is the sale price too (`catalogLinePolicies`), so a sale
+line needs no manager approval and a further discount is measured from the sale price
+(see "Discounts and manager approval"). Lines already saved on a quote or order keep
+their price when a sale starts or ends. A line still on an open POS cart or New Quote
+draft keeps the price it was added at on screen, but is judged when the cart is checked
+out or the quote saved (`create-from-cart`), against that moment's price: if the sale
+has ended since (its last day passed, or it was ended early), its sale price is now
+below the list price and counts as a discount, so at the default limit of 0 it asks
+for a manager's approval. Removing the line and adding it again takes today's price.
+Nothing re-fetches an open cart's prices. A
 product with no retail price is refused with a message naming where to set it
 (`noRetailPriceMessage`), and the search results label it "No price"
 (`components/sales/RetailPriceTag.tsx`). Zero counts as no price, because an
@@ -168,11 +187,16 @@ the helper. A cashier can still change a line's price once it is on the cart.
 search returns the customer's `tradeTier` (only an active one). On the register and
 New Quote each line keeps the `retail` it was listed at, whether the product may take
 a tier (`tradeEligible`, from the product lookup), whether someone typed its price
-(`priceTyped`), and the tier percent in its price (`tradePercent`). Adding a product,
-or picking, changing or removing the customer, prices every untyped line through
-`priceLineForTier` (`lib/pricing/tradeTier.ts`): an eligible line at retail less the
-tier, rounded to the cent, with "Trade 20%" under its price; a return, an ineligible
-product or a configured or custom line at its own price. Removing the customer
+(`priceTyped`), the tier percent in its price (`tradePercent`), and, from the product
+lookup, whether its price is a sale price (`onSale`) and whether the store lets a tier
+come off a sale price (`tradeDiscountOnSaleItems`); `tierFieldsFromLookup` builds these
+for both screens. Adding a product, or picking, changing or removing the customer,
+prices every untyped line through `priceLineForTier` (`lib/pricing/tradeTier.ts`): an
+eligible line at its price today (the sale price while a sale is on) less the tier,
+rounded to the cent, with "Trade 20%" under its price; a sale item with the store's
+setting off, a return, an ineligible product or a configured or custom line at its own
+price. A tier-priced sale line still says SALE (`lineSale` reads an untyped line's
+`retail`). Removing the customer
 restores retail. A price typed on a line keeps it from then on. The server judges the
 price it is sent (below); it doesn't set it. Detail:
 `docs/domains/pricing-catalog.md` "Trade tier pricing".
@@ -257,7 +281,8 @@ manager"). Holt ships the locked-down choice. `lib/sales/discountApproval.ts`:
   line (Settings › Discounts). That defaults to 0, so every such discount needs a
   manager until the store loosens it.
 - **What counts.** A line sold below its baseline: a discount entered at the
-  register, a price typed below the product's retail (`catalogLinePolicies`), a
+  register, a price typed below the product's list price (its retail, or its sale
+  price while a scheduled sale is on; `catalogLinePolicies`), a
   replacement or price edit below the line's recorded list, or a delivery fee
   below its zone's (a waived fee is 100%). The baseline is the list price, or on
   a line a trade customer's tier applies to, the price the tier entitles them to
@@ -333,4 +358,4 @@ No auto-print on order confirmation yet (master plan G3 / Phase 1).
 
 ---
 
-Last verified: 2026-08-01
+Last verified: 2026-08-01; "A product's line price" during a scheduled sale 2026-11-14 against source.

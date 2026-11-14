@@ -1,15 +1,26 @@
 // /app/src/pages/api/products/find-by-identifier.ts
+//
+// A scan or typed number to its product. baseRetail in the answer is the price
+// the register charges TODAY -- a sale price while the product's scheduled sale
+// is on (lib/pricing/salePrice.ts, GAP-06 part B) -- with regularRetail, onSale
+// and saleEndsOn beside it, and tradeEligible and tradeDiscountOnSaleItems for
+// a trade customer's price (GAP-06 part C), as GET /api/products answers.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { tradeEligibleProducts } from "@/lib/pricing/tradeEligibility";
+import type { Product } from "@prisma/client";
+import { saleToday } from "@/lib/pricing/salePrice";
+import { screenPriceFields } from "@/lib/pricing/screenPricing";
 
-/** The product, and whether a customer's trade tier may discount it (GAP-06 part C). */
-async function withTradeEligibility<T extends { id: number }>(product: T) {
-  const eligible = await tradeEligibleProducts(prisma, [product.id]);
-  return { ...product, tradeEligible: eligible.get(product.id) === true };
+/**
+ * The product as the screens read it: its price today, sale or not, and whether
+ * a customer's trade tier may discount it (lib/pricing/screenPricing.ts).
+ */
+async function withTodaysPrice(product: Product) {
+  const fields = await screenPriceFields(prisma, [product], await saleToday());
+  return { ...product, ...fields.get(product.id)! };
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -52,7 +63,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (upc && upc.product) {
-      return res.status(200).json(await withTradeEligibility(upc.product));
+      return res.status(200).json(await withTodaysPrice(upc.product));
     }
 
     // Step 2: If no UPC, search Product Numbers.
@@ -66,7 +77,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     if (product) {
-      return res.status(200).json(await withTradeEligibility(product));
+      return res.status(200).json(await withTodaysPrice(product));
     }
 
     return res

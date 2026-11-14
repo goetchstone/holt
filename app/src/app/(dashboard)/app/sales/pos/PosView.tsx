@@ -24,12 +24,20 @@ import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { getErrorMessage } from "@/lib/toastError";
 import {
   catalogRetailPrice,
+  catalogSale,
+  lineSale,
   noRetailPriceMessage,
   priceCart,
   type CartDiscount,
+  type CatalogSale,
   type DiscountType,
 } from "@/lib/pos/cartPricing";
-import { priceLineForTier, tradeLabel, type CustomerTradeTier } from "@/lib/pricing/tradeTier";
+import {
+  priceLineForTier,
+  tierFieldsFromLookup,
+  tradeLabel,
+  type CustomerTradeTier,
+} from "@/lib/pricing/tradeTier";
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
@@ -75,14 +83,23 @@ interface CartItem {
   name: string;
   /** The unit price it sells for: its retail, the customer's trade price, or a typed one. */
   price: number;
-  /** The unit retail it was listed at, so a trade tier can come on and off (GAP-06 part C). */
+  /**
+   * The unit price it was listed at -- its sale price while a scheduled sale is
+   * on -- so a trade tier can come on and off (GAP-06 part C).
+   */
   retail: number;
   /** Whether a customer's trade tier may discount it (the product lookup says). */
   tradeEligible: boolean;
+  /** Whether `retail` is a sale price (the product lookup's onSale). */
+  onSale?: boolean;
+  /** Whether the store lets a tier come off a sale price (the product lookup says). */
+  tradeDiscountOnSaleItems?: boolean;
   /** Someone typed the price: a customer's tier never moves it. */
   priceTyped: boolean;
   /** The trade tier's percent in `price`, or null: shown as "Trade 20%". */
   tradePercent: number | null;
+  /** The scheduled sale this line was added at (catalogSale), for show only; see lineSale. */
+  sale: CatalogSale | null;
   cost: number;
   quantity: number;
   discounts: Discount[];
@@ -119,9 +136,14 @@ interface FoundProduct {
   productNumber: string;
   name?: string | null;
   baseRetail?: number | null;
+  regularRetail?: number | null;
+  onSale?: boolean;
+  saleEndsOn?: string | null;
   baseCost?: number | null;
   /** Whether a customer's trade tier may discount it (GAP-06 part C). */
   tradeEligible?: boolean;
+  /** Whether the store lets a tier come off a sale price (GAP-06 part C). */
+  tradeDiscountOnSaleItems?: boolean;
 }
 
 interface GiftCardInfo {
@@ -439,11 +461,8 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
               productId: product.id,
               productNumber: product.productNumber,
               name: product.name || product.productNumber,
-              price,
-              retail: price,
-              tradeEligible: product.tradeEligible === true,
-              priceTyped: false,
-              tradePercent: null,
+              ...tierFieldsFromLookup(product, price),
+              sale: catalogSale(product),
               cost: product.baseCost ? Number(product.baseCost) : 0,
               quantity: 1,
               discounts: [],
@@ -1207,7 +1226,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                       {p.categoryName && <span> -- {p.categoryName}</span>}
                     </p>
                   </div>
-                  <RetailPriceTag price={catalogRetailPrice(p)} fmt={fmt} />
+                  <RetailPriceTag price={catalogRetailPrice(p)} sale={catalogSale(p)} fmt={fmt} />
                 </div>
               </button>
             ))}
@@ -2075,6 +2094,9 @@ function CartRow({
   onCancelItemDiscount,
 }: CartRowProps) {
   const onHandHere = registerStoreName ? onHandAt(item, registerStoreName) : 0;
+  // An untyped line keeps its sale while a tier prices it below the sale price:
+  // its list (`retail`) is still the sale price it was added at.
+  const onSale = lineSale(item.priceTyped ? item.price : item.retail, item.sale);
 
   return (
     <div className={`border-b border-brand-gray/10 p-3 ${item.isReturn ? "bg-red-50" : ""}`}>
@@ -2089,6 +2111,16 @@ function CartRow({
             )}
           </div>
           <p className="text-xs text-brand-gray">{item.productNumber}</p>
+          {onSale && (
+            <p className="text-xs mt-0.5">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-semibold">
+                SALE
+              </span>{" "}
+              <span className="text-brand-gray">
+                Regular <s>{fmt(onSale.regularPrice)}</s>
+              </span>
+            </p>
+          )}
           {registerStoreName && (
             <p className="text-xs mt-1">
               <span className="text-brand-gray">Source: </span>

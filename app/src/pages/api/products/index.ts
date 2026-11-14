@@ -13,6 +13,12 @@
 // (account number, discounts, markup, terms, contacts), as do staff emails
 // and the wholesale price-list inputs. baseCost still goes to every admitted
 // role, as before; whether cost gets its own switch is SEC-14.
+//
+// baseRetail is the price the register charges TODAY: a product in a scheduled
+// sale answers its sale price (lib/pricing/salePrice.ts, GAP-06 part B), with
+// regularRetail, onSale and saleEndsOn beside it. The screens price a line with
+// catalogRetailPrice(product) as before; a screen that edits the product
+// (ProductEditModal) writes regularRetail back, never the sale price.
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
@@ -20,7 +26,8 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
-import { tradeEligibleProducts } from "@/lib/pricing/tradeEligibility";
+import { saleToday } from "@/lib/pricing/salePrice";
+import { screenPriceFields } from "@/lib/pricing/screenPricing";
 
 const NAME_ONLY = { select: { name: true } } as const;
 
@@ -84,18 +91,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       prisma.product.count({ where }),
     ]);
 
-    // Whether a customer's trade tier may discount each one (GAP-06 part C):
-    // the register and New Quote price a trade customer's lines by it.
-    const tradeEligible = await tradeEligibleProducts(
-      prisma,
-      products.map((p) => p.id),
-    );
+    // The price each sells for today, sale or not, and whether a customer's
+    // trade tier may discount it (lib/pricing/screenPricing.ts): the register
+    // and New Quote price a line by these, as the server judges it.
+    const priceFields = await screenPriceFields(prisma, products, await saleToday());
 
     // Convert Decimal fields to safe JSON, and flatten related names for display
     const safeProducts = products.map(({ vendor, category, department, type, ...p }) => ({
       ...p,
-      tradeEligible: tradeEligible.get(p.id) === true,
-      baseRetail: p.baseRetail ? Number(p.baseRetail) : undefined,
+      ...priceFields.get(p.id)!,
       baseCost: p.baseCost ? Number(p.baseCost) : undefined, // Ensure cost is also converted
       created: p.created?.toISOString(),
       vendorName: vendor?.name,

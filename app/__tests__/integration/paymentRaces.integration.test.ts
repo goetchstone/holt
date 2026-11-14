@@ -39,6 +39,12 @@ jest.mock("@/lib/integrationCredentials", () => ({
 jest.mock("@/lib/opsAlert", () => ({
   reportOpsAlert: jest.fn(async () => undefined),
 }));
+// logError records an error in the background (lib/errorRecorder.ts), and the first sighting
+// of an error raises its own "New error" alert through the same reportOpsAlert. Whether that
+// lands before a test's assertion is timing, so the alert counts below were flaky (CI,
+// 2026-11-14: 2 calls where 1 was expected). The tests here count the payment path's own
+// alerts; the recorder has its own tests.
+jest.mock("@/lib/errorRecorder", () => ({ recordError: jest.fn() }));
 // The real thing, so a test can make the step after a payment fail once.
 jest.mock("@/lib/sales/salePos", () => {
   const actual = jest.requireActual("@/lib/sales/salePos");

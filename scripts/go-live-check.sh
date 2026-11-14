@@ -13,7 +13,10 @@
 # evidence of anything, it's a reminder.
 #
 # Usage:
-#   ./scripts/go-live-check.sh [--base-url http://localhost:3000]
+#   ./scripts/go-live-check.sh [--base-url http://127.0.0.1:8080]
+#
+# The default is nginx-host on the loopback, the host's own way in (the app has
+# no host port of its own; docker-compose.yml).
 #
 # Exit: 0 only if every AUTOMATED check passed (MANUAL items don't affect
 # the exit code -- they can't be verified from here by definition). Suitable
@@ -31,7 +34,7 @@ set -uo pipefail
 REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 cd "$REPO_ROOT"
 
-BASE_URL="http://localhost:3000"
+BASE_URL="http://127.0.0.1:8080"
 while [ $# -gt 0 ]; do
   case "$1" in
     --base-url)
@@ -43,7 +46,7 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     -h | --help)
-      echo "Usage: $0 [--base-url http://localhost:3000]" >&2
+      echo "Usage: $0 [--base-url http://127.0.0.1:8080]" >&2
       exit 0
       ;;
     *)

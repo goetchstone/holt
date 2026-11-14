@@ -41,6 +41,10 @@ export const AUDIT_EVENTS = {
   PRICES_ADJUSTED: { label: "Mass price change", group: "prices" },
   PRICE_LOCK_CHANGED: { label: "Price locked or unlocked", group: "prices" },
   MARKUP_CHANGED: { label: "Markup changed", group: "prices" },
+  SALE_SCHEDULED: { label: "Sale scheduled", group: "prices" },
+  SALE_CHANGED: { label: "Sale changed", group: "prices" },
+  SALE_ENDED: { label: "Sale ended early", group: "prices" },
+  SALE_DELETED: { label: "Sale deleted", group: "prices" },
   TRADE_TIER_CHANGED: { label: "Trade tier made, changed or turned off", group: "prices" },
   VENDOR_TRADE_DISCOUNT_CHANGED: {
     label: "Vendor's trade discounts turned on or off",

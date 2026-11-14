@@ -31,7 +31,7 @@ Every portal endpoint MUST:
 
 1. Call `verifyPortalToken(token)` and reject (`401`) on null return
 2. Cross-check the payload's `orderId` matches the requested order
-3. Apply `rateLimit()` from `lib/rateLimit.ts` (portal endpoints are explicitly rate-limited — see `apps/src/lib/rateLimit.ts` config)
+3. Apply `rateLimit(config, "<route-name>")` from `lib/rateLimit.ts`, with a bucket name of its own (portal endpoints are explicitly rate-limited). The count is kept in Postgres (`RateLimitWindow`), so it holds across every app process.
 4. Never echo `customerId` or other PII fields the client didn't already implicitly have access to (the token gives them order-scope, not customer-scope)
 
 **Rate limit**: portal routes are stricter than authenticated routes — they're public to anyone with the link, so brute-force or token-fishing must be slow.

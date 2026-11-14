@@ -292,6 +292,8 @@ describe("the seeder never writes the baseline as a row", () => {
     const created: { roleId: number; permission: string }[] = [];
     let nextId = 1;
     const client = {
+      // The "roles" cache generation bump after a sync that wrote something.
+      $executeRaw: jest.fn().mockResolvedValue(1),
       role: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(async () => ({ id: nextId++ })),

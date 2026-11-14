@@ -12,7 +12,13 @@
 import type { EmailStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
-import { MAX_EMAIL_ATTEMPTS, nextEmailState } from "@/lib/email/state";
+import {
+  INTERRUPTED_SEND_ERROR,
+  isClaimedElsewhere,
+  MAX_EMAIL_ATTEMPTS,
+  nextEmailState,
+  SEND_CLAIM_LEASE_MS,
+} from "@/lib/email/state";
 import { REPLIED_STOP, isSmsOptedOut } from "./consent";
 import { getActiveSmsProvider } from "./index";
 
@@ -47,14 +53,51 @@ export function smsWebhookUrl(): string | undefined {
   return base.startsWith("https://") ? `${base}/api/sms/twilio/webhook` : undefined;
 }
 
-type QueuedSms = { id: number; toPhone: string; body: string; attempts: number };
+type QueuedSms = {
+  id: number;
+  toPhone: string;
+  body: string;
+  attempts: number;
+  scheduledAt: Date;
+};
 
-/** Send one row and record what happened. Null when no provider is set up (the row stays PENDING). */
-async function deliverRow(row: QueuedSms): Promise<{ status: EmailStatus } | null> {
+/**
+ * Take a row for this drain alone before sending it: the same compare-and-set
+ * lease as lib/email/queue.ts, for the same reason. Each text is billed, and two
+ * drains (the cron and a screen's send-now, or two app processes) each sent it.
+ */
+async function claimRow(row: QueuedSms): Promise<boolean> {
+  const claimed = await prisma.smsQueue.updateMany({
+    where: {
+      id: row.id,
+      status: "PENDING",
+      attempts: row.attempts,
+      scheduledAt: row.scheduledAt,
+    },
+    data: {
+      attempts: row.attempts + 1,
+      scheduledAt: new Date(Date.now() + SEND_CLAIM_LEASE_MS),
+    },
+  });
+  return claimed.count === 1;
+}
+
+/**
+ * Claim one row, send it and record what happened. "taken" when another drain
+ * has it; null when no provider is set up (the row is handed back, still PENDING).
+ */
+async function deliverRow(row: QueuedSms): Promise<{ status: EmailStatus } | "taken" | null> {
+  if (!(await claimRow(row))) return "taken";
   if (await isSmsOptedOut(prisma, row.toPhone)) {
     await prisma.smsQueue.update({
       where: { id: row.id },
-      data: { status: "FAILED", lastError: REPLIED_STOP },
+      // Not a try: nothing went to the provider.
+      data: {
+        status: "FAILED",
+        lastError: REPLIED_STOP,
+        attempts: row.attempts,
+        scheduledAt: row.scheduledAt,
+      },
     });
     return { status: "FAILED" };
   }
@@ -63,7 +106,13 @@ async function deliverRow(row: QueuedSms): Promise<{ status: EmailStatus } | nul
     body: row.body,
     statusCallbackUrl: smsWebhookUrl(),
   });
-  if (result.outcome === "not-configured") return null;
+  if (result.outcome === "not-configured") {
+    await prisma.smsQueue.update({
+      where: { id: row.id },
+      data: { attempts: row.attempts, scheduledAt: row.scheduledAt },
+    });
+    return null;
+  }
   if (result.outcome === "refused" && result.recipientOptedOut) {
     await prisma.smsOptOut.upsert({
       where: { phone: row.toPhone },
@@ -82,21 +131,41 @@ async function deliverRow(row: QueuedSms): Promise<{ status: EmailStatus } | nul
       sentAt: state.sentAt,
       lastError: state.lastError,
       providerMessageId: accepted ? result.providerMessageId : null,
+      // Back from the lease to when it was due, so a failed send is retried.
+      scheduledAt: row.scheduledAt,
     },
   });
   return { status };
 }
 
-const QUEUED_SELECT = { id: true, toPhone: true, body: true, attempts: true } as const;
+const QUEUED_SELECT = {
+  id: true,
+  toPhone: true,
+  body: true,
+  attempts: true,
+  scheduledAt: true,
+} as const;
 
-/** Try one queued text now, for a screen that tells staff whether it went. */
+/**
+ * Try one queued text now, for a screen that tells staff whether it went.
+ * PENDING when another drain is sending it at this moment.
+ */
 export async function deliverQueuedSms(id: number): Promise<EmailStatus> {
   const row = await prisma.smsQueue.findUniqueOrThrow({
     where: { id },
     select: { ...QUEUED_SELECT, status: true },
   });
   if (row.status !== "PENDING") return row.status;
-  return (await deliverRow(row))?.status ?? "PENDING";
+  if (isClaimedElsewhere(row.scheduledAt, new Date())) return "PENDING";
+  const outcome = await deliverRow(row);
+  if (outcome === "taken") {
+    const now = await prisma.smsQueue.findUniqueOrThrow({
+      where: { id },
+      select: { status: true },
+    });
+    return now.status;
+  }
+  return outcome?.status ?? "PENDING";
 }
 
 export interface SmsProcessSummary {
@@ -110,11 +179,24 @@ export async function processSmsQueue(
   organizationId: number = DEFAULT_ORG_ID,
   limit = 25,
 ): Promise<SmsProcessSummary> {
+  const now = new Date();
+  // A text claimed for its last try whose process stopped before writing the
+  // outcome: the same sweep, for the same reason, as lib/email/queue.ts's
+  // failInterruptedLastTries.
+  await prisma.smsQueue.updateMany({
+    where: {
+      organizationId,
+      status: "PENDING",
+      attempts: { gte: MAX_EMAIL_ATTEMPTS },
+      scheduledAt: { lte: now },
+    },
+    data: { status: "FAILED", lastError: INTERRUPTED_SEND_ERROR },
+  });
   const due = await prisma.smsQueue.findMany({
     where: {
       organizationId,
       status: "PENDING",
-      scheduledAt: { lte: new Date() },
+      scheduledAt: { lte: now },
       attempts: { lt: MAX_EMAIL_ATTEMPTS },
     },
     orderBy: { scheduledAt: "asc" },
@@ -124,6 +206,8 @@ export async function processSmsQueue(
   const summary: SmsProcessSummary = { processed: 0, sent: 0, failed: 0, skipped: 0 };
   for (const row of due) {
     const outcome = await deliverRow(row);
+    // Another drain is sending this one; it counts it, not us.
+    if (outcome === "taken") continue;
     // No provider set up: nothing will send this run, and the rows wait for one.
     if (!outcome) {
       summary.skipped++;

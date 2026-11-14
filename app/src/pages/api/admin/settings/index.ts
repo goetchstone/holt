@@ -16,14 +16,15 @@ import { getErrorCode } from "@/lib/errorCode";
 import {
   DEFAULT_ORG_ID,
   DEFAULT_THEME,
-  getAppSettings,
   invalidateAppSettingsCache,
   isHexColor,
   parsePricingConfig,
   PORTAL_TOKEN_TTL_MAX_HOURS,
   type PricingConfig,
+  readAppSettingsNow,
   type ThemeKey,
 } from "@/lib/appSettings";
+import { bumpCacheGenerations, readCacheGenerationNow } from "@/lib/cacheGeneration";
 import { MARKUP_PRECEDENCES, isMarkupPrecedence, markupProblem } from "@/lib/pricing/markup";
 import { RETAIL_ROUNDINGS, isRetailRounding } from "@/lib/pricing/rounding";
 import { parsePrefix } from "@/lib/numberingPrefix";
@@ -48,13 +49,45 @@ export default requirePermission("admin.settings", async (req, res, session) => 
   return res.status(405).json({ error: "Method not allowed" });
 });
 
+// The settings screen saves every field it shows, so what it shows must be what
+// is stored NOW, not a process's cached copy. With several app processes, a GET
+// answered from a copy made before another process's save showed the old values,
+// and the next save wrote them back over that save, with no error anywhere.
+//
+// `settingsVersion` is the "settings" cache generation, which every settings
+// save bumps (lib/cacheGeneration.ts). The screen sends back the version it
+// loaded; a save made since then answers 409 instead of being overwritten. It
+// is read BEFORE the row, so a save landing between the two reads makes the
+// version older than the values -- a needless 409 at worst, never a lost save.
+//
+// Not AppSettings.updated: the automations tick and its claims write that row
+// every few minutes, which would refuse every save from a page left open.
 async function handleGet(res: NextApiResponse) {
-  const settings = await getAppSettings();
+  const settingsVersion = await readCacheGenerationNow("settings");
+  const settings = await readAppSettingsNow();
   // The picker needs the catalog, not just the current id -- otherwise the UI
   // hardcodes the adapter list, which is exactly the coupling the registry
   // exists to remove.
-  return res.json({ settings, sourceAdapters: listSourceAdapters() });
+  return res.json({ settings, settingsVersion, sourceAdapters: listSourceAdapters() });
 }
+
+type ParseFail = { ok: false; error: string };
+
+/** The version the screen loaded, when it sent one. */
+function parseSettingsVersion(body: Body): { ok: true; value: string | undefined } | ParseFail {
+  const raw = body.settingsVersion;
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (typeof raw !== "string" || !/^\d+$/.test(raw)) {
+    return { ok: false, error: "settingsVersion must be the version the settings were loaded at" };
+  }
+  return { ok: true, value: raw };
+}
+
+class SettingsChangedError extends Error {}
+
+const SETTINGS_CHANGED_MESSAGE =
+  "Someone else saved settings after you opened this page, so this save was not made. " +
+  "Reload the page to see the current settings, then make your change again.";
 
 function isSafeUrl(value: string): boolean {
   return /^(https?:\/\/|\/)/.test(value.trim());
@@ -691,6 +724,12 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
   const body = (req.body ?? {}) as Body;
   const data: SettingsData = {};
 
+  // The version check is made when the caller sends what it loaded. The settings
+  // screen, which saves every field at once, always does; a panel that saves
+  // only its own field or two cannot undo anyone else's other fields.
+  const version = parseSettingsVersion(body);
+  if (!version.ok) return res.status(400).json({ error: version.error });
+
   for (const parse of SETTINGS_PARSERS) {
     const result = parse(body, data);
     if (result) return res.status(400).json({ error: result.error });
@@ -698,37 +737,55 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
 
   const actor = session.user?.email ?? null;
 
+  let settingsVersion: string;
   try {
-    const before = await prisma.appSettings.findUnique({
-      where: { organizationId: DEFAULT_ORG_ID },
-    });
-    if (data.pricing !== undefined) {
-      const pricing = mergedPricing(before?.pricing, data.pricing);
-      if (pricing === undefined) delete data.pricing;
-      else data.pricing = { ...pricing };
-    }
-    await prisma.appSettings.upsert({
-      where: { organizationId: DEFAULT_ORG_ID },
-      create: {
-        ...(data as Prisma.AppSettingsUncheckedCreateInput),
-        organizationId: DEFAULT_ORG_ID,
-        createdBy: actor,
-        updatedBy: actor,
-      },
-      update: { ...data, updatedBy: actor },
-    });
-    const changed = changedFieldNames(before ?? {}, data).flatMap((field) =>
-      field === "pricing"
-        ? pricingFieldsChanged(before?.pricing, data.pricing as unknown as PricingConfig)
-        : [field],
-    );
-    if (changed.length > 0) {
-      await auditLog("SETTINGS_SAVED", auditActor(session), {
-        summary: `Changed: ${changed.join(", ")}`,
-        details: { fields: changed },
+    settingsVersion = await prisma.$transaction(async (tx) => {
+      // Locks the version until this transaction ends: of two saves made from
+      // the same loaded version, the second waits, sees the first's bump, and
+      // is refused.
+      const current = await readCacheGenerationNow("settings", tx, { lock: true });
+      if (version.value !== undefined && version.value !== current) {
+        throw new SettingsChangedError();
+      }
+      const before = await tx.appSettings.findUnique({
+        where: { organizationId: DEFAULT_ORG_ID },
       });
-    }
+      if (data.pricing !== undefined) {
+        const pricing = mergedPricing(before?.pricing, data.pricing);
+        if (pricing === undefined) delete data.pricing;
+        else data.pricing = { ...pricing };
+      }
+      await tx.appSettings.upsert({
+        where: { organizationId: DEFAULT_ORG_ID },
+        create: {
+          ...(data as Prisma.AppSettingsUncheckedCreateInput),
+          organizationId: DEFAULT_ORG_ID,
+          createdBy: actor,
+          updatedBy: actor,
+        },
+        update: { ...data, updatedBy: actor },
+      });
+      const changed = changedFieldNames(before ?? {}, data).flatMap((field) =>
+        field === "pricing"
+          ? pricingFieldsChanged(before?.pricing, data.pricing as unknown as PricingConfig)
+          : [field],
+      );
+      if (changed.length > 0) {
+        await auditLog(
+          "SETTINGS_SAVED",
+          auditActor(session),
+          { summary: `Changed: ${changed.join(", ")}`, details: { fields: changed } },
+          tx,
+        );
+      }
+      // Every other app process drops its cached settings within 2s.
+      await bumpCacheGenerations(["settings"], tx);
+      return readCacheGenerationNow("settings", tx);
+    });
   } catch (err) {
+    if (err instanceof SettingsChangedError) {
+      return res.status(409).json({ error: SETTINGS_CHANGED_MESSAGE, code: "SETTINGS_CHANGED" });
+    }
     if (getErrorCode(err) === "P2003") {
       return res.status(400).json({ error: missingReferenceMessage(data) });
     }
@@ -737,6 +794,6 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
   }
 
   invalidateAppSettingsCache(DEFAULT_ORG_ID);
-  const settings = await getAppSettings();
-  return res.json({ settings });
+  const settings = await readAppSettingsNow();
+  return res.json({ settings, settingsVersion });
 }

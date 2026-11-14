@@ -22,8 +22,19 @@ import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
-import { catalogRetailPrice, noRetailPriceMessage } from "@/lib/pos/cartPricing";
-import { customerTradeTier, priceLineForTier, tradeLabel } from "@/lib/pricing/tradeTier";
+import {
+  catalogRetailPrice,
+  catalogSale,
+  lineSale,
+  noRetailPriceMessage,
+  type CatalogSale,
+} from "@/lib/pos/cartPricing";
+import {
+  customerTradeTier,
+  priceLineForTier,
+  tierFieldsFromLookup,
+  tradeLabel,
+} from "@/lib/pricing/tradeTier";
 import { getErrorMessage } from "@/lib/toastError";
 import {
   SplitSaleField,
@@ -36,6 +47,20 @@ import type { SplitSaleSetup } from "@/lib/commissionSplit";
 type ItemSource = "FLOOR" | "ORDER";
 type FulfillmentMethod = "TAKE" | "PICKUP" | "DELIVERY";
 
+/** SALE and the regular price struck through, while the line is at its sale price. */
+function LineSaleNote({
+  sale,
+  fmt,
+}: Readonly<{ sale: CatalogSale | null; fmt: (amount: number) => string }>) {
+  if (!sale) return null;
+  return (
+    <p className="mt-1 text-[10px] text-brand-gray">
+      <span className="rounded bg-red-100 px-1 py-0.5 font-semibold text-red-800">SALE</span>{" "}
+      Regular <s>{fmt(sale.regularPrice)}</s>
+    </p>
+  );
+}
+
 interface QuoteLineItem {
   id: string;
   type: "PRODUCT" | "CONFIGURED" | "CUSTOM";
@@ -45,14 +70,23 @@ interface QuoteLineItem {
   description: string;
   /** The unit price it is quoted at: its retail, the customer's trade price, or a typed one. */
   price: number;
-  /** The unit retail it was listed at, so a trade tier can come on and off (GAP-06 part C). */
+  /**
+   * The unit price it was listed at -- its sale price while a scheduled sale is
+   * on -- so a trade tier can come on and off (GAP-06 part C).
+   */
   retail: number;
   /** Whether a customer's trade tier may discount it: catalog products the lookup allows. */
   tradeEligible: boolean;
+  /** Whether `retail` is a sale price (the product lookup's onSale). */
+  onSale?: boolean;
+  /** Whether the store lets a tier come off a sale price (the product lookup says). */
+  tradeDiscountOnSaleItems?: boolean;
   /** Someone typed the price: a customer's tier never moves it. */
   priceTyped: boolean;
   /** The trade tier's percent in `price`, or null: shown as "Trade 20%". */
   tradePercent: number | null;
+  /** The scheduled sale this line was added at (catalogSale), for show only; see lineSale. */
+  sale?: CatalogSale | null;
   cost: number;
   quantity: number;
   vendor: string;
@@ -245,9 +279,13 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
     productNumber: string;
     name: string;
     baseRetail?: number | null;
+    regularRetail?: number | null;
+    onSale?: boolean;
+    saleEndsOn?: string | null;
     baseCost?: number | null;
     vendorName?: string;
     tradeEligible?: boolean;
+    tradeDiscountOnSaleItems?: boolean;
   }) => {
     const price = catalogRetailPrice(p);
     if (price === null) {
@@ -265,11 +303,8 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
           productNumber: p.productNumber,
           name: p.name || p.productNumber,
           description: "",
-          price,
-          retail: price,
-          tradeEligible: p.tradeEligible === true,
-          priceTyped: false,
-          tradePercent: null,
+          ...tierFieldsFromLookup(p, price),
+          sale: catalogSale(p),
           cost: p.baseCost ? Number(p.baseCost) : 0,
           quantity: 1,
           vendor: p.vendorName || "",
@@ -523,7 +558,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
                         {p.vendorName && <span> -- {p.vendorName}</span>}
                       </p>
                     </div>
-                    <RetailPriceTag price={catalogRetailPrice(p)} fmt={fmt} />
+                    <RetailPriceTag price={catalogRetailPrice(p)} sale={catalogSale(p)} fmt={fmt} />
                   </div>
                 </button>
               ))}
@@ -711,6 +746,10 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
                         }
                         aria-label={`Price of ${line.name}`}
                         className="w-24 text-right border border-brand-gray/30 rounded px-1 py-1 text-sm"
+                      />
+                      <LineSaleNote
+                        sale={lineSale(line.priceTyped ? line.price : line.retail, line.sale)}
+                        fmt={fmt}
                       />
                       {line.tradePercent !== null && (
                         <p

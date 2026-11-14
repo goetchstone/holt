@@ -9,6 +9,7 @@ import {
   customerTradeTier,
   entitledUnitPrice,
   priceLineForTier,
+  tierFieldsFromLookup,
   tradeLabel,
   tierPercentProblem,
   tradeTierPercent,
@@ -186,9 +187,40 @@ describe("priceLineForTier", () => {
   it("leaves a sale price alone unless the store says a tier applies to it", () => {
     const onSale = { ...line, retail: 900, price: 900, onSale: true };
     expect(priceLineForTier(onSale, DESIGNER)).toMatchObject({ price: 900, tradePercent: null });
-    expect(priceLineForTier(onSale, DESIGNER, { tradeDiscountOnSaleItems: true })).toMatchObject({
-      price: 720,
-      tradePercent: 20,
+    expect(priceLineForTier({ ...onSale, tradeDiscountOnSaleItems: true }, DESIGNER)).toMatchObject(
+      {
+        price: 720,
+        tradePercent: 20,
+      },
+    );
+  });
+});
+
+describe("tierFieldsFromLookup: a new screen line reads what the product lookup says", () => {
+  const DESIGNER = { id: 3, name: "Designer", discountPercent: 20 };
+
+  it("carries the sale flag and the store's setting, so a sale item prices as the server judges it", () => {
+    const sale = { onSale: true, tradeEligible: true };
+    const off = tierFieldsFromLookup({ ...sale, tradeDiscountOnSaleItems: false }, 600);
+    expect(off).toEqual({
+      price: 600,
+      retail: 600,
+      tradeEligible: true,
+      onSale: true,
+      tradeDiscountOnSaleItems: false,
+      priceTyped: false,
+      tradePercent: null,
+    });
+    expect(priceLineForTier(off, DESIGNER)).toMatchObject({ price: 600, tradePercent: null });
+    const on = tierFieldsFromLookup({ ...sale, tradeDiscountOnSaleItems: true }, 600);
+    expect(priceLineForTier(on, DESIGNER)).toMatchObject({ price: 480, tradePercent: 20 });
+  });
+
+  it("reads a missing flag as the strict side: not eligible, not on sale, setting off", () => {
+    expect(tierFieldsFromLookup({}, 1000)).toMatchObject({
+      tradeEligible: false,
+      onSale: false,
+      tradeDiscountOnSaleItems: false,
     });
   });
 });

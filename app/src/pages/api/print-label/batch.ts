@@ -5,16 +5,46 @@
 //    from the product's category assignment and tag size matching.
 // 2. Manual: pass { productId, templateId, printerId, copies } to override.
 // A storeLocationId beside items keeps auto-routed tags to that store's printers.
+// A kind beside items (PRODUCT, SALE or LAW, lib/labels/productTag.ts) prints that
+// tag for each item as the single print does (printProductTag): a sale tag by the
+// store's SALE template, so a scheduled sale's tags print in one go (GAP-06 part
+// B). Without one, mode 1 picks the price tag by category, as before.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { printLabel, resolveRoute } from "@/lib/labelPrinter";
+import { printLabel, printProductTag, resolveRoute } from "@/lib/labelPrinter";
+import { isProductTagKind, type ProductTagKind } from "@/lib/labels/productTag";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
+import {
+  PRINT_BATCH_MAX_COPIES as MAX_COPIES,
+  PRINT_BATCH_MAX_ITEMS as MAX_BATCH_SIZE,
+} from "@/lib/labels/batchPrintShared";
 
-const MAX_BATCH_SIZE = 50;
-const MAX_COPIES = 10;
+/** Print one item's tags by the mode it asks for; says which printer and template when it chose them. */
+async function printOne(args: {
+  productId: number;
+  templateId?: number;
+  printerId?: number;
+  kind?: ProductTagKind | null;
+  storeName?: string | null;
+  copies: number;
+}): Promise<{ printer?: string; template?: string }> {
+  const { productId, templateId, printerId, kind, storeName, copies } = args;
+  if (templateId && printerId) {
+    for (let i = 0; i < copies; i++) await printLabel(productId, templateId, printerId);
+    return {};
+  }
+  if (kind) {
+    return printProductTag({ productId: Number(productId), kind, storeName, copies });
+  }
+  const route = await resolveRoute(productId, storeName);
+  for (let i = 0; i < copies; i++) {
+    await printLabel(productId, route.templateId, route.printerId);
+  }
+  return { printer: route.printerName, template: route.templateName };
+}
 
 export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -32,6 +62,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res
         .status(400)
         .json({ error: `Batch size exceeds maximum of ${MAX_BATCH_SIZE} items` });
+    }
+
+    const { kind } = req.body;
+    if (kind !== undefined && kind !== null && !isProductTagKind(kind)) {
+      return res.status(400).json({ error: "kind must be PRODUCT, SALE or LAW." });
     }
 
     const store = req.body.storeLocationId
@@ -63,23 +98,18 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       const clampedCopies = Math.min(Math.max(1, copies), MAX_COPIES);
 
       try {
-        if (templateId && printerId) {
-          for (let i = 0; i < clampedCopies; i++) {
-            await printLabel(productId, templateId, printerId);
-          }
-          results.push({ productId, success: true });
-        } else {
-          const route = await resolveRoute(productId, store?.name);
-          for (let i = 0; i < clampedCopies; i++) {
-            await printLabel(productId, route.templateId, route.printerId);
-          }
-          results.push({
+        results.push({
+          productId,
+          success: true,
+          ...(await printOne({
             productId,
-            success: true,
-            printer: route.printerName,
-            template: route.templateName,
-          });
-        }
+            templateId,
+            printerId,
+            kind,
+            storeName: store?.name,
+            copies: clampedCopies,
+          })),
+        });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Print failed";
         results.push({ productId, success: false, error: msg });
@@ -102,6 +132,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
 // before the permission check runs, which does DB queries on each call.
 // Auth-outermost would let anyone without a session drive that DB load. Do not
 // reorder. The same permission as the single tag (pages/api/print-label.ts).
-export default rateLimit({ windowMs: 60000, maxRequests: 10 })(
-  requirePermission({ anyOf: ["purchasing.receive", "warehouse.operate"] }, handler),
-);
+export default rateLimit(
+  { windowMs: 60000, maxRequests: 10 },
+  "print-label-batch",
+)(requirePermission({ anyOf: ["purchasing.receive", "warehouse.operate"] }, handler));

@@ -53,6 +53,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screens: ["/app/inventory/mass-price-change"],
   },
   {
+    slug: "scheduled-sales",
+    title: "Scheduling a sale",
+    summary:
+      "Give products a sale price for a run of days, change or end the sale, and print the sale tags on and the regular tags back.",
+    screens: ["/app/inventory/sales"],
+  },
+  {
     slug: "trade-pricing",
     title: "Trade pricing",
     summary:

@@ -26,10 +26,14 @@ import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
 import { verifyPassword } from "@/lib/auth/password";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { catalogRetailPrice } from "@/lib/pos/cartPricing";
-import { parsePricingConfig } from "@/lib/appSettings";
 import { toCents } from "@/lib/pricing/rounding";
-import { entitledUnitPrice, tradeTierPercent, type TradeSettings } from "@/lib/pricing/tradeTier";
-import { loadCustomerTradeTier, tradeEligibleProducts } from "@/lib/pricing/tradeEligibility";
+import { entitledUnitPrice, tradeTierPercent } from "@/lib/pricing/tradeTier";
+import {
+  loadCustomerTradeTier,
+  loadTradeSettings,
+  tradeEligibleProducts,
+} from "@/lib/pricing/tradeEligibility";
+import { type EffectiveRetail, effectiveRetailFor, saleToday } from "@/lib/pricing/salePrice";
 import {
   APPROVAL_REQUIRED,
   type ApprovalRequiredBody,
@@ -210,15 +214,17 @@ export function listOnlyPolicy(listUnit: number): LinePolicy {
 }
 
 /**
- * Each catalog product's price today, and whether that is a sale price.
- *
- * THE SEAM for scheduled sales (GAP-06 part B, lib/pricing/salePrice.ts): until
- * it lands a product sells at its retail and is never on sale; with it, this
- * reads effectiveRetailFor and nothing else here changes.
+ * Each catalog product's price today, and whether that is a sale price: the
+ * scheduled-sale resolver (lib/pricing/salePrice.ts, DECISIONS 60) on the
+ * store's day, read as catalogRetailPrice reads a price. The only place the
+ * policy learns what a product sells for (rule 42). `today` is the store's
+ * business day (saleToday) unless a caller pricing for another moment passes
+ * its own.
  */
 async function catalogRetailFor(
   db: PrismaTx,
   productIds: readonly number[],
+  today?: string,
 ): Promise<Map<number, { price: number | null; onSale: boolean }>> {
   const products =
     productIds.length > 0
@@ -227,44 +233,42 @@ async function catalogRetailFor(
           select: { id: true, baseRetail: true },
         })
       : [];
+  const effective =
+    products.length > 0
+      ? await effectiveRetailFor(products, today ?? (await saleToday()), db)
+      : new Map<number, EffectiveRetail>();
   return new Map(
-    products.map((p) => [
-      p.id,
-      {
-        price: catalogRetailPrice({
-          baseRetail: p.baseRetail == null ? null : Number(p.baseRetail),
-        }),
-        onSale: false,
-      },
-    ]),
+    products.map((p) => {
+      const e = effective.get(p.id);
+      return [
+        p.id,
+        { price: catalogRetailPrice({ baseRetail: e?.price }), onSale: e?.onSale === true },
+      ];
+    }),
   );
 }
 
-/** Whether the store lets a tier discount a sale price too (AppSettings.pricing). */
-async function tradeSettings(db: PrismaTx): Promise<TradeSettings> {
-  // Single-org-per-deployment (docs/TENANCY.md): at most one AppSettings row.
-  const row = await db.appSettings.findFirst({ select: { pricing: true } });
-  return {
-    tradeDiscountOnSaleItems: parsePricingConfig(row?.pricing).tradeDiscountOnSaleItems,
-  };
-}
-
 /**
- * Each line's policy (LinePolicy). A line with a catalog product is listed at
- * that product's price today; when `customerId` has an active tier and the
+ * Each line's policy (LinePolicy), and THE one place a catalog line's list
+ * and baseline are decided. A line with a catalog product is listed at that
+ * product's price today (its sale price while a scheduled sale is on,
+ * catalogRetailFor); when `customerId` has an active tier and the
  * product may take it (lib/pricing/tradeEligibility.ts), its baseline is the
  * entitled price. A line with no product, or a product with no price, takes
  * its `fallback`: a price typed below that is then a discount like any other,
- * not a way around one. Every writer that runs the policy comes through here
- * (rule 42): create-from-cart, add-line, replace-line and duplicateOrder.
+ * not a way around one. On a sale item the tier applies only when the store's
+ * tradeDiscountOnSaleItems says so, and then comes off the sale price
+ * (entitledUnitPrice). Every writer that runs the policy comes through here
+ * (rule 42): create-from-cart, add-line, replace-line, duplicateOrder and a
+ * house call's service line.
  */
 export async function catalogLinePolicies(
   db: PrismaTx,
   lines: readonly { productId: number | null; fallback: LinePolicy }[],
-  opts: { customerId?: number | null } = {},
+  opts: { customerId?: number | null; today?: string } = {},
 ): Promise<LinePolicy[]> {
   const ids = [...new Set(lines.flatMap((l) => (l.productId == null ? [] : [l.productId])))];
-  const retail = await catalogRetailFor(db, ids);
+  const retail = await catalogRetailFor(db, ids, opts.today);
   const priced = lines.map((line) => {
     const today = line.productId == null ? undefined : retail.get(line.productId);
     return today?.price == null
@@ -298,7 +302,7 @@ export async function tradePolicies(
     db,
     lines.map((l) => l.productId),
   );
-  const settings = await tradeSettings(db);
+  const settings = await loadTradeSettings(db);
   return lines.map((line) => {
     const entitled = entitledUnitPrice({
       effectiveRetail: line.listUnit,
@@ -318,28 +322,14 @@ export async function tradePolicies(
   });
 }
 
-/** Whether each of these products sells at a sale price today (the catalogRetailFor seam). */
+/** Whether each of these products sells at a sale price today (catalogRetailFor). */
 export async function onSaleToday(
   db: PrismaTx,
   productIds: readonly number[],
+  today?: string,
 ): Promise<Map<number, boolean>> {
-  const retail = await catalogRetailFor(db, [...new Set(productIds)]);
+  const retail = await catalogRetailFor(db, [...new Set(productIds)], today);
   return new Map([...retail].map(([id, r]) => [id, r.onSale]));
-}
-
-/**
- * Each line's unit list price, for a caller with no customer to price for
- * (catalogLinePolicies' listUnit).
- */
-export async function catalogListUnits(
-  db: PrismaTx,
-  lines: readonly { productId: number | null; unitPrice: number }[],
-): Promise<number[]> {
-  const policies = await catalogLinePolicies(
-    db,
-    lines.map((l) => ({ productId: l.productId, fallback: listOnlyPolicy(l.unitPrice) })),
-  );
-  return policies.map((p) => p.listUnit);
 }
 
 /**

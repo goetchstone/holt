@@ -13,6 +13,7 @@ jest.mock("@/lib/email/config", () => ({ getSmtpConfig: jest.fn() }));
 jest.mock("@/lib/appSettings", () => ({ DEFAULT_ORG_ID: 1 }));
 jest.mock("@/lib/logger", () => ({ logError: jest.fn() }));
 
+import nodemailer from "nodemailer";
 import { getSmtpConfig } from "@/lib/email/config";
 import { sendEmail } from "@/lib/email/sender";
 
@@ -93,6 +94,32 @@ describe("sendEmail over SMTP", () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toEqual(expect.any(String));
+  });
+
+  // The transport is cached across sends. Its key left the password out, so a
+  // password saved in Settings was ignored until a restart: every send kept
+  // using the transport built with the old one.
+  it("builds a new transport when only the password or the TLS setting changes", async () => {
+    const built = jest.spyOn(nodemailer, "createTransport");
+    try {
+      const send = () => sendEmail({ to: "a@holt.test", subject: "x", html: "<p>x</p>" });
+      configMock.mockResolvedValue({ ...smtpConfig(sink.port), pass: "first" });
+      expect((await send()).ok).toBe(true);
+      expect((await send()).ok).toBe(true);
+      expect(built).toHaveBeenCalledTimes(1);
+
+      configMock.mockResolvedValue({ ...smtpConfig(sink.port), pass: "second" });
+      expect((await send()).ok).toBe(true);
+      expect(built).toHaveBeenCalledTimes(2);
+
+      // The sink speaks no TLS, so only the transport is built, not the send.
+      configMock.mockResolvedValue({ ...smtpConfig(sink.port), pass: "second", secure: true });
+      await send();
+      expect(built).toHaveBeenCalledTimes(3);
+      expect(built.mock.calls[2][0]).toMatchObject({ secure: true });
+    } finally {
+      built.mockRestore();
+    }
   });
 
   it("skips, without connecting, when SMTP is not configured", async () => {

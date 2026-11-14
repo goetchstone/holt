@@ -217,7 +217,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // keeps this counter separate from other rate-limited routes.
   const route = Array.isArray(req.query.nextauth) ? req.query.nextauth.join("/") : "";
   if (req.method === "POST" && route === "callback/credentials") {
-    if (!checkRateLimit(req, res, { windowMs: 15 * 60_000, maxRequests: 10 }, "login")) return;
+    if (!(await checkRateLimit(req, res, { windowMs: 15 * 60_000, maxRequests: 10 }, "login"))) {
+      return;
+    }
   }
   const providers = await buildAuthProvidersAsync();
   return NextAuth(req, res, { ...authOptions, providers });

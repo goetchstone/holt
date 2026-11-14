@@ -1786,6 +1786,94 @@ Rejected:
 
 → `docs/domains/pricing-catalog.md` "Retail is changed in one place"
 
+## 59. Holt runs as several identical app processes on one database, and anything they must agree on lives in that database (2026-11-14)
+
+**Decided:** The owner, 2026-11-14, said two things, and both stand. First, assume one deployment per business
+for now, in one place rather than spread across regions. Second, Holt should support regional deployment too,
+because "we don't half ass this". Regional means one deployment spread across cloud regions: one primary
+database with a standby in a second region, and app servers near each region's stores. It does not mean separate
+installs that federate. That work is wanted and planned, not ruled out; it is tracked as `ROADMAP.md` "Scale and
+deploy", S-7, and builds on the multi-server tier (S-2 to S-4). The goal is one business of up to 15-50 stores
+and 250-1,000 staff on one deployment it owns (docs/HOSTING.md). Step one is that Holt runs correctly as 2-4
+identical app processes behind nginx on one host (`APP_REPLICAS`), sharing one Postgres and one uploads volume.
+
+- **What processes must agree on is in Postgres, not memory.** Rate-limit counts (`RateLimitWindow`), a
+  generation per in-process cache (`CacheGeneration`, bumped in the writing transaction), send claims on the
+  email and text queues, and the locks already there. A process keeps only caches it can prove current: it
+  re-reads the generations at most every `CACHE_GENERATION_CHECK_MS` (2s), so a revoked permission stops
+  working everywhere within 2s. A restore or practice start-over bumps every generation.
+- **Migrations run once, in a one-shot `migrate` service**, before any app process starts; the processes run
+  with `RUN_MIGRATIONS=false`. Every `up` path (fresh install, deploy.sh, restore-db.sh) goes through it.
+- **The settings screen's version is the `"settings"` cache generation**, not `AppSettings.updated`. A save from
+  a page loaded before another save is refused with 409.
+- **The app publishes no host port.** The host's own jobs reach it through `nginx-host`, a second small nginx
+  on `127.0.0.1:8080` with no TLS (nginx/nginx-host.conf). A separate nginx because nginx will not start at
+  all when a certificate it names is missing; as one server block in nginx.conf, a missing certificate took
+  cron, the deploy's health gate and restore down with the site.
+
+Rejected:
+
+- **nginx rate limits instead of database ones.** One more place for policy to live, invisible to the app, and
+  gone the day there is a second nginx.
+- **Shorter TTLs instead of a shared generation.** Still wrong for the length of the TTL, and the caches with
+  no TTL (the import's ids) would still be wrong until restart.
+- **Postgres LISTEN/NOTIFY.** A dropped connection loses a notification silently; a counter read every 2s
+  cannot be missed.
+- **`AppSettings.updated` as the settings version.** The automations tick writes that row every few minutes,
+  so a page left open would be refused on every save.
+- **Migrating in every app process's entrypoint.** They race for Prisma's migration lock; a long migration
+  times the losers out.
+- **Several app servers (250-1,000 staff) now.** Uploads are on one server's disk, no connection pooler is
+  tested and there is no job queue. Planned; docs/HOSTING.md says what is missing.
+- **Regional deployment now.** It needs the multi-server tier first. Wanted and planned (ROADMAP S-7), not
+  rejected.
+- **The 8080 server as a block in nginx.conf.** One certificate problem stopped the host's own jobs as well
+  as the site.
+
+→ `docs/HOSTING.md`, `app/src/lib/cacheGeneration.ts`, `app/src/lib/rateLimit.ts`
+
+## 60. A sale price is scheduled on the store's days, decided at read time, and never touches the regular price (2026-11-14)
+
+**Decided:** GAP-06 part B, from the owner's standing rules rather than a new ruling: a tag's price is what the
+register charges (43), and typing a sale price at print time was rejected there in favour of scheduled sale prices;
+every value change is ledgered and transactional (57, 58); policy is the store's, with the strictest default
+(2026-10-30); automations are the store's settings, never a fixed job (2026-11-06).
+
+- **A sale is a name, a run of the store's days (first and last both included) and a sale price per product**
+  (`Sale`, `SaleItem`). Whether a price applies is decided when it is read, on the store's day
+  (`AppSettings.timezone`), never the browser's. Nothing is written when a sale starts or ends, and
+  `Product.baseRetail` stays the regular price: the retail writer and its ledger (58) don't move for a sale.
+- **One resolver,** `lib/pricing/salePrice.ts`, read by the product search and scan lookup, the discount policy's list
+  price (`catalogLinePolicies` since 61; `catalogListUnits` when this was decided), duplicate, a house call's service line and the tags (rule 42). A sale price applies only while it is below the
+  regular price, so a customer never pays more on sale than off it.
+- **The sale price is the list price.** A sale line needs no manager PIN at the default limit of 0, a further discount
+  is measured from the sale price, and `OrderLineItem.listPrice` records it.
+- **One sale price per product per day,** enforced in the writing transaction under a `FOR UPDATE` lock on the
+  products, since no unique key can say "ranges don't overlap" and none may be built over a nullable column (rule 64).
+- **What may change follows where the sale stands:** before it starts, everything, and it can be deleted; once on,
+  only its name and note, and it can be ended early; ended, only name and note. A started sale's rows are the record
+  of what was charged, so it is ended, never deleted or edited (the cancel-not-delete rule, 2026-11-06). A sale
+  starts today or later.
+- **During a sale a SALE tag prints the sale price with the regular price as "was", and a PRODUCT tag prints the sale
+  price,** both what the register charges (43). The screen lists the tags that change today and prints them in bulk
+  through the batch route with a `kind`. Reports' retail value of stock stays on the regular price.
+- **Every change is audited** (`SALE_SCHEDULED`, `SALE_CHANGED`, `SALE_ENDED`, `SALE_DELETED`, group "prices") in its
+  transaction.
+
+Rejected:
+
+- **Writing the sale price into `baseRetail` when a sale starts and back when it ends.** It needs a job that must run
+  at the store's midnight, and a missed or doubled run leaves the wrong price at the register and in the ledger. A
+  read-time decision can't be late.
+- **A sale price typed at print time** (rejected in 43): the tag and the register would disagree.
+- **Re-pricing open quotes and orders when a sale starts or ends.** Lines keep the price they were added at; changing
+  a customer's agreed price is a separate decision (left open).
+- **A fixed morning job that prints or emails the tags to change.** If wanted, it is an automation the store turns on
+  and sets up in Holt.
+
+Left open: per-store sales, customer-group discounts (part C, decided in 61), sale prices on configured and custom lines.
+
+→ `docs/domains/pricing-catalog.md` "Scheduled sale prices"
 ## 61. A trade tier is a manager-set entitlement off retail, judged by the server and recorded on the line (2026-11-14)
 
 **Decided:** GAP-06 part C, from the owner's standing rules rather than a new ruling: policy is the store's
@@ -1800,10 +1888,17 @@ transactional and recorded (2026-11-11, see 57 and 58).
   screen's "Trade discounts apply", audited `VENDOR_TRADE_DISCOUNT_CHANGED`). Configured and custom lines (priced by
   hand), protection plans, gift cards, delivery fees and returns take no tier.
 - **A sale item isn't discounted again, unless the store says so.** `AppSettings.pricing.tradeDiscountOnSaleItems`,
-  off by default; on, the tier comes off the sale price.
+  off by default: a trade customer pays the sale price (60) with no tier, needs no PIN for it, and the line records
+  the sale price as `listPrice` and no tier; the tier off the sale price is a cashier's discount. On, the tier comes
+  off the sale price, needs no PIN and is recorded. Whether an item is on sale is the scheduled-sale resolver's
+  answer on the store's day, read in the same function that decides the line's list and baseline
+  (`catalogLinePolicies`, rule 42), and handed to the screens by the product lookups beside the setting
+  (`lib/pricing/screenPricing.ts`), so the price a screen sends is the one the server accepts.
+- **A house call takes the customer's tier.** Its service line is a catalog product sold to that customer, so the same
+  rules apply: the tier when the vendor allows it, a sale price only when the store says so.
 - **It is an entitlement, not a cashier's discount.** The discount policy measures from the entitled price, so a trade
   sale needs no manager's PIN and anything further is a discount like any other, on every writer that runs the policy
-  (create-from-cart, add-line, replace-line, price edit, duplicate; rule 42). `listPrice` stays the retail, so the
+  (create-from-cart, add-line, replace-line, price edit, duplicate, a house call's service line; rule 42). `listPrice` stays the retail, so the
   receipt shows the whole saving.
 - **The line records it.** `OrderLineItem.tradeTierId` and `tradeDiscountPercent` (CHECK above 0 and at most 100), set
   only on a line sold at or below its entitled price, so a report or a later edit knows why the price is below list.

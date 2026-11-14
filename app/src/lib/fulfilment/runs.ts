@@ -102,6 +102,6 @@ export async function setRunStatus(
 
   return tx.deliveryRun.findUniqueOrThrow({
     where: { id: runId },
-    include: { vehicle: true, driver: true },
+    include: { vehicle: true, driver: { select: { id: true, displayName: true } } },
   });
 }

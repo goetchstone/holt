@@ -4,10 +4,14 @@
 // tag. A template's context decides which fields it gets, so a tag printed from
 // any path means the same thing.
 //
-// THE SALE TAG. Its price is the product's retail, which is what the register
-// charges, so a tag and a sale can't disagree. wasPrice is the price it started
-// at, set on the product. Holt has no sale prices of its own yet (GAP-06), so a
-// markdown is a change to retail plus a was price.
+// THE PRICE. Every tag prints what the register charges today (DECISIONS 43),
+// read through lib/pricing/salePrice.ts: while a product's scheduled sale is on
+// (GAP-06 part B), that is its sale price, on a price tag as on a sale tag.
+//
+// THE SALE TAG. During a scheduled sale it prints the sale price, the regular
+// retail as the "was" price, and the sale's last day (saleEnds). With no sale on,
+// it is a markdown as before: the product's retail, with Product.wasPrice -- the
+// price it started at -- as the "was" price, and saleEnds blank.
 //
 // THE LAW TAG. What the law asks a tag to say depends on where the store is, so
 // the wording is the store's template (rule 61), and the product supplies its own
@@ -17,6 +21,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
+import {
+  effectiveRetail,
+  loadActiveSalePrices,
+  type EffectiveRetail,
+} from "@/lib/pricing/salePrice";
+import { businessDayKey } from "@/lib/reports/businessDay";
+import { saleDayText } from "@/lib/pricing/salesShared";
 import { costCode } from "./costCode";
 import { photoField } from "./photo";
 import { renderTemplate } from "./renderTemplate";
@@ -58,6 +69,30 @@ export function saleFields(
   };
 }
 
+/** A sale's last day as a tag prints it, in the store's locale: "Nov 30, 2026". Pure. */
+export function saleEndsText(endsOn: string | null, locale: string): string {
+  return saleDayText(endsOn, locale);
+}
+
+/**
+ * A sale tag's fields for a product priced `price` today, or why it can't have
+ * one. During a scheduled sale the regular retail is the "was" price; otherwise
+ * the product's own was price, as a markdown. Pure.
+ */
+export function saleTagFields(
+  price: EffectiveRetail,
+  productWasPrice: number | null,
+  locale: string,
+):
+  | { wasPrice: string; saving: string; savingPercent: string; saleEnds: string }
+  | { problem: string } {
+  const read = price.onSale
+    ? saleFields(price.regularPrice, price.price)
+    : saleFields(productWasPrice, price.price);
+  if ("problem" in read) return read;
+  return { ...read, saleEnds: saleEndsText(price.saleEndsOn, locale) };
+}
+
 export async function renderProductTag(
   productId: number,
   template: { context: string; zplTemplate: string; photoDots: number | null },
@@ -90,23 +125,32 @@ export async function renderProductTag(
     return renderTemplate(template.zplTemplate, { ...common, lawText: product.lawTagText });
   }
 
+  const { costCipherKey, timezone, locale } = await getAppSettings();
+  // What the register charges today, on the store's day: a sale price while a
+  // scheduled sale is on (lib/pricing/salePrice.ts).
+  const today = businessDayKey(new Date(), timezone);
+  const price = effectiveRetail({
+    baseRetail: product.baseRetail,
+    sale: (await loadActiveSalePrices([product.id], today, prisma)).get(product.id),
+  });
+
   let sale = {};
   if (template.context === "SALE") {
-    const read = saleFields(
+    const read = saleTagFields(
+      price,
       product.wasPrice == null ? null : Number(product.wasPrice),
-      product.baseRetail == null ? null : Number(product.baseRetail),
+      locale,
     );
     if ("problem" in read) throw new LabelSetupError(read.problem);
     sale = read;
   }
 
-  const { costCipherKey } = await getAppSettings();
   // The cost stock is valued at: the landed cost, else the catalog cost (GAP-02).
   const cost = product.landedCost ?? product.baseCost;
   return renderTemplate(template.zplTemplate, {
     ...common,
     baseCost: money(product.baseCost),
-    baseRetail: money(product.baseRetail),
+    baseRetail: money(price.price),
     costCode: costCode(cost == null ? null : Number(cost), costCipherKey),
     photo: await photoField(product.imageUrl, template.photoDots),
     ...sale,

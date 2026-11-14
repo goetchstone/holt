@@ -199,4 +199,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 // abuse of the DNS-probing endpoint. (Holt's limiter keys on the socket IP,
 // honoring TRUST_PROXY, rather than the spoofable X-Forwarded-For the
 // upstream version used.)
-export default rateLimit({ windowMs: 10 * 60 * 1000, maxRequests: 20 })(handler);
+export default rateLimit({ windowMs: 10 * 60 * 1000, maxRequests: 20 }, "dmarc-check")(handler);

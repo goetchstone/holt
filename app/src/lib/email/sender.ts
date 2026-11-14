@@ -6,6 +6,7 @@
 // uses Node net/tls -- this file must only be imported by API routes + the queue
 // processor, never a client bundle.
 
+import { createHash } from "node:crypto";
 import nodemailer, { type Transporter } from "nodemailer";
 import { getSmtpConfig, type SmtpConfig } from "./config";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
@@ -13,8 +14,15 @@ import { logError } from "@/lib/logger";
 
 let cached: { key: string; transport: Transporter } | null = null;
 
+// The transport is rebuilt whenever anything it was built from changes. The
+// password is part of that: leaving it out kept sending with the old password
+// after Settings saved a new one, until a restart. It is hashed, so the
+// plaintext is not kept a second time in a long-lived string.
 function configKey(c: SmtpConfig): string {
-  return `${c.host}:${c.port}:${c.user ?? ""}`;
+  const pass = createHash("sha256")
+    .update(c.pass ?? "")
+    .digest("hex");
+  return `${c.host}:${c.port}:${c.secure}:${c.user ?? ""}:${pass}`;
 }
 
 function getTransport(c: SmtpConfig): Transporter {

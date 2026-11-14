@@ -26,7 +26,7 @@ async function handleGet(id: number, res: NextApiResponse) {
   try {
     const installer = await prisma.installer.findUnique({
       where: { id },
-      include: { staffMember: true },
+      include: { staffMember: { select: { id: true, displayName: true } } },
     });
 
     if (!installer) return res.status(404).json({ error: "Installer not found" });
@@ -64,7 +64,7 @@ async function handlePut(
         isActive: isActive !== undefined ? isActive : undefined,
         updatedBy,
       },
-      include: { staffMember: true },
+      include: { staffMember: { select: { id: true, displayName: true } } },
     });
 
     return res.status(200).json(installer);

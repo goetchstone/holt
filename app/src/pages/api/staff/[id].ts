@@ -16,6 +16,13 @@ import {
 } from "@/lib/auth/adminLockout";
 import { resolveRoleAssignment, type RoleAssignment } from "@/lib/auth/roleAssignment";
 import { logger } from "@/lib/logger";
+import { STAFF_RECORD_SELECT } from "@/lib/staffRecord";
+
+// Named columns only: never the password or PIN hash (lib/staffRecord.ts).
+const MEMBER_SELECT = {
+  ...STAFF_RECORD_SELECT,
+  user: { select: { email: true, name: true, image: true } },
+} as const;
 
 // Staff records (including soft-delete via DELETE) are admin-only. Previously
 // only the role-change branch inside PATCH checked anything -- GET, PATCH of
@@ -28,7 +35,7 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
   if (req.method === "GET") {
     const member = await prisma.staffMember.findUnique({
       where: { id },
-      include: { user: { select: { email: true, name: true, image: true } } },
+      select: MEMBER_SELECT,
     });
     if (!member) return res.status(404).json({ error: "Not found" });
     return res.json(member);
@@ -142,7 +149,7 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
       const member = await prisma.staffMember.update({
         where: { id },
         data,
-        include: { user: { select: { email: true, name: true, image: true } } },
+        select: MEMBER_SELECT,
       });
       const accessChanges = before ? staffAccessChanges(before, member) : [];
       if (accessChanges.length > 0) {
@@ -168,6 +175,7 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
     const member = await prisma.staffMember.update({
       where: { id },
       data: { isActive: false },
+      select: MEMBER_SELECT,
     });
     await auditLog("STAFF_CHANGED", auditActor(session), {
       summary: `${member.displayName}: deactivated`,

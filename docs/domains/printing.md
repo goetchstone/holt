@@ -46,7 +46,9 @@ Place and box labels choose their template and printer with `routeContextLabel(c
 
 - **Coded cost.** `AppSettings.costCipherKey`, ten different letters set in Settings: the first stands for 1, the ninth for 9 and the tenth for 0 (`lib/labels/costCode.ts`). `costCode` is the landed cost, else the catalog cost, in whole dollars. With no key it prints nothing, never the real number. `baseCost` is the real number and stays for back-of-house labels, so the template screen says which is which.
 - **Photo.** A template with `photoDots` (the longest side, in dots) gets a `photo` field, placed with `^FO30,30{{photo}}^FS`. `lib/labels/photo.ts` shrinks the picture, never enlarges it, dithers it to one bit and writes a `^GFA` graphic field. Only a picture Holt holds (`/uploads/...`) is read, and a picture at another address isn't fetched. With no picture, or one that can't be read, the field is empty and the tag still prints. That includes HEIC, which the upload accepts and `sharp`'s standard build doesn't read.
-- **Sale tag.** Its price is `baseRetail`, what the register charges, so a tag and a sale can't disagree. `Product.wasPrice` is the price it started at, set on the product's page. It's refused without a was price above retail. Holt has no scheduled sale prices yet (GAP-06), so a markdown is a change to retail plus a was price.
+- **Sale tag.** Its price is what the register charges today, so a tag and a sale can't disagree. During a scheduled sale (GAP-06 part B, DECISIONS 60; `lib/pricing/salePrice.ts`) that is the sale price, and the was price is the product's regular retail, with `saleEnds` the sale's last day in the store's locale ("Nov 30, 2026", `saleDayText`). With no sale on, the was price is `Product.wasPrice`, set on the product's page, as a markdown. It's refused without a was price above the price (`saleTagFields` in `lib/labels/productTag.ts`). `saleEnds` is in `LABEL_FIELDS.SALE` and is blank outside a scheduled sale.
+- **Price tag during a sale.** A PRODUCT tag's `baseRetail` field is the price the register charges today, so during a sale it prints the sale price too (DECISIONS 43). The tag is decided on the store's day when it prints, so a tag printed the day before a sale starts shows the regular price.
+- **Tags to change.** Inventory › Sales lists the products whose tag changes today (`GET /api/pricing/sales/tags-to-change`): SALE tags for sales starting today, PRODUCT tags for sales that ended yesterday or were ended early since. "Print all" sends them through the batch route with that `kind` and the chosen store, in requests of 50 (`lib/labels/batchPrintShared.ts` `inBatches`), and lists any tag that didn't print with its reason. Nothing prints them on a schedule.
 - **Law tag.** What it has to say depends on where the store is, so the wording is the store's template (rule 61), and `Product.lawTagText` is the product's own part. It's refused without that text. Holt doesn't know the law in a store's state: the demo's template is a sample.
 - **Sold tag.** `POST /api/sales/orders/[id]/sold-tag`, from a line on the order page. Only for a line of an ORDER or FULFILLED order that's still on it with a quantity (rules 31, 33). It prints no price or cost. `customerLastName` is there for a tag on a showroom floor.
 - **One at a time or all at once.** While receiving, one at a time gives each line a "Print tag" button that prints one tag per press, before the receipt saves, so each comes out as its piece is matched. All at once is the checkbox and the batch after saving. The choice is `StaffMember.tagPrintMode`, remembered per person (`account.setTagPrintMode`), and it's one at a time until they choose (owner, 2026-10-29). The handheld's Receive screen has a Tag button on each line.
@@ -59,7 +61,7 @@ Place and box labels choose their template and printer with `routeContextLabel(c
 | `GET /api/printers/list` | List configured printers | none |
 | `POST /api/printers/create`, `[id]/*` | Admin CRUD on printer rows | ADMIN-gated |
 | `GET /api/labels` | List label templates | — |
-| `POST /api/print-label/batch` | Print N price tags in one call (`storeLocationId` keeps them to that store's printers) | **10 req/min**, max 50 items, 10 copies per item; `purchasing.receive` or `warehouse.operate` |
+| `POST /api/print-label/batch` | Print N price tags in one call (`storeLocationId` keeps them to that store's printers). An optional `kind` (`PRODUCT`, `SALE` or `LAW`) prints that tag for every item as the single print does (`printProductTag`); without it, auto-route by category as before | **10 req/min**, max 50 items, 10 copies per item; `purchasing.receive` or `warehouse.operate` |
 | `POST /api/print-label` | Print one product's tag (`kind`, `storeLocationId`, `copies` up to 10), or a named template on a named printer. Answers with what it did, never the rendered label, which can carry the real cost | **30 req/min**; `purchasing.receive` or `warehouse.operate` |
 | `POST /api/sales/orders/[id]/sold-tag` | A line's sold tag | `sales.write` or `warehouse.operate` |
 | `POST /api/print/order/*` | Generate receipt/invoice print HTML | 30 req/min |
@@ -70,7 +72,7 @@ ADMIN-only for printer-config CRUD.
 
 ### Batch caps
 
-The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per call). Beyond that, the operator should slice the work into multiple batch calls. The cap prevents accidentally queuing the entire catalog when a filter glitches.
+The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per call); the numbers live in `lib/labels/batchPrintShared.ts`, which the route and the screens share. Beyond that, a screen slices the work into multiple batch calls (`inBatches`), as the Sales screen's "Print all" does; at 10 requests a minute, a run of more than 500 tags is stopped by the rate limit and the screen says how many printed before it. The cap prevents accidentally queuing the entire catalog when a filter glitches.
 
 ## HTML print pages
 
@@ -131,7 +133,8 @@ Add a printer: store IP, ping-test from the admin UI, save. The ping test does a
 |---|---|
 | `labelPrinter.ts` retry logic | Unit tests TBD — **gap**, would mock the `net.Socket` |
 | Template rendering | `labelRender.test.ts`: each context's fields, ZPL escaping |
-| Batch endpoint caps | None |
+| Batch endpoint caps | None for the caps; `kind` in `scheduledSales.integration.test.ts`; `inBatches` in `scheduledSalesScreen.test.ts` |
+| Sale tag during a scheduled sale | `scheduledSales.integration.test.ts` (sale price, regular as was, `saleEnds`; PRODUCT tag at the sale price) and `scheduledSales.test.ts` (`saleTagFields`) |
 | Receipt total cross-check | None — should be a real-DB integration |
 | Print payload: line notes, pictures, disclaimers | `invoiceTools.integration.test.ts` (the route); the picture order in `invoiceToolsShared.test.ts` |
 
@@ -143,4 +146,4 @@ Add a printer: store IP, ping-test from the admin UI, save. The ping test does a
 - ZPL preview (render-to-PNG locally before sending) would help template authoring
 
 ---
-Last verified: 2026-05-20
+Last verified: 2026-05-20; tags during a scheduled sale, batch `kind` and tags to change 2026-11-14 against source.
