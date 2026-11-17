@@ -23,9 +23,12 @@ import {
   DiscountApprovalError,
   NO_EXTRA_ACCESS,
   authorizeDiscount,
-  catalogListUnits,
-  existingListUnit,
+  catalogLinePolicies,
+  currentLinePolicies,
+  existingLinePolicy,
   logDiscountApproval,
+  recordedList,
+  recordedTrade,
 } from "@/lib/sales/discountApproval";
 import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -427,13 +430,16 @@ export async function handler(
         const replNetPrice = Math.round(replQuantity * replUnitPrice * 100) / 100;
         const replTaxRate = Number(lineItem.vatRate || 0);
         const replVatAmount = Math.round(replNetPrice * replTaxRate * 100) / 100;
-        // The replacement keeps the original's list price, or takes its own
-        // product's retail; selling it below that is a discount (GAP-06).
-        const [replListUnit] = await catalogListUnits(prisma, [
-          { productId: replacement.productId || null, unitPrice: existingListUnit(lineItem) },
-        ]);
+        // The replacement keeps the original's list price (and the trade tier
+        // it was sold under), or takes its own product's retail and the
+        // customer's tier on it; selling it below that is a discount (GAP-06).
+        const [replPolicy] = await catalogLinePolicies(
+          prisma,
+          [{ productId: replacement.productId || null, fallback: existingLinePolicy(lineItem) }],
+          { customerId: order.customerId },
+        );
         const replPercent = lineDiscountPercent({
-          listUnit: replListUnit,
+          listUnit: replPolicy.baselineUnit,
           quantity: replQuantity,
           netPrice: replNetPrice,
         });
@@ -460,7 +466,8 @@ export async function handler(
               partNo: replacement.partNo || lineItem.partNo,
               orderedQuantity: replQuantity,
               netPrice: replNetPrice,
-              listPrice: replListUnit,
+              ...recordedList(replPolicy),
+              ...recordedTrade(replPolicy, { quantity: replQuantity, netPrice: replNetPrice }),
               cost: 0,
               barcode: "",
               vatRate: lineItem.vatRate || 0,
@@ -578,13 +585,28 @@ export async function handler(
           return res.status(400).json({ error: "No changes specified." });
         }
 
-        // A price below the line's list price is a discount (GAP-06). Only a
-        // price change can make one: a quantity change keeps the unit price.
+        // A price below the line's list price is a discount (GAP-06) -- below
+        // the trade price it was sold at, when it recorded one, or the trade
+        // price the order's customer's tier gives it now, whichever is lower: a
+        // price raised above the trade price and brought back is the customer's
+        // entitlement, not a discount. Only a price change can make one: a
+        // quantity change keeps the unit price.
+        const [linePolicy] = await currentLinePolicies(prisma, [lineItem], order.customerId);
+        if (unitPrice !== undefined) {
+          // Whether the line still has its tier's price, as it records it.
+          Object.assign(
+            updates,
+            recordedTrade(linePolicy, {
+              quantity: Number(updates.orderedQuantity ?? lineItem.orderedQuantity),
+              netPrice: Number(updates.netPrice),
+            }),
+          );
+        }
         const pricePercent =
           unitPrice === undefined
             ? 0
             : lineDiscountPercent({
-                listUnit: existingListUnit(lineItem),
+                listUnit: linePolicy.baselineUnit,
                 quantity: Number(updates.orderedQuantity ?? lineItem.orderedQuantity),
                 netPrice: Number(updates.netPrice),
               });

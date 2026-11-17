@@ -45,6 +45,11 @@ export const AUDIT_EVENTS = {
   SALE_CHANGED: { label: "Sale changed", group: "prices" },
   SALE_ENDED: { label: "Sale ended early", group: "prices" },
   SALE_DELETED: { label: "Sale deleted", group: "prices" },
+  TRADE_TIER_CHANGED: { label: "Trade tier made, changed or turned off", group: "prices" },
+  VENDOR_TRADE_DISCOUNT_CHANGED: {
+    label: "Vendor's trade discounts turned on or off",
+    group: "prices",
+  },
 
   ROLE_CHANGED: { label: "Role changed", group: "access" },
   STAFF_CHANGED: { label: "Staff member changed", group: "access" },
@@ -68,6 +73,7 @@ export const AUDIT_EVENTS = {
   CONSIGNMENT_RESET: { label: "Missing consignment reset", group: "stock" },
 
   CUSTOMERS_MERGED: { label: "Customers merged", group: "customers" },
+  TRADE_TIER_ASSIGNED: { label: "Customer's trade tier changed", group: "customers" },
   VENDORS_MERGED: { label: "Vendors merged", group: "customers" },
 
   COMMISSION_PLAN_CHANGED: { label: "Commission plan changed", group: "books" },

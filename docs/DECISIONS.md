@@ -1844,7 +1844,7 @@ every value change is ledgered and transactional (57, 58); policy is the store's
   (`AppSettings.timezone`), never the browser's. Nothing is written when a sale starts or ends, and
   `Product.baseRetail` stays the regular price: the retail writer and its ledger (58) don't move for a sale.
 - **One resolver,** `lib/pricing/salePrice.ts`, read by the product search and scan lookup, the discount policy's list
-  price (`catalogListUnits`), duplicate, a house call's service line and the tags (rule 42). A sale price applies only while it is below the
+  price (`catalogLinePolicies` since 61; `catalogListUnits` when this was decided), duplicate, a house call's service line and the tags (rule 42). A sale price applies only while it is below the
   regular price, so a customer never pays more on sale than off it.
 - **The sale price is the list price.** A sale line needs no manager PIN at the default limit of 0, a further discount
   is measured from the sale price, and `OrderLineItem.listPrice` records it.
@@ -1871,9 +1871,75 @@ Rejected:
 - **A fixed morning job that prints or emails the tags to change.** If wanted, it is an automation the store turns on
   and sets up in Holt.
 
-Left open: per-store sales, customer-group discounts (part C), sale prices on configured and custom lines.
+Left open: per-store sales, customer-group discounts (part C, decided in 61), sale prices on configured and custom lines.
 
 → `docs/domains/pricing-catalog.md` "Scheduled sale prices"
+## 61. A trade tier is a manager-set entitlement off retail, judged by the server and recorded on the line (2026-11-14)
+
+**Decided:** GAP-06 part C, from the owner's standing rules rather than a new ruling: policy is the store's
+configuration with the strictest default, and who gets a discount is a manager's call (2026-10-30); money paths are
+transactional and recorded (2026-11-11, see 57 and 58).
+
+- **The tier decides, on retail.** A customer whose tier is active is entitled, on each eligible line, to the line's
+  retail less the tier's percent, rounded to the cent (`lib/pricing/tradeTier.ts`, the one home for the arithmetic,
+  used by the register, New Quote and the server). Never by the store's retail rounding: it is a discount, not a new
+  retail. `isTradeAccount` alone grants nothing, and a tier turned off grants nothing.
+- **Eligible lines are catalog products the vendor allows.** `Vendor.allowTradeDiscount` (default on; the vendor
+  screen's "Trade discounts apply", audited `VENDOR_TRADE_DISCOUNT_CHANGED`). Configured and custom lines (priced by
+  hand), protection plans, gift cards, delivery fees and returns take no tier.
+- **A sale item isn't discounted again, unless the store says so.** `AppSettings.pricing.tradeDiscountOnSaleItems`,
+  off by default: a trade customer pays the sale price (60) with no tier, needs no PIN for it, and the line records
+  the sale price as `listPrice` and no tier; the tier off the sale price is a cashier's discount. On, the tier comes
+  off the sale price, needs no PIN and is recorded. Whether an item is on sale is the scheduled-sale resolver's
+  answer on the store's day, read in the same function that decides the line's list and baseline
+  (`catalogLinePolicies`, rule 42), and handed to the screens by the product lookups beside the setting
+  (`lib/pricing/screenPricing.ts`), so the price a screen sends is the one the server accepts.
+  A line records whether its list was a sale price (`OrderLineItem.listOnSale`, written with `listPrice` by
+  `recordedList`), and a price edit or a quote changing hands asks the tier about the list with that recorded flag,
+  never with whether the item is on sale today. So the rule holds after a sale ends: a line listed at a sale price
+  still takes the tier only when the store says so, and one listed at the regular price takes it during a sale.
+- **A house call takes the customer's tier.** Its service line is a catalog product sold to that customer, so the same
+  rules apply: the tier when the vendor allows it, a sale price only when the store says so.
+- **It is an entitlement, not a cashier's discount.** The discount policy measures from the entitled price, so a trade
+  sale needs no manager's PIN and anything further is a discount like any other, on every writer that runs the policy
+  (create-from-cart, add-line, replace-line, price edit, duplicate, a house call's service line; rule 42). `listPrice` stays the retail, so the
+  receipt shows the whole saving.
+- **The line records it.** `OrderLineItem.tradeTierId` and `tradeDiscountPercent` (CHECK above 0 and at most 100), set
+  only on a line sold at or below its entitled price, so a report or a later edit knows why the price is below list.
+  The percent is rounded to the hundredth before it prices anything, so the price and the record agree. A price
+  edit measures from what the line recorded or the customer's tier now, whichever is lower.
+- **The server judges, the screen prices.** The screens price untyped eligible lines when the customer is picked or
+  changed, and restore retail when the customer is removed; a typed price is never moved. The server doesn't rewrite
+  a price it is sent: a line sent at retail is charged retail.
+- **A quote changing hands is re-priced** for the new customer's tier, beside its tax re-rate and under the same rule
+  (no payment, a pending one included), and only on lines still at the price they were written at. A kept line whose
+  new customer's price is higher is judged again from that price (a manager's PIN past the store's limit), and
+  every line records the new customer's tier or none.
+- **Making or changing a tier moves money**, so a new tier, a new percent or turning one on also needs Apply
+  discounts beside `catalog.pricing`, and each is audited (`TRADE_TIER_CHANGED`).
+- **Giving a tier is one writer, refused for a tier turned off, and audited** (`TRADE_TIER_ASSIGNED`) in the save's
+  transaction. The route stays on the MANAGER/ADMIN role array: no permission covers both what it sets, a standing
+  discount and a tax exemption.
+- **A made-to-order product takes no tier.** Its retail is the hand price a configured or custom line was first
+  sold at, and a copy of the order is priced at that price (36), so a tier would discount the same piece twice.
+  This is about price provenance, not stock: a made-to-order item is still stock like any other (the owner's "an
+  item is an item"). Open: such a piece later sold off the floor to a trade customer doesn't get the tier on its
+  own; the salesperson types the price, and the manager's limit applies.
+
+Rejected:
+
+- **The tier as an ordinary line discount needing a PIN.** A manager already decided it when they gave the tier;
+  asking again at every sale would make the register's default policy (every discount needs a manager) unusable for
+  trade customers.
+- **`listPrice` as the trade price.** The receipt would hide the trade saving, and a further discount couldn't be
+  told from the tier.
+- **The server setting the trade price itself.** Every line's unit price comes from the screen and the server judges
+  it against the policy (`create-from-cart`, `lib/pos/cartPricing.ts`); a tier is one more baseline for that judgment,
+  not a second way prices are set.
+- **`Customer.customerGroup` as the price group.** It is a computed spend bucket that changes when levels are
+  recalculated; a price must not move because of a report job.
+
+→ `docs/domains/pricing-catalog.md` "Trade tier pricing"
 
 ## Adding an entry
 

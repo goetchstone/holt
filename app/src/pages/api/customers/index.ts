@@ -15,6 +15,7 @@ import {
   textConsentChange,
 } from "@/lib/customers/customerContact";
 import { ReferralError, readReferral } from "@/lib/customers/referrals";
+import { customerTradeTier } from "@/lib/pricing/tradeTier";
 
 /** The columns the customer list sorts by. Anything else is refused, not written into the query. */
 const SORTABLE = ["lastName", "firstName", "email"] as const;
@@ -59,6 +60,7 @@ async function listCustomers(req: NextApiRequest, res: NextApiResponse) {
       include: {
         addresses: true,
         externalIds: true,
+        tradeTier: { select: { id: true, name: true, discountPercent: true, isActive: true } },
       },
       orderBy: {
         [sortBy]: sortDirection,
@@ -68,7 +70,9 @@ async function listCustomers(req: NextApiRequest, res: NextApiResponse) {
     const totalCustomers = await prisma.customer.count({ where: whereClause });
 
     return res.status(200).json({
-      data: customers,
+      // The register and New Quote price a customer's lines by their trade tier
+      // (lib/pricing/tradeTier.ts): only an active tier comes back, as numbers.
+      data: customers.map((c) => ({ ...c, tradeTier: customerTradeTier(c.tradeTier) })),
       totalPages: Math.ceil(totalCustomers / limit),
     });
   } catch (error) {

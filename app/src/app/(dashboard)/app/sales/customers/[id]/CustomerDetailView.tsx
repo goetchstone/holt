@@ -73,6 +73,13 @@ interface TradeTier {
   isActive: boolean;
 }
 
+/** A customer's tier as the Trade & Tax tab shows it: off retail, and saying so when it's off. */
+function tradeTierLabel(tier: TradeTier | null): string {
+  if (!tier) return "None";
+  const label = `${tier.name} (${Number(tier.discountPercent)}% off retail)`;
+  return tier.isActive ? label : `${label}: turned off, takes nothing off`;
+}
+
 interface TaxExemptReason {
   id: number;
   name: string;
@@ -905,11 +912,16 @@ export function CustomerDetailView({
                     setTradeForm((prev) => ({ ...prev, isTradeAccount: e.target.checked }))
                   }
                 />
+                <p className="text-brand-gray text-xs">
+                  A tier takes its percent off retail on this customer&apos;s sales and quotes, on
+                  items whose vendor allows trade discounts. Being a trade account alone takes
+                  nothing off.
+                </p>
                 <FormDropdown
                   label="Trade Tier"
                   options={tradeTiers.map((t) => ({
                     id: String(t.id),
-                    name: `${t.name} (${Number(t.discountPercent)}% off anchor)`,
+                    name: `${t.name} (${Number(t.discountPercent)}% off retail)`,
                   }))}
                   value={tradeForm.tradeTierId}
                   onChange={(v) => setTradeForm((prev) => ({ ...prev, tradeTierId: v }))}
@@ -973,11 +985,7 @@ export function CustomerDetailView({
                   </div>
                   <div>
                     <p className="text-brand-gray text-xs mb-1">Tier</p>
-                    <p className="font-medium">
-                      {customer.tradeTier
-                        ? `${customer.tradeTier.name} (${Number(customer.tradeTier.discountPercent)}% off anchor)`
-                        : "None"}
-                    </p>
+                    <p className="font-medium">{tradeTierLabel(customer.tradeTier)}</p>
                   </div>
                   <div>
                     <p className="text-brand-gray text-xs mb-1">Company</p>

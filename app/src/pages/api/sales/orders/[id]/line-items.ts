@@ -13,8 +13,11 @@ import {
   DiscountApprovalError,
   NO_EXTRA_ACCESS,
   authorizeDiscount,
-  catalogListUnits,
+  catalogLinePolicies,
+  listOnlyPolicy,
   logDiscountApproval,
+  recordedList,
+  recordedTrade,
 } from "@/lib/sales/discountApproval";
 import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { productCost } from "@/lib/purchasing/landedCostShared";
@@ -93,13 +96,20 @@ export async function handler(
       const nextLineNumber = (order.lineItems[0]?.lineNumber || 0) + 1;
       const netPrice = Number(quantity) * Number(unitPrice);
 
-      // A product added below its retail price is a discount, and follows the
-      // store's policy (lib/sales/discountApproval.ts). Checked before the
-      // transaction, so a wrong manager PIN still counts.
-      const [listUnit] = await catalogListUnits(prisma, [
-        { productId: productId || null, unitPrice: Number(unitPrice) },
-      ]);
-      const percent = lineDiscountPercent({ listUnit, quantity: Number(quantity), netPrice });
+      // A product added below its retail price -- or below the price the
+      // order's customer's trade tier entitles them to -- is a discount, and
+      // follows the store's policy (lib/sales/discountApproval.ts). Checked
+      // before the transaction, so a wrong manager PIN still counts.
+      const [policy] = await catalogLinePolicies(
+        prisma,
+        [{ productId: productId || null, fallback: listOnlyPolicy(Number(unitPrice)) }],
+        { customerId: order.customerId },
+      );
+      const percent = lineDiscountPercent({
+        listUnit: policy.baselineUnit,
+        quantity: Number(quantity),
+        netPrice,
+      });
       const approver = await authorizeDiscount(prisma, {
         percent,
         access,
@@ -138,7 +148,8 @@ export async function handler(
             partNo: partNo || null,
             orderedQuantity: quantity,
             netPrice,
-            listPrice: listUnit,
+            ...recordedList(policy),
+            ...recordedTrade(policy, { quantity: Number(quantity), netPrice }),
             // itemCost is per-unit (the cost sent, or the product's cost);
             // OrderLineItem.cost stores the LINE total, like netPrice.
             cost: itemCost * Number(quantity),

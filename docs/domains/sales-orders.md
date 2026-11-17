@@ -172,6 +172,19 @@ Cancelled lines keep their rate and stay out of the sum (rule 33). An order mone
 touched keeps the tax it was charged, and its customer still changes: tax on a paid
 sale is a recorded fact.
 
+**...and re-prices it for the new customer's trade tier (GAP-06 part C, 2026-11-14).**
+Under the same no-payment rule, before the re-rate, `lib/sales/quoteTradePricing.ts`
+`repriceQuoteTrade` moves the quote's live catalog lines to the new customer's tier
+(or off the old one's). Only a line still at the price it was written at (its
+`listPrice`, or the trade price it recorded) moves; a line someone typed or discounted
+keeps its price, but where the new customer's price for it is higher its discount from
+that price follows the store's policy and may need a manager's PIN, asked before the
+change is saved. Each line keeps its `listPrice`, records the tier it now has
+(`tradeTierId`, `tradeDiscountPercent`), and a moved one gets a `PRICE_CHANGE` history
+entry. The response adds `repricing { repriced, kept, message }`, which the order
+screen shows when the customer is linked. The tax then follows the new amounts.
+Detail: `docs/domains/pricing-catalog.md` "Trade tier pricing".
+
 ## Delivery fee
 
 **An order going out by delivery charges its zone's fee (GAP-09, 2026-10-29).**
@@ -451,9 +464,11 @@ configurations"), and a duplicate is priced at today's prices. `docs/DECISIONS.m
     fee; rules 31 and 33) with their options, fulfilment and notes; the
     customer, store and delivery method and address. The one copying it is its
     salesperson, as at the register.
-  - **Today's prices.** A catalog item at its retail now (`catalogListUnits`).
-    A custom or configured item is its own product, created at the price it was
-    sold at, so it keeps that price. No discount comes across: staff give it
+  - **Today's prices.** A catalog item at its retail now, or at the price the
+    customer's trade tier entitles them to today, which the line records
+    (`catalogLinePolicies`, GAP-06 part C). A custom or configured item is its
+    own product, created at the price it was sold at, so it keeps that price and
+    takes no tier. No discount comes across: staff give it
     again, under the discount policy (GAP-06). The delivery fee is the zone's
     fee today, when the original charged one.
   - **What doesn't:** payments, holds, flags, disclaimers, order notes, history.

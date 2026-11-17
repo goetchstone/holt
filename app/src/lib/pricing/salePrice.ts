@@ -9,10 +9,12 @@
 //
 //   - GET /api/products and /api/products/find-by-identifier, which the
 //     register, New Quote and the search price tag read;
-//   - catalogListUnits (lib/sales/discountApproval.ts), the list price the
-//     discount policy measures from and OrderLineItem.listPrice records;
+//   - catalogLinePolicies (lib/sales/discountApproval.ts), the list price the
+//     discount policy measures from and OrderLineItem.listPrice records, and
+//     whether a trade tier applies to a sale item (DECISIONS 61);
 //   - duplicateOrder (today's prices), and the service line a house call books
-//     (pages/api/service/house-calls), through catalogListUnits;
+//     (pages/api/service/house-calls), through catalogLinePolicies;
+//   - the product lookups' trade fields (lib/pricing/screenPricing.ts);
 //   - the product and sale tags (lib/labels/productTag.ts).
 //
 // A sale price applies while startsOn <= today <= endsOn and the sale has not

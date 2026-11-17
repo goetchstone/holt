@@ -40,6 +40,8 @@ A line still in the register's cart or on a new quote you haven't saved is diffe
 
 If you type a different price over a sale line, it no longer shows **SALE**.
 
+A trade customer pays the sale price too, without their trade tier on top, unless your store has ticked **Trade tiers apply to items on sale** in **Admin › Settings › Pricing**; then their tier comes off the sale price (see **Trade pricing**).
+
 ## Tags
 
 While a sale is on, a **sale tag** prints the sale price with the regular price as the "was" price, and can show the day the sale ends. A **regular tag** prints the price the register charges, so during a sale it prints the sale price too.

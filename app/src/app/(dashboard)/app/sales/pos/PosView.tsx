@@ -32,6 +32,12 @@ import {
   type CatalogSale,
   type DiscountType,
 } from "@/lib/pos/cartPricing";
+import {
+  priceLineForTier,
+  tierFieldsFromLookup,
+  tradeLabel,
+  type CustomerTradeTier,
+} from "@/lib/pricing/tradeTier";
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
@@ -75,7 +81,23 @@ interface CartItem {
   productId: number;
   productNumber: string;
   name: string;
+  /** The unit price it sells for: its retail, the customer's trade price, or a typed one. */
   price: number;
+  /**
+   * The unit price it was listed at -- its sale price while a scheduled sale is
+   * on -- so a trade tier can come on and off (GAP-06 part C).
+   */
+  retail: number;
+  /** Whether a customer's trade tier may discount it (the product lookup says). */
+  tradeEligible: boolean;
+  /** Whether `retail` is a sale price (the product lookup's onSale). */
+  onSale?: boolean;
+  /** Whether the store lets a tier come off a sale price (the product lookup says). */
+  tradeDiscountOnSaleItems?: boolean;
+  /** Someone typed the price: a customer's tier never moves it. */
+  priceTyped: boolean;
+  /** The trade tier's percent in `price`, or null: shown as "Trade 20%". */
+  tradePercent: number | null;
   /** The scheduled sale this line was added at (catalogSale), for show only; see lineSale. */
   sale: CatalogSale | null;
   cost: number;
@@ -105,6 +127,8 @@ interface CustomerResult {
   lastName: string;
   email: string | null;
   phone: string | null;
+  /** Their trade tier while it is on (GAP-06 part C), else null. */
+  tradeTier?: CustomerTradeTier | null;
 }
 
 interface FoundProduct {
@@ -116,6 +140,10 @@ interface FoundProduct {
   onSale?: boolean;
   saleEndsOn?: string | null;
   baseCost?: number | null;
+  /** Whether a customer's trade tier may discount it (GAP-06 part C). */
+  tradeEligible?: boolean;
+  /** Whether the store lets a tier come off a sale price (GAP-06 part C). */
+  tradeDiscountOnSaleItems?: boolean;
 }
 
 interface GiftCardInfo {
@@ -298,6 +326,22 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     clear: clearCustomerSearch,
   } = useCustomerSearch({ limit: 5 });
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
+  // A trade customer's tier prices the cart's eligible lines (GAP-06 part C).
+  const tradeTier = selectedCustomer?.tradeTier ?? null;
+  // The tier as of the latest customer pick, for a line added after an await:
+  // a scan or search fetches stock before it adds, and a customer picked while
+  // that fetch is out must price the new line too. A closure over `tradeTier`
+  // would still hold the tier from before the pick and add the line at retail.
+  const tradeTierRef = useRef<CustomerTradeTier | null>(null);
+  // Picking, changing or removing the customer re-prices every line no one
+  // typed a price on, so taking the customer off restores retail. The server
+  // still judges each price it is sent (lib/sales/discountApproval.ts).
+  const chooseCustomer = (customer: CustomerResult | null) => {
+    const tier = customer?.tradeTier ?? null;
+    tradeTierRef.current = tier;
+    setSelectedCustomer(customer);
+    setCart((prev) => prev.map((item) => priceLineForTier(item, tier)));
+  };
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("TAKEN");
   // The delivery fee as typed, and whether staff typed it or it follows the
   // zone (DeliveryFeeField).
@@ -405,6 +449,8 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
 
   const addProductToCart = useCallback(
     (product: FoundProduct, price: number, inventorySummary: InventorySummary[]) => {
+      // Priced inside the updater from the latest customer pick, never from
+      // this callback's render: the caller may have awaited stock first.
       setCart((prev) => {
         const existingIdx = prev.findIndex(
           (item) => item.productId === product.id && item.isReturn === returnMode,
@@ -419,18 +465,21 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         }
         return [
           ...prev,
-          {
-            productId: product.id,
-            productNumber: product.productNumber,
-            name: product.name || product.productNumber,
-            price,
-            sale: catalogSale(product),
-            cost: product.baseCost ? Number(product.baseCost) : 0,
-            quantity: 1,
-            discounts: [],
-            isReturn: returnMode,
-            inventorySummary,
-          },
+          priceLineForTier(
+            {
+              productId: product.id,
+              productNumber: product.productNumber,
+              name: product.name || product.productNumber,
+              ...tierFieldsFromLookup(product, price),
+              sale: catalogSale(product),
+              cost: product.baseCost ? Number(product.baseCost) : 0,
+              quantity: 1,
+              discounts: [],
+              isReturn: returnMode,
+              inventorySummary,
+            },
+            tradeTierRef.current,
+          ),
         ];
       });
     },
@@ -621,9 +670,12 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   const applyPriceEdit = (idx: number) => {
     const val = Number.parseFloat(editPriceValue);
     if (Number.isNaN(val) || val < 0) return;
-    const updated = [...cart];
-    updated[idx].price = val;
-    setCart(updated);
+    // A typed price is the cashier's: a trade tier no longer moves it.
+    setCart(
+      cart.map((item, i) =>
+        i === idx ? { ...item, price: val, priceTyped: true, tradePercent: null } : item,
+      ),
+    );
     setEditingPriceIdx(null);
     setEditPriceValue("");
   };
@@ -885,7 +937,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     setCart([]);
     setCardLines([]);
     setCardDraft(null);
-    setSelectedCustomer(null);
+    chooseCustomer(null);
     setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
     setReturnMode(false);
@@ -905,7 +957,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     setCart([]);
     setCardLines([]);
     setCardDraft(null);
-    setSelectedCustomer(null);
+    chooseCustomer(null);
     setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
     setReturnMode(false);
@@ -1068,9 +1120,14 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
               <p className="text-xs text-brand-gray">
                 {selectedCustomer.email || selectedCustomer.phone || "No contact info"}
               </p>
+              {tradeTier && (
+                <p className="text-xs text-brand-gold mt-0.5">
+                  Trade tier: {tradeTier.name} ({tradeTier.discountPercent}% off retail)
+                </p>
+              )}
             </div>
             <button
-              onClick={() => setSelectedCustomer(null)}
+              onClick={() => chooseCustomer(null)}
               className="text-xs text-brand-gray underline min-h-[44px] px-2"
             >
               Change
@@ -1095,7 +1152,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedCustomer(c);
+                      chooseCustomer(c);
                       clearCustomerSearch();
                     }}
                     className="w-full text-left px-3 py-3 text-sm hover:bg-brand-linen border-b border-brand-gray/10 last:border-0 min-h-[44px]"
@@ -1105,6 +1162,9 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
                     </span>
                     {c.phone && <span className="text-brand-gray ml-2">{c.phone}</span>}
                     {c.email && <span className="text-brand-gray ml-2">{c.email}</span>}
+                    {c.tradeTier && (
+                      <span className="text-brand-gold ml-2">{c.tradeTier.name}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2043,7 +2103,9 @@ function CartRow({
   onCancelItemDiscount,
 }: CartRowProps) {
   const onHandHere = registerStoreName ? onHandAt(item, registerStoreName) : 0;
-  const onSale = lineSale(item.price, item.sale);
+  // An untyped line keeps its sale while a tier prices it below the sale price:
+  // its list (`retail`) is still the sale price it was added at.
+  const onSale = lineSale(item.priceTyped ? item.price : item.retail, item.sale);
 
   return (
     <div className={`border-b border-brand-gray/10 p-3 ${item.isReturn ? "bg-red-50" : ""}`}>
@@ -2153,6 +2215,11 @@ function CartRow({
           {item.discounts.length > 0 && !isEditingPrice && (
             <p className="text-[10px] text-brand-gray line-through">
               {fmt(item.price * item.quantity)}
+            </p>
+          )}
+          {item.tradePercent !== null && !isEditingPrice && (
+            <p className="text-[10px] text-brand-gold" title={`Retail ${fmt(item.retail)} each`}>
+              {tradeLabel(item.tradePercent)}
             </p>
           )}
         </div>

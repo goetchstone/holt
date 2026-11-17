@@ -59,6 +59,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
       "Give products a sale price for a run of days, change or end the sale, and print the sale tags on and the regular tags back.",
     screens: ["/app/inventory/sales"],
   },
+  {
+    slug: "trade-pricing",
+    title: "Trade pricing",
+    summary:
+      "Give trade customers a tier that takes a percent off retail, choose which vendors and sale items it covers, and how it prices sales and quotes.",
+    screens: ["/app/admin/setup/trade-tiers"],
+  },
 ];
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
