@@ -3,19 +3,24 @@
 // A scan or typed number to its product. baseRetail in the answer is the price
 // the register charges TODAY -- a sale price while the product's scheduled sale
 // is on (lib/pricing/salePrice.ts, GAP-06 part B) -- with regularRetail, onSale
-// and saleEndsOn beside it, as GET /api/products answers.
+// and saleEndsOn beside it, and tradeEligible and tradeDiscountOnSaleItems for
+// a trade customer's price (GAP-06 part C), as GET /api/products answers.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import type { Product } from "@prisma/client";
-import { effectiveRetailFor, retailResponseFields, saleToday } from "@/lib/pricing/salePrice";
+import { saleToday } from "@/lib/pricing/salePrice";
+import { screenPriceFields } from "@/lib/pricing/screenPricing";
 
-/** The product as the screens read it: its price today, sale or not. */
+/**
+ * The product as the screens read it: its price today, sale or not, and whether
+ * a customer's trade tier may discount it (lib/pricing/screenPricing.ts).
+ */
 async function withTodaysPrice(product: Product) {
-  const retail = await effectiveRetailFor([product], await saleToday(), prisma);
-  return { ...product, ...retailResponseFields(retail.get(product.id)!) };
+  const fields = await screenPriceFields(prisma, [product], await saleToday());
+  return { ...product, ...fields.get(product.id)! };
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

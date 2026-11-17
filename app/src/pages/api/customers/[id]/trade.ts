@@ -1,11 +1,28 @@
 // /app/src/pages/api/customers/[id]/trade.ts
+//
+// A customer's trade account and tax exemption. Their trade tier prices every
+// eligible line of their sales below retail with no manager's PIN (GAP-06 part
+// C), so it is given through lib/customers/tradeTierAssignment.ts: only an
+// active tier, and each change recorded, in the same transaction as the save.
+//
+// Still on the MANAGER/ADMIN role array (__tests__/fixtures/role-array-api-routes.txt):
+// no permission covers both what it sets -- a standing discount and a tax
+// exemption -- and choosing one is a decision about who may do either.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { auditActor } from "@/lib/audit";
+import { logError } from "@/lib/logger";
+import {
+  TradeTierAssignmentError,
+  setCustomerTradeTier,
+} from "@/lib/customers/tradeTierAssignment";
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+/** Exported for integration tests, which call it with a fake session -- the
+ *  role gate needs real cookies. Same pattern as create-from-cart.ts. */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
     res.setHeader("Allow", "PUT");
     return res.status(405).json({ error: "Method not allowed" });
@@ -17,7 +34,9 @@ export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, sessio
   }
 
   return handlePut(customerId, req, res, session);
-});
+}
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
 
 async function handlePut(
   customerId: number,
@@ -33,14 +52,6 @@ async function handlePut(
   const { tradeTierId, isTradeAccount, tradeCompanyName, taxExemptNumber, taxExemptReasonId } =
     req.body;
 
-  // Validate tier exists if provided
-  if (tradeTierId != null) {
-    const tier = await prisma.tradeTier.findUnique({ where: { id: Number(tradeTierId) } });
-    if (!tier) {
-      return res.status(400).json({ error: "Trade tier not found" });
-    }
-  }
-
   // The customer's tax exemption: a reason makes every later sale exempt
   // (lib/tax/resolveTaxRate.ts), null taxes them again. Orders already written
   // keep the exemption they were sold under.
@@ -55,23 +66,38 @@ async function handlePut(
     }
   }
 
-  const updated = await prisma.customer.update({
-    where: { id: customerId },
-    data: {
-      ...(isTradeAccount != null && { isTradeAccount }),
-      ...(tradeTierId !== undefined && { tradeTierId: tradeTierId ? Number(tradeTierId) : null }),
-      ...(tradeCompanyName !== undefined && { tradeCompanyName: tradeCompanyName || null }),
-      ...(taxExemptNumber !== undefined && { taxExemptNumber: taxExemptNumber || null }),
-      ...(taxExemptReasonId !== undefined && {
-        taxExemptReasonId: taxExemptReasonId == null ? null : Number(taxExemptReasonId),
-      }),
-      updatedBy: session.user?.email || undefined,
-    },
-    include: {
-      tradeTier: true,
-      taxExemptReason: true,
-    },
-  });
-
-  return res.json(updated);
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      if (tradeTierId !== undefined) {
+        await setCustomerTradeTier(tx, {
+          customerId,
+          tradeTierId,
+          actor: auditActor(session),
+        });
+      }
+      return tx.customer.update({
+        where: { id: customerId },
+        data: {
+          ...(isTradeAccount != null && { isTradeAccount }),
+          ...(tradeCompanyName !== undefined && { tradeCompanyName: tradeCompanyName || null }),
+          ...(taxExemptNumber !== undefined && { taxExemptNumber: taxExemptNumber || null }),
+          ...(taxExemptReasonId !== undefined && {
+            taxExemptReasonId: taxExemptReasonId == null ? null : Number(taxExemptReasonId),
+          }),
+          updatedBy: session.user?.email || undefined,
+        },
+        include: {
+          tradeTier: true,
+          taxExemptReason: true,
+        },
+      });
+    });
+    return res.json(updated);
+  } catch (error) {
+    if (error instanceof TradeTierAssignmentError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    logError("Update customer trade details failed", error);
+    return res.status(500).json({ error: "Failed to save the customer's trade details" });
+  }
 }

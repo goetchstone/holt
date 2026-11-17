@@ -15,6 +15,7 @@ import Modal from "@/components/ui/Modal";
 import FormInput from "@/components/form/FormInput";
 import FormCheckbox from "@/components/form/FormCheckbox";
 import { getErrorMessage } from "@/lib/toastError";
+import { tierPercentProblem } from "@/lib/pricing/tradeTier";
 
 interface TradeTier {
   id: number;
@@ -84,11 +85,13 @@ export function TradeTiersView() {
       toast.error("Name is required");
       return;
     }
-    const discount = Number.parseFloat(form.discountPercent);
-    if (Number.isNaN(discount) || discount < 0 || discount > 100) {
-      toast.error("Discount must be between 0 and 100");
+    // The server's rule (0 to 100, to the hundredth), so the screen says it first.
+    const percentProblem = tierPercentProblem(form.discountPercent.trim());
+    if (percentProblem) {
+      toast.error(percentProblem);
       return;
     }
+    const discount = Number(form.discountPercent);
 
     setSaving(true);
     try {
@@ -129,7 +132,9 @@ export function TradeTiersView() {
         <div>
           <h1 className="text-3xl font-bold text-brand-black">Trade Tiers</h1>
           <p className="text-sm text-brand-gray mt-1">
-            Discount tiers for trade customers, applied to anchor pricing.
+            Discount tiers for trade customers: a tier takes its percent off retail on the sales of
+            each customer given it (Customers → Trade &amp; Tax). A tier that&apos;s turned off
+            takes nothing off.
           </p>
         </div>
         <Button onClick={() => openModal(null)}>
@@ -215,7 +220,7 @@ export function TradeTiersView() {
             type="number"
             value={form.discountPercent}
             onChange={(v) => setForm((prev) => ({ ...prev, discountPercent: v }))}
-            placeholder="e.g. 20 for 20% off anchor"
+            placeholder="e.g. 20 for 20% off retail"
           />
           <FormInput
             label="Sort Order"

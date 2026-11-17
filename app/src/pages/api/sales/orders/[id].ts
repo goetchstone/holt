@@ -13,6 +13,19 @@ import { release } from "@/lib/inventory/allocation";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
+import {
+  planQuoteTrade,
+  repriceQuoteTrade,
+  type QuoteTradeRepricing,
+} from "@/lib/sales/quoteTradePricing";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import {
+  DISCOUNT_PERMISSION,
+  DiscountApprovalError,
+  NO_EXTRA_ACCESS,
+  authorizeDiscount,
+  type Approver,
+} from "@/lib/sales/discountApproval";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
 import { deleteProblem, saleWithoutPaymentProblem } from "@/lib/sales/cancelOrder";
 import { readSalePos } from "@/lib/sales/salePos";
@@ -25,11 +38,25 @@ import { orderDisclaimersOf } from "@/lib/sales/orderDisclaimers";
 import { handedOverStatusProblem } from "@/lib/fulfilment/undoHandover";
 import { isCountedLine } from "@/lib/salesOrderRevenue";
 
+/** What a customer change did to a quote's prices, in a sentence the screen can show. */
+function repricingSummary(r: QuoteTradeRepricing): QuoteTradeRepricing & { message: string } {
+  const lines = (n: number) => `${n} line${n === 1 ? "" : "s"}`;
+  const parts: string[] = [];
+  if (r.repriced > 0) parts.push(`${lines(r.repriced)} re-priced for the new customer`);
+  if (r.kept > 0) parts.push(`${lines(r.kept)} with a price someone set kept as it was`);
+  return { ...r, message: parts.length > 0 ? `${parts.join("; ")}.` : "No prices changed." };
+}
+
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
  *  requireAuthWithRole (which needs real cookies). Role enforcement is
  *  covered by the apiRouteAuthorization tripwire. */
-export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess = NO_EXTRA_ACCESS,
+) {
   const { id } = req.query;
 
   if (!id || typeof id !== "string") {
@@ -66,7 +93,57 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
       const changedBy = session.user?.email || null;
 
-      const updated = await prisma.$transaction(async (tx) => {
+      // A quote changing hands is priced for its new customer (below). A line
+      // someone set a price on keeps it, but its discount was measured from the
+      // old customer's trade price: where the new customer's price is higher,
+      // what it sells below that is a discount like any other, decided here
+      // before the transaction so a wrong manager PIN still counts.
+      let newCustomerId = existing.customerId;
+      if (customerId !== undefined) {
+        newCustomerId = customerId ? Number.parseInt(customerId) : null;
+      }
+      let tradeApprover: Approver | null = null;
+      // Decided by what the order IS, never by the status this request asks for:
+      // a quote handed to another customer and made an order in the same request
+      // is still priced and judged for its new customer first (CodeQL
+      // js/user-controlled-bypass, 2026-11-17).
+      const handsOver =
+        customerId !== undefined &&
+        newCustomerId !== existing.customerId &&
+        existing.status === "QUOTE" &&
+        (await prisma.payment.count({ where: { salesOrderId: existing.id } })) === 0;
+      if (handsOver) {
+        const plan = await planQuoteTrade(prisma, existing.id, existing.customerId, newCustomerId);
+        tradeApprover = await authorizeDiscount(prisma, {
+          percent: plan.percent,
+          access,
+          approval: req.body.discountApproval,
+        });
+      }
+
+      const { updated, repricing } = await prisma.$transaction(async (tx) => {
+        let repriced: QuoteTradeRepricing | null = null;
+        // The customer decides the tax (their exemption, their district) and
+        // their trade tier's prices, so a quote that changes hands is priced
+        // and re-rated as their sale: its untyped lines take the new
+        // customer's tier (lib/sales/quoteTradePricing.ts), then tax follows
+        // the new amounts. Only while no money has touched it -- a pending card
+        // checkout included: a paid order keeps the prices and tax it was
+        // charged (lib/tax/rerateQuoteTax.ts). This runs while it is still a
+        // quote, before any promotion this request also asks for, so the
+        // order it becomes carries the new customer's prices.
+        if (handsOver && (await tx.payment.count({ where: { salesOrderId: existing.id } })) === 0) {
+          await tx.salesOrder.update({
+            where: { id: existing.id },
+            data: { customerId: newCustomerId, updatedBy: changedBy },
+          });
+          repriced = await repriceQuoteTrade(tx, existing.id, {
+            fromCustomerId: existing.customerId,
+            changedBy,
+            approver: tradeApprover,
+          });
+          await rerateQuoteTax(tx, existing.id);
+        }
         // A quote leaving for an order (or handed over outright) becomes one
         // first, through the one function that does it (lib/sales/quoteHolds.ts),
         // so every line commits stock: as a quote it committed only those it held.
@@ -86,19 +163,6 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           },
         });
 
-        // The customer decides the tax (their exemption, their district), so a
-        // quote that changes hands is re-rated as their sale. Only while no
-        // money has touched it -- a pending card checkout included: a paid
-        // order keeps the tax it was charged (lib/tax/rerateQuoteTax.ts).
-        if (
-          customerId !== undefined &&
-          result.customerId !== existing.customerId &&
-          result.status === "QUOTE" &&
-          (await tx.payment.count({ where: { salesOrderId: result.id } })) === 0
-        ) {
-          await rerateQuoteTax(tx, result.id);
-        }
-
         if (status && status !== existing.status) {
           await applyStatusChange(tx, {
             order: result,
@@ -108,10 +172,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           });
         }
 
-        return tx.salesOrder.findUniqueOrThrow({
+        const saved = await tx.salesOrder.findUniqueOrThrow({
           where: { id: result.id },
           select: { id: true, status: true },
         });
+        return { updated: saved, repricing: repriced };
       });
 
       // It went ahead with nothing paid: what a first payment would have started.
@@ -119,8 +184,16 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         await onSaleWentAhead(updated.id);
       }
 
-      return res.status(200).json({ id: updated.id, status: updated.status });
+      return res.status(200).json({
+        id: updated.id,
+        status: updated.status,
+        // What changing the customer did to the quote's prices, when it re-priced it.
+        ...(repricing ? { repricing: repricingSummary(repricing) } : {}),
+      });
     } catch (error) {
+      if (error instanceof DiscountApprovalError) {
+        return res.status(error.status).json(error.body);
+      }
       logError("Error updating order", error);
       return res.status(500).json({ error: "Failed to update order" });
     }
@@ -282,6 +355,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         orderedQuantity: Number(item.orderedQuantity),
         netPrice: Number(item.netPrice),
         listPrice: item.listPrice != null ? Number(item.listPrice) : null,
+        // The trade tier's percent the line was sold at, when it was (GAP-06 part C).
+        tradeDiscountPercent:
+          item.tradeDiscountPercent != null ? Number(item.tradeDiscountPercent) : null,
         vatRate: item.vatRate != null ? Number(item.vatRate) : null,
         vatAmount: item.vatAmount != null ? Number(item.vatAmount) : null,
         source: item.source,
@@ -335,7 +411,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   }
 }
 
-export default requirePermission("sales.write", handler);
+export default requirePermission("sales.write", handler, { also: [DISCOUNT_PERMISSION] });
 
 /**
  * What a status change does beyond writing the status: the change-log row, and

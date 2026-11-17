@@ -24,6 +24,10 @@ export interface ProductSearchResult {
   vendorName?: string;
   departmentName?: string;
   categoryName?: string;
+  /** Whether a customer's trade tier may discount it (GAP-06 part C). */
+  tradeEligible?: boolean;
+  /** Whether the store lets a tier come off a sale price (lib/pricing/screenPricing.ts). */
+  tradeDiscountOnSaleItems?: boolean;
 }
 
 interface UseProductSearchOptions {

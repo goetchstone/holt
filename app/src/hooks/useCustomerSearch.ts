@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useDebounce } from "./useDebounce";
+import type { CustomerTradeTier } from "@/lib/pricing/tradeTier";
 
 /** A saved address, as GET /api/customers includes it with each customer. */
 export interface CustomerSearchAddress {
@@ -28,6 +29,11 @@ export interface CustomerSearchResult {
   email: string | null;
   phone: string | null;
   addresses: CustomerSearchAddress[];
+  /**
+   * The customer's trade tier, only while it is on (GAP-06 part C): the
+   * register and New Quote price eligible lines by it. Null for none.
+   */
+  tradeTier?: CustomerTradeTier | null;
 }
 
 /**

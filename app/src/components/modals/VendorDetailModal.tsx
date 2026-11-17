@@ -58,6 +58,8 @@ export default function VendorDetailModal({
     const body: Record<string, unknown> = {
       leadTimeDays: form.leadTimeDays ?? null,
       dropShips: form.dropShips === true,
+      // Whether its items take customers' trade tiers (GAP-06 part C); on unless turned off.
+      allowTradeDiscount: form.allowTradeDiscount !== false,
     };
     for (const field of VENDOR_DETAIL_FIELDS) body[field] = form[field] ?? null;
     const res = await fetch(`/api/vendors/${vendor.id}`, {
@@ -203,11 +205,21 @@ export default function VendorDetailModal({
             />
             <span>Ships special orders straight to the customer (drop ship)</span>
           </label>
+          <label className="flex items-center gap-3 text-sm text-brand-gray">
+            <input
+              type="checkbox"
+              disabled={!editing}
+              checked={form.allowTradeDiscount !== false}
+              onChange={(e) => setForm({ ...form, allowTradeDiscount: e.target.checked })}
+            />
+            <span>Trade discounts apply</span>
+          </label>
         </div>
         <p className="mt-2 text-xs text-brand-gray">
           A special order raised at the register is expected this many days after it is placed.
           Leave it empty if you don&apos;t know it: the PO then shows no date until the vendor
-          confirms one.
+          confirms one. Turn trade discounts off for a vendor whose items a trade customer&apos;s
+          tier must not discount, such as one that sets its own minimum price.
         </p>
 
         {editing ? (
