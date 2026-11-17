@@ -1,7 +1,8 @@
 // /app/src/pages/api/vendors/[id].ts
 //
-// PATCH — update a vendor's pricing-behavior fields, contact details and lead
-// time. MANAGER/ADMIN (was session-only with a raw req.body spread until the
+// PATCH — update a vendor's pricing-behavior fields (its markup, and whether
+// its items take customers' trade tiers), contact details and lead time.
+// MANAGER/ADMIN (was session-only with a raw req.body spread until the
 // 2026-06-10 security sweep). Updatable fields are whitelisted in
 // lib/vendorPatch.ts so a request can never touch columns the UI doesn't
 // expose (name, isActive, audit fields, ...).
@@ -16,7 +17,8 @@ import { parseVendorPatch } from "@/lib/vendorPatch";
 import { auditActor, auditLog } from "@/lib/audit";
 import { sameMarkup } from "@/lib/pricing/markup";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Exported for integration tests (a fake session; the gate needs real cookies). */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const vendorId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(vendorId)) {
     return res.status(400).json({ error: "Invalid vendor id" });
@@ -29,7 +31,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       const updated = await prisma.$transaction(async (tx) => {
         const before = await tx.vendor.findUnique({
           where: { id: vendorId },
-          select: { defaultMarkup: true },
+          select: { defaultMarkup: true, allowTradeDiscount: true },
         });
         const after = await tx.vendor.update({ where: { id: vendorId }, data: parsed.data });
         // A vendor's markup prices its catalog (lib/pricing/markup.ts): who moved it is recorded.
@@ -48,6 +50,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
               tx,
             );
           }
+        }
+        // Whether its items take customers' trade tiers (GAP-06 part C): it
+        // moves the price trade customers pay, so who turned it is recorded.
+        if (before && before.allowTradeDiscount !== after.allowTradeDiscount) {
+          await auditLog(
+            "VENDOR_TRADE_DISCOUNT_CHANGED",
+            auditActor(session),
+            {
+              summary: `${after.name}: trade discounts ${after.allowTradeDiscount ? "apply" : "don't apply"}`,
+              target: { type: "vendor", id: vendorId },
+              details: { from: before.allowTradeDiscount, to: after.allowTradeDiscount },
+            },
+            tx,
+          );
         }
         return after;
       });

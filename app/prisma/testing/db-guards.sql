@@ -327,7 +327,7 @@ BEFORE UPDATE OR DELETE ON "ProductPriceChange"
 FOR EACH ROW
 EXECUTE FUNCTION enforce_product_price_change_append_only();
 
--- 20261114180000_scheduled_sales
+-- 20261114190000_scheduled_sales
 -- A sale's last day is on or after its first; ended early is who and when, or neither;
 -- a sale price is above zero.
 ALTER TABLE "Sale" DROP CONSTRAINT IF EXISTS "Sale_dates_ordered";
@@ -338,3 +338,9 @@ ALTER TABLE "Sale" ADD CONSTRAINT "Sale_endedEarly_complete" CHECK (
 );
 ALTER TABLE "SaleItem" DROP CONSTRAINT IF EXISTS "SaleItem_salePrice_positive";
 ALTER TABLE "SaleItem" ADD CONSTRAINT "SaleItem_salePrice_positive" CHECK ("salePrice" > 0);
+-- 20261114200000_trade_tier_pricing
+-- A recorded trade percent takes something off and no more than everything.
+ALTER TABLE "OrderLineItem" DROP CONSTRAINT IF EXISTS "OrderLineItem_tradeDiscountPercent_range";
+ALTER TABLE "OrderLineItem" ADD CONSTRAINT "OrderLineItem_tradeDiscountPercent_range" CHECK (
+  "tradeDiscountPercent" IS NULL OR ("tradeDiscountPercent" > 0 AND "tradeDiscountPercent" <= 100)
+);

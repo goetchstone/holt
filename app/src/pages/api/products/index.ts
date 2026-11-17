@@ -26,7 +26,8 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
-import { effectiveRetailFor, retailResponseFields, saleToday } from "@/lib/pricing/salePrice";
+import { saleToday } from "@/lib/pricing/salePrice";
+import { screenPriceFields } from "@/lib/pricing/screenPricing";
 
 const NAME_ONLY = { select: { name: true } } as const;
 
@@ -90,13 +91,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       prisma.product.count({ where }),
     ]);
 
-    // The price each sells for today, sale or not (lib/pricing/salePrice.ts).
-    const retail = await effectiveRetailFor(products, await saleToday(), prisma);
+    // The price each sells for today, sale or not, and whether a customer's
+    // trade tier may discount it (lib/pricing/screenPricing.ts): the register
+    // and New Quote price a line by these, as the server judges it.
+    const priceFields = await screenPriceFields(prisma, products, await saleToday());
 
     // Convert Decimal fields to safe JSON, and flatten related names for display
     const safeProducts = products.map(({ vendor, category, department, type, ...p }) => ({
       ...p,
-      ...retailResponseFields(retail.get(p.id)!),
+      ...priceFields.get(p.id)!,
       baseCost: p.baseCost ? Number(p.baseCost) : undefined, // Ensure cost is also converted
       created: p.created?.toISOString(),
       vendorName: vendor?.name,

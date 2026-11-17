@@ -599,6 +599,23 @@ function PricingSection({
           </p>
         </div>
       </div>
+      {/* Whether a trade tier applies to a sale price too (GAP-06 part C, DECISIONS 61). */}
+      <label className="flex max-w-3xl items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={value.tradeDiscountOnSaleItems}
+          onChange={(e) => onChange({ ...value, tradeDiscountOnSaleItems: e.target.checked })}
+        />
+        <span>
+          Trade tiers apply to items on sale
+          <span className="block text-xs text-brand-gray">
+            A trade customer&apos;s tier (Customers → Trade &amp; Tax) takes its percent off an
+            item&apos;s retail. When this is off, an item on sale sells at its sale price and the
+            tier takes nothing more off. When it&apos;s on, the tier comes off the sale price too.
+          </span>
+        </span>
+      </label>
     </section>
   );
 }

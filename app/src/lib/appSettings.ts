@@ -33,6 +33,7 @@ import {
   isRetailRounding,
   type RetailRounding,
 } from "@/lib/pricing/rounding";
+import { DEFAULT_TRADE_DISCOUNT_ON_SALE_ITEMS } from "@/lib/pricing/tradeTier";
 import {
   DEFAULT_CLIENT_PROFILE_CHOICES,
   readClientProfileChoices,
@@ -46,12 +47,19 @@ export interface PricingConfig {
   defaultMarkup: number | null;
   markupPrecedence: MarkupPrecedence;
   retailRounding: RetailRounding;
+  /**
+   * Whether a customer's trade tier applies to an item's sale price as well
+   * (GAP-06 part C, lib/pricing/tradeTier.ts). Off by default: an item on sale
+   * isn't discounted again for a tier.
+   */
+  tradeDiscountOnSaleItems: boolean;
 }
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   defaultMarkup: null,
   markupPrecedence: DEFAULT_MARKUP_PRECEDENCE,
   retailRounding: DEFAULT_RETAIL_ROUNDING,
+  tradeDiscountOnSaleItems: DEFAULT_TRADE_DISCOUNT_ON_SALE_ITEMS,
 };
 
 // Default brand palette (hex). Keys mirror AppSettings.theme JSON.
@@ -414,6 +422,8 @@ export function parsePricingConfig(raw: unknown): PricingConfig {
   if (typeof raw.defaultMarkup === "number") config.defaultMarkup = markupValue(raw.defaultMarkup);
   if (isMarkupPrecedence(raw.markupPrecedence)) config.markupPrecedence = raw.markupPrecedence;
   if (isRetailRounding(raw.retailRounding)) config.retailRounding = raw.retailRounding;
+  // Only an explicit true turns it on: anything else is the strict default.
+  if (raw.tradeDiscountOnSaleItems === true) config.tradeDiscountOnSaleItems = true;
   return config;
 }
 

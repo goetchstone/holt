@@ -4,10 +4,13 @@
 // as the start of someone else's quote. The copy is a new QUOTE at TODAY'S
 // prices (owner, 2026-11-03):
 //
-//   - A catalog item is priced at its price now (catalogListUnits): its sale
-//     price while a scheduled sale is on (GAP-06 part B). A custom or
-//     configured item is its own product, written at the price it was sold at
-//     (create-from-cart mints it with that retail), so it keeps that price.
+//   - A catalog item is priced at its price now (catalogLinePolicies): its sale
+//     price while a scheduled sale is on (GAP-06 part B), or the price the
+//     customer's trade tier entitles them to now (part C; on a sale item only
+//     when the store's tradeDiscountOnSaleItems says so, and then off the sale
+//     price). A custom or configured item is its own product, written at the
+//     price it was sold at (create-from-cart mints it with that retail), so it
+//     keeps that price; it is priced by hand, so a tier doesn't touch it.
 //   - No discount comes across. A copied discount would skip the store's
 //     discount policy (GAP-06); staff give it again, under the policy.
 //   - The delivery fee is the zone's fee today, when the original charged one.
@@ -33,7 +36,13 @@ import {
   rateForLineAmount,
   resolveTaxDistrict,
 } from "@/lib/tax/resolveTaxRate";
-import { catalogListUnits, existingListUnit } from "@/lib/sales/discountApproval";
+import {
+  catalogLinePolicies,
+  existingListUnit,
+  listOnlyPolicy,
+  recordedList,
+  recordedTrade,
+} from "@/lib/sales/discountApproval";
 import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
 import { businessDayKey } from "@/lib/reports/businessDay";
 import { nextOrderNumber } from "@/lib/orderNumber";
@@ -170,11 +179,13 @@ export async function duplicateOrder(
 
   // Today's list price: the product's price now -- its sale price while a
   // scheduled sale is on (lib/pricing/salePrice.ts) -- on the store's day; a
-  // line with no product keeps the unit price it was listed at.
-  const listUnits = await catalogListUnits(
+  // line with no product keeps the unit price it was listed at. Each line sells
+  // at its baseline: the list, or the customer's trade price today -- no
+  // discount, so no policy to run.
+  const policies = await catalogLinePolicies(
     tx,
-    lines.map((l) => ({ productId: l.productId, unitPrice: existingListUnit(l) })),
-    businessDayKey(now, input.settings.timezone),
+    lines.map((l) => ({ productId: l.productId, fallback: listOnlyPolicy(existingListUnit(l)) })),
+    { customerId: source.customerId, today: businessDayKey(now, input.settings.timezone) },
   );
   const taxDistrict = await resolveTaxDistrict(tx, {
     customerId: source.customerId,
@@ -184,7 +195,7 @@ export async function duplicateOrder(
   // Priced as create-from-cart prices a cart: once untaxed to learn each line's
   // amount, which picks its tax band, then with each line's own rate.
   const cart = lines.map((l, i) => ({
-    unitPrice: listUnits[i],
+    unitPrice: policies[i].baselineUnit,
     quantity: Number(l.orderedQuantity),
   }));
   const rates = priceCart(cart).items.map(
@@ -225,7 +236,11 @@ export async function duplicateOrder(
           barcode: "",
           orderedQuantity: l.orderedQuantity,
           netPrice: priced.items[i].netPrice,
-          listPrice: listUnits[i],
+          ...recordedList(policies[i]),
+          ...recordedTrade(policies[i], {
+            quantity: Number(l.orderedQuantity),
+            netPrice: priced.items[i].netPrice,
+          }),
           // OrderLineItem.cost is the LINE total, like netPrice.
           cost: saleUnitCost(l.product, writtenUnitCost(l)) * Number(l.orderedQuantity),
           vatRate: rates[i],

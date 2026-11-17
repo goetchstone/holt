@@ -139,6 +139,7 @@ describe("resolveAppSettings pricing (USE-04 markup fallback)", () => {
       defaultMarkup: null,
       markupPrecedence: "VENDOR_FIRST",
       retailRounding: "CENTS",
+      tradeDiscountOnSaleItems: false,
     };
     expect(resolveAppSettings(null).pricing).toEqual(unset);
     expect(resolveAppSettings(row()).pricing).toEqual(unset);
@@ -150,6 +151,7 @@ describe("resolveAppSettings pricing (USE-04 markup fallback)", () => {
       defaultMarkup: 2.2,
       markupPrecedence: "VENDOR_FIRST",
       retailRounding: "CENTS",
+      tradeDiscountOnSaleItems: false,
     });
   });
 
@@ -162,7 +164,19 @@ describe("resolveAppSettings pricing (USE-04 markup fallback)", () => {
       defaultMarkup: null,
       markupPrecedence: "CATEGORY_FIRST",
       retailRounding: "END_99",
+      tradeDiscountOnSaleItems: false,
     });
+  });
+
+  it("applies a trade tier to sale prices only when the store says exactly true (GAP-06 part C)", () => {
+    const onSale = (value: unknown) =>
+      resolveAppSettings(row({ pricing: { tradeDiscountOnSaleItems: value } })).pricing
+        .tradeDiscountOnSaleItems;
+    expect(onSale(true)).toBe(true);
+    expect(onSale(false)).toBe(false);
+    expect(onSale("true")).toBe(false);
+    expect(onSale(1)).toBe(false);
+    expect(onSale(undefined)).toBe(false);
   });
 
   it("falls back to the defaults on an unknown precedence or rounding rule", () => {
