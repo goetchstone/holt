@@ -439,7 +439,10 @@ about each line's recorded list with its recorded `listOnSale`, as a price edit 
 with the setting off, a walk-in's quote written at a sale price gets no tier when
 handed to a trade customer, during the sale or after it ends, and one written at the
 regular price gets the tier even while a sale is on. The response carries
-`repricing { repriced, kept, message }`, which the order screen shows.
+`repricing { repriced, kept, message }`, which the order screen shows. Whether it is a
+handover is decided by what the order is in the database (a quote), never by the
+status the request asks for: a request that also makes it an order (a store allowing a
+sale with nothing paid) re-prices it for the new customer first, then promotes it.
 
 A kept line is still judged for its new customer (`planQuoteTrade`, before the
 transaction so a wrong PIN counts). Its discount was measured from the old customer's

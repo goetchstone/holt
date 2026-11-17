@@ -628,6 +628,43 @@ describe("a quote changing hands is priced for its new customer", () => {
     expect(money(restored)).toEqual({ list: 1000, net: 1000, tradePercent: null, tierId: null });
   });
 
+  it("a quote handed over and made an order in one request is priced for its new customer first", async () => {
+    const w = await world();
+    // A store that lets a quote go ahead with nothing paid: the one way a request can
+    // both hand a quote over and make it an order.
+    await prisma.appSettings.update({
+      where: { organizationId: DEFAULT_ORG_ID },
+      data: { allowSaleWithoutPayment: true },
+    });
+    invalidateAppSettingsCache();
+    const sale = await ring(w, w.trade.id, [{ productId: w.sofa.id, unitPrice: 800 }]);
+    expect(sale.statusCode).toBe(201);
+    const orderId = sale.body.id as number;
+    const [before] = await linesOf(orderId);
+    expect(money(before)).toEqual({
+      list: 1000,
+      net: 800,
+      tradePercent: 20,
+      tierId: w.designer.id,
+    });
+
+    // Handing it to the walk-in AND making it an order together must not skip the
+    // handover: asking for ORDER doesn't make it any less a quote changing hands.
+    const res = await call(
+      orderRoute,
+      "PUT",
+      { id: String(orderId) },
+      { customerId: w.walkIn.id, status: "ORDER" },
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body.repricing).toMatchObject({ repriced: 1, kept: 0 });
+    const order = await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId } });
+    expect(order.customerId).toBe(w.walkIn.id);
+    expect(order.status).toBe("ORDER");
+    const [after] = await linesOf(orderId);
+    expect(money(after)).toEqual({ list: 1000, net: 1000, tradePercent: null, tierId: null });
+  });
+
   it("re-rates tax on the new prices, after re-pricing them", async () => {
     const w = await world();
     const district = await prisma.taxDistrict.create({

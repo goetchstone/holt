@@ -103,11 +103,16 @@ export async function handler(
         newCustomerId = customerId ? Number.parseInt(customerId) : null;
       }
       let tradeApprover: Approver | null = null;
-      if (
+      // Decided by what the order IS, never by the status this request asks for:
+      // a quote handed to another customer and made an order in the same request
+      // is still priced and judged for its new customer first (CodeQL
+      // js/user-controlled-bypass, 2026-11-17).
+      const handsOver =
+        customerId !== undefined &&
         newCustomerId !== existing.customerId &&
-        (status ?? existing.status) === "QUOTE" &&
-        (await prisma.payment.count({ where: { salesOrderId: existing.id } })) === 0
-      ) {
+        existing.status === "QUOTE" &&
+        (await prisma.payment.count({ where: { salesOrderId: existing.id } })) === 0;
+      if (handsOver) {
         const plan = await planQuoteTrade(prisma, existing.id, existing.customerId, newCustomerId);
         tradeApprover = await authorizeDiscount(prisma, {
           percent: plan.percent,
@@ -118,6 +123,27 @@ export async function handler(
 
       const { updated, repricing } = await prisma.$transaction(async (tx) => {
         let repriced: QuoteTradeRepricing | null = null;
+        // The customer decides the tax (their exemption, their district) and
+        // their trade tier's prices, so a quote that changes hands is priced
+        // and re-rated as their sale: its untyped lines take the new
+        // customer's tier (lib/sales/quoteTradePricing.ts), then tax follows
+        // the new amounts. Only while no money has touched it -- a pending card
+        // checkout included: a paid order keeps the prices and tax it was
+        // charged (lib/tax/rerateQuoteTax.ts). This runs while it is still a
+        // quote, before any promotion this request also asks for, so the
+        // order it becomes carries the new customer's prices.
+        if (handsOver && (await tx.payment.count({ where: { salesOrderId: existing.id } })) === 0) {
+          await tx.salesOrder.update({
+            where: { id: existing.id },
+            data: { customerId: newCustomerId, updatedBy: changedBy },
+          });
+          repriced = await repriceQuoteTrade(tx, existing.id, {
+            fromCustomerId: existing.customerId,
+            changedBy,
+            approver: tradeApprover,
+          });
+          await rerateQuoteTax(tx, existing.id);
+        }
         // A quote leaving for an order (or handed over outright) becomes one
         // first, through the one function that does it (lib/sales/quoteHolds.ts),
         // so every line commits stock: as a quote it committed only those it held.
@@ -136,27 +162,6 @@ export async function handler(
             updatedBy: changedBy,
           },
         });
-
-        // The customer decides the tax (their exemption, their district) and
-        // their trade tier's prices, so a quote that changes hands is priced
-        // and re-rated as their sale: its untyped lines take the new
-        // customer's tier (lib/sales/quoteTradePricing.ts), then tax follows
-        // the new amounts. Only while no money has touched it -- a pending card
-        // checkout included: a paid order keeps the prices and tax it was
-        // charged (lib/tax/rerateQuoteTax.ts).
-        if (
-          customerId !== undefined &&
-          result.customerId !== existing.customerId &&
-          result.status === "QUOTE" &&
-          (await tx.payment.count({ where: { salesOrderId: result.id } })) === 0
-        ) {
-          repriced = await repriceQuoteTrade(tx, result.id, {
-            fromCustomerId: existing.customerId,
-            changedBy,
-            approver: tradeApprover,
-          });
-          await rerateQuoteTax(tx, result.id);
-        }
 
         if (status && status !== existing.status) {
           await applyStatusChange(tx, {
