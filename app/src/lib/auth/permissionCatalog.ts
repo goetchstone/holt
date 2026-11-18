@@ -408,6 +408,18 @@ export const PERMISSIONS: PermissionDef[] = [
       "Use the query builder to list and total sales, purchasing, products, customers, consignment, service cases and transfers. It shows customer names and contact details. Cost also needs View cost, and downloading also needs Export data.",
     sensitive: true,
   },
+  // Starts on for exactly who saw everyone before: the built-in Manager (and
+  // Administrator and Owner, which hold every key). The old gate was a hardcoded
+  // list of staff enum roles (MANAGER, ADMIN, SUPER_ADMIN) in the reports
+  // router; migration 20261118120000 grants it to an edited Manager or
+  // Administrator, which the deploy seeder never touches.
+  {
+    key: "reporting.all-salespeople",
+    domain: "reporting",
+    label: "See every salesperson's numbers",
+    description:
+      "On the Monthly Performance, Salesperson Detail and Designer Dashboard reports, choose any salesperson. Without it a person sees only their own numbers.",
+  },
 
   // --- Marketing ---------------------------------------------------------
   {
@@ -861,6 +873,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "service.write",
       "accounting.read",
       "reporting.read",
+      "reporting.all-salespeople",
       "reporting.export",
       "marketing.read",
       "marketing.write",

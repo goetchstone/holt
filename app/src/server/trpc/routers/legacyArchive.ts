@@ -1,14 +1,14 @@
 // /app/src/server/trpc/routers/legacyArchive.ts
 //
 // Legacy Archive lookup (feature flag `legacyArchive`). Read-only by design —
-// one search procedure, any signed-in staff (parity with the rest of the
-// Tools hub). Empty searches return only the archive meta (no full-table
+// one search procedure, gated on admin.settings, the key of the
+// Legacy Archive page itself. Empty searches return only the archive meta (no full-table
 // scan); matches come back with lines nested for the expandable cards.
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/lib/prisma";
-import { router, protectedProcedure } from "../trpc";
+import { router, permissionProcedure } from "../trpc";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { buildLegacyArchiveWhere, LEGACY_ARCHIVE_PAGE_SIZE } from "@/lib/legacyArchive";
 
@@ -19,7 +19,7 @@ async function requireArchiveEnabled(): Promise<void> {
 }
 
 export const legacyArchiveRouter = router({
-  search: protectedProcedure
+  search: permissionProcedure("admin.settings")
     .input(
       z.object({
         search: z.string().max(200),

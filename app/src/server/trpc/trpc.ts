@@ -34,12 +34,29 @@ export const router = t.router;
 export const createCallerFactory = t.createCallerFactory;
 export const publicProcedure = t.procedure;
 
+/**
+ * The middlewares that make a procedure session-only or gated, kept by identity
+ * so __tests__/trpcProcedureAuthorization.test.ts can classify every mounted
+ * procedure from `_def.middlewares` (a procedure's own input and resolver steps
+ * are middlewares too, so counting them cannot tell the tiers apart).
+ */
+export const authMiddlewareMarkers: { session: unknown; gates: WeakSet<object> } = {
+  session: undefined,
+  gates: new WeakSet<object>(),
+};
+
+function lastMiddleware(proc: unknown): unknown {
+  const mws = (proc as { _def: { middlewares: unknown[] } })._def.middlewares;
+  return mws[mws.length - 1];
+}
+
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.userId) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign-in required." });
   }
   return next({ ctx: { ...ctx, userId: ctx.userId } });
 });
+authMiddlewareMarkers.session = lastMiddleware(protectedProcedure);
 
 /**
  * Gate a procedure to one or more roles. resolveRoleListAccess is the same
@@ -51,7 +68,7 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
  */
 export function roleProcedure(allowedRoles: string[], options?: GateOptions) {
   assertKnownKeys("roleProcedure", options?.also);
-  return protectedProcedure.use(async ({ ctx, next }) => {
+  const gated = protectedProcedure.use(async ({ ctx, next }) => {
     const userId = ctx.userId as string;
     const result = await resolveRoleListAccess({
       userId,
@@ -71,6 +88,8 @@ export function roleProcedure(allowedRoles: string[], options?: GateOptions) {
     }
     return next({ ctx: { ...ctx, role: result.effectiveUserRole, holds: result.holds } });
   });
+  authMiddlewareMarkers.gates.add(lastMiddleware(gated) as object);
+  return gated;
 }
 
 /**
@@ -86,7 +105,7 @@ export function roleProcedure(allowedRoles: string[], options?: GateOptions) {
  */
 export function permissionProcedure(permission: PermissionRequirement, options?: GateOptions) {
   assertKnownKeys("permissionProcedure", options?.also);
-  return protectedProcedure.use(async ({ ctx, next }) => {
+  const gated = protectedProcedure.use(async ({ ctx, next }) => {
     const userId = ctx.userId as string;
     const result = await resolvePermissionAccess({
       userId,
@@ -106,4 +125,6 @@ export function permissionProcedure(permission: PermissionRequirement, options?:
     // Pages Router gates (e.g. WITH_COST, lib/auth/costVisibility.ts).
     return next({ ctx: { ...ctx, role: result.effectiveUserRole, holds: result.holds } });
   });
+  authMiddlewareMarkers.gates.add(lastMiddleware(gated) as object);
+  return gated;
 }
