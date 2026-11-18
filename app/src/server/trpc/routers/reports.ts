@@ -7,8 +7,13 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { roleProcedure, protectedProcedure, permissionProcedure } from "../trpc";
+import { roleProcedure, permissionProcedure } from "../trpc";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
+import {
+  canSeeAllSalespeople,
+  salespersonForCaller,
+  WITH_ALL_SALESPEOPLE,
+} from "@/lib/reports/salespersonScope";
 import { router } from "../trpc";
 import { getFactSalesDay } from "@/lib/reports/factSalesDay";
 import { getGrossMargin, grossMarginForCaller } from "@/lib/reports/grossMargin";
@@ -311,7 +316,29 @@ const salesExplorerItemsInput = z.object({
   p2End: z.string(),
 });
 
-const MANAGER_ROLES = new Set(["MANAGER", "ADMIN", "SUPER_ADMIN"]);
+/** The salesperson a caller may ask for: anyone for a holder of "See every
+ *  salesperson's numbers", otherwise their own staff record from the session. */
+async function salespersonFor(
+  ctx: { userId: string; holds: Readonly<Record<string, boolean>> },
+  requested: string | null | undefined,
+): Promise<string> {
+  const seesEveryone = canSeeAllSalespeople(ctx);
+  const self = seesEveryone
+    ? null
+    : await prisma.staffMember.findFirst({
+        where: { userId: ctx.userId },
+        select: { displayName: true },
+      });
+  const salesperson = salespersonForCaller({
+    seesEveryone,
+    requested,
+    selfDisplayName: self?.displayName,
+  });
+  if (!salesperson) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "salesperson is required" });
+  }
+  return salesperson;
+}
 
 const serviceInput = z.object({ goalDays: z.number().optional() }).nullish();
 
@@ -421,9 +448,8 @@ export const reportsRouter = router({
   crossSell: roleProcedure(MANAGER_ADMIN)
     .input(crossSellInput)
     .query(({ input }) => getCrossSell(prisma, input ?? {})),
-  // Tax summary is visible to any signed-in user (matches the legacy page,
-  // which gated on session presence only).
-  taxSummary: protectedProcedure
+  // "View reports", the key of the Tax Summary page.
+  taxSummary: permissionProcedure("reporting.read")
     .input(taxSummaryInput)
     .query(({ input }) => getTaxSummary(prisma, input ?? {})),
   comparativeSales: roleProcedure(MANAGER_ADMIN)
@@ -546,51 +572,26 @@ export const reportsRouter = router({
         endDate: input?.endDate ?? undefined,
       }),
     ),
-  // Visible to any signed-in user (matches the legacy session-only gate).
-  salesPerformance: protectedProcedure
+  // "View reports", the key of the Sales Performance page.
+  salesPerformance: permissionProcedure("reporting.read")
     .input(salesPerformanceInput)
     .query(({ input }) => getSalesPerformance(prisma, input ?? {})),
-  // Managers may request any salesperson; everyone else is scoped to their own
-  // staff record (resolved from the session, never the client input).
-  monthlyPerformance: protectedProcedure
+  // "View reports", the page's key. Holders of "See every salesperson's numbers"
+  // may request any salesperson; everyone else is scoped to their own staff
+  // record (resolved from the session, never the client input).
+  monthlyPerformance: permissionProcedure("reporting.read", WITH_ALL_SALESPEOPLE)
     .input(monthlyPerformanceInput)
     .query(async ({ input, ctx }) => {
-      const isManager = MANAGER_ROLES.has(ctx.tokenRole ?? "");
-      let salesperson = "";
-      if (isManager) {
-        salesperson = input?.salesperson ?? "";
-      } else if (ctx.userId) {
-        const self = await prisma.staffMember.findFirst({
-          where: { userId: ctx.userId },
-          select: { displayName: true },
-        });
-        salesperson = self?.displayName ?? "";
-      }
-      if (!salesperson) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "salesperson is required" });
-      }
+      const salesperson = await salespersonFor(ctx, input?.salesperson);
       return getMonthlyPerformance(prisma, { salesperson, year: input?.year });
     }),
-  // Same role model as monthlyPerformance: managers may request any salesperson;
+  // Same scoping as monthlyPerformance: a holder may request any salesperson;
   // everyone else is scoped to their own staff record (resolved from the
   // session, never the client input).
-  salespersonDetail: protectedProcedure
+  salespersonDetail: permissionProcedure("reporting.read", WITH_ALL_SALESPEOPLE)
     .input(salespersonDetailInput)
     .query(async ({ input, ctx }) => {
-      const isManager = MANAGER_ROLES.has(ctx.tokenRole ?? "");
-      let salesperson = "";
-      if (isManager) {
-        salesperson = input?.salesperson ?? "";
-      } else if (ctx.userId) {
-        const self = await prisma.staffMember.findFirst({
-          where: { userId: ctx.userId },
-          select: { displayName: true },
-        });
-        salesperson = self?.displayName ?? "";
-      }
-      if (!salesperson) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "salesperson is required" });
-      }
+      const salesperson = await salespersonFor(ctx, input?.salesperson);
       return getSalespersonDetail(prisma, { salesperson, year: input?.year });
     }),
   // Sales by salesperson / department / customer. The report lib resolves the
@@ -623,14 +624,14 @@ export const reportsRouter = router({
         canViewCost({ holds: ctx.holds }),
       ),
     ),
-  // Detailed Sales (sales-by-department) breakdown. Visible to any signed-in
-  // user (matches the legacy session-only gate).
-  detailedSales: protectedProcedure
+  // Detailed Sales (sales-by-department) breakdown. "View reports": the key of
+  // the page and of its export route (api/reports/detailed-sales/export).
+  detailedSales: permissionProcedure("reporting.read")
     .input(detailedSalesInput)
     .query(({ input }) => getDetailedSales(prisma, input ?? {})),
   // Drilldown line items for a single Detailed Sales cell. Same gate as the
   // summary above.
-  detailedSalesItems: protectedProcedure
+  detailedSalesItems: permissionProcedure("reporting.read")
     .input(detailedSalesItemsInput)
     .query(({ input }) => getDetailedSalesItems(prisma, input ?? {})),
   // Sales Explorer: two-period comparative pivot by Store / Department /
@@ -757,27 +758,16 @@ export const reportsRouter = router({
           : { startDate: input.p2Start, endDate: input.p2End };
       return getSalesExplorerItems(prisma, { ...filters, startDate, endDate });
     }),
-  // Same role model as monthlyPerformance/salespersonDetail: managers may request
+  // Same scoping as monthlyPerformance/salespersonDetail: a holder may request
   // any salesperson; everyone else is scoped to their own staff record (resolved
   // from the session, never the client input).
   // "View reports", the page's key; the average margin only with "View cost".
-  designerDashboard: permissionProcedure("reporting.read", WITH_COST)
+  designerDashboard: permissionProcedure("reporting.read", {
+    also: [...WITH_COST.also!, ...WITH_ALL_SALESPEOPLE.also!],
+  })
     .input(designerDashboardInput)
     .query(async ({ input, ctx }) => {
-      const isManager = MANAGER_ROLES.has(ctx.tokenRole ?? "");
-      let salesperson = "";
-      if (isManager) {
-        salesperson = input?.salesperson ?? "";
-      } else if (ctx.userId) {
-        const self = await prisma.staffMember.findFirst({
-          where: { userId: ctx.userId },
-          select: { displayName: true },
-        });
-        salesperson = self?.displayName ?? "";
-      }
-      if (!salesperson) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "salesperson is required" });
-      }
+      const salesperson = await salespersonFor(ctx, input?.salesperson);
       return designerDashboardForCaller(
         await getDesignerDashboard(prisma, { salesperson, asOf: input?.asOf ?? undefined }),
         canViewCost({ holds: ctx.holds }),

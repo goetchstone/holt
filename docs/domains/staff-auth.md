@@ -16,7 +16,7 @@ name roles, so the enum has not gone away.
 | `Role`, `RolePermission`, `StaffMember.roleId`                     | Exist, migrated, backfilled                                                                   |
 | Built-in role seed                                                 | Runs on every deploy                                                                          |
 | `requirePermission()` (Pages Router)                               | **216 route files use it**                                                                    |
-| `permissionProcedure()` (tRPC)                                     | **3 procedures** (the reports on View reports); the rest use `roleProcedure(...)`             |
+| `permissionProcedure()` (tRPC)                                     | the reports on View reports, `legacyArchive.search`; the rest use `roleProcedure(...)`        |
 | The other **121** Pages Router API routes                          | Still `requireAuthWithRole([...])` on the enum                                                |
 | Nav                                                                | Derived from permissions (`lib/auth/navPermissions.ts`); the `NavPermission` table is dropped |
 | Page-level `requirePage`, card filtering                           | Still the enum, apart from four pages (see Page-Level Auth)                                   |
@@ -340,6 +340,26 @@ are finished; the Admin hub shows the full list.
 
 The `NavPermission` table is gone — dropped by migration `20260807120000_drop_nav_permission`, along with the `/admin/setup/permissions` page and its `pages/api/admin/permissions` route. Nav is presentation, not enforcement: the viewer's permission keys ride on the NextAuth session as a display convenience, and the grant table read per request by `permissionResolver.ts` is what actually admits a request.
 
+## tRPC procedure manifest (2026-11-18)
+
+`__tests__/trpcProcedureAuthorization.test.ts` is the tRPC twin of
+`apiRouteAuthorization.test.ts` / `apiReadRouteAuthorization.test.ts`. It walks
+the real `appRouter._def.procedures` (nothing is hand-listed) and fails on any
+procedure that is `publicProcedure` or session-only `protectedProcedure` unless
+it is in the test's `ALLOWED` map with a written reason; it also fails on an
+`ALLOWED` entry that no longer exists or is now gated.
+
+To add a procedure: use `permissionProcedure("<key>")` with the key of the screen
+that calls it (that page's `requirePage(undefined, { permission })`, or a sibling
+API route), not a new key. Only a truly self-scoped or public procedure goes in
+`ALLOWED`, saying what makes it safe. `reports.monthlyPerformance` and `reports.salespersonDetail` moved off the
+list on 2026-11-18: they are `reporting.read`, and "pick any salesperson" is the
+permission `reporting.all-salespeople` (default: Manager, Administrator, Owner;
+migration `20261118120000` grants it to an edited Manager/Administrator), read
+through `WITH_ALL_SALESPEOPLE` like `WITH_COST`. It replaced a hardcoded
+MANAGER/ADMIN/SUPER_ADMIN set; known gap as in `inventory.locations.manage`:
+staff whose enum is MANAGER but whose role is another lose it.
+
 ## Page-Level Auth
 
 Every App Router page calls `await requirePage()` (`lib/auth/requirePage.ts`) in its server component. Most gate on a capability via `requirePage(undefined, { permission })`: 176 page files did on 2026-10-29. The rest pass a POSITIONAL role list, `requirePage(["MANAGER", "ADMIN"])`. Which key each page answers to is the page access manifest `PAGE_ACCESS` in `lib/auth/pagePermissions.ts`, one entry per page; `__tests__/pagePermissions.test.ts` fails on a page with no entry, or one whose entry disagrees with the guard the page calls. (This paragraph said "four pages" until 2026-10-29, long after the manifest moved most of them.) Settings → Payment Types (`admin/setup/payment-types`) answers to `admin.settings`, the key its API `/api/tenders` writes with. The purchase-order list and detail pages left their role list (MANAGER/ADMIN/WAREHOUSE) for `purchasing.read` on 2026-10-30 (GAP-01), the key their routes were already on, so a Buyer can open the POs they write. The same day, Receive moved from `purchasing.write` to `purchasing.receive`, the key its receive route uses (`docs/domains/purchasing.md`). `requirePage` resolves through the same `decideRoleAccess`/`resolvePermissionAccess` helpers as the API guards. The bootstrap safeguard skips role enforcement until at least one active signed-in privileged user (SUPER_ADMIN/ADMIN/MANAGER) exists.
@@ -592,6 +612,7 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `lib/auth/endSession.ts` -- every sign-out, and the sign-in screen's check that it held
 - `lib/auth/roleAdmin.ts` -- wire types + serialization shared by the Roles GUI and its API
 - `server/trpc/trpc.ts` -- `roleProcedure` / `permissionProcedure`
+- `__tests__/trpcProcedureAuthorization.test.ts` -- the tRPC manifest (see "tRPC procedure manifest")
 - `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role
 - `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie
 - `pages/api/admin/roles/` -- Roles GUI's REST contract, gated on `staff.manage`
