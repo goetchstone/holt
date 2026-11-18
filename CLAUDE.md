@@ -92,8 +92,13 @@ The highest-consequence cluster in the codebase. Detail and worked examples:
 
 31. **Zero-quantity source rows are cancelled lines.** Every aggregation decides
     explicitly whether to include them. Default: exclude.
-33. **Exclude cancelled lines from every sum and count** —
-    `lineItemStatus: { not: "CANCELLED" }`. No exceptions.
+33. **Exclude cancelled and replaced lines from every sum and count**, through
+    the shared filter, never a literal: `...COUNTED_ITEM_LINE` for revenue,
+    reports and goods, `lineItemStatus: COUNTED_LINE_FILTER` for what a
+    customer owes (`lib/salesOrderRevenue.ts`), and `countedItemLineSql` /
+    `countedLineSql` in raw SQL (`lib/reports/revenueScope.ts`). No
+    exceptions. `{ not: "CANCELLED" }` counts a replaced line and its
+    replacement both (#112).
 39. **PO receiving-status recalculation excludes zero-quantity lines from both
     numerator and denominator** — otherwise a lingering zero-qty line traps a PO
     at `RECEIVED_PARTIAL` forever. Corollary of 31.

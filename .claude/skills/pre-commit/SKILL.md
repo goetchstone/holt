@@ -38,7 +38,10 @@ not duplicated inline on either side.
 If you touched a report, dashboard, or any aggregation over `OrderLineItem`
 or `SalesOrder`:
 
-- Sums/counts over line items filter `lineItemStatus: { not: "CANCELLED" }`.
+- Sums/counts over line items use the shared filter (rule 33):
+  `...COUNTED_ITEM_LINE` for revenue, reports and goods, `COUNTED_LINE_FILTER`
+  for what a customer owes, `countedItemLineSql` / `countedLineSql` in raw SQL.
+  Never `{ not: "CANCELLED" }`, which counts a replaced line twice.
 - Revenue queries over orders use `status: { in: SALES_REVENUE_STATUSES }`
   (includes RETURNED — dropping it double-counts every rewritten sale).
 
