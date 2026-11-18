@@ -30,6 +30,7 @@
 //    — importing it would create a PO for something nobody has placed.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface MarketTimeItem {
   itemNumber: string;
@@ -107,10 +108,6 @@ const MONEY_TAIL = /\d{11,14}[\d,]+\.\d{2}(?:\d*[A-Za-z]+)?\$[\d,]+\.\d{2}$/;
 // settles where the UPC ends.
 const UPC_PRICE_TOTAL = /^(\d{11,14})([\d,]+\.\d{2})(?:\d*[A-Za-z]+)?\$([\d,]+\.\d{2})$/;
 const REST_PRICE_TOTAL = /^([\d,]+\.\d{2})(?:\d*[A-Za-z]+)?\$([\d,]+\.\d{2})$/;
-
-function parseMoney(raw: string): number {
-  return Number.parseFloat(raw.replaceAll(",", ""));
-}
 
 interface PriceParts {
   upc: string;
@@ -255,8 +252,8 @@ function readSummaryLine(line: string, order: MarketTimeOrder, subtotals: number
 
   const su = SKUS_UNITS.exec(line);
   if (su) {
-    order.printedSkus = Number.parseInt(su[1], 10);
-    order.printedUnits = Number.parseInt(su[2], 10);
+    order.printedSkus = finiteInt(su[1]);
+    order.printedUnits = finiteInt(su[2]);
     return true;
   }
 
@@ -296,7 +293,7 @@ function tryConcatenatedItem(line: string): MarketTimeItem | null {
     const prefix = line.slice(0, m.index);
     const q = new RegExp(String.raw`^(\d+)` + upc).exec(prefix);
     if (!q) continue;
-    const qty = Number.parseInt(q[1], 10);
+    const qty = finiteInt(q[1]);
     if (qty <= 0 || Math.abs(unitPrice * qty - lineTotal) > 0.01) continue;
     const { name, availability } = stripAvail(prefix.slice(q[0].length).trim());
     return { itemNumber: upc, name, upc, qty, unitPrice, lineTotal, availability };
@@ -320,7 +317,7 @@ function resolveDeferredNumeric(
     if (!rawHeader.endsWith(upc)) continue;
     const qtyStr = rawHeader.slice(0, rawHeader.length - len);
     if (!/^\d+$/.test(qtyStr)) continue;
-    const qty = Number.parseInt(qtyStr, 10);
+    const qty = finiteInt(qtyStr);
     const unitPrice = parseMoney(rest[1]);
     const lineTotal = parseMoney(rest[2]);
     if (qty <= 0 || Math.abs(unitPrice * qty - lineTotal) > 0.01) continue;
@@ -381,7 +378,7 @@ function readItemLine(line: string, scan: Scan, order: MarketTimeOrder, warnings
   }
   const qi = QTY_ITEM.exec(line);
   if (qi) {
-    scan.pendingQty = Number.parseInt(qi[1], 10);
+    scan.pendingQty = finiteInt(qi[1]);
     scan.pendingItem = qi[2];
     scan.nameLines = [];
     return;
@@ -407,8 +404,7 @@ export function parseMarketTimeOrderText(text: string): MarketTimeOrder {
     warnings,
   };
 
-  const rawLines = text
-    .split("\n")
+  const rawLines = splitLines(text, warnings)
     .map((l) => l.replaceAll(/[\u00a0\u2007\u202f]/gu, " ").trim())
     .filter((l) => l !== "");
 

@@ -598,6 +598,21 @@ away from the store-wide default.
 4. Add vendor name aliases to `resolveVendorKey()` and `productEntryMapping.ts`
 5. Create a vendor runbook in `docs/domains/vendors/{vendor}.md`
 6. If the parser uses `pdf-parse`, ensure it is NOT imported from client-side code
+   **Order-text parsers** (Aesthetic Movement, Beatriz Ball, BrandWise, Frank &
+   Eileen, K&K, MarketTime, Simblist CSV, SuperCat, Wendover) read numbers and lines
+   only through `lib/pricing/parseBoundary.ts` (rule 42): `parseMoney`,
+   `finiteFloat` and `finiteInt` read a non-finite value (a 400-digit run overflows
+   to `Infinity`, which slips past `Math.abs(qty * price - total) > 0.01`) as 0. The
+   line is then accepted as read, at $0, with no line-math warning of its own.
+   `splitLines(text, warnings)` cuts a line to 1000 characters so the
+   quadratic-backtracking regexes see a bounded string, and pushes onto the order's
+   `warnings` when it cut any line or met a number of 300+ digits, so neither is
+   silent. Simblist CSV does not use `splitLines`, so a long CSV cell is read as 0
+   with no warning. Never call `Number.parseFloat`/`parseInt` on upload text in
+   these parsers. `__tests__/fuzz/vendorOrderParsers.fuzz.test.ts` proves both (its
+   `KNOWN_FAILURES` is empty). The older price-book and PDF parsers (Ekornes,
+   Kingsley Bate, nuORDER, Z Supply, ...) are not fuzzed and still call `parseInt`
+   directly; adopting the boundary there is unswept.
 7. Key every lookup built from upload or request text (tier codes, collection
    names, program types) with a `Map`, never `{}`: a plain object drops a key
    named `__proto__`, and reads `constructor` / `toString` back as functions,

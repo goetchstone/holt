@@ -65,7 +65,8 @@ jobs:
     name: Semgrep static analysis
     runs-on: ubuntu-latest
     container:
-      image: semgrep/semgrep
+      # Pinned: bump by taking the newest stable tag and its digest from Docker Hub (semgrep/semgrep), never a canary tag.
+      image: semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -326,8 +327,13 @@ jobs:
 
       - name: Install osv-scanner
         run: |
-          curl -sSL -o /usr/local/bin/osv-scanner \
-            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
+          # Pinned: to bump, set OSV_VERSION to the new release and OSV_SHA256 to its
+          # osv-scanner_linux_amd64 line in that release's osv-scanner_SHA256SUMS.
+          OSV_VERSION=v2.7.1
+          OSV_SHA256=fb7dab19a8bd9bbe5c3189f09d4b7ee1820c9553a23bac202648a56efd2f6ee8
+          curl -sSfL -o /usr/local/bin/osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  /usr/local/bin/osv-scanner" | sha256sum -c -
           chmod +x /usr/local/bin/osv-scanner
           osv-scanner --version
 
@@ -439,10 +445,14 @@ jobs:
         id: scan
         run: |
           set +e
+          # Pinned: bump by taking the newest stable tag and its digest from Docker Hub (aquasec/trivy).
+          # --exit-code 10 makes fixable HIGH/CRITICAL findings exit 10, which no
+          # Trivy failure uses (fatal errors exit 1), so rc tells the two apart.
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD:/repo" \
-            aquasec/trivy:latest image \
+            aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb image \
+              --exit-code 10 \
               --severity HIGH,CRITICAL \
               --ignore-unfixed \
               --format json \
@@ -452,7 +462,7 @@ jobs:
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD:/repo" \
-            aquasec/trivy:latest image \
+            aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb image \
               --severity HIGH,CRITICAL \
               --ignore-unfixed \
               --format table \
@@ -515,10 +525,14 @@ jobs:
             trivy.json
             trivy.txt
 
-      - name: Fail job if HIGH/CRITICAL CVEs found
+      - name: Fail job if the scan found HIGH/CRITICAL CVEs or did not run
         if: steps.scan.outputs.rc != '0'
         run: |
-          echo "Trivy found HIGH/CRITICAL fixable CVEs in the production image."
-          echo "See run summary at top of this page or download 'trivy-findings'."
-          cat trivy.txt 2>/dev/null || true
+          if [ "${{ steps.scan.outputs.rc }}" = "10" ]; then
+            echo "Trivy found HIGH/CRITICAL fixable CVEs in the production image."
+            echo "See run summary at top of this page or download 'trivy-findings'."
+            cat trivy.txt 2>/dev/null || true
+          else
+            echo "::error title=Trivy scan failed::Trivy exited ${{ steps.scan.outputs.rc }}, not 0 (clean) or 10 (findings). This is a tool failure; no verdict on the image."
+          fi
           exit 1

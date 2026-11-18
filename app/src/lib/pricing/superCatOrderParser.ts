@@ -25,6 +25,7 @@
 //    has no "$price$ext" pair and is skipped, not read as an item.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface SuperCatItem {
   itemNumber: string;
@@ -57,10 +58,6 @@ const DATE_TOKEN = /\d{1,2}\/\d{1,2}\/\d{2,4}/g;
 
 // item number + qty + $unit price + $extension + description.
 const ITEM_LINE = /^(.+?)(\d+)\$([\d,]+\.\d{2})\$([\d,]+\.\d{2})(.*)$/;
-
-function parseMoney(raw: string): number {
-  return Number.parseFloat(raw.replaceAll(",", ""));
-}
 
 function readHeader(rawLines: readonly string[], order: SuperCatOrder): void {
   const tableStart = rawLines.findIndex((l) => ITEM_TABLE_HEADER.test(l));
@@ -95,7 +92,7 @@ function readItems(rawLines: readonly string[], order: SuperCatOrder): void {
     const m = ITEM_LINE.exec(line);
     if (!m) continue;
     const itemNumber = m[1].trim();
-    const qty = Number.parseInt(m[2], 10);
+    const qty = finiteInt(m[2]);
     const unitPrice = parseMoney(m[3]);
     const lineTotal = parseMoney(m[4]);
     const name = m[5].trim();
@@ -144,8 +141,7 @@ export function parseSuperCatOrderText(text: string): SuperCatOrder {
     warnings,
   };
 
-  const rawLines = text
-    .split("\n")
+  const rawLines = splitLines(text, warnings)
     .map((l) => l.replaceAll(/[\u00a0\u2007\u202f]/gu, " ").trim())
     .filter((l) => l !== "");
 

@@ -93,7 +93,7 @@ Tracked as an optional cost-saving step; do this if the $5/month budget runs tig
 
 Most of the wall time is the integration tests.
 
-The `pre-pr-check.sh` hook fires before `gh pr create` and verifies:
+The `pre-pr-check.sh` hook fires before `gh pr create` and verifies (the command may follow `;`, `&&`, `||`, `|`, `(` or a newline, and may carry `VAR=value` prefixes such as `GH_TOKEN=$(...)`; `pre-commit-check.sh` matches `git commit` the same way, including `git -C <path> commit`. Both fail closed, so words inside a quoted string can also trigger them. `app/__tests__/hookMatchers.test.ts` pins both matchers):
 
 - `coverage/lcov.info` exists and is newer than the HEAD commit (i.e. tests were re-run since last code change)
 - substantial code under `app/src` changed with a runbook (or CLAUDE.md / ROADMAP.md) touched, OR a commit on the branch carries a `docs-not-needed: <rationale>` marker
@@ -198,7 +198,7 @@ Triggers: `pull_request` to `main`, `push` to `main`, a weekly `schedule`
 | `semgrep-upload` | `always() && needs.semgrep.result != 'skipped'`: runs even when Semgrep failed, since that is when there is a SARIF to publish |
 | `npm-audit` ("npm advisory audit") | None: every trigger. Production dependencies, high or above |
 | `osv-scanner` ("Dependency CVE scan") | None: every trigger. Scans the whole lockfile every time, with the suppressions in `app/osv-scanner.toml` |
-| `trivy` ("Docker image CVE scan (weekly)") | `schedule` or `workflow_dispatch` only: never on a PR |
+| `trivy` ("Docker image CVE scan (weekly)") | `schedule` or `workflow_dispatch` only: never on a PR. Fails the job on fixable HIGH/CRITICAL findings (`--exit-code 10`); any other non-zero exit is reported as a tool failure, not as findings |
 
 ### `scorecard.yml`
 
@@ -278,3 +278,7 @@ Track significant CI changes here as they're made. Initial entries to record whe
 | 2026-10-17 | `ci.yml` runs on push to `main` again, so its README badge reads `main` instead of "no status" |
 | — | Local Sonar gate required before push. **Removed 2026-10-16:** SonarQube, its compose file, gate script and hook block are gone; CodeQL (default setup, required) covers the analysis |
 | — | CI trim: dropped manual CodeQL job, moved Trivy to weekly-only, path-filtered OSV/markdownlint, dropped `Dependency CVE scan` from required-status-checks. Reduced per-PR minutes from ~20 to ~7. **Superseded:** none of the workflows carries a path filter now, and `Dependency CVE scan` is a required check again (2026-10-07 row above), so the ~7 minutes describes a shape that no longer exists. |
+
+### Scanner pins in `security.yml`
+
+The Semgrep container (`semgrep/semgrep:1.185.0`) and the Trivy image (`aquasec/trivy:0.76.2`) are pinned as `tag@sha256:digest`; osv-scanner is installed from a fixed release URL (`v2.7.1`) and its binary is checked against a sha256 taken from that release's `osv-scanner_SHA256SUMS`, which fails the step on mismatch. Each pin carries a bump comment in the workflow. `.github/dependabot.yml` has `docker` for `/app` only (Dockerfile) and `github-actions` for `/`; neither covers a `docker run` image inside a `run:` script, and a job's `container: image:` is not a Dockerfile under `/app` (whether the `github-actions` ecosystem reads it is unverified), so treat these pins as bumped by hand.

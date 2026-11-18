@@ -42,8 +42,7 @@ export function isProductTagKind(value: unknown): value is ProductTagKind {
   return typeof value === "string" && (PRODUCT_TAG_KINDS as readonly string[]).includes(value);
 }
 
-/** Largest number of one tag in a single print. */
-export const MAX_TAG_COPIES = 10;
+export { MAX_TAG_COPIES } from "./tagCopies";
 
 const money = (value: unknown) => (value ? Number(value).toFixed(2) : "0.00");
 

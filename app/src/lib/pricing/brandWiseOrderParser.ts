@@ -32,6 +32,7 @@
 //    own, which is the owner's intent for vendors that carry no UPC.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface BrandWiseItem {
   sku: string;
@@ -67,10 +68,6 @@ const MONEY_LINE = /^(\d+)([A-Za-z]+)([\d,]+\.\d{2})([\d,]+\.\d{2})$/;
 // The same money shape anchored at the END of a line (for the concatenated
 // single-line form). Non-capturing here — the exact split is redone below.
 const MONEY_TAIL = /\d+[A-Za-z]+[\d,]+\.\d{2}[\d,]+\.\d{2}$/;
-
-function parseMoney(raw: string): number {
-  return Number.parseFloat(raw.replaceAll(",", ""));
-}
 
 /** The rep/platform boilerplate and per-line availability that must never be
  *  read as a name or a price. */
@@ -119,7 +116,7 @@ function tryConcatenatedItem(line: string): BrandWiseItem | null {
   if (!skuM) return null;
   const money = /(\d+)([A-Za-z]+)([\d,]+\.\d{2})([\d,]+\.\d{2})$/.exec(line);
   if (!money || money.index === 0) return null;
-  const qty = Number.parseInt(money[1], 10);
+  const qty = finiteInt(money[1]);
   const split = splitMoney(qty, money[3] + money[4]);
   if (!split) return null;
   const sku = skuM[1];
@@ -134,7 +131,7 @@ interface Scan {
 }
 
 function flush(scan: Scan, money: RegExpExecArray, order: BrandWiseOrder): void {
-  const qty = Number.parseInt(money[1], 10);
+  const qty = finiteInt(money[1]);
   const split = splitMoney(qty, money[3] + money[4]);
   if (!split) return;
   order.items.push({
@@ -251,8 +248,7 @@ export function parseBrandWiseOrderText(text: string): BrandWiseOrder {
     warnings,
   };
 
-  const rawLines = text
-    .split("\n")
+  const rawLines = splitLines(text, warnings)
     .map((l) => l.replaceAll(/[\u00a0\u2007\u202f]/gu, " ").trim())
     .filter((l) => l !== "");
 

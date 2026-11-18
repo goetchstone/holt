@@ -138,7 +138,7 @@ There's no automated detection for this pattern on our side — the import has n
 
 ## The Cancelled Line Rule
 
-**Every query that sums line item amounts MUST filter `lineItemStatus: { not: "CANCELLED" }`.** Cancelled lines from orphan cleanup or manual cancellation must never inflate totals.
+**Every query that sums line item amounts MUST use the shared counted-line filter** (`COUNTED_ITEM_LINE` or `COUNTED_LINE_FILTER` in `lib/salesOrderRevenue.ts`, `countedItemLineSql` / `countedLineSql` in raw SQL). Cancelled lines from orphan cleanup or manual cancellation, and replaced lines, must never inflate totals. `{ not: "CANCELLED" }` is not enough: it counts a replaced line and its replacement both (#112).
 
 This is CLAUDE.md rule 33. Do not maintain the enforcing-file list by hand -- the report logic now lives in `src/lib/reports/*` and `__tests__/reports.cancelledLineFilter.test.ts` auto-discovers each file there whose source mentions both `salesOrder` and `lineItems` (`reports.cancelledLineFilter.test.ts:153`), accepting a Prisma clause, a raw-SQL `<>`/`!=` guard, or the shared `buildLineItemWhere` helper. That predicate leaves a hole: a raw-SQL report that never spells `lineItems` -- e.g. `lib/reports/buyersReport.ts`, whose own `lineItemStatus != 'CANCELLED'` guards sit at `buyersReport.ts:325`, `:329` and `:441` -- is never discovered, so nothing fails if its guards are deleted. The same test separately pins `pages/api/reports/factsalesday.ts`, `lib/salesBySalesperson.ts`, `lib/reports/factSalesDay.ts` and `lib/journalEntry.ts`; `__tests__/integration/cancelledLineFilter.integration.test.ts` proves the exclusion against real Postgres.
 
@@ -817,7 +817,7 @@ Landed cost itself is in `docs/domains/purchasing.md`. Tested in
 ## Verification Checklist
 
 - [ ] `npm test -- legacyPosShared` passes (no test file matches `importHelpers`; the status/return/rewrite helpers moved to `legacyPosShared.test.ts`, which also covers the `lib/importHelpers.ts` coercion helpers)
-- [ ] Any line item aggregation filters `lineItemStatus: { not: "CANCELLED" }`
+- [ ] Any line item aggregation uses `COUNTED_ITEM_LINE` / `COUNTED_LINE_FILTER` (rule 33), never `{ not: "CANCELLED" }`
 - [ ] Return detection handles return-prefixed patterns (not just R/CR prefix)
 - [ ] Order rewrite suffixes (`- A`, `- B`) are not mistakenly treated as returns
 - [ ] Invoice import tries rewrite suffixes before base order number

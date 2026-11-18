@@ -463,3 +463,43 @@ is a change to *where* it is enforced, not to *what* it says
   literal the rule printed, so it enforced the copy rather than the fact. **Proposal for the
   improver:** have rule 33 cite `COUNTED_LINE_FILTER` and `countedLineSql` rather than a
   literal, so the rule and the code share one spelling.
+
+### 2026-11-18 — improver pass: rule 33's text now names the shared filter
+
+- **Signal:** the session-start report (9 signals over a threshold of 8 since
+  2026-11-06), read together with a health audit run the same day.
+- **Window:** 8 fix-branch PRs since 2026-11-06 (#104, #107, #112, #116, #117,
+  #119, #121, #122) and the 2026-11-10 ledger entry. This pass read the titles,
+  the 2026-11-10 entry and the audit's per-PR findings; it did not re-read every
+  diff.
+- **Verdicts:**
+  - #112 and the 2026-11-10 entry: **known mode, weak wording** (principles 2 and
+    6). Rule 33 printed the literal that double-counts a replaced line, and two
+    skills and two runbooks repeated it. Changed in this PR: rule 33 names
+    `COUNTED_ITEM_LINE`, `COUNTED_LINE_FILTER`, `countedItemLineSql` and
+    `countedLineSql`, the copies follow, and `countedLineFilter.test.ts` fails
+    when the rule stops naming them, when a named one stops being an export, or
+    when a rule, skill or runbook prints the old filter again. Seen failing on the
+    old CLAUDE.md (2 tests) and the old pre-commit skill (1).
+  - #116: the same shape found on the order screens a day later; covered by the
+    change above and by the source tripwire `#112` added.
+  - #107, #117, #119 (money moving once, the gift-card ledger, payment races) and
+    #121 (several app processes): **not a rules problem**. Each built behaviour
+    that did not exist yet; principles 3 and 8 already name the shapes.
+  - #122 (password and PIN hashes leaving the server in an export): **not a rules
+    problem** in this pass; principle 3's "enumerate the set" covers it and the PR
+    added an allowlist. Worth watching for a second instance.
+  - #104 (overrides): rule 53 held; the fix followed it.
+- **Also found, for a later pass (one change per PR):**
+  - **Known mode, wrong layer:** the pre-PR and pre-commit hooks did not match
+    `GH_TOKEN=… gh pr create` or `git -C … commit`, so their gates were skipped
+    for some sessions. Fixed with a matcher test in goetchstone/holt#127.
+  - **Known mode, wrong layer:** first-draft tests that could not fail, caught
+    only by review (#120, #121, #122). Rule 12 and pre-pr item 10 say a test
+    must fail before the fix; nothing makes the author show it. Candidate:
+    a pre-pr item asking for the mutation (remove the fix, watch it fail) in the
+    PR body, then a hook if that is skipped.
+  - The pre-commit hook's `fix(` block still cannot fire on prose titles, and
+    `FRAMEWORK.md:194` still says it hard-blocks.
+  - `CLAUDE.md`'s "203 files cite rules" and "rule 33 cited 65 times" are stale.
+  - The five contested rule numbers in `RULE-PROVENANCE.md` still await the owner.

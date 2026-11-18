@@ -278,50 +278,10 @@ function moneyLines(result: unknown): MoneyLine[] {
   );
 }
 
-// Properties that currently FAIL, each with the counterexample that shows it.
-// They run as it.skip because lib/pricing/** is not ours to change in this
-// PR; delete the entry once the parser is fixed and the property passes.
-// The shared root cause of every "finite" entry: an amount that overflows to
-// Infinity makes `Math.abs(qty * price - total) > 0.01` compare NaN, which is
-// false, so the line-math check waves it through.
-const KNOWN_FAILURES: Record<string, Partial<Record<"finite" | "slow", string>>> = {
-  "Aesthetic Movement": {
-    finite:
-      'money line "1$<400 nines>.00$<400 nines>.00" after an SKU line -> item with unitPrice = lineTotal = Infinity',
-    // VENDOR /^Vendor:\s*(.+?)\s*$/ and SHIP_DATE backtrack quadratically.
-    slow: '"Vendor: a" + " ".repeat(50000) + "b" takes ~1.0 s; "Earliest Ship Date a" + 50k spaces + "b" ~0.9 s',
-  },
-  SuperCat: {
-    finite: '"Merchandise Subtotal$<400 nines>,0.00" -> printedSubtotal = Infinity',
-    slow: 'a line of 50,000 "9"s takes ~0.9 s',
-  },
-  MarketTime: {
-    finite: 'subtotal line "$<400 nines>.00" before "Sub Total:" -> printedSubtotal = Infinity',
-    slow: 'a line of 50,000 "9"s takes ~3 s',
-  },
-  BrandWise: {
-    finite: '"TOTAL IN US$:" then "<400 nines>.00" -> printedTotal = Infinity',
-    slow: 'its item line "IN-8432Chevron Wood Box- 13"x 6.5"x 3.25"4EA70.00280.00" + 50,000 "9"s takes ~0.85 s',
-  },
-  "Frank & Eileen": {
-    finite:
-      'size row "    1    1    1    1 <400 nines>.00     4   <400 nines>.00" -> items[0].unitPrice = Infinity',
-  },
-  Wendover: {
-    finite: 'price line "3$<400 nines>.00" -> items[0].lineTotal = Infinity',
-  },
-  "K&K": {
-    finite: 'price/UOM line "<400 nines>.00EA" -> orders[0].items[0].unitPrice = Infinity',
-  },
-  "Beatriz Ball": {
-    finite: '"Net Order:<400 nines>.00" -> printedTotal = Infinity',
-    slow: '"1$" + 50,000 "," + "b" takes ~1.0 s',
-  },
-  "Simblist CSV": {
-    finite:
-      'item row "A1,x,2,Infinity,Infinity" (Quantity,Unit Price,Total Price) -> unitPrice Infinity',
-  },
-};
+// Properties that currently FAIL, each with the counterexample that shows it, run
+// as it.skip. Empty: the shared parse boundary (lib/pricing/parseBoundary.ts)
+// now reads non-finite amounts as 0 and cuts a line to MAX_LINE_LENGTH.
+const KNOWN_FAILURES: Record<string, Partial<Record<"finite" | "slow", string>>> = {};
 
 describe.each(CASES)(
   "$name order parser (lib/pricing)",
@@ -334,8 +294,7 @@ describe.each(CASES)(
       );
     });
 
-    const finite = KNOWN_FAILURES[name]?.finite ? it.skip : it;
-    finite("puts only finite numbers in its result", () => {
+    it("puts only finite numbers in its result", () => {
       fc.assert(
         fc.property(documentFor(seed), (text) => {
           for (const [path, n] of numbersIn(parse(text))) {

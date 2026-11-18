@@ -22,6 +22,7 @@
 //    surfaced as a warning, never applied (same doctrine as SuperCat).
 
 import Papa from "papaparse";
+import { finiteFloat, finiteInt } from "./parseBoundary";
 
 export interface SimblistItem {
   itemNumber: string;
@@ -47,7 +48,7 @@ export interface SimblistOrder {
 
 function parseMoney(raw: string | undefined): number {
   if (!raw) return 0;
-  return Number.parseFloat(raw.replaceAll(/[$,]/g, "").trim()) || 0;
+  return finiteFloat(raw.replaceAll(/[$,]/g, "").trim()) || 0;
 }
 
 /** Column-name -> index map from a header row, lower-cased and trimmed. */
@@ -102,7 +103,7 @@ export function parseSimblistCsvText(text: string): SimblistOrder {
     const row = rows[i];
     const itemNumber = cell(row, itemIdx, "Item Number");
     if (!itemNumber) continue;
-    const qty = Number.parseInt(cell(row, itemIdx, "Quantity"), 10);
+    const qty = finiteInt(cell(row, itemIdx, "Quantity"));
     const unitPrice = parseMoney(cell(row, itemIdx, "Unit Price"));
     const lineTotal = parseMoney(cell(row, itemIdx, "Total Price"));
     if (!Number.isFinite(qty) || qty <= 0 || Math.abs(unitPrice * qty - lineTotal) > 0.01) {

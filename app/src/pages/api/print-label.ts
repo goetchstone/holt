@@ -14,8 +14,13 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { LabelSetupError, printLabel, printProductTag } from "@/lib/labelPrinter";
-import { isProductTagKind, MAX_TAG_COPIES } from "@/lib/labels/productTag";
+import {
+  LabelSetupError,
+  printLabel,
+  printProductTag,
+  validateTagCopies,
+} from "@/lib/labelPrinter";
+import { isProductTagKind } from "@/lib/labels/productTag";
 import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
@@ -52,9 +57,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!isProductTagKind(kind)) {
       return res.status(400).json({ error: "kind must be PRODUCT, SALE or LAW." });
     }
-    if (!Number.isInteger(copies) || copies < 1 || copies > MAX_TAG_COPIES) {
-      return res.status(400).json({ error: `copies must be 1 to ${MAX_TAG_COPIES}.` });
-    }
+    validateTagCopies(copies); // a LabelSetupError is a 400 below
     const sent = await printProductTag({
       productId: product,
       kind,

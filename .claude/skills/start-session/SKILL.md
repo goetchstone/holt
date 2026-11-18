@@ -59,7 +59,7 @@ the planned tasks.
 | Local gate (lint, tests, Semgrep, OSV) | `cd app && npm run check:local` |
 | Test DB | `fbc_test_db` only (rule 59) — never a restored or curated database |
 | Structured logging | `logger.info/warn/error` — never `console.*` in `src/` |
-| Cancelled line rule | Every aggregation: `lineItemStatus: { not: "CANCELLED" }` (rule 33) |
+| Counted line rule | Every aggregation: `COUNTED_ITEM_LINE` / `COUNTED_LINE_FILTER`, `countedItemLineSql` in raw SQL; never `{ not: "CANCELLED" }` (rule 33) |
 | Revenue status rule | `status: { in: SALES_REVENUE_STATUSES }` includes RETURNED (rule 47) |
 | Nullable column rule | `OR: [{ col: null }, { col: { not: "X" } }]` (rule 51) |
 | Never push to | `main` directly — branch + PR always |

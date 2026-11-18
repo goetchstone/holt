@@ -240,7 +240,7 @@ This procedure was applied 2026-04-30 to a user-reported April month-to-date dis
 
 ## Verification Checklist
 
-- [ ] Any new report aggregating line items filters `lineItemStatus: { not: "CANCELLED" }`
+- [ ] Any new report aggregating line items uses `...COUNTED_ITEM_LINE` (or `countedItemLineSql` in raw SQL), never `{ not: "CANCELLED" }` (rule 33)
 - [ ] Order status filter includes ORDER, FULFILLED, RETURNED (not QUOTE, CANCELLED)
 - [ ] Non-merchandise partNos excluded from revenue totals
 - [ ] New reports accessible to DESIGNER have the `roles` prop set correctly
@@ -499,11 +499,11 @@ Both add up line totals, so both take `lineItemStatus: COUNTED_LINE_FILTER` (rul
 
 Engine: `lib/reports/unclassifiedReturns.ts` (`getUnclassifiedReturns` / pure `buildUnclassifiedReturnsRows`). Lists every return-shaped line that the journal-entry generator booked on the default-restock assumption — i.e. `resolveReturnBookingPath()` (see `lib/journalEntry.ts` and `docs/domains/accounting.md` "Restock vs. writeoff branching") resolved to `UNCLASSIFIED_DEFAULT_RESTOCK` for that line. Reuses the SAME matching/classification helpers the JE uses, so the report can never disagree with what actually posted.
 
-Scope: `SalesOrder.status = "RETURNED"` within the selected date range (equality on a non-nullable column — matches the convention in `lib/reports/returnsAnalysis.ts`, "a return = a line on a RETURNED SalesOrder"), each line filtered to `lineItemStatus: { not: "CANCELLED" } AND netPrice: { lt: 0 }` (return-shaped lines only).
+Scope: `SalesOrder.status = "RETURNED"` within the selected date range (equality on a non-nullable column — matches the convention in `lib/reports/returnsAnalysis.ts`, "a return = a line on a RETURNED SalesOrder"), each line filtered to `...COUNTED_ITEM_LINE` AND `netPrice: { lt: 0 }` (return-shaped lines only).
 
 The three reporting invariants:
 
-- **Cancelled-line filter (rule 33)**: `lineItems: { where: { lineItemStatus: { not: "CANCELLED" }, netPrice: { lt: 0 } }, ... } }`. `lineItemStatus` is non-nullable in current data (migration `20260505_backfill_lineitem_status_nulls`), so a direct `not:` here is the established safe pattern (same as `lib/journalEntry.ts`'s own line-item query) — not the NULL-trap case.
+- **Counted-line filter (rule 33)**: `lineItems: { where: { ...COUNTED_ITEM_LINE, netPrice: { lt: 0 } }, ... } }` (`lib/reports/unclassifiedReturns.ts:188`). `lineItemStatus` is non-nullable in current data (migration `20260505_backfill_lineitem_status_nulls`), and `COUNTED_ITEM_LINE` is a positive `in` list plus `giftCardNumber: null` (a positive IS NULL match), so neither half is the NULL-trap case (rule 51).
 - **Positive allow-lists, never `not`/`notIn` on nullable columns**: the order-level scope uses `status: "RETURNED"` (positive equality on `SalesOrder.status`, which is non-nullable with a default), not a negated filter. No nullable column in this report is filtered with `not`/`notIn`.
 - **netPrice is the LINE TOTAL**: `amount` is `Math.abs(netPrice)` per line, never multiplied by `orderedQuantity`.
 
