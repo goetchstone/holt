@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import net from "net";
 import type { LabelContext } from "@/lib/labels/renderTemplate";
-import { tagCopiesProblem } from "@/lib/labels/tagCopies";
+import { boundedTagCopies, tagCopiesProblem } from "@/lib/labels/tagCopies";
 import { LabelSetupError, renderProductTag, type ProductTagKind } from "@/lib/labels/productTag";
 
 /**
@@ -13,9 +13,9 @@ import { LabelSetupError, renderProductTag, type ProductTagKind } from "@/lib/la
  * (rule 42); the limit's only home is MAX_TAG_COPIES (rule 6).
  */
 export function validateTagCopies(copies: unknown): number {
-  const problem = tagCopiesProblem(copies);
-  if (problem) throw new LabelSetupError(problem);
-  return copies as number;
+  const bounded = boundedTagCopies(copies);
+  if (bounded === null) throw new LabelSetupError(tagCopiesProblem(copies) ?? "");
+  return bounded;
 }
 
 export { LabelSetupError } from "@/lib/labels/productTag";
