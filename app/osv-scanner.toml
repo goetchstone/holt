@@ -119,3 +119,10 @@ reason = "Prototype poisoning in deepmerge mergeObject() through 4.3.1; no fixed
 id = "GHSA-g3hv-75wg-m249"
 ignoreUntil = 2027-01-31
 reason = "minimatch globParts amplification in firstPhasePreProcess() at optimizationLevel >= 2 (added in minimatch 7.1). Suppressed for 3.1.5 only, the dev copy eslint 9 and its plugins require: its make() (minimatch.js:180-199) has no optimizationLevel or preprocess pass. Every other minimatch in the tree is 11.0.3 (the minimatch@10 override, and glob 14's own ^11). Verified 2026-10-31."
+
+# Added 2026-11-18. Short expiry on purpose: no fixed version exists yet, so
+# re-check on expiry and replace this with an upgrade once one is published.
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2026-12-18
+reason = "ReDoS in picomatch through 4.0.7 on single-branch repeated extglobs such as +(*); no fixed version exists (npm latest is 4.0.7, checked 2026-11-18). Dev-only: `npm ls picomatch --omit=dev` is empty; the copies (2.3.2, 4.0.4) come in through jest (jest-haste-map, jest-util, jest-message-util), eslint-import-resolver-typescript (tinyglobby) and markdownlint-cli2 (micromatch). The glob patterns those tools match come from this repo's own config, never from a request, so there is no attacker-supplied pattern to trigger it."

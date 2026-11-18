@@ -26,6 +26,31 @@ describe("collectEnvProblems", () => {
     );
   });
 
+  it("refuses a placeholder database password in production", () => {
+    const url = "postgresql://u:your-password-here@db:5432/x";
+    const probs = collectEnvProblems({ ...ok, DATABASE_URL: url }, true);
+    expect(probs.map((p) => p.key)).toContain("DATABASE_URL");
+    const pw = collectEnvProblems(
+      { ...ok, POSTGRES_PASSWORD: "your-password-here" } as unknown as NodeJS.ProcessEnv,
+      true,
+    );
+    expect(pw.map((p) => p.key)).toContain("POSTGRES_PASSWORD");
+  });
+
+  it("accepts a real database password in production", () => {
+    const env = {
+      ...ok,
+      DATABASE_URL: "postgresql://u:s3cr3tvalue@db:5432/x",
+      POSTGRES_PASSWORD: "s3cr3tvalue",
+    } as unknown as NodeJS.ProcessEnv;
+    expect(collectEnvProblems(env, true)).toEqual([]);
+  });
+
+  it("does not enforce placeholders outside production", () => {
+    const url = "postgresql://u:your-password-here@db:5432/x";
+    expect(collectEnvProblems({ ...ok, DATABASE_URL: url }, false)).toEqual([]);
+  });
+
   it("flags too-short secrets", () => {
     const keys = collectEnvProblems(
       { ...ok, NEXTAUTH_SECRET: "short", APP_ENCRYPTION_KEY: "tiny" },

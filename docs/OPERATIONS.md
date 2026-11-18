@@ -345,6 +345,8 @@ If requests are slow or timing out without obvious database issues, the connecti
 
 The database runs on host port 5433 (not 5432) to avoid conflicts with any Postgres running natively on the host. Inside Docker, it is port 5432.
 
+The port is bound to `127.0.0.1` only, so it is not reachable from the network. From another machine, open an SSH tunnel first (`ssh -L 5433:127.0.0.1:5433 <server>`) and connect to `localhost:5433` on your own machine.
+
 ```bash
 # From host
 psql -h localhost -p 5433 -U <db-user> -d <db-name>

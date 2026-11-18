@@ -19,6 +19,10 @@
 //
 // Validation is shape-only (presence + length). It never logs secret VALUES.
 
+// Placeholder values shipped in env.example / app/.env.local.example. A
+// production deploy that still carries one has an unchanged, public password.
+const PLACEHOLDER_SECRETS = ["your-password-here"];
+
 export interface EnvProblem {
   key: string;
   message: string;
@@ -59,6 +63,16 @@ export function collectEnvProblems(
   // rule, and only for localhost/127.0.0.1. Pointing it at a real host still
   // fails, so it cannot quietly become "we turned the check off in prod".
   if (isProd) {
+    for (const key of ["DATABASE_URL", "POSTGRES_PASSWORD"]) {
+      const v = env[key];
+      if (v && PLACEHOLDER_SECRETS.some((p) => v.includes(p))) {
+        problems.push({
+          key,
+          message: `${key} still contains a placeholder value from the example env file`,
+        });
+      }
+    }
+
     const url = env.NEXTAUTH_URL;
     const insecureAllowed = env.ALLOW_INSECURE_NEXTAUTH_URL === "true";
     const isLoopback = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url ?? "");

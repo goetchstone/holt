@@ -19,8 +19,15 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
   credential (Stripe, SMTP, ...). Store it in your secret manager / password
   vault. Losing it = re-entering every integration key by hand. It is NEVER
   in a backup (see `docs/SECRETS.md`); re-inject it on every deploy.
-- ☐ Set `TRUST_PROXY=true` (the app sits behind nginx; this makes rate-limit
-  IP attribution use the proxy hop, not a spoofable header).
+- ☑ `TRUST_PROXY=true` is set by `docker-compose.yml` on the `app` service (it
+  is reached only through nginx; this makes rate-limit IP attribution use the
+  proxy hop, not a spoofable header). Set it yourself only if you run the app
+  outside this compose file.
+- ☑ The database port (host 5433, staging 5434) is published on loopback only.
+  To reach it from another machine use an SSH tunnel, e.g.
+  `ssh -L 5433:127.0.0.1:5433 <server>`.
+- ☑ A production start refuses a `DATABASE_URL` or `POSTGRES_PASSWORD` that
+  still holds the example placeholder (`your-password-here`); set real values.
 
 ## 2. TLS / HTTPS  ← the one true go-live blocker
 
@@ -51,7 +58,7 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
   3. Run `./scripts/init-letsencrypt.sh <your-domain> <your-email>` (add
      `--staging` first if you want a dry run against Let's Encrypt's
      rate-limit-free staging environment before spending your real quota).
-  4. Set `NEXTAUTH_URL=https://<your-domain>` and `TRUST_PROXY=true` (§1) —
+  4. Set `NEXTAUTH_URL=https://<your-domain>` (`TRUST_PROXY=true` is already set by compose, §1) —
      confirms `validateEnv.ts`'s https:// check passes and rate-limit IP
      attribution trusts nginx's `X-Real-IP`.
   5. Schedule `./scripts/init-letsencrypt.sh --renew` in cron/Task
