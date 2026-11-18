@@ -38,10 +38,23 @@ if [ "$HAVE_PY" -eq 1 ]; then
   COMMAND="$(printf '%s' "$INPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('tool_input', {}).get('command', ''))" 2>/dev/null || echo "")"
 fi
 
+# Command-position matcher, shared in shape by the pre-pr and pre-commit hooks.
+# A command starts at the beginning, or after ; & | ( or a newline, optionally
+# preceded by shell keywords and VAR=value assignments whose value may be a
+# quoted string or contain $(...). Fails closed: it may also fire when the words
+# sit inside a quoted string; it must never miss a form that really executes.
+SQ="'"
+DQ='"'
+CMD_START="(^|[;&|(][[:space:]]*)((then|else|do|time|exec|command|nohup)[[:space:]]+)*"
+ENV_PREFIX="([A-Za-z_][A-Za-z0-9_]*=([^[:space:]()${DQ}${SQ}]|\\$\\([^)]*\\)|${DQ}[^${DQ}]*${DQ}|${SQ}[^${SQ}]*${SQ})*[[:space:]]+)*"
+GH_PR_CREATE_RE="${CMD_START}${ENV_PREFIX}gh([[:space:]]+(-[^[:space:]]+|[^[:space:]]+/[^[:space:]]+))*[[:space:]]+pr[[:space:]]+create([[:space:];&|)]|\$)"
+
 # Match `gh pr create` invocations only.
-if [ -z "$COMMAND" ] || ! printf '%s' "$COMMAND" | grep -qE '(^|; *| && *)gh pr create'; then
+if [ -z "$COMMAND" ] || ! printf '%s' "$COMMAND" | grep -qE -- "$GH_PR_CREATE_RE"; then
   exit 0
 fi
+# Test seam (app/__tests__/hookMatchers.test.ts): report the match, run nothing.
+[ "${HOLT_HOOK_MATCH_ONLY:-}" = "1" ] && exit 10
 
 # Always surface the checklist as informational stderr.
 {

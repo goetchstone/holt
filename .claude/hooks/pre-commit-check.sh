@@ -35,14 +35,24 @@ if command -v python3 >/dev/null 2>&1; then
   COMMAND="$(printf '%s' "$INPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('tool_input', {}).get('command', ''))" 2>/dev/null || echo "")"
 fi
 
-# Match git commit invocations only. Anchored to a real command position
-# (start-of-string or after a ; && || separator), optionally preceded by
-# env assignments (VAR=value git commit ...). Deliberately NOT "git commit
-# anywhere", which would also match the words inside a quoted string.
-if [ -z "$COMMAND" ] || ! printf '%s' "$COMMAND" \
-  | grep -qE '(^|[;&|][[:space:]]*)([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*git[[:space:]]+commit([[:space:]]|$)'; then
+# Command-position matcher, shared in shape by the pre-pr and pre-commit hooks.
+# A command starts at the beginning, or after ; & | ( or a newline, optionally
+# preceded by shell keywords and VAR=value assignments whose value may be a
+# quoted string or contain $(...). Fails closed: it may also fire when the words
+# sit inside a quoted string; it must never miss a form that really executes.
+SQ="'"
+DQ='"'
+CMD_START="(^|[;&|(][[:space:]]*)((then|else|do|time|exec|command|nohup)[[:space:]]+)*"
+ENV_PREFIX="([A-Za-z_][A-Za-z0-9_]*=([^[:space:]()${DQ}${SQ}]|\\$\\([^)]*\\)|${DQ}[^${DQ}]*${DQ}|${SQ}[^${SQ}]*${SQ})*[[:space:]]+)*"
+GIT_COMMIT_RE="${CMD_START}${ENV_PREFIX}git([[:space:]]+(-[Cc][[:space:]]+(${DQ}[^${DQ}]*${DQ}|${SQ}[^${SQ}]*${SQ}|[^[:space:]]+)|-[^[:space:]]+))*[[:space:]]+commit([[:space:];&|)]|\$)"
+
+# Match git commit invocations only, including `git -C <path> commit` and
+# `git -c k=v commit`. Deliberately NOT "git commit anywhere" unanchored.
+if [ -z "$COMMAND" ] || ! printf '%s' "$COMMAND" | grep -qE -- "$GIT_COMMIT_RE"; then
   exit 0
 fi
+# Test seam (app/__tests__/hookMatchers.test.ts): report the match, run nothing.
+[ "${HOLT_HOOK_MATCH_ONLY:-}" = "1" ] && exit 10
 
 # Extract the commit message if present. Best-effort: -m/-am, either quote
 # style. Falls back to empty (the whole-command grep below still catches

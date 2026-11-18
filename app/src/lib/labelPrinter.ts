@@ -4,7 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import net from "net";
 import type { LabelContext } from "@/lib/labels/renderTemplate";
+import { tagCopiesProblem } from "@/lib/labels/tagCopies";
 import { LabelSetupError, renderProductTag, type ProductTagKind } from "@/lib/labels/productTag";
+
+/**
+ * `copies` as a whole number of tags, 1 to MAX_TAG_COPIES, or a LabelSetupError
+ * saying what was wrong (a 400 to callers). The one guard on every print path
+ * (rule 42); the limit's only home is MAX_TAG_COPIES (rule 6).
+ */
+export function validateTagCopies(copies: unknown): number {
+  const problem = tagCopiesProblem(copies);
+  if (problem) throw new LabelSetupError(problem);
+  return copies as number;
+}
 
 export { LabelSetupError } from "@/lib/labels/productTag";
 
@@ -230,7 +242,8 @@ export async function printProductTag(args: {
   storeName?: string | null;
   copies: number;
 }): Promise<{ printer: string; template: string }> {
-  const { productId, kind, storeName, copies } = args;
+  const { productId, kind, storeName } = args;
+  const copies = validateTagCopies(args.copies);
   const route =
     kind === "PRODUCT"
       ? await resolveRoute(productId, storeName)

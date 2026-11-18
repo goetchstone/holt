@@ -22,6 +22,7 @@
 // the last occurrence for a given order number wins.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface KKOrderItem {
   itemNumber: string;
@@ -57,10 +58,6 @@ const ORDER_HEADER = /^Order Number:\s*(\d+)/;
 const PB_INFO = /PB#INFO \[BUNDORD\],\s*\[\],\[(\d+)\],\[([\d,.]+)\]/;
 const CUSTOMER_PO = /^PON\d+$/;
 const ORDER_DATE_LINE = /^Date:\s+(.+)$/;
-
-function parseMoney(raw: string): number {
-  return Number.parseFloat(raw.replaceAll(",", ""));
-}
 
 interface DescriptionBlock {
   description: string;
@@ -118,7 +115,7 @@ function parseItemBlock(
   }
 
   const requiredDate = dateQtyMatch[1];
-  const qty = Number.parseInt(dateQtyMatch[2], 10);
+  const qty = finiteInt(dateQtyMatch[2]);
 
   // Ship qty (i+3) and B.O. qty (i+4) are fixed positional filler in the
   // block and aren't part of KKOrderItem -- description starts at i+5.
@@ -227,12 +224,10 @@ function consumeLine(lines: readonly string[], index: number, scan: ScanState): 
 }
 
 export function parseKKOrderText(text: string): KKOrderBundle {
-  const lines = text
-    .split("\n")
+  const warnings: string[] = [];
+  const lines = splitLines(text, warnings)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
-
-  const warnings: string[] = [];
   const { customerPo, orderDate } = scanBundleHeader(lines);
   const orderNumbers: string[] = [];
   const orderMap = new Map<string, KKOrder>();

@@ -39,6 +39,7 @@
 //    price.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface WendoverOrderItem {
   sku: string;
@@ -103,10 +104,6 @@ const LABELS: Readonly<Record<string, keyof WendoverOrderItem | "extra">> = {
   "Bottom Mat": "extra",
   Liner: "extra",
 };
-
-function parseMoney(raw: string): number {
-  return Number.parseFloat(raw.replaceAll(",", ""));
-}
 
 /**
  * Collapse the whitespace an HTML-to-PDF print leaves behind. This document
@@ -266,7 +263,7 @@ function consumePrice(match: RegExpExecArray, scan: ScanState, warnings: string[
   if (lead?.trim()) scan.lastText = lead.trim();
 
   const price: PendingPrice = {
-    qty: Number.parseInt(qtyRaw, 10),
+    qty: finiteInt(qtyRaw),
     lineTotal: parseMoney(priceRaw),
   };
   if (scan.current?.qty === 0) {
@@ -325,8 +322,7 @@ export function parseWendoverOrderText(text: string): WendoverOrder {
     warnings,
   };
 
-  const lines = text
-    .split("\n")
+  const lines = splitLines(text, warnings)
     .map(normalizeSpaces)
     .filter((l) => l !== "" && !isFurniture(l));
 

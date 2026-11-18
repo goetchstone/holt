@@ -38,7 +38,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5433:5432"
+      # Loopback only: the database must not be reachable from the network.
+      # Remote access goes through an SSH tunnel (ssh -L 5433:127.0.0.1:5433).
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -143,6 +145,10 @@ services:
       # APP_REPLICAS x PG_POOL_MAX under Postgres's max_connections (100 by
       # default) with room to spare for backups, migrations and psql.
       - PG_POOL_MAX=${PG_POOL_MAX:-10}
+      # The app is reached only through nginx (no published port), so the
+      # client address comes from the proxy's header; without this every
+      # client shares nginx's rate-limit bucket (lib/rateLimit.ts).
+      - TRUST_PROXY=true
     volumes:
       - uploads:/app/data/uploads
       - ./config/service-account.json:/app/config/service-account.json:ro
@@ -264,7 +270,8 @@ services:
       POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:-staging}
       POSTGRES_DB: ${STAGING_POSTGRES_DB:-fbc_staging_db}
     ports:
-      - "5434:5432"
+      # Loopback only, as for db above; use an SSH tunnel for remote access.
+      - "127.0.0.1:5434:5432"
     volumes:
       - pgdata-staging:/var/lib/postgresql/data
     healthcheck:
