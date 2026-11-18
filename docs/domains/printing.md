@@ -72,7 +72,9 @@ ADMIN-only for printer-config CRUD.
 
 ### Batch caps
 
-The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per call); the numbers live in `lib/labels/batchPrintShared.ts`, which the route and the screens share. Beyond that, a screen slices the work into multiple batch calls (`inBatches`), as the Sales screen's "Print all" does; at 10 requests a minute, a run of more than 500 tags is stopped by the rate limit and the screen says how many printed before it. The cap prevents accidentally queuing the entire catalog when a filter glitches.
+**Copies per tag** are bounded in one place: `MAX_TAG_COPIES` (10) and the pure check `tagCopiesProblem`, both in `lib/labels/tagCopies.ts`, enforced by `validateTagCopies` in `lib/labelPrinter.ts`, which `printProductTag` runs before `zpl.repeat(copies)` and both label routes run up front (rule 42). A value that is not a whole number from 1 to 10 (non-integer, NaN, string, 0, negative, too big) is rejected, never clamped: `print-label` answers 400 with the message, and the batch marks that item failed with the same message. Test: `__tests__/labelCopies.test.ts`.
+
+The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per call); the item limit lives in `lib/labels/batchPrintShared.ts`, which the route and the screens share, and the copies limit is `MAX_TAG_COPIES` above. Beyond that, a screen slices the work into multiple batch calls (`inBatches`), as the Sales screen's "Print all" does; at 10 requests a minute, a run of more than 500 tags is stopped by the rate limit and the screen says how many printed before it. The cap prevents accidentally queuing the entire catalog when a filter glitches.
 
 ## HTML print pages
 

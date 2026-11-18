@@ -22,6 +22,7 @@
 // it is dropped and reported in `warnings` so the buyer adds it by hand.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteFloat, finiteInt, splitLines } from "./parseBoundary";
 
 export interface FrankEileenSize {
   size: string;
@@ -72,7 +73,7 @@ function numberTokens(line: string): NumberToken[] {
   const re = /\d+(?:\.\d+)?/g;
   let m;
   while ((m = re.exec(line)) !== null) {
-    tokens.push({ value: Number.parseFloat(m[0]), end: m.index + m[0].length - 1 });
+    tokens.push({ value: finiteFloat(m[0]), end: m.index + m[0].length - 1 });
   }
   return tokens;
 }
@@ -163,8 +164,8 @@ function parseItemBlock(
 }
 
 export function parseFrankEileenText(text: string): FrankEileenOrder {
-  const lines = text.split("\n");
   const warnings: string[] = [];
+  const lines = splitLines(text, warnings);
   const items: FrankEileenLineItem[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -181,8 +182,8 @@ export function parseFrankEileenText(text: string): FrankEileenOrder {
   const headerDates = seasonLine ? (seasonLine.match(DATE) ?? []) : [];
 
   const totalMatch = /Merchandise USD Total\s+(\d+)\s+([\d.]+)/.exec(text);
-  const totalUnits = totalMatch ? Number.parseInt(totalMatch[1], 10) : 0;
-  const totalPrice = totalMatch ? Number.parseFloat(totalMatch[2]) : 0;
+  const totalUnits = totalMatch ? finiteInt(totalMatch[1]) : 0;
+  const totalPrice = totalMatch ? finiteFloat(totalMatch[2]) : 0;
   const parsedUnits = items.reduce((sum, it) => sum + it.totalUnits, 0);
   if (totalMatch && parsedUnits !== totalUnits) {
     warnings.push(

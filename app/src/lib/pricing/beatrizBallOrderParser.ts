@@ -24,6 +24,7 @@
 // 5. A free $0 line (a "Beatriz Ball metal placard") reconciles at 0 and is kept.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface BeatrizBallItem {
   itemCode: string;
@@ -96,10 +97,6 @@ function isBoilerplate(line: string, buyerLines: readonly string[]): boolean {
   return BOILERPLATE_PATTERN.test(line) || /^[\d/,.]+$/.test(line);
 }
 
-function parseMoney(raw: string): number {
-  return Number.parseFloat(raw.replaceAll(",", ""));
-}
-
 interface MoneyTail {
   amount: number;
   msrp: number;
@@ -115,7 +112,7 @@ function splitMoneyTail(rest: string): MoneyTail | null {
   const amount = parseMoney(m[1]);
   const msrp = parseMoney(m[2]);
   const unitPrice = parseMoney(m[3]);
-  const qty = Number.parseInt(m[4], 10);
+  const qty = finiteInt(m[4]);
   if (qty > 0 && Math.abs(unitPrice * qty - amount) < 0.01) {
     return { amount, msrp, unitPrice, qty };
   }
@@ -233,8 +230,7 @@ export function parseBeatrizBallOrderText(
     warnings: [],
   };
 
-  const rawLines = text
-    .split("\n")
+  const rawLines = splitLines(text, order.warnings)
     .map((l) => l.replaceAll(/[\u00a0\u2007\u202f]/gu, " ").trim())
     .filter((l) => l !== "");
 

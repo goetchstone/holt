@@ -22,6 +22,7 @@
 // 3. The vendor prints on a "Vendor: <name>" line, read like MarketTime's MFR.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface AestheticMovementItem {
   sku: string;
@@ -57,10 +58,6 @@ const MONEY_LINE = /^(\d+)\$([\d,]+\.\d{2})\$([\d,]+\.\d{2})$/;
 // A bare UPC line (12-14 digits).
 const UPC_LINE = /^\d{12,14}$/;
 
-function parseMoney(raw: string): number {
-  return Number.parseFloat(raw.replaceAll(",", ""));
-}
-
 interface Scan {
   sku: string | null;
   name: string;
@@ -74,7 +71,7 @@ function reset(scan: Scan): void {
 }
 
 function flush(scan: Scan, money: RegExpExecArray, order: AestheticMovementOrder): void {
-  const qty = Number.parseInt(money[1], 10);
+  const qty = finiteInt(money[1]);
   const unitPrice = parseMoney(money[2]);
   const lineTotal = parseMoney(money[3]);
   if (qty <= 0 || Math.abs(unitPrice * qty - lineTotal) > 0.01) {
@@ -112,9 +109,9 @@ function readHeader(rawLines: readonly string[], order: AestheticMovementOrder):
   const total = firstCapture(rawLines, ORDER_TOTAL);
   if (total !== undefined) order.printedTotal = parseMoney(total);
   const items = firstCapture(rawLines, NUMBER_OF_ITEMS);
-  if (items !== undefined) order.printedItems = Number.parseInt(items, 10);
+  if (items !== undefined) order.printedItems = finiteInt(items);
   const units = firstCapture(rawLines, TOTAL_QUANTITY);
-  if (units !== undefined) order.printedUnits = Number.parseInt(units, 10);
+  if (units !== undefined) order.printedUnits = finiteInt(units);
 }
 
 function readItemLine(line: string, scan: Scan, order: AestheticMovementOrder): void {
@@ -177,8 +174,7 @@ export function parseAestheticMovementOrderText(text: string): AestheticMovement
     warnings,
   };
 
-  const rawLines = text
-    .split("\n")
+  const rawLines = splitLines(text, warnings)
     .map((l) => l.replaceAll(/[\u00a0\u2007\u202f]/gu, " ").trim())
     .filter((l) => l !== "");
 

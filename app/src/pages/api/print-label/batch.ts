@@ -12,15 +12,12 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { printLabel, printProductTag, resolveRoute } from "@/lib/labelPrinter";
+import { printLabel, printProductTag, resolveRoute, validateTagCopies } from "@/lib/labelPrinter";
 import { isProductTagKind, type ProductTagKind } from "@/lib/labels/productTag";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
-import {
-  PRINT_BATCH_MAX_COPIES as MAX_COPIES,
-  PRINT_BATCH_MAX_ITEMS as MAX_BATCH_SIZE,
-} from "@/lib/labels/batchPrintShared";
+import { PRINT_BATCH_MAX_ITEMS as MAX_BATCH_SIZE } from "@/lib/labels/batchPrintShared";
 
 /** Print one item's tags by the mode it asks for; says which printer and template when it chose them. */
 async function printOne(args: {
@@ -95,7 +92,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         continue;
       }
 
-      const clampedCopies = Math.min(Math.max(1, copies), MAX_COPIES);
+      let validCopies: number;
+      try {
+        validCopies = validateTagCopies(copies);
+      } catch (err: unknown) {
+        results.push({ productId, success: false, error: (err as Error).message });
+        continue;
+      }
 
       try {
         results.push({
@@ -107,7 +110,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
             printerId,
             kind,
             storeName: store?.name,
-            copies: clampedCopies,
+            copies: validCopies,
           })),
         });
       } catch (err: unknown) {
