@@ -1,6 +1,6 @@
 // /app/src/pages/api/admin/reports/commission-payouts/drift.ts
 //
-// SUPER_ADMIN-only. Returns drift between live YTD sales and the
+// Needs staff.commission-pay (owner tier). Returns drift between live YTD sales and the
 // frozen ytdSalesAtEnd on every locked CommissionPayout. Powers the
 // "Drift" surface on the Locked Payouts tab so the operator can see
 // which locks were undermined by late-landing returns / rewrites /
@@ -14,12 +14,12 @@
 // Origin: PR #333 follow-up, post-v1 audit 2026-05-27.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { computeLockedPayoutDrift } from "@/lib/commissionDrift";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN"],
+export default requirePermission(
+  "staff.commission-pay",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

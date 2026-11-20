@@ -28,6 +28,27 @@ report, and assigns clients no one owns. Built in for Manager and General Manage
 keeps on a client takes `customer.write` or `sales.lead`, so Warehouse, Dispatch, Installer
 and Marketing can read a customer without it. `docs/domains/sales-orders.md` has the table.
 
+**The owner tier (`OWNER_ONLY_PERMISSIONS`, `lib/auth/permissionCatalog.ts`).**
+The keys SUPER_ADMIN holds through the wildcard and no other built-in role does:
+`admin.impersonate`, and since 2026-11-20 `staff.commission-pay` ("See and run
+commission and pay"). ADMIN's grant list is derived as every key not in that
+set, and the seeder writes it, so the set is the one place the tier is defined
+(`__tests__/permissionCatalog.test.ts` fails if a built-in role other than
+SUPER_ADMIN gains the commission key). `staff.commission-pay` gates the
+Commission and Pay Period Sales screens, their REST and tRPC data, and changing
+a staff member's commission plan (`docs/domains/commission.md`). **Who held
+these before:** the old gates were `requireAuthWithRole(["SUPER_ADMIN"])` and
+`roleProcedure(["SUPER_ADMIN"])`, which match the staff row's `StaffRole` enum
+(`resolveRoleListAccess`), so only an active staff member whose enum is
+SUPER_ADMIN, plus the bootstrap safeguard (no privileged staff yet). **Now:**
+a role holding the key, resolved through the staff row's linked Role (enum
+fallback when `roleId` is NULL): the built-in Owner (wildcard) and any role a
+store grants it to. No data migration is needed. The one difference: a role of
+the store's own marked "grants everything" (`grantsAllPermissions`) now also
+holds it, where it did not satisfy the enum check. Under View as, the key is
+held only when both the viewed role and the real role hold it, so an Owner
+viewing as Administrator is refused, as before.
+
 The first route converted was `POST /api/sales/orders/[id]/refunds`, gated on
 `payment.refund`. It was chosen because the PR #67 audit found it had no
 authorization at all — any signed-in account could refund a card — and it moved
@@ -230,16 +251,16 @@ shipped in `BUILT_IN_ROLES`, asserted item-for-item in `navPermissions.test.ts`;
 a deployment that edits those grants changes the menu, and a disabled feature
 module hides its item on top.
 
-| Role        | Nav Access (from the shipped grants)                                                    | Notes                                                                                                                                                                                                            |
-| ----------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SUPER_ADMIN | Every item                                                                              | Owner-only tier above ADMIN. Sees `/app/admin/reports/commission-tiers` (rate schedule the owner pays per salesperson). Auto-promotes through any ADMIN gate. Holds every permission through the `"*"` wildcard. |
-| ADMIN       | Every item                                                                              | Granted every permission in the catalog EXCEPT `admin.impersonate` — an explicit grant list, not a bypass. Database backup, roles and query builder are ADMIN-gated.                                             |
-| MANAGER     | Sales, Service, Purchasing, Warehouse, Inventory, Reports, Helpdesk, Time, Admin, Tools | Hub page card filtering still applies, and many `/app/admin/*` sub-pages gate on `["ADMIN"]` alone (see Card Filtering below).                                                                                   |
-| DESIGNER    | Sales, Service, Purchasing, Inventory, Reports, Helpdesk, Time, Tools                   | Lands on `/app` like everyone else; the home page shows what its keys allow (see Home page below). On the Reports hub, sees only the 2 cards that carry no `roles` filter.                                       |
-| REGISTER    | Sales, Inventory, Time, Tools                                                           | POS, till, gift cards, returns                                                                                                                                                                                   |
-| WAREHOUSE   | Sales, Service, Purchasing, Warehouse, Inventory, Helpdesk, Time, Tools                 | No Reports, no Admin. Service and Helpdesk are deliberate — WAREHOUSE holds `service.read`/`service.write`.                                                                                                      |
-| MARKETING   | Sales, Reports, Time, Tools                                                             | Holds `customer.read` and not `sales.read`; Sales is there because Customers lives under it.                                                                                                                     |
-| INSTALLER   | Sales, Service, Warehouse, Helpdesk, Time                                               | Used to sign in to an empty menu (no `NavPermission` default existed); its grants now produce one.                                                                                                               |
+| Role        | Nav Access (from the shipped grants)                                                    | Notes                                                                                                                                                                                                                   |
+| ----------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SUPER_ADMIN | Every item                                                                              | Owner-only tier above ADMIN. Sees `/app/admin/reports/commission-tiers` (rate schedule the owner pays per salesperson). Auto-promotes through any ADMIN gate. Holds every permission through the `"*"` wildcard.        |
+| ADMIN       | Every item                                                                              | Granted every permission in the catalog EXCEPT `OWNER_ONLY_PERMISSIONS` (`admin.impersonate`, `staff.commission-pay`) — an explicit grant list, not a bypass. Database backup, roles and query builder are ADMIN-gated. |
+| MANAGER     | Sales, Service, Purchasing, Warehouse, Inventory, Reports, Helpdesk, Time, Admin, Tools | Hub page card filtering still applies, and many `/app/admin/*` sub-pages gate on `["ADMIN"]` alone (see Card Filtering below).                                                                                          |
+| DESIGNER    | Sales, Service, Purchasing, Inventory, Reports, Helpdesk, Time, Tools                   | Lands on `/app` like everyone else; the home page shows what its keys allow (see Home page below). On the Reports hub, sees only the 2 cards that carry no `roles` filter.                                              |
+| REGISTER    | Sales, Inventory, Time, Tools                                                           | POS, till, gift cards, returns                                                                                                                                                                                          |
+| WAREHOUSE   | Sales, Service, Purchasing, Warehouse, Inventory, Helpdesk, Time, Tools                 | No Reports, no Admin. Service and Helpdesk are deliberate — WAREHOUSE holds `service.read`/`service.write`.                                                                                                             |
+| MARKETING   | Sales, Reports, Time, Tools                                                             | Holds `customer.read` and not `sales.read`; Sales is there because Customers lives under it.                                                                                                                            |
+| INSTALLER   | Sales, Service, Warehouse, Helpdesk, Time                                               | Used to sign in to an empty menu (no `NavPermission` default existed); its grants now produce one.                                                                                                                      |
 
 ## Giving someone a role (USE-02, 2026-09-23)
 

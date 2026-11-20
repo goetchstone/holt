@@ -1,6 +1,6 @@
 // /app/src/pages/api/admin/reports/commission-payouts/[id].ts
 //
-// SUPER_ADMIN-only. Operations on one payout:
+// Needs staff.commission-pay (owner tier). Operations on one payout:
 //
 //   - GET    → return payout + its edit history (audit log)
 //   - PATCH  { reason, commissionAmount?, notes?, paidOn?, lockedAt? }
@@ -13,7 +13,7 @@
 // audit comment."
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { editPayout, type PayoutPatch } from "@/lib/runCommissionPayouts";
 import { logError } from "@/lib/logger";
@@ -102,8 +102,8 @@ async function handlePatch(
   }
 }
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN"],
+export default requirePermission(
+  "staff.commission-pay",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const id = Number.parseInt(String(req.query.id), 10);
     if (!Number.isInteger(id) || id <= 0) {

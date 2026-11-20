@@ -2,19 +2,16 @@
 //
 // A designer flags that their pay-period numbers look wrong instead of
 // confirming. Raises a flag on the manager review grid (does NOT lock
-// the period). A manager/SUPER_ADMIN can report on a designer's behalf
+// the period). A staff.commission-pay holder can report on a designer's behalf
 // by passing staffMemberId. No period-ended gate — a designer can flag
 // a problem at any time, including mid-period.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { reportPayPeriodIssue, periodFromStartParam } from "@/lib/payPeriodConfirmationService";
 import { logError } from "@/lib/logger";
-
-const PRIVILEGED_ROLES = new Set(["MANAGER", "ADMIN", "SUPER_ADMIN"]);
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
@@ -24,13 +21,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   if (!session.user) return res.status(401).json({ error: "Unauthorized" });
 
-  // The requireAuthWithRole(["SUPER_ADMIN"]) gate below already enforces
-  // "Tabled 2026-05-29 (owner direction): SUPER_ADMIN-only" off a fresh DB
-  // role, so isPrivileged is always true past the gate -- kept as-is
-  // (unchanged business logic) rather than simplified away.
-  const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
+  // Past the staff.commission-pay gate every caller may act on someone's behalf.
+  // (A role of the store's own carries the DESIGNER enum, so deciding this from
+  // the enum would refuse a holder.)
   const userId = (session.user as { id?: string }).id;
-  const isPrivileged = role !== null && PRIVILEGED_ROLES.has(role);
   const email = session.user.email ?? "unknown";
 
   const period = periodFromStartParam(req.body?.periodStart);
@@ -47,7 +41,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     // Resolve the designer raising the issue. Designer = self.
     // Privileged may pass staffMemberId to flag on someone's behalf.
     let staffMemberId: number | null = null;
-    if (isPrivileged && typeof req.body?.staffMemberId === "number") {
+    if (typeof req.body?.staffMemberId === "number") {
       staffMemberId = req.body.staffMemberId;
     } else if (userId) {
       const self = await prisma.staffMember.findFirst({
@@ -75,6 +69,5 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-// SUPER_ADMIN excluded from the ADMIN bucket deliberately (owner direction,
-// 2026-05-29) -- do not widen to ["ADMIN"], which would also admit ADMIN.
-export default requireAuthWithRole(["SUPER_ADMIN"], handler);
+// Owner tier (owner direction 2026-05-29): ADMIN does not hold this key.
+export default requirePermission("staff.commission-pay", handler);

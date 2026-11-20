@@ -471,6 +471,17 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Edit plans and run payouts.",
     sensitive: true,
   },
+  // Owner tier, like admin.impersonate (OWNER_ONLY_PERMISSIONS): only the Owner
+  // holds it until a store grants it to a role. The old gate on these screens'
+  // data was the enum SUPER_ADMIN alone, so nobody's access changed.
+  {
+    key: "staff.commission-pay",
+    domain: "staff",
+    label: "See and run commission and pay",
+    description:
+      "Open Commission and Pay Period Sales, run and lock payouts, edit commission plans, and assign a staff member's plan. Owner only until a store grants it.",
+    sensitive: true,
+  },
 
   // --- Administration ----------------------------------------------------
   {
@@ -526,6 +537,17 @@ export const PERMISSIONS: PermissionDef[] = [
 ];
 
 export const PERMISSION_KEYS: readonly string[] = PERMISSIONS.map((p) => p.key);
+
+/**
+ * The owner tier: held by SUPER_ADMIN through the wildcard and by no other
+ * built-in role, ADMIN included. ADMIN's grant list is every key except these,
+ * and the seeder writes that list, so it is the one place the tier is defined.
+ * A store may still grant one to a role of its own in Roles.
+ */
+export const OWNER_ONLY_PERMISSIONS: readonly string[] = [
+  "admin.impersonate",
+  "staff.commission-pay",
+];
 
 const PERMISSION_BY_KEY = new Map(PERMISSIONS.map((p) => [p.key, p]));
 
@@ -649,7 +671,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     name: "Administrator",
     description: "Everything except the owner-only tier.",
     rank: 2,
-    permissions: PERMISSIONS.map((p) => p.key).filter((k) => k !== "admin.impersonate"),
+    permissions: PERMISSIONS.map((p) => p.key).filter((k) => !OWNER_ONLY_PERMISSIONS.includes(k)),
   },
   // ── The operating roles ────────────────────────────────────────────────
   //

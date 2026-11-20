@@ -1,0 +1,80 @@
+# Browser page sweep
+
+`app/e2e/` opens every App Router page in a real browser (Chromium, through
+Playwright) and fails on what a person opening it would see go wrong. It runs
+twice, once per seeded account (a Playwright project each):
+
+- **the Owner** (`owner@example.com`), who holds every permission: every page
+  must render at its own address, so any redirect not listed in
+  `e2e/redirects.ts` fails. Without this, a page that refused the account and
+  sent it to `/app` would pass without ever rendering;
+- **the Administrator** (`admin@example.com`): a page that refuses them is
+  skipped as not admitted, and a page that admits them must work. This is how a
+  page gate wider than its data API's gate shows up.
+
+Each run fails on:
+
+- an HTTP status of 400 or more, a bounce to `/auth/login`, or an unlisted
+  redirect;
+- an uncaught client error or a `console.error`;
+- a call to the app's own API (fetch or XHR) answering 400 or more;
+- the error-boundary or not-found screen.
+
+Unit and integration tests never render a page, and `scripts/smoke.sh` fetches
+one. Six PRs, #118 to #124 bar #121, shipped screens that nothing had opened.
+The first runs, on 2026-11-20, found the Leads board 500ing on every load where
+Mailchimp is not set up; four commission and pay screens an Administrator can
+open whose data APIs refuse them; and two data APIs (the Leads board's
+needs-attention strip, consignment receiving gaps) that refuse the Owner because
+they check the staff enum for MANAGER or ADMIN by name.
+
+## Running it
+
+CI runs it in "Setup, build, boot, smoke", against a production build and a
+database `npm run setup` has just seeded. By hand, against a running app:
+
+```bash
+cd app
+DATABASE_URL=<that app's database> BASE_URL=http://localhost:3010 npm run test:pages
+```
+
+`DATABASE_URL` is read only, to find rows for dynamic routes. Sign-in uses
+`SMOKE_OWNER_EMAIL`, `SMOKE_EMAIL` and `SMOKE_PASSWORD` (default: the seeded
+Owner and Administrator, and the demo password), and needs
+`AUTH_LOCAL_ENABLED=true` on the app. `SMOKE_ALL_MODULES=1` switches every
+optional module on first, through the admin settings API: it changes the
+deployment's settings, so use it only on a throwaway database, as CI does.
+
+Point it at a production build (`npm run build && npm start`, or a local
+instance), not `npm run dev`: development mode logs React warnings as console
+errors and compiles each page on first visit.
+
+## What decides what is opened
+
+| File | Role |
+|---|---|
+| `e2e/pageRoutes.ts` | Every page route, read from the `page.tsx` tree, and the module a page requires |
+| `e2e/dynamicRoutes.ts` | For each `[param]` route, how to find a seeded row to open it with, or why it is skipped |
+| `e2e/knownFailures.ts` | Pages found broken and not yet fixed, per account (a ratchet) |
+| `e2e/redirects.ts` | Pages that redirect on purpose, and where to |
+| `e2e/signIn.ts` | Signs both accounts in, records which modules are on |
+
+- A static route is opened as it is.
+- A dynamic route opens the URL its `find` returns. When it returns null, CI fails
+  (the seed is ours, and a page it cannot reach is a page nobody opened); a run
+  against another database skips it and says why.
+- A page whose `requireModule` key is off is skipped and says so.
+- A page in `knownFailures.ts` is marked expected to fail: the run stays green
+  while it fails, and goes red when it passes, so its fix must remove the entry.
+
+`__tests__/e2eDynamicRoutes.test.ts` (unit, rule 65) fails when a dynamic route
+has no entry, an entry names a route that is gone, a skip has no reason, or a
+known failure or redirect names no real page or gives no reason.
+
+## Skipped today, and why
+
+Seven dynamic routes have no seeded row to open (`dynamicRoutes.ts` says which
+model is missing): a buyer-draft buy, a product with an `externalId`, a
+Mailchimp campaign, a DRAFT invoice, a return with a portal token (two routes),
+and the client portal, whose token is a signed JWT rather than a row. Each is a
+seed gap tracked in the local roadmap; closing one turns its skip into a `find`.

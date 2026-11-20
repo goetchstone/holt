@@ -32,8 +32,10 @@ Two gates enforce it, and both fail in **either** direction:
 npm run seed:coverage
 ```
 
-Pass `--without cms` when the CMS seeder did not run (CI seeds `--no-cms`). The
-check reports what it skipped rather than quietly passing.
+Pass `--without cms` when the CMS seeder did not run (`npm run setup -- --no-cms`).
+The check reports what it skipped rather than quietly passing. CI runs `npm run
+setup` with its defaults (demo scale, CMS content) since 2026-11-20, so it checks
+everything; the browser page sweep needs those rows to open every page.
 
 ### Seller states, not just seller rows
 

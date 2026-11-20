@@ -5,11 +5,15 @@ import { prisma } from "@/lib/prisma";
 import axios from "axios";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { mailchimpDatacenter, mailchimpBaseUrl } from "@/lib/mailchimp/baseUrl";
+import {
+  MAILCHIMP_NOT_CONFIGURED,
+  mailchimpBaseUrl,
+  mailchimpDatacenter,
+} from "@/lib/mailchimp/baseUrl";
 
 const MAILCHIMP_API_KEY = process.env.MAILCHIMP_API_KEY || "";
-const DATACENTER = mailchimpDatacenter(MAILCHIMP_API_KEY) ?? "";
-const BASE_URL = mailchimpBaseUrl(DATACENTER);
+const DATACENTER = mailchimpDatacenter(MAILCHIMP_API_KEY);
+const BASE_URL = mailchimpBaseUrl(DATACENTER ?? "");
 
 const authHeader = {
   headers: {
@@ -21,6 +25,7 @@ const RATE_LIMIT_DELAY_MS = 5000;
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
+  if (!DATACENTER) return res.status(400).json({ error: MAILCHIMP_NOT_CONFIGURED });
 
   const full = req.query.full === "true" || req.body?.full === true;
 

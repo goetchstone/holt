@@ -6,6 +6,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import {
+  COMMISSION_PLAN_REFUSED,
+  WITH_COMMISSION_PAY,
+  canSeeCommissionPay,
+  changesCommissionPlan,
+} from "@/lib/auth/commissionPay";
 import { auditActor, auditLog } from "@/lib/audit";
 import {
   DEFAULT_STAFF_ROLE,
@@ -35,7 +42,12 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   return res.json(staff);
 }
 
-async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Session) {
+async function handlePost(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   const { displayName, email, role, roleId, defaultStore, isDesigner } = req.body;
   if (!displayName) return res.status(400).json({ error: "displayName required" });
   // The plans picked on the form (GAP-24). These used to be dropped on create.
@@ -48,6 +60,10 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
     if (req.body[field] === undefined) continue;
     const checked = await resolvePlanAssignment(req.body[field], kind);
     if (!checked.ok) return res.status(400).json({ error: checked.error });
+    // A new member has no plan, so naming one is a change: it needs the key.
+    if (!canSeeCommissionPay(access) && changesCommissionPlan(checked.value, null)) {
+      return res.status(403).json({ error: COMMISSION_PLAN_REFUSED });
+    }
     plans[field] = checked.value;
   }
 
@@ -94,10 +110,15 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
   }
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   if (req.method === "GET") return handleGet(req, res);
-  if (req.method === "POST") return handlePost(req, res, session);
+  if (req.method === "POST") return handlePost(req, res, session, access);
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-export default requirePermission("staff.manage", handler);
+export default requirePermission("staff.manage", handler, WITH_COMMISSION_PAY);

@@ -1,6 +1,6 @@
 // /app/src/pages/api/admin/reports/commission-tiers.ts
 //
-// Commission tier report (live calculator) — SUPER_ADMIN ONLY.
+// Commission tier report (live calculator) — needs staff.commission-pay (owner tier).
 //
 // Marginal-tier model (owner direction 2026-05-19):
 //   Caller supplies a date range. For each designer we compute:
@@ -20,7 +20,7 @@
 // then report "No plan configured" rather than a rate nobody chose.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import {
   calculateMarginalCommission,
@@ -62,8 +62,8 @@ interface Response {
   };
 }
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN"],
+export default requirePermission(
+  "staff.commission-pay",
   async (req: NextApiRequest, res: NextApiResponse<Response | { error: string }>) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

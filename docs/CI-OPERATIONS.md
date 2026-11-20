@@ -184,8 +184,11 @@ docs-only PR runs the full suite).
 - `validate` ("Lint, Typecheck, Format, Test"): install, Prisma generate,
   `npm run validate`, `npm run typecheck:strict`, then the merged unit +
   integration coverage gate against a Postgres service container.
-- `smoke` ("Setup, build, boot, smoke"): `npm run setup`, the migrations-match-
-  schema diff, seed coverage, `npm run build`, boot, `scripts/smoke.sh`.
+- `smoke` ("Setup, build, boot, smoke"): `npm run setup` with its defaults
+  (demo scale, CMS content), the migrations-match-schema diff, seed coverage,
+  the practice-copy drill, `npm run build`, boot, `scripts/smoke.sh`, then the
+  browser page sweep (`npm run test:pages`, `docs/testing/page-sweep.md`) with
+  every optional module switched on. Chromium is installed in the job.
 
 ### `security.yml`
 

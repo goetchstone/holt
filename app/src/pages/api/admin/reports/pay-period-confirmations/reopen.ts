@@ -1,18 +1,18 @@
 // /app/src/pages/api/admin/reports/pay-period-confirmations/reopen.ts
 //
 // Reopen a designer's pay-period confirmation so a correction can be
-// made. MANAGER / ADMIN / SUPER_ADMIN only. `reason` is required —
+// made. Needs staff.commission-pay (owner tier). `reason` is required —
 // the reopen is auditable (reopenedBy + reopenReason on the row).
 // After reopen the attribution lock for that designer+period lifts;
 // re-confirming re-locks.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { reopenPayPeriod } from "@/lib/payPeriodConfirmationService";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN"], // tabled 2026-05-29 — owner-only until management adopts it
+export default requirePermission(
+  "staff.commission-pay",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);
