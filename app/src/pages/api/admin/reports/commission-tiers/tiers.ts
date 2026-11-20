@@ -1,6 +1,6 @@
 // /app/src/pages/api/admin/reports/commission-tiers/tiers.ts
 //
-// SUPER_ADMIN-only CRUD for commission PLANS (named tier sets). Kept at the
+// Needs staff.commission-pay (owner tier). CRUD for commission PLANS (named tier sets). Kept at the
 // legacy tiers path so the commission-tiers page's fetch prefix is unchanged.
 // All validation + persistence lives in @/lib/commissionPlans — this handler
 // only maps HTTP verbs onto those helpers.
@@ -17,7 +17,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
@@ -167,8 +167,8 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse, session: 
   return res.status(200).json({ plans: await listPlans() });
 }
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN"],
+export default requirePermission(
+  "staff.commission-pay",
   async (req: NextApiRequest, res: NextApiResponse, session: Session) => {
     try {
       switch (req.method) {

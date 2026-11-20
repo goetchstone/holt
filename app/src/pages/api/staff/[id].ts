@@ -4,8 +4,16 @@
 // DELETE /api/staff/[id] — soft-delete (set isActive: false)
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { resolvePlanAssignment } from "@/lib/commissionPlans";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import {
+  COMMISSION_PLAN_REFUSED,
+  WITH_COMMISSION_PAY,
+  canSeeCommissionPay,
+  changesCommissionPlan,
+} from "@/lib/auth/commissionPay";
 import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getErrorCode } from "@/lib/errorCode";
@@ -27,8 +35,14 @@ const MEMBER_SELECT = {
 // Staff records (including soft-delete via DELETE) are admin-only. Previously
 // only the role-change branch inside PATCH checked anything -- GET, PATCH of
 // non-role fields, and DELETE (deactivation) were reachable by any signed-in
-// session with no role check at all.
-export default requirePermission("staff.manage", async (req: NextApiRequest, res, session) => {
+// session with no role check at all. Changing a member's commission plan also
+// needs staff.commission-pay (below): the plan assignment is pay data.
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
 
@@ -96,14 +110,38 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
     if (defaultStore !== undefined) data.defaultStore = defaultStore || null;
     if (isActive !== undefined) data.isActive = isActive;
     if (isDesigner !== undefined) data.isDesigner = isDesigner;
+    // A caller without staff.commission-pay may save the form with the plans
+    // the member already has, never change them (the form sends them back as
+    // they were).
+    const mayChangePlans = canSeeCommissionPay(access);
+    const heldPlans =
+      !mayChangePlans &&
+      (commissionPlanId !== undefined || protectionCommissionPlanId !== undefined)
+        ? await prisma.staffMember.findUnique({
+            where: { id },
+            select: { commissionPlanId: true, protectionCommissionPlanId: true },
+          })
+        : null;
     if (commissionPlanId !== undefined) {
       const planPatch = await resolvePlanAssignment(commissionPlanId, "MAIN");
       if (!planPatch.ok) return res.status(400).json({ error: planPatch.error });
+      if (
+        !mayChangePlans &&
+        changesCommissionPlan(planPatch.value, heldPlans?.commissionPlanId ?? null)
+      ) {
+        return res.status(403).json({ error: COMMISSION_PLAN_REFUSED });
+      }
       data.commissionPlanId = planPatch.value;
     }
     if (protectionCommissionPlanId !== undefined) {
       const planPatch = await resolvePlanAssignment(protectionCommissionPlanId, "PROTECTION_PLAN");
       if (!planPatch.ok) return res.status(400).json({ error: planPatch.error });
+      if (
+        !mayChangePlans &&
+        changesCommissionPlan(planPatch.value, heldPlans?.protectionCommissionPlanId ?? null)
+      ) {
+        return res.status(403).json({ error: COMMISSION_PLAN_REFUSED });
+      }
       data.protectionCommissionPlanId = planPatch.value;
     }
 
@@ -185,7 +223,9 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
   }
 
   return res.status(405).json({ error: "Method not allowed" });
-});
+}
+
+export default requirePermission("staff.manage", handler, WITH_COMMISSION_PAY);
 
 /** What changed about what this person can get into. A name or a store isn't that. */
 function staffAccessChanges(

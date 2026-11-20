@@ -8,10 +8,10 @@
   "scripts": {
     "dev": "next dev",
     "setup": "bash scripts/setup.sh",
-    "build": "next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
     "start": "next start",
     "lint": "eslint src/ scripts/",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node --max-old-space-size=6144 ./node_modules/.bin/tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
     "test": "node --max-old-space-size=512 ./node_modules/.bin/jest --selectProjects unit",
@@ -20,6 +20,7 @@
     "test:all": "npm run test:unit && npm run test:integration",
     "test:coverage": "bash scripts/test-coverage.sh",
     "test:coverage:unit": "node --max-old-space-size=1024 ./node_modules/.bin/jest --selectProjects unit --coverage",
+    "test:pages": "playwright test",
     "validate": "npm run lint && npm run typecheck && npm run format:check",
     "security:semgrep": "cd .. && docker run --rm -v \"$(pwd):/src\" semgrep/semgrep semgrep scan --config p/typescript --config p/react --config p/nextjs --config p/nodejs --config p/owasp-top-ten --config p/secrets --severity ERROR --error /src/app/src /src/scripts",
     "security:deps": "cd .. && docker run --rm -v \"$(pwd):/src\" -w /src ghcr.io/google/osv-scanner:latest --config=app/osv-scanner.toml --lockfile=app/package-lock.json --format=table",
@@ -91,6 +92,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/postcss": "^4.3.5",
     "@types/formidable": "^3.5.1",
     "@types/jest": "^30.0.0",

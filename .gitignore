@@ -57,6 +57,10 @@ app/coverage/
 app/coverage-unit/
 app/coverage-int-*/
 app/.nyc_output/
+# Playwright page sweep (app/e2e/): the saved session, failure traces, reports
+app/e2e/.auth/
+app/test-results/
+app/playwright-report/
 /docker-compose.override.yml
 
 # Per-deployment (tenant) content + migration seeds. The white-box product ships

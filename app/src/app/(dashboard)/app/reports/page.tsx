@@ -6,6 +6,7 @@
 // working. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { COMMISSION_PAY } from "@/lib/auth/commissionPay";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 // Monthly Performance + Salesperson Detail are intentionally not surfaced here
@@ -23,14 +24,12 @@ const ITEMS: CardGridItem[] = [
     description:
       "Bi-weekly pay-period statement per designer — order detail, period total, YTD. Confirm/lock + report-an-issue ledger. Split orders credited at each designer's share. CSV export.",
     href: "/app/reports/pay-period-sales",
-    roles: ["SUPER_ADMIN"],
   },
   {
     title: "Commission",
     description:
       "Commission payouts by pay period: locked payouts with their paid dates, drafts to review and lock, and the tier calculator.",
     href: "/app/admin/reports/commission-tiers?tab=locked",
-    roles: ["SUPER_ADMIN"],
   },
   {
     title: "Comparative Sales",
@@ -268,6 +267,12 @@ const ITEMS: CardGridItem[] = [
   },
 ];
 
+// Shown only to a holder of staff.commission-pay, the key their screens gate on.
+const COMMISSION_PAY_CARDS = new Set([
+  "/app/reports/pay-period-sales",
+  "/app/admin/reports/commission-tiers?tab=locked",
+]);
+
 // A store grants this one in Roles, so the card follows the key rather than a role.
 const BUILD_YOUR_OWN: CardGridItem = {
   title: "Build Your Own",
@@ -279,8 +284,11 @@ const BUILD_YOUR_OWN: CardGridItem = {
 export default async function ReportsHubPage() {
   const access = await requirePage(undefined, {
     permission: "reporting.read",
-    also: ["reporting.adhoc"],
+    also: ["reporting.adhoc", COMMISSION_PAY],
   });
-  const items = access.holds["reporting.adhoc"] ? [...ITEMS, BUILD_YOUR_OWN] : ITEMS;
+  const shown = access.holds[COMMISSION_PAY]
+    ? ITEMS
+    : ITEMS.filter((item) => !COMMISSION_PAY_CARDS.has(item.href));
+  const items = access.holds["reporting.adhoc"] ? [...shown, BUILD_YOUR_OWN] : shown;
   return <CardGrid title="Reports" items={items} />;
 }

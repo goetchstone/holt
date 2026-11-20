@@ -1,17 +1,17 @@
 // /app/src/pages/api/admin/reports/pay-period-confirmations/resolve-issue.ts
 //
-// Resolve a pay-period issue a designer flagged (manager / ADMIN /
-// SUPER_ADMIN). Resolving clears the flag from the review grid; the
+// Resolve a pay-period issue a designer flagged (needs
+// staff.commission-pay, the owner tier). Resolving clears the flag from the review grid; the
 // designer can then confirm. Resolution does NOT itself lock the
 // period — confirming does. `resolutionNote` is optional.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { resolvePayPeriodIssue } from "@/lib/payPeriodConfirmationService";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN"], // tabled 2026-05-29 — owner-only until management adopts it
+export default requirePermission(
+  "staff.commission-pay",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

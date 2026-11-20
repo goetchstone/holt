@@ -11,6 +11,7 @@
 
 import {
   BUILT_IN_ROLES,
+  OWNER_ONLY_PERMISSIONS,
   PERMISSIONS,
   PERMISSION_DOMAINS,
   PERMISSION_KEYS,
@@ -113,10 +114,24 @@ describe("built-in roles", () => {
     expect(permissionsForBuiltInRole("SUPER_ADMIN").sort()).toEqual([...PERMISSION_KEYS].sort());
   });
 
-  it("keep impersonation owner-only: ADMIN has everything except that", () => {
+  it("keep the owner tier owner-only: ADMIN has everything except OWNER_ONLY_PERMISSIONS", () => {
     const admin = permissionsForBuiltInRole("ADMIN");
-    expect(admin).not.toContain("admin.impersonate");
-    expect(admin.length).toBe(PERMISSIONS.length - 1);
+    expect(OWNER_ONLY_PERMISSIONS).toEqual(["admin.impersonate", "staff.commission-pay"]);
+    for (const key of OWNER_ONLY_PERMISSIONS) expect(admin).not.toContain(key);
+    expect(admin.length).toBe(PERMISSIONS.length - OWNER_ONLY_PERMISSIONS.length);
+    // Every owner-only key is a real catalog key, and the Owner holds all of them.
+    const owner = permissionsForBuiltInRole("SUPER_ADMIN");
+    for (const key of OWNER_ONLY_PERMISSIONS) {
+      expect(PERMISSION_KEYS).toContain(key);
+      expect(owner).toContain(key);
+    }
+  });
+
+  it("hold the commission-and-pay key for the Owner alone", () => {
+    for (const role of BUILT_IN_ROLES) {
+      const holds = permissionsForBuiltInRole(role.key).includes("staff.commission-pay");
+      expect(holds).toBe(role.key === "SUPER_ADMIN");
+    }
   });
 
   it("withhold refunds from the roles that should not have them", () => {

@@ -1,7 +1,7 @@
 // /app/src/app/(dashboard)/app/reports/pay-period-sales/page.tsx
 //
-// Pay Period Sales — App Router + tRPC port. SUPER_ADMIN-only (tabled per owner
-// direction 2026-05-29 until a deployment adopts it). Per-designer statement +
+// Pay Period Sales — App Router + tRPC port. Needs staff.commission-pay, the
+// owner tier (tabled per owner direction 2026-05-29 until a deployment adopts it). Per-designer statement +
 // manager confirmation grid; confirm / report-issue / reopen / resolve-issue
 // stay REST mutations.
 
@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PayPeriodSalesView } from "./PayPeriodSalesView";
 
 export default async function PayPeriodSalesPage() {
-  await requirePage(undefined, { permission: "reporting.read" });
+  await requirePage(undefined, { permission: "staff.commission-pay" });
   return <PayPeriodSalesView />;
 }
