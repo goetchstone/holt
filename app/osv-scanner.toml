@@ -39,12 +39,12 @@
 [[IgnoredVulns]]
 id = "GHSA-4r6h-8v6p-xvw6"
 ignoreUntil = 2027-01-22
-reason = "Prototype pollution in SheetJS xlsx (CVE-2023-30533), fixed upstream in 0.19.3 per cdn.sheetjs.com/advisories/CVE-2023-30533. package.json:86 and the lockfile install xlsx 0.20.3 from the SheetJS CDN tarball; OSV matches the frozen npm registry package, which has no fixed version. Re-verified 2026-10-22."
+reason = "Prototype pollution in SheetJS xlsx (CVE-2023-30533), fixed upstream in 0.19.3 per cdn.sheetjs.com/advisories/CVE-2023-30533. package.json's xlsx entry and the lockfile's node_modules/xlsx install 0.20.3 from the SheetJS CDN tarball; OSV matches the frozen npm registry package, which has no fixed version. Re-verified 2026-11-20."
 
 [[IgnoredVulns]]
 id = "GHSA-5pgg-2g8v-p4x9"
 ignoreUntil = 2027-01-22
-reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per cdn.sheetjs.com/advisories/CVE-2024-22363. Installed as 0.20.3 from the SheetJS CDN tarball (package.json:86, lockfile resolved URL), as GHSA-4r6h-8v6p-xvw6. Re-verified 2026-10-22."
+reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per cdn.sheetjs.com/advisories/CVE-2024-22363. Installed as 0.20.3 from the SheetJS CDN tarball (package.json's xlsx entry, lockfile resolved URL), as GHSA-4r6h-8v6p-xvw6. Re-verified 2026-11-20."
 
 # Removed 2026-10-24, the advisory itself withdrawn:
 #   GHSA-vfj7-8cjw-p6xm (braces <=3.0.3, dev-only) -- OSV marks it withdrawn
