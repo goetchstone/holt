@@ -6,19 +6,27 @@
 // runbooks cited 47 such paths (the reports REST routes moved to tRPC, pages
 // moved to the App Router, `lib/importRunners.ts` was split).
 //
-// Every backticked file path in docs/domains/*.md must exist, read from the
-// repo root, from app/, or from app/src/. A path kept on purpose (history: the
+// Every backticked file path in docs/domains/*.md must be a tracked file, by
+// its exact name, read from the repo root, from app/, or from app/src/. A path kept on purpose (history: the
 // file was removed, and the sentence says so) is listed in
 // fixtures/runbook-dead-paths.txt with a reason. The check fails in both
 // directions: a dead path not listed, and a listed path that now resolves or
 // is no longer cited.
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(__dirname, "..", "..");
 const DOMAINS = join(ROOT, "docs", "domains");
 const ALLOW = join(__dirname, "fixtures", "runbook-dead-paths.txt");
+
+/** Tracked files, by exact name. `existsSync` is no test on macOS, whose
+ *  filesystem ignores case: it passed `backfill-from-POS.ts` for the file
+ *  `backfill-from-pos.ts`, and only CI's Linux runner disagreed. */
+const TRACKED = new Set(
+  execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" }).split("\n"),
+);
 
 const SPAN = /`([^`\s]+)`/g;
 const PATH =
@@ -32,9 +40,7 @@ function citedPaths(): Map<string, boolean> {
     for (const [, span] of text.matchAll(SPAN)) {
       const path = span.split(":")[0].replace(/[.,]+$/, "");
       if (path.includes("*") || !PATH.test(path)) continue;
-      const exists = [path, `app/${path}`, `app/src/${path}`].some((p) =>
-        existsSync(join(ROOT, p)),
-      );
+      const exists = [path, `app/${path}`, `app/src/${path}`].some((p) => TRACKED.has(p));
       cited.set(`${name}|${path}`, exists);
     }
   }
