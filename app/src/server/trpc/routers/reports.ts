@@ -106,8 +106,6 @@ const MANAGER_ADMIN = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
 // Pipeline opportunity (list + drilldown): mirrors the legacy
 // requireAuthWithRole(["MANAGER", "ADMIN"]) gate on both Pages endpoints.
 const PIPELINE_ROLES = ["MANAGER", "ADMIN"];
-// Commission + pay-period surfaces: tabled to SUPER_ADMIN until adopted.
-const SUPER_ADMIN_ONLY = ["SUPER_ADMIN"];
 // Opportunities hub: counts visible to managers; drilldown (with wealth) is
 // MARKETING/ADMIN only.
 const OPP_TILE_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "MARKETING"];
@@ -809,10 +807,10 @@ export const reportsRouter = router({
         .nullish(),
     )
     .query(({ input }) => getWealthInsights(prisma, input ?? {})),
-  // Per-designer pay-period sales statement. Tabled to SUPER_ADMIN — the picker
-  // is the only path, so the designer is resolved from the client's
+  // Per-designer pay-period sales statement. Owner tier (staff.commission-pay) —
+  // the picker is the only path, so the designer is resolved from the client's
   // staffMemberId. Confirm / report-issue stay REST mutations.
-  payPeriodSales: roleProcedure(SUPER_ADMIN_ONLY)
+  payPeriodSales: permissionProcedure("staff.commission-pay")
     .input(payPeriodSalesInput)
     .query(({ input }) =>
       getPayPeriodSales(prisma, {
@@ -820,9 +818,9 @@ export const reportsRouter = router({
         staffMemberId: input?.staffMemberId,
       }),
     ),
-  // Manager confirmation-status grid for a period. Same SUPER_ADMIN gate; the
+  // Manager confirmation-status grid for a period. Same gate; the
   // reopen / resolve-issue actions stay REST mutations.
-  payPeriodConfirmations: roleProcedure(SUPER_ADMIN_ONLY)
+  payPeriodConfirmations: permissionProcedure("staff.commission-pay")
     .input(payPeriodConfirmationsInput)
     .query(async ({ input }) => {
       try {

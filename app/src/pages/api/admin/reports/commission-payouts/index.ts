@@ -1,6 +1,6 @@
 // /app/src/pages/api/admin/reports/commission-payouts/index.ts
 //
-// SUPER_ADMIN-only. Two POST flows + one GET:
+// Needs staff.commission-pay (owner tier). Two POST flows + one GET:
 //
 //   - POST ?action=preview { startDate, endDate }
 //     Returns computed drafts (no DB write). Powers the "Generate
@@ -18,7 +18,7 @@
 // Origin: owner direction 2026-05-27.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditLog } from "@/lib/audit";
 import {
   previewPayoutsForPeriod,
@@ -175,8 +175,8 @@ async function handleCommit(req: NextApiRequest, res: NextApiResponse, actorEmai
   }
 }
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN"],
+export default requirePermission(
+  "staff.commission-pay",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const actorEmail = session?.user?.email || "unknown";
 

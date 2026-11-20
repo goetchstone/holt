@@ -658,7 +658,9 @@ function SetPasswordModal({
   );
 }
 
-export function StaffView() {
+export function StaffView({
+  canAssignCommissionPlans,
+}: Readonly<{ canAssignCommissionPlans: boolean }>) {
   const { effectiveRole } = useEffectiveRole();
   const isAdmin = effectiveRole === "ADMIN" || effectiveRole === "SUPER_ADMIN";
 
@@ -681,12 +683,14 @@ export function StaffView() {
   const [pwValue, setPwValue] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
 
-  // Commission plans for the assignment dropdown. The endpoint is
-  // SUPER_ADMIN-only while this page also renders for MANAGER/ADMIN, so a
-  // 401/403 (or any failure) keeps this null and the dropdown stays hidden.
+  // Commission plans for the assignment dropdown. The endpoint needs
+  // staff.commission-pay, which this page does not (the server page says whether
+  // the viewer holds it), so without it nothing is asked and the dropdown stays
+  // hidden; any failure also keeps this null.
   const [commissionPlans, setCommissionPlans] = useState<CommissionPlanOption[] | null>(null);
 
   useEffect(() => {
+    if (!canAssignCommissionPlans) return;
     let cancelled = false;
     const loadPlans = async () => {
       try {
@@ -706,7 +710,7 @@ export function StaffView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canAssignCommissionPlans]);
 
   // Every role, built-in and custom. Same failure shape as the plans above: no
   // list, no select (and the server still applies the default on create).

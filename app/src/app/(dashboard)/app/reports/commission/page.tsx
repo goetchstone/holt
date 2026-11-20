@@ -10,6 +10,6 @@ import { redirect } from "next/navigation";
 import { requirePage } from "@/lib/auth/requirePage";
 
 export default async function CommissionPage() {
-  await requirePage(undefined, { permission: "admin.settings" });
+  await requirePage(undefined, { permission: "staff.commission-pay" });
   redirect("/app/admin/reports/commission-tiers?tab=locked");
 }

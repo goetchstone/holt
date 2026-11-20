@@ -1,13 +1,40 @@
 # Commission Payouts
 
 Owner-confidential. Every COMMISSION page and endpoint described here is
-gated to **SUPER_ADMIN** at both the API layer (`requireAuthWithRole(["SUPER_ADMIN"], …)`
-on REST routes, `roleProcedure(SUPER_ADMIN_ONLY)` on tRPC procedures) and the
-UI layer (`requirePage(["SUPER_ADMIN"])` on App Router pages).
+gated on one owner-tier permission, **`staff.commission-pay`** ("See and run
+commission and pay", 2026-11-20), at every layer: `requirePermission` on the
+REST routes, `permissionProcedure` on the tRPC procedures, and
+`requirePage(undefined, { permission })` on the App Router pages. It is in
+`OWNER_ONLY_PERMISSIONS` (`lib/auth/permissionCatalog.ts`): the Owner
+(SUPER_ADMIN, by wildcard) holds it and no other built-in role does,
+Administrator included; a store may grant it to a role of its own in
+Roles. It replaced `requireAuthWithRole(["SUPER_ADMIN"])` /
+`roleProcedure(SUPER_ADMIN_ONLY)`, which let a screen render for an
+Administrator (page keys `admin.settings` / `reporting.read`) while every data
+call was refused. Do not confuse it with `staff.commission` ("Run commission",
+held by Manager and others; it gates only `api/admin/sales/goals.ts`).
 
-Two surfaces described below are the exception, and deliberately so: plan
-assignment and the `isDesigner` toggle live on the MANAGER/ADMIN staff-admin
-page, which carries a plan id but never a rate, a tier or a payout figure.
+Gated by the key: `api/admin/reports/commission-payouts/{index,[id],drift}`,
+`commission-tiers` and `commission-tiers/tiers`,
+`pay-period-confirmations/{reopen,resolve-issue}`,
+`api/reports/pay-period-sales/{confirm,report-issue}`,
+`reports.payPeriodSales` and `reports.payPeriodConfirmations`, and the pages
+`/app/reports/commission`, `/app/admin/reports/commission-tiers` and
+`/app/reports/pay-period-sales` (`PAGE_ACCESS` in `lib/auth/pagePermissions.ts`).
+The Reports hub shows the Pay Period Sales and Commission cards only to a
+holder (`reports/page.tsx`, from `requirePage({ also })`).
+
+One surface is the exception, and deliberately so: plan assignment and the
+`isDesigner` toggle live on the `staff.manage` staff-admin page, which carries
+a plan id but never a rate, a tier or a payout figure. The plan picker is
+fetched and shown only to a holder of the key (the server page passes
+`canAssignCommissionPlans` to `StaffView`), and the write needs it as well:
+`POST /api/staff` and `PATCH /api/staff/[id]` answer 403 ("Changing a
+commission plan needs the 'See and run commission and pay' permission.") to a
+caller without the key who names a plan other than the one the member has
+(`lib/auth/commissionPay.ts:changesCommissionPlan`; saving the form with the
+unchanged plan is never refused). Tests:
+`__tests__/integration/commissionPayGate.integration.test.ts`.
 
 Origin: owner direction 2026-05-27 — replace hand-maintained commission
 spreadsheets with a lockable payout ledger (date range, sales, YTD, tier,
@@ -533,7 +560,7 @@ inside the DB, not a user-facing operation).
 | `app/prisma/schema.prisma`                                                                        | Each model carries its own doc comment (`model CommissionPayout` at schema.prisma:4356, `model CommissionPayoutEdit` at 4430).                                                                                                                                                                                         |
 | `app/prisma/migrations/0_init/migration.sql`                                                      | Schema + indexes (squashed baseline).                                                                                                                                                                                                                                                                                  |
 | `app/src/lib/commissionTiers.ts`                                                                  | Pre-existing. `calculateMarginalCommission()` + `resolveTier()` do the slice-by-slice math. Now reached only from the Live Calculator endpoint (and the dead `computePayoutForRange`) — payout generation goes through the rule engine. Also holds `DEFAULT_COMMISSION_TIERS`, which no request path reads.            |
-| `app/src/lib/commissionSales.ts`                                                                  | Pre-existing (extracted from the live-preview endpoint). `sumDesignerSales(staffId, matchNames, from, toExclusive)` — shared between live and locked. Aliases + FK + the POS-string OR; a split at the designer's share (`creditShare`); ORDER/FULFILLED/RETURNED.                                                                                     |
+| `app/src/lib/commissionSales.ts`                                                                  | Pre-existing (extracted from the live-preview endpoint). `sumDesignerSales(staffId, matchNames, from, toExclusive)` — shared between live and locked. Aliases + FK + the POS-string OR; a split at the designer's share (`creditShare`); ORDER/FULFILLED/RETURNED.                                                     |
 | `app/src/lib/commissionPayout.ts`                                                                 | Pure snapshot builders. `computeRulePayoutForRange(input)` is the live one — preview and commit both go through it (`runCommissionPayouts.ts:244`). `computePayoutForRange(input)` is the pre-Stage-1 helper and has NO production callers; only `__tests__/commissionPayout.test.ts` still calls it.                  |
 | `app/src/lib/runCommissionPayouts.ts`                                                             | Orchestrator. Three entry points: `previewPayoutsForPeriod`, `commitPayoutsForPeriod`, `editPayout`. **Chain continuity**: when a prior LOCKED payout exists for the same designer with `periodEnd < periodStart`, this period's `ytdAtStart` reads from THAT row's frozen `ytdSalesAtEnd`, not from a live recompute. |
 | `app/src/lib/commissionDrift.ts`                                                                  | `computeLockedPayoutDrift({staffMemberId?, includeClean?})` — for each locked payout, compares the frozen `ytdSalesAtEnd` against a live recompute. Non-zero results are surfaced on the UI Drift banner so SUPER_ADMIN can decide whether to claw back via edit or accept the variance.                               |
@@ -542,7 +569,7 @@ inside the DB, not a user-facing operation).
 | `app/src/pages/api/admin/reports/commission-payouts/[id].ts`                                      | GET (single + audit log) + PATCH (edit-with-audit).                                                                                                                                                                                                                                                                    |
 | `app/src/pages/api/admin/reports/commission-payouts/drift.ts`                                     | GET — returns drift rows for every locked payout (or one designer's). SUPER_ADMIN only.                                                                                                                                                                                                                                |
 | `app/src/components/commission/PayoutsTab.tsx`                                                    | UI for BOTH the Draft Payouts and Locked Payouts tabs (`view="drafts"` / `view="locked"`) — pay-period picker, generate flow, preview panel, payout history table, expandable rows, edit drawer, and (locked view only) **DriftBanner** (quiet when clean, loud-red when not).                                         |
-| `app/src/app/(dashboard)/app/admin/reports/commission-tiers/page.tsx` + `CommissionTiersView.tsx` | App Router page (`requirePage(["SUPER_ADMIN"])`) + the client view holding the three-tab switcher, the live-calculator content, and the plans manager.                                                                                                                                                                 |
+| `app/src/app/(dashboard)/app/admin/reports/commission-tiers/page.tsx` + `CommissionTiersView.tsx` | App Router page (`requirePage(undefined, { permission: "staff.commission-pay" })`) + the client view holding the three-tab switcher, the live-calculator content, and the plans manager.                                                                                                                               |
 | `app/__tests__/commissionPayout.test.ts`                                                          | 6 pure unit tests for `computePayoutForRange`.                                                                                                                                                                                                                                                                         |
 | `app/__tests__/integration/runCommissionPayouts.integration.test.ts`                              | 28 real-DB tests covering preview + commit + edit + lock semantics + chain continuity (5 scenarios: late-return inside next period, late-return inside locked period, no-prior-lock fallback, ignores-DRAFT, year-boundary reset) + the pay-period overlap guard (6 scenarios).                                        |
 | `app/__tests__/integration/commissionDrift.integration.test.ts`                                   | 8 real-DB tests covering drift detection (no-lock empty, no-drift empty, late-return-inside-period flagged, cancellation flagged, backdated-sale positive drift, designer filter, includeClean, DRAFT-rows-ignored).                                                                                                   |
@@ -732,7 +759,7 @@ up the new data. Locked rows stay frozen.
 Before changing any commission-payout code:
 
 - [ ] Read this file + `staff-auth.md` (SUPER_ADMIN gating)
-- [ ] Confirm `requireAuthWithRole(["SUPER_ADMIN"], …)` is on every REST endpoint touched, and `roleProcedure(SUPER_ADMIN_ONLY)` on every tRPC procedure touched
+- [ ] Confirm `requirePermission("staff.commission-pay", …)` is on every REST endpoint touched, and `permissionProcedure("staff.commission-pay")` on every tRPC procedure touched
 - [ ] If touching the math, the same diff must update both `commissionPayout.test.ts` (pure) AND `runCommissionPayouts.integration.test.ts` (real-DB)
 - [ ] Edit-with-audit invariants: `reason` empty → 400; every changed field → one `CommissionPayoutEdit` row; no-op edit → 0 audit rows + no row mutation
 - [ ] Lock semantics: re-commit on locked row SKIPs without overwriting; lock/unlock both write audit rows; lockedBy follows editedBy on every lock transition
@@ -964,7 +991,7 @@ Indexes on `(staffMemberId, periodStart, periodEnd)` and `(resolvedAt)`. No uniq
 
 - `lib/payPeriodIssue.ts` — pure helpers (`isIssueOpen`, `findOpenIssue`, `summarizeOpenIssues`); unit-tested in `__tests__/payPeriodIssue.test.ts`.
 - `lib/payPeriodConfirmationService.ts` — `reportPayPeriodIssue`, `resolvePayPeriodIssue`, `getOpenIssueSummary`; `listPeriodConfirmationStatus` extended to attach `openIssue` per row and gate `readyForReview` on zero open issues.
-- `pages/api/reports/pay-period-sales/report-issue.ts` (designer, self or privileged-on-behalf), `pages/api/admin/reports/pay-period-confirmations/resolve-issue.ts`. Both are gated `requireAuthWithRole(["SUPER_ADMIN"])` today — `report-issue.ts`'s privileged-on-behalf branch is unreachable past that gate, and `resolve-issue.ts` has no role branch at all (only the gate; its header comment still describes the intended manager/ADMIN audience).
+- `pages/api/reports/pay-period-sales/report-issue.ts` (designer, self or privileged-on-behalf), `pages/api/admin/reports/pay-period-confirmations/resolve-issue.ts`. Both are gated `requirePermission("staff.commission-pay")` (2026-11-20; `report-issue.ts` and `confirm.ts` treat every caller past the gate as privileged, so they may pass `staffMemberId`, where the old enum test would have refused a holder whose own role carries the DESIGNER enum). `resolve-issue.ts` has no role branch at all (only the gate).
 - Real-DB test: `__tests__/integration/payPeriodIssue.integration.test.ts` (report idempotency, grid surfacing + ready-for-review block, resolve clears).
 
 ### Team scope (deferred)
@@ -977,13 +1004,13 @@ Built 2026-05-29 as a manager view-only surface, re-gated to SUPER_ADMIN the sam
 day, and **folded into Commission on 2026-10-17** (owner decision). It was a
 read-only copy of Commission -> Locked Payouts with less in it: designers only,
 no date range, no drafts, no paid-date editing, no breakdown or drift. Its page
-gate (`reporting.read`) and its tRPC procedure (`SUPER_ADMIN_ONLY`) also
+gate (`reporting.read`) and its tRPC procedure (SUPER_ADMIN only) also
 disagreed, so a manager reached a page that read "No locked commission payouts
 yet" whatever was locked.
 
 - **Reports -> Commission** (SUPER_ADMIN, the card that was "Team Commission")
   opens `/app/admin/reports/commission-tiers?tab=locked`. That page is no longer
-  direct-URL-only; it is still owner-only (`admin.settings`). `?tab=` takes
+  direct-URL-only; it is still owner-only (`staff.commission-pay`). `?tab=` takes
   `drafts`, `locked` or `calculator`.
 - **`/app/reports/commission`** is kept as a redirect to the same place, so a
   bookmark still lands. `CommissionView.tsx`, the tRPC `reports.commissionPayouts`
@@ -998,9 +1025,9 @@ yet" whatever was locked.
   sold -- the run makes them active for exactly those periods, because
   `commitPayoutsForPeriod` pays only active staff.
 
-### Pay-period statement + confirm/issue ledger — also TABLED (SUPER_ADMIN-only)
+### Pay-period statement + confirm/issue ledger — also TABLED (owner tier)
 
-The whole pay-period statement surface (`/app/reports/pay-period-sales`, the confirm/lock + report-an-issue ledger, and the manager confirmation grid) is **SUPER_ADMIN-only as of 2026-05-29** — page AND every read/write path. The statement read is the tRPC procedure `reports.payPeriodSales` and the manager confirmation grid is the separate tRPC procedure `reports.payPeriodConfirmations` (both `roleProcedure(SUPER_ADMIN_ONLY)`); the mutations stay REST and are each `requireAuthWithRole(["SUPER_ADMIN"])`: `pay-period-sales/{confirm,report-issue}` and `pay-period-confirmations/{reopen,resolve-issue}`. There is no `pay-period-confirmations/index` endpoint. Hidden until a deployment opts to roll it out.
+The whole pay-period statement surface (`/app/reports/pay-period-sales`, the confirm/lock + report-an-issue ledger, and the manager confirmation grid) is **owner-tier as of 2026-05-29** — page AND every read/write path — and since 2026-11-20 that tier is the key `staff.commission-pay` rather than the enum. The statement read is the tRPC procedure `reports.payPeriodSales` and the manager confirmation grid is the separate tRPC procedure `reports.payPeriodConfirmations` (both `permissionProcedure("staff.commission-pay")`); the mutations stay REST and are each `requirePermission("staff.commission-pay")`: `pay-period-sales/{confirm,report-issue}` and `pay-period-confirmations/{reopen,resolve-issue}`. There is no `pay-period-confirmations/index` endpoint. Hidden until a deployment opts to roll it out.
 
 **The attribution-LOCK enforcement is unaffected** — `runSalesImport`'s preserve, the reassignment guards, and `backfillSalesPersonFk`'s skip all still honor any ACTIVE `PayPeriodConfirmation` regardless of who can view the report. In practice no NEW confirmations form while tabled (only SUPER_ADMIN can confirm), but any that already exist keep enforcing. Restoring the report is a `roles` widen on the pages + endpoints — no data/migration change.
 

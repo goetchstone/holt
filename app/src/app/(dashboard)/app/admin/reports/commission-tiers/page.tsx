@@ -1,8 +1,8 @@
 // /app/src/app/(dashboard)/app/admin/reports/commission-tiers/page.tsx
 //
-// Commission -- SUPER_ADMIN ONLY. App Router page-only port of the legacy
+// Commission -- needs staff.commission-pay (owner tier). App Router page-only port of the legacy
 // admin/reports/commission-tiers. Owner-confidential: reached from Reports ->
-// Commission, which is shown to the owner alone and opens the Locked tab
+// Commission, which is shown to holders of that key and opens the Locked tab
 // (?tab=locked). Reads the shared /api/admin/reports/commission-tiers REST
 // endpoints, which stay REST.
 
@@ -15,7 +15,7 @@ export default async function CommissionTiersPage({
 }: {
   searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  await requirePage(undefined, { permission: "admin.settings" });
+  await requirePage(undefined, { permission: "staff.commission-pay" });
   const { tab } = await searchParams;
   return <CommissionTiersView initialTab={commissionTabFrom(tab)} />;
 }

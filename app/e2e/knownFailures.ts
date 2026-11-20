@@ -20,14 +20,7 @@ export interface KnownFailure {
 const OWNER_REFUSED_BY_ROLE_LIST =
   "a data API behind this page checks the staff enum for MANAGER or ADMIN by name, so the Owner, who holds every permission, gets 403; to become a permission in the hardcoded role-gate sweep, local roadmap, Health audit 2026-11-18";
 
-const OWNER_ONLY_APIS =
-  "an Administrator can open the screen (its page gate is a permission) but its commission or pay data API is hardcoded SUPER_ADMIN-only (requireAuthWithRole / roleProcedure), so every data call 403s; fix tracked in the local roadmap, Health audit 2026-11-18";
-
 export const KNOWN_FAILURES: Record<string, KnownFailure> = {
-  "/app/admin/reports/commission-tiers": { as: "admin", reason: OWNER_ONLY_APIS },
-  "/app/admin/staff": { as: "admin", reason: OWNER_ONLY_APIS },
   "/app/inventory/consignment/receiving-gaps": { as: "owner", reason: OWNER_REFUSED_BY_ROLE_LIST },
   "/app/leads": { as: "owner", reason: OWNER_REFUSED_BY_ROLE_LIST },
-  "/app/reports/commission": { as: "admin", reason: OWNER_ONLY_APIS },
-  "/app/reports/pay-period-sales": { as: "admin", reason: OWNER_ONLY_APIS },
 };
