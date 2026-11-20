@@ -96,15 +96,17 @@ npx --no-install nyc report \
 # PRs should bump these accordingly.
 echo ""
 echo "=== Checking thresholds against merged coverage ==="
-# functions floor 70: measured 70.79% on 2026-09-23 (#199's CI run, after
-# QUA-02 un-skipped the two service-case tests), ratcheted from the 66 it was
-# lowered to. Back to 71 when the 20260527b backfill quarantine (owner gate 5)
-# is resolved. Always ratchet from a measured run, never by guess.
+# Floors ratcheted 2026-11-20 to three points under the merged run measured on
+# the committed tree of #133: Statements 74.62, Branches 63.83, Functions 76.04,
+# Lines 76.06. They had sat at 59/48/70/59 since September while coverage rose
+# about fifteen points, so a PR could drop that much without the gate noticing.
+# This script is the floors' one home; docs point here rather than repeat them.
+# Always ratchet from a measured run, never by guess (docs/FRAMEWORK.md).
 npx --no-install nyc check-coverage \
-  --statements=59 \
-  --branches=48 \
-  --functions=70 \
-  --lines=59
+  --statements=71 \
+  --branches=60 \
+  --functions=73 \
+  --lines=73
 
 # Cleanup intermediate dirs (keep coverage/)
 rm -rf coverage-unit
