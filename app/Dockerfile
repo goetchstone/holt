@@ -46,11 +46,10 @@ RUN npx prisma generate
 # Build Next.js
 #
 # `next build` type-checks the whole app, and with Node's default heap that runs
-# out of memory inside this builder container ("Ineffective mark-compacts near
-# heap limit"), failing the image build. CI never saw it because its job sets the
-# same NODE_OPTIONS (.github/workflows/ci.yml) before building; a Docker build
-# does not inherit the host's environment, so the image needs its own. Scoped to
-# this stage: the runtime image below keeps Node's default heap.
+# out of memory ("Ineffective mark-compacts near heap limit"). `npm run build`
+# now raises the heap itself (app/package.json, 2026-11-20, after CI's smoke job
+# hit it); this ENV, kept for anything else this stage runs under Node, says the
+# same. Scoped to this stage: the runtime image below keeps Node's default heap.
 ENV NODE_OPTIONS=--max-old-space-size=6144
 RUN npm run build
 
