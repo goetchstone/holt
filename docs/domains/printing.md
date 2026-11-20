@@ -118,9 +118,9 @@ The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per c
 
 ## Printer admin
 
-`pages/admin/setup/printers.tsx` — list, add, edit, delete `Printer` rows. Per printer: name, ipAddress, port (default 9100), store assignment, default template.
+`app/(dashboard)/app/admin/setup/printers/PrintersView.tsx` (with `components/modals/PrinterModal.tsx`) — list, add, edit, delete `Printer` rows. Per printer (the modal's fields): name, ipAddress, port (default 9100), location, tagType, store, currentSize. There is no default-template field on the printer.
 
-Add a printer: store IP, ping-test from the admin UI, save. The ping test does a real `attemptSend()` with a no-op ZPL so it surfaces connection errors immediately rather than waiting for a real print to fail.
+Add a printer: store its IP and save. There is no ping test in the admin UI (checked against `PrintersView.tsx` and `PrinterModal.tsx`, 2026-11-20): a wrong address surfaces on the first real print, as a send error from `labelPrinter.ts` that says to check the network connection and IP address.
 
 ## Verification checklist (before touching print code)
 

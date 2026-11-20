@@ -12,8 +12,8 @@
 #   - app/coverage/lcov.info is older than the most recent commit on the
 #     current branch (tests + coverage haven't been re-run since the last
 #     code change), scoped to diffs that actually touch instrumented code
-#   - substantial code changed under app/src/{app,pages,lib,components}
-#     but no docs/runbook/CLAUDE.md/ROADMAP.md was touched
+#   - substantial code changed under app/src/{app,pages,lib,components,server}
+#     without the runbooks domain-map.txt maps it to (doc-gate.sh)
 #
 # (A third block, the local SonarQube quality gate, was removed 2026-10-16
 # with SonarQube itself: CodeQL in CI covers the analysis.)
@@ -145,67 +145,11 @@ fi
 DOC_MAP="$REPO_ROOT/.claude/hooks/domain-map.txt"
 if [ -f "$DOC_MAP" ] && [ "$HAVE_MAIN" -eq 1 ]; then
   CHANGED=$(git -C "$REPO_ROOT" diff --name-only origin/main...HEAD 2>/dev/null || echo "")
-  CODE_TOUCHED=$(echo "$CHANGED" | grep -cE '^app/src/(app|pages|lib|components)/' || true)
-  CODE_TOUCHED=${CODE_TOUCHED:-0}
-  DOCS_TOUCHED=$(echo "$CHANGED" | grep -cE '^(docs/|CLAUDE\.md$|ROADMAP\.md$)' || true)
-  DOCS_TOUCHED=${DOCS_TOUCHED:-0}
-
-  CODE_LINES=0
-  if [ "$CODE_TOUCHED" -gt 0 ]; then
-    CODE_LINES=$(git -C "$REPO_ROOT" diff origin/main...HEAD --shortstat -- 'app/src/app' 'app/src/pages' 'app/src/lib' 'app/src/components' 2>/dev/null \
-      | grep -oE '[0-9]+ insertion|[0-9]+ deletion' | grep -oE '[0-9]+' | awk '{ s += $1 } END { print s+0 }')
-    CODE_LINES=${CODE_LINES:-0}
-  fi
-
-  DOC_BYPASS=0
-  if printf '%s' "$BRANCH_COMMITS" | grep -q 'docs-not-needed:'; then
-    DOC_BYPASS=1
-  fi
-
-  if [ "$CODE_TOUCHED" -gt 0 ] && [ "$DOCS_TOUCHED" -eq 0 ] && [ "$DOC_BYPASS" -eq 0 ] && [ "$CODE_LINES" -gt 20 ]; then
-    EXPECTED_DOCS=""
-    while IFS='|' read -r pattern runbook; do
-      [ -z "$pattern" ] && continue
-      case "$pattern" in '#'*) continue ;; esac
-      regex="^${pattern//\*/.*}\$"
-      if echo "$CHANGED" | grep -qE "$regex"; then
-        case "$EXPECTED_DOCS" in
-          *"$runbook"*) ;;
-          *) EXPECTED_DOCS="${EXPECTED_DOCS}    - ${runbook}\n" ;;
-        esac
-      fi
-    done < "$DOC_MAP"
-
-    cat <<EOF >&2
-======================================================================
-  BLOCKED: code changed but no docs/runbook/ROADMAP touched.
-
-  This branch added $CODE_LINES lines under app/src/{app,pages,lib,components}/
-  but no file under docs/ (and not CLAUDE.md or ROADMAP.md) was modified.
-
-  Per CLAUDE.md rule 19/36, doc-updates ship in the same PR as code.
-EOF
-    if [ -n "$EXPECTED_DOCS" ]; then
-      echo "" >&2
-      echo "  Touched paths suggest these runbooks should be updated:" >&2
-      printf '%b' "$EXPECTED_DOCS" >&2
-    fi
-    cat <<EOF >&2
-
-  To proceed, either:
-
-  (a) Update the runbook(s) above (or CLAUDE.md / ROADMAP.md), then
-      re-run \`gh pr create\`.
-
-  (b) Add a commit whose message body contains
-      \`docs-not-needed: <one-line rationale>\`.
-
-  Use sparingly -- if you're typing this for the third time in a week,
-  the threshold is calibrated wrong.
-======================================================================
-EOF
-    exit 2
-  fi
+  CODE_LINES=$(git -C "$REPO_ROOT" diff origin/main...HEAD --shortstat -- 'app/src/app' 'app/src/pages' 'app/src/lib' 'app/src/components' 'app/src/server' 2>/dev/null \
+    | grep -oE '[0-9]+ insertion|[0-9]+ deletion' | grep -oE '[0-9]+' | awk '{ s += $1 } END { print s+0 }')
+  DOC_GATE_CHANGED="$CHANGED" DOC_GATE_CODE_LINES="${CODE_LINES:-0}" \
+    DOC_GATE_COMMITS="$BRANCH_COMMITS" DOC_GATE_MAP="$DOC_MAP" \
+    bash "$REPO_ROOT/.claude/hooks/doc-gate.sh" || exit 2
 fi
 
 echo "Pre-PR checks passed." >&2

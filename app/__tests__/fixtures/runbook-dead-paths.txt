@@ -1,0 +1,7 @@
+# Paths a runbook cites on purpose although the file is gone: history that says
+# the file was removed or moved. Read by __tests__/runbookPaths.test.ts.
+# Format: <runbook file name>|<path as cited>|<why it stays>
+commission.md|lib/importRunners.ts|the sentence says the file no longer exists and names its replacement, lib/adapters/legacyPos/runners.ts
+commission.md|lib/reports/commissionPayouts.ts|the sentence lists the commission page's removed pieces ("are gone"), history of the page's consolidation
+staff-auth.md|lib/auth/withAuth.ts|a dated history section that records the file was deleted on 2026-10-01 and where its rules went
+tools.md|pages/tools/home-accessory-order.tsx|names the predecessor codebase's file this tool was ported from, which is not in this repository

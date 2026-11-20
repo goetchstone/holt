@@ -47,10 +47,13 @@ confirmed tested. PR description says "Trace: …" with the evidence.
 
 ## 5. Domain runbook updated or `docs-not-needed:` marker (rule 19, 36)
 
-Substantial changes under `src/{pages,app,lib,components}/` update the
-matching `docs/domains/*.md` runbook (see `.claude/hooks/domain-map.txt`)
-in the same PR. `pre-pr-check.sh` blocks `gh pr create` otherwise unless a
-commit carries `docs-not-needed: <rationale>`.
+Substantial changes under `src/{pages,app,lib,components,server}/` update
+every `docs/domains/*.md` runbook their files map to in
+`.claude/hooks/domain-map.txt`, in the same PR. Touching some other doc does
+not count. `doc-gate.sh` (called by `pre-pr-check.sh`) blocks `gh pr create`
+otherwise unless a commit carries `docs-not-needed: <rationale>`. A new source
+directory needs a map line, or `domainMapCoverage.test.ts` fails; shared
+infrastructure with no runbook takes `pattern|-|reason`.
 
 ## 6. Self-heal sweep done if applicable (rule 49)
 

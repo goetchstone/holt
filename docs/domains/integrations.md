@@ -34,7 +34,7 @@ The two share the same `lib/axperClient.ts` for the actual HTTP call. The on-dem
 - "Door counter traffic" at Admin → Automations runs it, off to start and 2 AM by default, after Axper closes the previous day.
 - Behavior: pull yesterday + auto-backfill any day in the last 30 with zero existing rows. Configurable via `{"backfillWindowDays": N}` body (max 800).
 - **Async by design** (2026-05-28): the POST creates a `TrafficSyncLog` row with `finishedAt = null` and returns `202 { logId, status: "running", backfillWindowDays }` IMMEDIATELY. The Axper fan-out runs in the background after the response is sent. The admin UI polls `/api/admin/automations/axper-traffic/recent` every 5s for the matching log row's `finishedAt`. Without this the 2-year backfill (730 days × ~1s/call) hit nginx's 300s upstream timeout and 504'd. Cron `curl -sf` accepts the new 202 the same as 200 — script logs now show the `{logId,status}` payload instead of the full result; the actual result lives on the `TrafficSyncLog` row.
-- **Crash-recovery gap**: if the Node process dies mid-job, the log row stays with `finishedAt = null` forever. A janitor sweep (spawned task chip; will live on `lib/abandonedTrafficSyncSweep.ts`) marks rows with `startedAt > 1h ago AND finishedAt IS NULL` as abandoned on the next admin-page load.
+- **Crash-recovery gap**: if the Node process dies mid-job, the log row stays with `finishedAt = null` forever. A janitor sweep (planned, not built: no such sweep exists in `lib/`; `lib/trafficSyncRun.ts` only opens and closes the log row) would mark rows with `startedAt > 1h ago AND finishedAt IS NULL` as abandoned on the next admin-page load.
 - Admin UI: `/admin/automations/axper-traffic` for "Run Now" + last 20 runs. The running row shows `running… (Xs)` with a ticking elapsed time; on completion the row gets its duration + result counts.
 
 **Auth**: `AXPER_API_KEY` env var (the Axper API key). Sent as a query param (Axper's API design, not OAuth).
@@ -74,7 +74,7 @@ When a new Axper store appears that isn't mapped, the import persists it with `s
 
 The intent: tie inbound calls (from the pbxact PBX) to customer records so the interactions log auto-populates when staff answer the phone. Would tie into:
 
-- `lib/pbxClient.ts` (does not yet exist)
+- a PBX client under `lib/` (does not yet exist)
 - `pages/api/pbx/*` (directory does not yet exist — placeholder noted in code-area inventory)
 - New `Call` model? Or extend `CustomerInteraction.kind = PHONE_CALL` with raw call duration / recording URL?
 
@@ -82,9 +82,9 @@ This runbook entry exists as a forward-pointer. When the work starts, this secti
 
 ## FileMaker Data API — legacy sun-setting
 
-**Status**: legacy. Active for a few specific report imports while we finish migrating off FileMaker. Sun-setting end goal: zero FileMaker reads.
+**Status**: legacy, and no longer called. The Data API client (`fmApiClient`) has been removed from `src/`; a search of the source finds no caller of it or of `getFmSalesRecords`, and nothing in the app reads `FM_API_BASE`, `FM_USERNAME` or `FM_PASSWORD` (they remain, unused, in `.env.local.example`). The text below describes the client as it was.
 
-**Surface**: `lib/fmApiClient.ts`, `lib/fmSafeMapper.ts`.
+**Surface**: `lib/fmSafeMapper.ts` is what is left: the `safeString`/`safeFloat`/`safeDate` coercion helpers, now imported by `pages/api/purchasing/import-wholesale-order.ts`.
 
 **Auth**: session-token flow — POST `/sessions` with basic auth → receive session token → use token on subsequent requests for ~15 minutes → DELETE `/sessions/{id}` to release.
 
@@ -108,11 +108,11 @@ This runbook entry exists as a forward-pointer. When the work starts, this secti
 
 **Migration end state**: every FileMaker call becomes either (a) a one-off SQL extraction we run once and store in our Postgres, or (b) replaced by an the POS-native equivalent.
 
-**Don't add new FileMaker reads** without explicit reason. Prefer extending an the POS import.
+**Don't add new FileMaker reads** without explicit reason (there is no client to build on; it would have to be written again). Prefer extending an the POS import.
 
 ## Windfall — wealth enrichment
 
-**Surface**: `lib/windfallImport.ts`, `pages/admin/import/windfall.tsx`.
+**Surface**: `lib/windfallImport.ts`, `app/(dashboard)/app/admin/import/windfall/page.tsx`.
 
 **Format**: CSV import (drag-and-drop in the admin UI). One row per customer, keyed by the POS customer code.
 
@@ -134,7 +134,7 @@ Auth provider for staff login. Configured in `pages/api/auth/[...nextauth].ts`. 
 
 ### Google Drive — project folder creation
 
-`pages/tools/create-project.tsx` + `pages/api/google/*` — designers create a project folder under the configured projects root folder (`AppSettings.google.drive.projectsRootFolderId`) when they start a new design engagement.
+`app/(dashboard)/app/tools/create-project/CreateProjectView.tsx` + `pages/api/google/*` — designers create a project folder under the configured projects root folder (`AppSettings.google.drive.projectsRootFolderId`) when they start a new design engagement.
 
 OAuth scopes: `drive.file` (folder creation) — narrow scope, can't read or modify existing files.
 

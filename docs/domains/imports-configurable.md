@@ -23,7 +23,7 @@ so **this list is the real measure of how configurable imports actually are**:
 | `category` | 2026-08-22 | Scoped to a department, which is CREATED when missing |
 | `type` | 2026-08-22 | Scoped to a category, which must ALREADY EXIST |
 
-`__tests__/vendorImport.test.ts` fails if an entity is declared with no
+`__tests__/configurableImportEntities.test.ts` fails if an entity is declared with no
 registered runner — an entity that shows in the admin UI and then fails at run
 time is worse than one that was never offered.
 

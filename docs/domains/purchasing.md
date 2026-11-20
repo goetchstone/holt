@@ -462,7 +462,7 @@ The invoice import (`runInvoicesImport`) links invoices to sales orders by match
 
 ## Warehouse Inbound Dashboard
 
-`/inventory/warehouse/inbound` provides a month/week drill-down view of incoming POs with clickable summary cards and filters for stock type, customer, vendor, and department. Uses the same PO data but presents it in an operations-focused layout for warehouse staff.
+`/app/warehouse/inbound` provides a month/week drill-down view of incoming POs with clickable summary cards and filters for stock type, customer, vendor, and department. Uses the same PO data but presents it in an operations-focused layout for warehouse staff.
 
 ## Import form fields
 
@@ -488,7 +488,7 @@ for one vendor in a file used to make two POs.
 ## Key Files
 
 - `lib/importHelpers.ts` -- `derivePOStatus()`, `findProduct()`
-- `lib/importRunners.ts` -- 4 PO-related runners
+- `lib/adapters/legacyPos/runners.ts` -- the PO-related runners (`runPurchaseOrdersImport`, `runReceivedItemsImport`, `runInboundItemsImport`, `runPOLineExportImport`)
 - `lib/purchasing/receivePurchaseOrder.ts` -- goods in against a PO, one function for the Receive PO screen (`orders/[id]/receive.ts`) and the handheld (`pages/api/scan/receive.ts`, rule 42): the receiving records, the stock (`lib/inventory/receiving.ts`), and the PO status recalc (rule 39). A multi-box unit that arrives short of boxes is received as one unit into quarantine with a box note naming what is missing (`docs/domains/inventory.md` → "The handheld floor"). `ReceiveError` carries its status (404 for a PO that does not exist).
 - `pages/api/purchasing/` -- PO CRUD, receiving endpoints. Native receiving (`orders/[id]/receive.ts`) adds stock through `lib/inventory/ledger.ts`, the single writer of `InventoryPosition` (see `docs/domains/inventory.md`). Until 2026-10-14 it wrote the user's email into `ReceivingRecord.receiverUserId`, a foreign key to `User.id`, so every native receipt failed; it now uses the session's user id.
 - `pages/api/purchasing/orders/index.ts` -- the PO list, gated on `purchasing.read` ("View purchasing"); its totals go only to holders of "View cost" (`catalog.cost`). A service case does not use it: it finds a PO to link through `pages/api/service/purchase-order-lookup.ts`, which returns number and vendor only. Its POST creates a stock PO (`purchasing.write`, above)
@@ -498,7 +498,7 @@ for one vendor in a file used to make two POs.
 - `lib/purchasing/productSources.ts`, `productSourcesShared.ts`, `pages/api/products/[id]/sources/` -- an item's other vendors and `buyingTerms`, the rule for what a PO's vendor may order (GAP-22, section above)
 - `lib/purchasing/scannedOrder.ts`, `pages/api/scan/order.ts`, `app/(dashboard)/app/scan/order/` -- a reorder scanned on the handheld, filed on each vendor's open draft (GAP-19, section above)
 - `pages/purchasing/` -- PO list, detail, receiving UI
-- `pages/inventory/warehouse/inbound.tsx` -- Warehouse inbound dashboard
+- `app/(dashboard)/app/warehouse/inbound/InboundDashboardView.tsx` -- Warehouse inbound dashboard
 - `scripts/reimport-invoices-direct.js` -- One-time invoice reimport with rewrite matching
 
 ## Verification Checklist
@@ -511,7 +511,7 @@ for one vendor in a file used to make two POs.
 
 ## Test Coverage
 
-Covered: `derivePOStatus`, `classifyPOReceiptStatus` in `importHelpers.test.ts`
+Covered: `derivePOStatus`, `classifyPOReceiptStatus` in `__tests__/legacyPosShared.test.ts`
 
 Covered: `productSources.integration.test.ts` (an item's other vendors: the list, every refusal, View cost, the gates, the product page's `canEdit`, and the picker, saving and duplicating a PO through `buyingTerms`).
 

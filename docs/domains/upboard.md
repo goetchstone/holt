@@ -53,7 +53,7 @@ This is deliberately lazy (read-triggered, not scheduled) so we don't need a cro
 
 ## Dashboard widget
 
-`components/dashboard/UpBoardWidget.tsx` — manager dashboard surface. Shows all stores' boards side-by-side. Refreshes every 30s via polling. Click-through to the full per-store view at `/upboard/[store]`.
+`components/dashboard/UpBoard.tsx` — one store's board. The staff home page (`/app`, `app/(dashboard)/app/HomeView.tsx`) renders one per store under "Designer Rotation", side by side, when the Up Board module is on. Each polls `GET /api/upboard/[store]` every 15 seconds. There is no separate per-store page.
 
 ## Action types
 
@@ -79,7 +79,7 @@ The handler explicitly rejects unknown action strings with a 400 listing the fou
 
 ## Test coverage
 
-**Gap noted in `docs/domains/staff-auth.md`**: `upboard.ts` is Prisma-dependent and not covered by unit tests. The proper fix is real-DB integration tests under `__tests__/integration/upboard.integration.test.ts` covering:
+**Gap noted in `docs/domains/staff-auth.md`**: `upboard.ts` is Prisma-dependent and not covered by unit tests. Only the roster route has a real-DB test (`__tests__/integration/upboardRoster.integration.test.ts`). The proper fix is real-DB integration tests of the rotation itself covering:
 
 - Clock-in → entry appears at bottom
 - ASSIGN → top moves to bottom

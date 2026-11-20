@@ -224,7 +224,7 @@ Consequence: `cancelSameDayRewriteDroppedLines` only re-examines orders whose or
 **Tripwires**:
 
 - `__tests__/sameDayRewriteCleanup.test.ts` — 13 A-grade tests pinning both canonical shapes plus paired consumption, return-only, rewrite-only, lineNumber footprint, null-partNo conservative path
-- `__tests__/importRunners.regression.test.ts` — `findDroppedBaseLineIds` must be imported into the runner; `cancelSameDayRewriteDroppedLines` must exist + be called; the base lookup must include both `orderno` AND `orderDate`
+- `__tests__/legacyPosImportRunners.regression.test.ts` — `findDroppedBaseLineIds` must be imported into the runner; `cancelSameDayRewriteDroppedLines` must exist + be called; the base lookup must include both `orderno` AND `orderDate`
 - `__tests__/integration/runSalesImport.integration.test.ts` (real-DB, shipped 2026-07-24) — exercises `runSalesImport` end-to-end against a fixture CSV of the base + rewrite + the return-prefix triple: grouping, upsert, orphan-freeze, and the post-import `cancelSameDayRewriteDroppedLines` sweep, cross-checked against `findDroppedBaseLineIds`'s own output. Includes the regression test for the reactivation-guard gap above: cancels the triple, then re-imports the base alone (no rewrite in the batch) and asserts the dropped lines stay `CANCELLED` with `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON`.
 
 ## Quote line-item reconciliation
@@ -236,7 +236,7 @@ Consequence: `cancelSameDayRewriteDroppedLines` only re-examines orders whose or
 - Else: **create** a new `OrderLineItem`
 - Any existing `OrderLineItem` whose `lineNumber > orderLines.length` is marked `lineItemStatus = "CANCELLED"` (orphan cleanup, mirrors `runSalesImport`)
 
-This is what makes line-item edits in the POS -- adding rows, removing rows, changing prices/quantities -- actually flow through. The runner had an early-exit bug from 2026-03-26 to 2026-04-28 that updated only `quoteCode`/`quoteDate` and skipped the line-item loop entirely; a promoted quote was the surfacing report (failure log 2026-04-28). Tripwire test in `__tests__/importRunners.regression.test.ts` + behavior tests in `__tests__/importRunners.quotesReconcile.test.ts` guard against the regression.
+This is what makes line-item edits in the POS -- adding rows, removing rows, changing prices/quantities -- actually flow through. The runner had an early-exit bug from 2026-03-26 to 2026-04-28 that updated only `quoteCode`/`quoteDate` and skipped the line-item loop entirely; a promoted quote was the surfacing report (failure log 2026-04-28). Tripwire test in `__tests__/legacyPosImportRunners.regression.test.ts` + the `buildQuoteLineData` helper tests in `__tests__/legacyPosImportRunners.quotesReconcile.test.ts` and the real-DB `__tests__/integration/runQuotesImport.integration.test.ts` guard against the regression.
 
 Quote CSVs do NOT carry barcode / POR / VAT / productId -- those only land on a line once the quote becomes a sale and `runSalesImport` populates them. So the field set in `buildLineData()` is intentionally narrower than the sales runner's. Manually-relinked `productId` on an existing line is preserved across re-imports because Prisma treats `undefined` as "skip" in update payloads.
 

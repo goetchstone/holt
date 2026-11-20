@@ -26,7 +26,7 @@ This doc exists because 2026-05-20 was the day we discovered we had **3 import-r
 | **Gmail → automated daily orchestrator** | "Daily POS import" at Admin → Automations, off to start, 6 AM by default | `POST /api/automations/source-import` by hand (Bearer auth or a session) | 13 routes in `lib/adapters/legacyPos/reportRouter.ts` |
 | **Manual products import** | Ad-hoc, owner-triggered | No screen in this repo today | `runProductsImport` |
 
-Plus a few one-off / legacy paths (FileMaker `lib/fmApiClient.ts`, Windfall weekly CSV via `/admin/import/windfall`, HD Proposal PDF) — covered in `integrations.md`.
+Plus a few one-off / legacy paths (the FileMaker Data API client, since removed, see `integrations.md`; Windfall weekly CSV via `/admin/import/windfall`, HD Proposal PDF) — covered in `integrations.md`.
 
 ## The 14 daily-import routes
 
@@ -203,8 +203,8 @@ The 2026-05-21 placeholder-merge migration (`20260521_merge_POS_placeholders`) i
 | File | Tests | Type |
 |---|---|---|
 | `__tests__/legacyPosReportRouter.test.ts` | 22 | Unit — exact-name + post-rename + skip-pattern routing |
-| `__tests__/importHelpers.test.ts` | 79 | Unit — derivePOStatus, splitCustomerName, isReturnOrder, etc. |
-| `__tests__/importRunners.regression.test.ts` | 21 | Source-text tripwires for every prod failure that's hit a runner |
+| `__tests__/legacyPosShared.test.ts` | — | Unit — derivePOStatus, splitCustomerName, isReturnOrder, etc. [NEEDS VERIFICATION: test count not re-counted] |
+| `__tests__/legacyPosImportRunners.regression.test.ts` | 37 | Source-text tripwires for every prod failure that's hit a runner |
 | `__tests__/integration/runSalesImport.integration.test.ts` | 5+ | Real-DB |
 | `__tests__/integration/runQuotesImport.integration.test.ts` (`quotesReconcile.integration.test.ts`) | 10 | Real-DB — includes the 2026-05-20 cuscode-hydration scenarios |
 | `__tests__/integration/quotesReconcile.integration.test.ts` (cuscode block) | 3 | Real-DB — pinned the post-rename behavior |

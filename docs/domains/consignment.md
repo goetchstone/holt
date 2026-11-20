@@ -40,12 +40,12 @@ Valid transitions enforced by `isValidConsignmentTransition()` in `lib/consignme
 
 | Trigger                                                  | What happens                                                                 | Code location                                  |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
-| Sales import detects the consignor rug on ORDER                 | ConsignmentItem marked SOLD                                                  | `importRunners.ts` after batch transaction     |
+| Sales import detects the consignor rug on ORDER                 | ConsignmentItem marked SOLD                                                  | `runSalesImport` in `lib/adapters/legacyPos/runners.ts`, after the batch transaction     |
 | Sales import detects RETURNED order (accounting returns) | ConsignmentItem reverted to ON_FLOOR                                         | `paymentService.ts` `syncConsignmentReturns()` |
-| PO import sees the consignor PO become RECEIVED_FULL            | Payment batch created, SOLD items → PAID, ON_FLOOR items → PAID + creditOwed | `importRunners.ts` consignment sync block      |
+| PO import sees the consignor PO become RECEIVED_FULL            | Payment batch created, SOLD items → PAID, ON_FLOOR items → PAID + creditOwed | `runPurchaseOrdersImport` in `lib/adapters/legacyPos/runners.ts`, consignment sync block      |
 | Return of PAID item                                      | ON_FLOOR + `creditOwed=true`                                                 | `paymentService.ts` `syncConsignmentReturns()` |
-| Same-batch sell+return (wash)                            | Revert to ON_FLOOR instead of marking SOLD                                   | `importRunners.ts` wash reconciliation         |
-| Re-sale of PAID+creditOwed item                          | Clear `creditOwed` on SOLD transition                                        | `importRunners.ts` consignment sync            |
+| Same-batch sell+return (wash)                            | Revert to ON_FLOOR instead of marking SOLD                                   | `runSalesImport` in `lib/adapters/legacyPos/runners.ts`, wash reconciliation         |
+| Re-sale of PAID+creditOwed item                          | Clear `creditOwed` on SOLD transition                                        | `runSalesImport` in `lib/adapters/legacyPos/runners.ts`, consignment sync            |
 
 ## Pricing
 
@@ -133,10 +133,10 @@ When a PAID item with `creditOwed=true` re-sells (appears on a new sale order), 
 
 - `lib/consignment.ts` -- matching functions, pricing, state machine
 - `lib/paymentService.ts` -- `syncConsignmentSales()`, `syncConsignmentReturns()`
-- `lib/importRunners.ts` -- sales import SOLD sync, PO import PAID sync
+- `lib/adapters/legacyPos/runners.ts` -- sales import SOLD sync (`runSalesImport`), PO import PAID sync (`runPurchaseOrdersImport`)
 - `pages/api/consignment/` -- 33 API endpoints (27 + 4 PO management + credits owed)
 - `pages/inventory/consignment/` -- 12 UI pages (10 + PO management + credits owed)
-- `pages/admin/import/consignment-filemaker.tsx` -- backfill + import tools
+- `app/(dashboard)/app/admin/import/consignment/ConsignmentImportView.tsx` -- backfill + import tools
 - `pages/api/consignment/import/manifest.ts` -- `resolveConsignmentVendor()` resolves by `Vendor.isConsignment` and REFUSES when none is configured. It used to search six name variants, fall back to a hardcoded vendor code, and create a vendor when it still found nothing.
 
 ## Verification Checklist

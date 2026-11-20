@@ -300,7 +300,7 @@ that is safe against the DRAFT-import problem.
 
 ### Step 3 — Delivery generates the invoice
 
-New `src/lib/billing/invoiceFromDelivery.ts`:
+The design called for a new billing module, `invoiceDeliveredOrder`. It was never built under that name (see the 2026-11-10 check above: invoices come from the billing screens). Its intended shape:
 
 ```
 invoiceDeliveredOrder(tx, { salesOrderId, serviceAppointmentId, deliveredAt, actor })

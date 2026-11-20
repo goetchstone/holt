@@ -185,14 +185,13 @@ app/src/pages/api/interactions/*|docs/domains/interactions.md
 app/src/pages/api/sales/interactions/*|docs/domains/interactions.md
 app/src/app/(dashboard)/app/interactions/*|docs/domains/interactions.md
 
-# Admin tools (Query Builder, apparel-order import, home-accessory order)
 # Help center (GAP-30): the articles and what shows them
-app/help/*|docs/domains/help.md
 app/src/app/(dashboard)/app/help/*|docs/domains/help.md
 app/src/lib/help/*|docs/domains/help.md
 app/src/components/help/*|docs/domains/help.md
 app/src/pages/api/help/*|docs/domains/help.md
 
+# Admin tools (Query Builder, apparel-order import, home-accessory order)
 app/src/app/(dashboard)/app/tools/*|docs/domains/tools.md
 app/src/app/(dashboard)/app/admin/tools/*|docs/domains/tools.md
 app/src/pages/api/tools/*|docs/domains/tools.md
@@ -213,7 +212,6 @@ app/src/lib/practiceCopy*|docs/domains/practice-copy.md
 app/src/components/PracticeBanner.tsx|docs/domains/practice-copy.md
 app/src/pages/api/admin/database/practice.ts|docs/domains/practice-copy.md
 app/src/app/(dashboard)/app/admin/setup/database/*|docs/domains/practice-copy.md
-app/prisma/testing/practiceCopyDrill.ts|docs/domains/practice-copy.md
 
 # External integrations: Axper traffic, Google, FileMaker-style mappers, Windfall
 app/src/lib/integrationCatalog.ts|docs/domains/integrations.md
@@ -244,3 +242,380 @@ app/src/lib/auth/*|docs/domains/staff-auth.md
 app/src/pages/api/staff/*|docs/domains/staff-auth.md
 app/src/pages/api/admin/staff/*|docs/domains/staff-auth.md
 app/src/app/(dashboard)/app/admin/staff/*|docs/domains/staff-auth.md
+
+# Inventory, scanning and stock locations (receiving.ts is the PO side, so it goes first)
+app/src/lib/inventory/receiving.ts|docs/domains/purchasing.md
+app/src/lib/inventory/*|docs/domains/inventory.md
+app/src/lib/scan/*|docs/domains/inventory.md
+app/src/lib/storeLocationResolver.ts|docs/domains/inventory.md
+app/src/lib/barcode.ts|docs/domains/inventory.md
+app/src/app/(dashboard)/app/scan/*|docs/domains/inventory.md
+app/src/app/(dashboard)/app/admin/stock-ledger/*|docs/domains/inventory.md
+app/src/app/(dashboard)/app/admin/inventory-exceptions/*|docs/domains/inventory.md
+app/src/app/(dashboard)/app/admin/import/inventory-snapshot/*|docs/domains/inventory.md
+app/src/pages/api/scan/order.ts|docs/domains/purchasing.md
+app/src/pages/api/scan/receive.ts|docs/domains/purchasing.md
+app/src/pages/api/scan/*|docs/domains/inventory.md
+app/src/pages/api/admin/inventory-exceptions/*|docs/domains/inventory.md
+app/src/pages/api/store-locations/*|docs/domains/inventory.md
+app/src/components/scan/*|docs/domains/inventory.md
+app/src/components/layout/ScannerLayout.tsx|docs/domains/inventory.md
+app/src/components/dashboard/OnHandSummary.tsx|docs/domains/inventory.md
+app/src/components/modals/StockLocationModal.tsx|docs/domains/inventory.md
+
+# Purchasing, vendors and reorder
+app/src/lib/purchasing/*|docs/domains/purchasing.md
+app/src/lib/vendors/*|docs/domains/purchasing.md
+app/src/lib/vendorLeadTime.ts|docs/domains/purchasing.md
+app/src/lib/vendorNumbering.ts|docs/domains/purchasing.md
+app/src/lib/vendorPatch.ts|docs/domains/purchasing.md
+app/src/lib/vendorPrefixService.ts|docs/domains/purchasing.md
+app/src/pages/api/vendors/*|docs/domains/purchasing.md
+app/src/pages/api/products/[id]/sources/*|docs/domains/purchasing.md
+app/src/pages/api/products/[id]/reorder-points.ts|docs/domains/purchasing.md
+app/src/app/(dashboard)/app/admin/import/vendors/*|docs/domains/purchasing.md
+app/src/components/modals/VendorDetailModal.tsx|docs/domains/purchasing.md
+
+# Pricing and catalog: wholesale price books first, then the parsers and engine
+app/src/lib/pricing/wholesale/*|docs/domains/vendors-wholesale.md
+app/src/lib/pricing/importWholesaleBook.ts|docs/domains/vendors-wholesale.md
+app/src/lib/pricing/importVendorConfigs.ts|docs/domains/vendors-wholesale.md
+app/src/lib/pricing/*|docs/domains/pricing-catalog.md
+app/src/lib/customers/tradeTierAssignment.ts|docs/domains/pricing-catalog.md
+app/src/lib/productPairingValidation.ts|docs/domains/pricing-catalog.md
+app/src/pages/api/products/*|docs/domains/pricing-catalog.md
+app/src/pages/api/categories/*|docs/domains/pricing-catalog.md
+app/src/pages/api/departments/*|docs/domains/pricing-catalog.md
+app/src/pages/api/types/*|docs/domains/pricing-catalog.md
+app/src/pages/api/admin/bulk-categorize.ts|docs/domains/pricing-catalog.md
+app/src/pages/api/admin/uncategorized-products.ts|docs/domains/pricing-catalog.md
+app/src/pages/api/admin/trade-tiers/*|docs/domains/pricing-catalog.md
+app/src/pages/api/admin/product-pairings/*|docs/domains/pricing-catalog.md
+app/src/pages/api/customers/[id]/trade.ts|docs/domains/pricing-catalog.md
+app/src/app/(dashboard)/app/admin/setup/trade-tiers/*|docs/domains/pricing-catalog.md
+app/src/app/(dashboard)/app/admin/setup/product-pairings/*|docs/domains/pricing-catalog.md
+app/src/components/pricing/*|docs/domains/pricing-catalog.md
+app/src/components/products/*|docs/domains/pricing-catalog.md
+app/src/components/modals/CategoryModal.tsx|docs/domains/pricing-catalog.md
+app/src/components/modals/DepartmentModal.tsx|docs/domains/pricing-catalog.md
+app/src/components/modals/TypeModal.tsx|docs/domains/pricing-catalog.md
+app/src/components/modals/ProductEditModal.tsx|docs/domains/pricing-catalog.md
+app/src/components/modals/StyleEditModal.tsx|docs/domains/pricing-catalog.md
+app/src/components/sales/RetailPriceTag.tsx|docs/domains/pricing-catalog.md
+
+# Imports: configurable importer, legacy POS data, source adapters, bulk loads
+app/src/lib/imports/data/*|docs/domains/import-pipeline.md
+app/src/lib/imports/*|docs/domains/imports-configurable.md
+app/src/lib/genericImport*|docs/domains/imports-configurable.md
+app/src/lib/importFormFields.ts|docs/domains/imports-configurable.md
+app/src/lib/csvFieldAlias.ts|docs/domains/imports-configurable.md
+app/src/app/(dashboard)/app/admin/import/categories/*|docs/domains/imports-configurable.md
+app/src/app/(dashboard)/app/admin/import/consignment/*|docs/domains/imports-configurable.md
+app/src/app/(dashboard)/app/admin/import/data/*|docs/domains/imports-configurable.md
+app/src/app/(dashboard)/app/admin/import/departments/*|docs/domains/imports-configurable.md
+app/src/app/(dashboard)/app/admin/import/types/*|docs/domains/imports-configurable.md
+app/src/app/(dashboard)/app/admin/import/page.tsx|docs/domains/imports-configurable.md
+app/src/pages/api/admin/imports/*|docs/domains/imports-configurable.md
+app/src/pages/api/categories/import.ts|docs/domains/imports-configurable.md
+app/src/pages/api/departments/import.ts|docs/domains/imports-configurable.md
+app/src/pages/api/types/import.ts|docs/domains/imports-configurable.md
+app/src/pages/api/vendors/import.ts|docs/domains/imports-configurable.md
+app/src/components/layout/CsvImportForm.tsx|docs/domains/imports-configurable.md
+app/src/lib/importHelpers.ts|docs/domains/import-pipeline.md
+app/src/lib/adapters/*|docs/domains/source-adapters.md
+app/src/lib/historicalPoSiblings.ts|docs/domains/buyer-drafts.md
+
+# Sales orders, quotes, pipeline and follow-up (gift cards, sale POS and discount approval are POS)
+app/src/lib/sales/giftCardLine*|docs/domains/pos.md
+app/src/lib/sales/salePos*|docs/domains/pos.md
+app/src/lib/sales/discountApproval.ts|docs/domains/pos.md
+app/src/lib/sales/discountPolicyShared.ts|docs/domains/pos.md
+app/src/lib/pos/*|docs/domains/pos.md
+app/src/lib/tillVariance.ts|docs/domains/pos.md
+app/src/lib/openCheckoutPrompt.ts|docs/domains/pos.md
+app/src/lib/paymentMethodDisplay.ts|docs/domains/pos.md
+app/src/lib/payments/*|docs/domains/pos.md
+app/src/lib/square.ts|docs/domains/pos.md
+app/src/pages/api/square/*|docs/domains/pos.md
+app/src/pages/api/tenders/*|docs/domains/pos.md
+app/src/app/(dashboard)/app/payment/*|docs/domains/pos.md
+app/src/app/(dashboard)/app/admin/setup/payment-types/*|docs/domains/pos.md
+app/src/app/(dashboard)/app/admin/setup/registers/*|docs/domains/pos.md
+app/src/app/(dashboard)/app/admin/setup/gift-cards/*|docs/domains/pos.md
+app/src/components/modals/TenderModal.tsx|docs/domains/pos.md
+app/src/components/modals/GiftCardPresetModal.tsx|docs/domains/pos.md
+app/src/components/sales/DenominationCountTable.tsx|docs/domains/pos.md
+app/src/components/sales/useDiscountApproval.tsx|docs/domains/pos.md
+app/src/lib/sales/*|docs/domains/sales-orders.md
+app/src/lib/paymentBalance.ts|docs/domains/sales-orders.md
+app/src/lib/orderNumber.ts|docs/domains/sales-orders.md
+app/src/lib/orderLineItemLinker.ts|docs/domains/sales-orders.md
+app/src/lib/proposalPdf.ts|docs/domains/sales-orders.md
+app/src/lib/proposalQty.ts|docs/domains/sales-orders.md
+app/src/lib/pipeline*|docs/domains/sales-orders.md
+app/src/lib/client*.ts|docs/domains/sales-orders.md
+app/src/lib/followUp*|docs/domains/sales-orders.md
+app/src/lib/salesPersonFkBackfill.ts|docs/domains/sales-orders.md
+app/src/lib/numberingPrefix.ts|docs/domains/sales-orders.md
+app/src/pages/api/proposals/*|docs/domains/sales-orders.md
+app/src/pages/api/order-disclaimers/*|docs/domains/sales-orders.md
+app/src/pages/api/order-flags/*|docs/domains/sales-orders.md
+app/src/pages/api/admin/sales/bulk-update-salesperson.ts|docs/domains/sales-orders.md
+app/src/pages/api/customers/[id]/client-profile.ts|docs/domains/sales-orders.md
+app/src/app/(dashboard)/app/admin/sales/salesperson-corrections/*|docs/domains/sales-orders.md
+app/src/app/(dashboard)/app/admin/setup/disclaimers/*|docs/domains/sales-orders.md
+app/src/app/(dashboard)/app/admin/setup/order-flags/*|docs/domains/sales-orders.md
+app/src/components/pipeline/*|docs/domains/sales-orders.md
+app/src/components/sales/*|docs/domains/sales-orders.md
+
+# Accounting, tax, receivables and invoicing
+app/src/lib/accounting/*|docs/domains/accounting.md
+app/src/lib/glMapping.ts|docs/domains/accounting.md
+app/src/lib/quickbooksExport.ts|docs/domains/accounting.md
+app/src/lib/dailyReconciliation*|docs/domains/accounting.md
+app/src/lib/tax/*|docs/domains/accounting.md
+app/src/pages/api/admin/customer-ledger/*|docs/domains/accounting.md
+app/src/pages/api/tax/*|docs/domains/accounting.md
+app/src/pages/api/admin/seed-tax-zips.ts|docs/domains/accounting.md
+app/src/app/(dashboard)/app/admin/setup/accounting/*|docs/domains/accounting.md
+app/src/app/(dashboard)/app/admin/setup/tax/*|docs/domains/accounting.md
+app/src/components/modals/AccountGroupModal.tsx|docs/domains/accounting.md
+app/src/components/modals/GLAccountModal.tsx|docs/domains/accounting.md
+app/src/components/modals/Tax*|docs/domains/accounting.md
+app/src/lib/ar.ts|docs/domains/accounts-receivable.md
+app/src/lib/arEngine.ts|docs/domains/accounts-receivable.md
+app/src/lib/billing/*|docs/domains/accounts-receivable.md
+app/src/lib/customerCredit.ts|docs/domains/accounts-receivable.md
+app/src/pages/api/billing/*|docs/domains/accounts-receivable.md
+app/src/pages/api/customers/[id]/credit*|docs/domains/accounts-receivable.md
+app/src/server/trpc/routers/billing.ts|docs/domains/accounts-receivable.md
+
+# Returns
+app/src/lib/returns/*|docs/domains/returns.md
+
+# Service dispatch, delivery runs and the delivery hand-over
+app/src/lib/fulfilment/*|docs/domains/service-dispatch.md
+app/src/lib/delivery/*|docs/domains/service-dispatch.md
+app/src/lib/service/*|docs/domains/service-dispatch.md
+app/src/lib/serviceCaseLastAction.ts|docs/domains/service-dispatch.md
+app/src/lib/serviceCaseSheetImport.ts|docs/domains/service-dispatch.md
+app/src/lib/runServiceCaseSheetImport.ts|docs/domains/service-dispatch.md
+app/src/pages/api/admin/service/*|docs/domains/service-dispatch.md
+app/src/app/(dashboard)/app/admin/service/*|docs/domains/service-dispatch.md
+app/src/app/(dashboard)/app/admin/import/service-cases/*|docs/domains/service-dispatch.md
+app/src/app/(dashboard)/app/admin/setup/service/*|docs/domains/service-dispatch.md
+app/src/components/dispatch/*|docs/domains/service-dispatch.md
+
+# Reporting and goals
+app/src/lib/salesBySalesperson.ts|docs/domains/reporting.md
+app/src/lib/marginMath.ts|docs/domains/reporting.md
+app/src/lib/serviceKpi.ts|docs/domains/reporting.md
+app/src/lib/weekOverWeek.ts|docs/domains/reporting.md
+app/src/lib/weeklySummaryRows.ts|docs/domains/reporting.md
+app/src/lib/frameRollup.ts|docs/domains/reporting.md
+app/src/lib/buyersRollup.ts|docs/domains/reporting.md
+app/src/lib/storeColors.ts|docs/domains/reporting.md
+app/src/lib/goalsConfig.ts|docs/domains/reporting.md
+app/src/pages/api/dashboard/*|docs/domains/reporting.md
+app/src/pages/api/goals/*|docs/domains/reporting.md
+app/src/pages/api/admin/sales/goals.ts|docs/domains/reporting.md
+app/src/app/(dashboard)/app/admin/goals/*|docs/domains/reporting.md
+app/src/app/(dashboard)/app/admin/sales/goals/*|docs/domains/reporting.md
+app/src/components/report/*|docs/domains/reporting.md
+app/src/components/dashboard/MarketingDashboard.tsx|docs/domains/reporting.md
+app/src/server/trpc/routers/reports.ts|docs/domains/reporting.md
+
+# Commission and pay periods
+app/src/lib/protectionPlanCommission.ts|docs/domains/commission.md
+app/src/lib/runCommissionPayouts.ts|docs/domains/commission.md
+app/src/app/(dashboard)/app/admin/reports/commission-tiers/*|docs/domains/commission.md
+app/src/app/(dashboard)/app/admin/reports/monthly-percentages/*|docs/domains/commission.md
+app/src/pages/api/admin/reports/pay-period-confirmations/*|docs/domains/commission.md
+app/src/components/commission/*|docs/domains/commission.md
+
+# Customers and customer intelligence
+app/src/lib/customers/*|docs/domains/customer-intelligence.md
+app/src/pages/api/customers/*|docs/domains/customer-intelligence.md
+app/src/pages/api/referral-sources/*|docs/domains/customer-intelligence.md
+app/src/app/(dashboard)/app/admin/setup/referral-sources/*|docs/domains/customer-intelligence.md
+app/src/components/customer/*|docs/domains/customer-intelligence.md
+app/src/components/modals/CustomerEditModal.tsx|docs/domains/customer-intelligence.md
+
+# Interactions
+app/src/lib/interactionSources.ts|docs/domains/interactions.md
+app/src/lib/salesInteractionBody.ts|docs/domains/interactions.md
+
+# Buyer drafts (components)
+app/src/components/buyer-drafts/*|docs/domains/buyer-drafts.md
+app/src/components/admin/buyer-drafts/*|docs/domains/buyer-drafts.md
+
+# Printing, labels and receipts
+app/src/lib/labels/*|docs/domains/printing.md
+app/src/lib/receiptPage.ts|docs/domains/printing.md
+app/src/pages/api/print-label.ts|docs/domains/printing.md
+app/src/app/(dashboard)/app/admin/setup/printers/*|docs/domains/printing.md
+app/src/app/(dashboard)/app/admin/setup/labels/*|docs/domains/printing.md
+app/src/components/modals/PrinterModal.tsx|docs/domains/printing.md
+app/src/components/modals/LabelTemplateModal.tsx|docs/domains/printing.md
+
+# Email, customer messages and the email queue
+app/src/app/(dashboard)/app/admin/email/*|docs/domains/email.md
+app/src/app/(dashboard)/app/admin/setup/customer-messages/*|docs/domains/email.md
+app/src/app/(dashboard)/app/admin/setup/email-templates/*|docs/domains/email.md
+app/src/pages/api/admin/email-queue.ts|docs/domains/email.md
+
+# Scheduling and online bookings
+app/src/app/(dashboard)/app/admin/bookings/*|docs/domains/scheduling.md
+app/src/pages/api/services/*|docs/domains/scheduling.md
+
+# Portals and capability links
+app/src/lib/capabilityToken.ts|docs/domains/portal.md
+app/src/lib/portalLink.ts|docs/domains/portal.md
+app/src/server/trpc/routers/clientPortal.ts|docs/domains/client-portal.md
+
+# CMS and the public site
+app/src/lib/leadMagnet.ts|docs/domains/cms.md
+app/src/lib/comments/*|docs/domains/cms.md
+app/src/pages/api/lead-magnet.ts|docs/domains/cms.md
+app/src/pages/api/comments/*|docs/domains/cms.md
+app/src/pages/api/admin/comments/*|docs/domains/cms.md
+app/src/components/cms/*|docs/domains/cms.md
+
+# Legacy archive
+app/src/server/trpc/routers/legacyArchive.ts|docs/domains/legacy-archive.md
+
+# Feedback and ops notifications
+app/src/pages/api/notifications/*|docs/domains/feedback.md
+app/src/components/FeedbackButton.tsx|docs/domains/feedback.md
+
+# Up-board
+app/src/components/dashboard/UpBoard.tsx|docs/domains/upboard.md
+
+# Integrations: Axper traffic, Windfall, credentials
+app/src/lib/runTrafficImport.ts|docs/domains/integrations.md
+app/src/lib/storeTraffic.ts|docs/domains/integrations.md
+app/src/lib/trafficStoreMap.ts|docs/domains/integrations.md
+app/src/lib/trafficSummary.ts|docs/domains/integrations.md
+app/src/lib/trafficSyncRun.ts|docs/domains/integrations.md
+app/src/lib/traffic/*|docs/domains/integrations.md
+app/src/lib/integrationTest.ts|docs/domains/integrations.md
+app/src/lib/secretCrypto.ts|docs/domains/integrations.md
+app/src/pages/api/axper/*|docs/domains/integrations.md
+app/src/pages/api/exports/windfall-*|docs/domains/integrations.md
+app/src/app/(dashboard)/app/admin/import/windfall/*|docs/domains/integrations.md
+app/src/pages/api/customers/windfall-import.ts|docs/domains/integrations.md
+app/src/pages/api/admin/settings/integrations.ts|docs/domains/integrations.md
+app/src/pages/api/admin/settings/integrations/*|docs/domains/integrations.md
+app/src/app/(dashboard)/app/admin/settings/integrations/*|docs/domains/integrations.md
+app/src/app/(dashboard)/app/admin/export/windfall/*|docs/domains/integrations.md
+
+# Configuration presets (Settings > Configuration)
+app/src/lib/config/*|docs/domains/config-presets.md
+app/src/pages/api/admin/config/*|docs/domains/config-presets.md
+app/src/app/(dashboard)/app/admin/settings/configuration/*|docs/domains/config-presets.md
+
+# Modules, feature flags and Settings
+app/src/lib/modules/*|docs/domains/modules.md
+app/src/lib/featureCatalog.ts|docs/domains/modules.md
+app/src/lib/appSettings.ts|docs/domains/modules.md
+app/src/lib/hooks/useFeatures.ts|docs/domains/modules.md
+app/src/pages/api/settings/*|docs/domains/modules.md
+app/src/pages/api/admin/settings/*|docs/domains/modules.md
+app/src/app/(dashboard)/app/admin/settings/*|docs/domains/modules.md
+
+# Staff, roles, login, navigation and the staff home page
+app/src/pages/auth/*|docs/domains/staff-auth.md
+app/src/pages/api/auth/*|docs/domains/staff-auth.md
+app/src/lib/loginActivity.ts|docs/domains/staff-auth.md
+app/src/lib/staffAttribution.ts|docs/domains/staff-auth.md
+app/src/lib/staffRecord.ts|docs/domains/staff-auth.md
+app/src/lib/hooks/useEffectiveRole.ts|docs/domains/staff-auth.md
+app/src/lib/gettingStarted*|docs/domains/staff-auth.md
+app/src/lib/hooks/useGettingStartedRemaining.ts|docs/domains/staff-auth.md
+app/src/lib/homeSections.ts|docs/domains/staff-auth.md
+app/src/lib/genericExport*|docs/domains/staff-auth.md
+app/src/pages/api/admin/roles/*|docs/domains/staff-auth.md
+app/src/pages/api/admin/impersonate.ts|docs/domains/staff-auth.md
+app/src/pages/api/admin/login-activity.ts|docs/domains/staff-auth.md
+app/src/pages/api/admin/getting-started.ts|docs/domains/staff-auth.md
+app/src/pages/api/admin/export/*|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/account/*|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/admin/setup/roles/*|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/admin/setup/stores/*|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/admin/login-activity/*|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/admin/export/data/*|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/admin/setup/page.tsx|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/admin/page.tsx|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/HomeView.tsx|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/page.tsx|docs/domains/staff-auth.md
+app/src/components/ImpersonationBanner.tsx|docs/domains/staff-auth.md
+app/src/components/auth/*|docs/domains/staff-auth.md
+app/src/components/navigation/*|docs/domains/staff-auth.md
+app/src/components/admin/GettingStartedCard.tsx|docs/domains/staff-auth.md
+app/src/server/trpc/routers/account.ts|docs/domains/staff-auth.md
+
+# Practice copy, database backup and restore
+app/src/lib/databaseReplaced.ts|docs/domains/practice-copy.md
+app/src/pages/api/admin/database/*|docs/domains/practice-copy.md
+
+# Admin diagnostics tools
+app/src/app/(dashboard)/app/admin/diagnostics/*|docs/domains/tools.md
+app/src/pages/api/admin/relink-line-items.ts|docs/domains/tools.md
+app/src/pages/api/diagnostics/*|docs/domains/tools.md
+app/src/lib/toolFileUtils.ts|docs/domains/tools.md
+app/src/lib/queryBuilder*|docs/domains/tools.md
+
+# Cross-cutting infrastructure with no domain of its own: the three-field form
+# `pattern|-|reason` says why there is no runbook. A change here asks for no doc.
+app/src/app/api/trpc/*|-|tRPC HTTP adapter, framework plumbing shared by every router
+app/src/server/trpc/trpc.ts|-|tRPC core (procedure builders and middleware), shared by every domain
+app/src/server/trpc/context.ts|-|tRPC request context, shared by every domain
+app/src/server/trpc/routers/_app.ts|-|tRPC router registry that only lists each domain's router
+app/src/lib/trpc/*|-|tRPC browser client, shared by every domain
+app/src/app/layout.tsx|-|root layout and providers wrapping every page, no single domain
+app/src/app/providers.tsx|-|root client providers wrapping every page, no single domain
+app/src/app/(dashboard)/layout.tsx|-|back-office layout shell wrapping every authenticated screen
+app/src/app/manifest.ts|-|web app manifest, installable-shell metadata with no domain logic
+app/src/app/robots.ts|-|robots.txt generation, generic site plumbing
+app/src/app/sitemap.ts|-|sitemap generation, generic site plumbing
+app/src/app/health/*|-|liveness probe page with no business logic
+app/src/pages/api/health.ts|-|liveness probe endpoint with no business logic
+app/src/pages/_app.tsx|-|Pages Router app wrapper kept for auth and REST routes, no domain
+app/src/pages/_document.tsx|-|Pages Router document shell, no domain
+app/src/pages/api/uploads/*|-|generic uploaded-file server shared by every domain that stores pictures
+app/src/components/ui/*|-|UI primitives (button, card, modal, tabs) used by every screen
+app/src/components/form/*|-|generic form controls and filter pickers used by every screen
+app/src/components/table/*|-|generic paginated table components used by every list screen
+app/src/components/dnd/*|-|generic drag-and-drop primitives used by several boards
+app/src/components/layout/*|-|page layout shells and list-page scaffolding used by every screen
+app/src/components/ErrorBoundary.tsx|-|generic React error boundary wrapping screens
+app/src/components/branding/*|-|logo and branding provider shared by the whole shell
+app/src/lib/branding.ts|-|branding constants shared by the whole shell
+app/src/lib/apiHandler.ts|-|generic API route wrapper (method, error and logging handling) shared by every route
+app/src/lib/apiResponse.ts|-|generic API response helpers shared by every route
+app/src/lib/prisma.ts|-|Prisma client singleton shared by every domain
+app/src/lib/logger.ts|-|logging helper shared by every domain
+app/src/lib/requestLog.ts|-|request logging shared by every API route
+app/src/lib/errorCode.ts|-|generic error-code extraction helper
+app/src/lib/errorFingerprint.ts|-|generic error grouping helper for the error recorder
+app/src/lib/errorRecorder.ts|-|generic error recording infrastructure shared by every domain
+app/src/lib/opsAlert.ts|-|generic operational-alert raiser shared by every domain
+app/src/lib/rateLimit.ts|-|generic rate limiter shared by every public route
+app/src/lib/safePathJoin.ts|-|generic path-traversal guard for file access
+app/src/lib/privateTempFile.ts|-|generic private temp-file helper
+app/src/lib/secureUpload.ts|-|generic upload validation shared by every upload route
+app/src/lib/validateEnv.ts|-|boot-time environment validation, deployment plumbing
+app/src/lib/validation/*|-|generic request validation helpers shared by every route
+app/src/lib/cacheGeneration.ts|-|generic cache-invalidation helper
+app/src/lib/buildSearchFilter.ts|-|generic search-filter builder used by many list endpoints
+app/src/lib/searchAsYouTypeStatus.ts|-|generic search-box status helper used by many screens
+app/src/lib/savedRecord.ts|-|generic add-or-edit form helper used by many screens
+app/src/lib/toastError.ts|-|generic error-toast helper used by many screens
+app/src/lib/csv.ts|-|generic CSV parsing helper
+app/src/lib/csvExport.ts|-|generic CSV writer helper
+app/src/lib/excelUtils.ts|-|generic spreadsheet helper
+app/src/lib/dateUtils.ts|-|generic date helpers
+app/src/lib/money.ts|-|generic money arithmetic helpers
+app/src/lib/formatMoney.ts|-|generic money formatting helper
+app/src/lib/utils.ts|-|generic class-name and misc helpers
+app/src/lib/testing/*|-|test-database harness, not product code
