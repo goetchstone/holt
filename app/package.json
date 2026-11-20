@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "setup": "bash scripts/setup.sh",
-    "build": "node --max-old-space-size=6144 ./node_modules/.bin/next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
     "start": "next start",
     "lint": "eslint src/ scripts/",
     "typecheck": "node --max-old-space-size=6144 ./node_modules/.bin/tsc --noEmit",
