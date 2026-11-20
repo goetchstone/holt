@@ -13,6 +13,7 @@ import { buildIcsCalendar } from "@/lib/booking/ics";
 import { bookingToIcsEvent } from "@/lib/booking/event";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
+import { secretsEqual } from "@/lib/auth/secretsEqual";
 
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 30 }, "bookings-feed");
 
@@ -29,8 +30,10 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
     return res.status(404).json({ error: "Not found" });
   }
 
+  // Constant time (lib/auth/secretsEqual.ts): `!==` stops at the first wrong
+  // character, so its timing says how much of a guessed token was right.
   const provided = req.query.token;
-  if (typeof provided !== "string" || provided !== expected) {
+  if (typeof provided !== "string" || !secretsEqual(provided, expected)) {
     return res.status(404).json({ error: "Not found" });
   }
 

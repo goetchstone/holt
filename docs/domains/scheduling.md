@@ -57,6 +57,7 @@ existing deployments keep working with zero config. Gated by the existing
 | `/api/scheduling/blocks/[id]` | DELETE | ADMIN | Remove time off |
 | `/api/bookings/availability` | GET | public | `?serviceId` → window slots; else flat. Subtracts bookings + blocks |
 | `/api/bookings` | POST | public | Accepts `serviceId`; derives end from the service duration + uses its name as the label |
+| `/api/bookings/feed.ics` | GET | `?token=` | The bookings calendar feed for a calendar app to subscribe to. 404 when `BOOKING_FEED_TOKEN` is unset or the token does not match; the token is compared in constant time (`lib/auth/secretsEqual.ts`, since 2026-11-20) |
 
 ## UI
 

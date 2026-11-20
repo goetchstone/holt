@@ -23,23 +23,20 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { createHash, timingSafeEqual } from "crypto";
 import { requirePermission } from "@/lib/auth/requireAuth";
-
-const sha256 = (value: string) => createHash("sha256").update(value).digest();
+import { secretsEqual } from "@/lib/auth/secretsEqual";
 
 /**
  * The scheduler's service-key path, and the only place AUTO_IMPORT_API_KEY is
- * compared. Only the exact `Bearer <key>` passes (scheme is case-sensitive).
- * Both sides are hashed first so timingSafeEqual always sees two 32-byte
- * buffers: a different length neither throws nor leaks the key's length.
- * Unset or empty key, or no header -> false (fail closed).
+ * compared, in constant time (lib/auth/secretsEqual.ts). Only the exact
+ * `Bearer <key>` passes (scheme is case-sensitive). Unset or empty key, or no
+ * header -> false (fail closed).
  */
 export function authorizedByAutoImportKey(req: NextApiRequest): boolean {
   const key = process.env.AUTO_IMPORT_API_KEY;
   const header = req.headers.authorization;
   if (!key || typeof header !== "string") return false;
-  return timingSafeEqual(sha256(header), sha256(`Bearer ${key}`));
+  return secretsEqual(header, `Bearer ${key}`);
 }
 
 export type AutomationHandler = (

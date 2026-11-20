@@ -83,3 +83,23 @@ describe("rowsToCsv", () => {
     );
   });
 });
+
+describe("crlfCsv (journal-entry export)", () => {
+  // The journal export used to build rows with csvRow and then replace every
+  // "\n" with "\r\n", which also rewrote newlines inside a quoted memo: an
+  // embedded LF became CRLF and an embedded CRLF became CR CR LF.
+  it("keeps a newline inside a quoted cell as it is", () => {
+    const { crlfCsv } = jest.requireActual("@/lib/csvExport");
+    const csv = crlfCsv([
+      ["Memo", "Debit"],
+      ["line one\nline two", "10.00"],
+      ["a\r\nb", "-5.00"],
+    ]);
+    expect(csv).toBe('Memo,Debit\r\n"line one\nline two",10.00\r\n"a\r\nb",-5.00\r\n');
+  });
+
+  it("neutralises a formula cell and leaves a plain negative amount alone", () => {
+    const { crlfCsv } = jest.requireActual("@/lib/csvExport");
+    expect(crlfCsv([["=SUM(A1:A2)", "-12.50", -3]])).toBe("'=SUM(A1:A2),-12.50,-3\r\n");
+  });
+});

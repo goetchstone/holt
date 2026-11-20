@@ -37,6 +37,15 @@ export function csvRow(cells: (string | number | null | undefined)[]): string {
 }
 
 /**
+ * Rows of cells as CSV with CRLF line endings, the last row included, for a file
+ * another program imports. Join here, never by rewriting csvRow's "\n" after the
+ * fact: that would also rewrite a newline inside a quoted cell.
+ */
+export function crlfCsv(rows: (string | number | null | undefined)[][]): string {
+  return rows.map((cells) => cells.map(csvCell).join(",")).join("\r\n") + "\r\n";
+}
+
+/**
  * Capture an inner handler's response into an in-memory object so an
  * outer endpoint can shape the bytes (e.g. into CSV) without an HTTP
  * round-trip. The fake `res` object captures the JSON body; if the

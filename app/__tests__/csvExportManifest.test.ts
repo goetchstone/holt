@@ -25,6 +25,16 @@ const SRC = join(APP_DIR, "src");
 const CSV_PATTERN =
   /text\/csv|\.csv\b|Content-Disposition|Papa\.unparse|AsyncParser|\bcsvRow\(|\browsToCsv\(|\bcsvCell\b|neutraliseRow/;
 const HELPER_IMPORT = /from\s+["'](?:@\/lib\/|\.\/|\.\.\/|(?:\.\.\/)+lib\/)csv(?:Export)?["']/;
+// A helper entry must use one, not only import it: called, or passed as a value
+// (`rows.map(neutraliseRow)`, `row.map(csvCell)`), anywhere but the import line.
+const HELPER_USE =
+  /\b(?:csvCell|csvRow|crlfCsv|rowsToCsv|neutraliseRow|neutraliseFormulaCell|escapeCell)\b/;
+const usesHelper = (text: string) =>
+  text.split("\n").some((l) => !/^\s*import\b/.test(l) && HELPER_USE.test(l));
+// A CSV row joined by hand, ending in a line break: what the helpers replace.
+// `(?:\\r)?` makes the whole `\r` optional; `\\r?` would leave its backslash required.
+const HAND_ROW =
+  /\.join\(\s*["'],["']\s*\)\s*\+\s*["'](?:\\r)?\\n["']|\.join\(\s*["'],["']\s*\)\}(?:\\r)?\\n`/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -94,12 +104,21 @@ describe("CSV producer manifest (formula injection)", () => {
     expect(bare).toEqual([]);
   });
 
-  it("(d) every helper entry imports a CSV helper", () => {
-    const bad = MANIFEST.filter(
-      (e) =>
-        e.kind === "helper" && !HELPER_IMPORT.test(readFileSync(join(APP_DIR, e.file), "utf8")),
-    ).map((e) => e.file);
+  it("(d) every helper entry imports and uses a CSV helper, and joins no row by hand", () => {
+    const bad = MANIFEST.filter((e) => {
+      if (e.kind !== "helper") return false;
+      const text = readFileSync(join(APP_DIR, e.file), "utf8");
+      return !HELPER_IMPORT.test(text) || !usesHelper(text) || HAND_ROW.test(text);
+    }).map((e) => e.file);
     expect(bad).toEqual([]);
+  });
+
+  it("(d) the hand-built-row check can disagree", () => {
+    expect(HAND_ROW.test('lines.push(cells.join(",") + "\\n");')).toBe(true);
+    expect(HAND_ROW.test('out += `${cells.join(",")}\\r\\n`;')).toBe(true);
+    expect(HAND_ROW.test('const inList = ids.join(",");')).toBe(false);
+    expect(usesHelper('import { csvCell } from "@/lib/csvExport";\nconst x = 1;')).toBe(false);
+    expect(usesHelper('import { csvCell } from "@/lib/csvExport";\nrow.map(csvCell)')).toBe(true);
   });
 
   it("has no duplicate entries", () => {
