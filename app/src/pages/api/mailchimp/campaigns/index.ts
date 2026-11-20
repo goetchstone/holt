@@ -7,10 +7,15 @@ import { logError } from "@/lib/logger";
 import { mailchimpDatacenter, mailchimpBaseUrl } from "@/lib/mailchimp/baseUrl";
 
 const mailchimpApiKey = process.env.MAILCHIMP_API_KEY as string;
-const dc = mailchimpDatacenter(mailchimpApiKey) ?? "";
-const baseUrl = mailchimpBaseUrl(dc);
+const dc = mailchimpDatacenter(mailchimpApiKey);
+const baseUrl = mailchimpBaseUrl(dc ?? "");
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // The Leads screen asks on every load. With no usable key there is nothing to
+  // fetch, and nothing the caller did wrong: say so with an empty list, instead
+  // of requesting https://.api.mailchimp.com and answering its DNS failure (and
+  // an ops alert) with a 500.
+  if (!dc) return res.status(200).json({ campaigns: [], configured: false });
   try {
     const response = await axios.get(`${baseUrl}/campaigns`, {
       auth: {

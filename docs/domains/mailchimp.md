@@ -122,6 +122,16 @@ The pipeline and My Clients build a score's input with `leadScoreInputFromCustom
 | `/api/mailchimp/sync-metrics.ts`            | Just metrics window                                                               |
 | `/api/mailchimp/backfill-customer-links.ts` | Re-link `MailchimpActivity.customerId` for rows that didn't match on first ingest |
 
+**Without a usable key.** Each route checks `mailchimpDatacenter(MAILCHIMP_API_KEY)`
+(`lib/mailchimp/baseUrl.ts`) per request and stops when it is null, a key that is
+missing or has no `-<datacenter>` suffix. `GET /api/mailchimp/campaigns`, which
+the Leads board asks on every load, answers `200 { campaigns: [], configured:
+false }`. The four sync routes answer `400` with `MAILCHIMP_NOT_CONFIGURED`.
+Before 2026-11-20 the campaigns route and three sync routes requested
+`https://.api.mailchimp.com` and answered the DNS failure with a 500 and an ops
+alert, on every Leads load of a deployment without Mailchimp; the browser page
+sweep found it (`docs/testing/page-sweep.md`).
+
 There is no "delete everything" endpoint. `/api/mailchimp/delete-all.ts` (and its
 sibling `/api/customers/delete-all.ts`) wiped the campaign tables, or every
 customer, and nothing called them; both were removed 2026-11-14. History is
@@ -146,6 +156,7 @@ kept, not wiped: a resync upserts campaign rows in place
 | `leadHousekeeping.ts`      | Real-DB integration                                                      |
 | Revenue-status filter      | Source-text tripwire + real-DB attribution test                          |
 | Sync runners               | Real-DB integration (`mailchimpAudienceSync.runner.integration.test.ts`) |
+| No usable key              | `mailchimpNotConfigured.test.ts`: the campaigns read and four sync routes, key unset and malformed, no request sent |
 
 ## Known gaps
 

@@ -5,7 +5,11 @@ import { prisma } from "@/lib/prisma";
 import axios from "axios";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { mailchimpDatacenter, mailchimpBaseUrl } from "@/lib/mailchimp/baseUrl";
+import {
+  MAILCHIMP_NOT_CONFIGURED,
+  mailchimpBaseUrl,
+  mailchimpDatacenter,
+} from "@/lib/mailchimp/baseUrl";
 
 const RATE_LIMIT_DELAY_MS = 5000;
 const INTER_CAMPAIGN_DELAY_MS = 1000;
@@ -27,9 +31,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const apiKey = process.env.MAILCHIMP_API_KEY;
   const serverPrefix = mailchimpDatacenter(apiKey);
   if (!serverPrefix) {
-    return res.status(400).json({
-      error: "Mailchimp not configured: API key missing or malformed (expected <key>-<datacenter>)",
-    });
+    return res.status(400).json({ error: MAILCHIMP_NOT_CONFIGURED });
   }
   const baseUrl = mailchimpBaseUrl(serverPrefix);
 

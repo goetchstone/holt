@@ -11,6 +11,12 @@ import { isPracticeCopy } from "@/lib/practiceCopy";
 
 const DATACENTER_RE = /^[a-z]{2,4}\d{1,3}$/;
 
+/** What a Mailchimp route says when the deployment has no usable key. Routes
+ *  check `mailchimpDatacenter()` per request and stop here, rather than build
+ *  `https://.api.mailchimp.com` and answer the DNS failure with a 500. */
+export const MAILCHIMP_NOT_CONFIGURED =
+  "Mailchimp not configured: API key missing or malformed (expected <key>-<datacenter>)";
+
 export function mailchimpDatacenter(apiKey: string | undefined | null): string | null {
   const dc = apiKey?.split("-")[1];
   if (!dc || !DATACENTER_RE.test(dc)) return null;
