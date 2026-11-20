@@ -56,6 +56,36 @@ describe("authorizedByAutoImportKey", () => {
   });
 });
 
+describe("authorizedByAutoImportKey (constant-time compare, real crypto)", () => {
+  beforeEach(() => {
+    process.env.AUTO_IMPORT_API_KEY = "s3cr3t-key-value";
+  });
+  it("accepts the right key", () => {
+    expect(authorizedByAutoImportKey(req("Bearer s3cr3t-key-value"))).toBe(true);
+  });
+  it("rejects a wrong key of the same length", () => {
+    expect(authorizedByAutoImportKey(req("Bearer s3cr3t-key-valuf"))).toBe(false);
+  });
+  it("rejects shorter and longer values without throwing", () => {
+    expect(authorizedByAutoImportKey(req("Bearer s3"))).toBe(false);
+    expect(authorizedByAutoImportKey(req("Bearer s3cr3t-key-value-and-more"))).toBe(false);
+  });
+  it("rejects when the key is unset or empty", () => {
+    delete process.env.AUTO_IMPORT_API_KEY;
+    expect(authorizedByAutoImportKey(req("Bearer undefined"))).toBe(false);
+    process.env.AUTO_IMPORT_API_KEY = "";
+    expect(authorizedByAutoImportKey(req("Bearer "))).toBe(false);
+  });
+  it("rejects a missing header", () => {
+    expect(authorizedByAutoImportKey(req())).toBe(false);
+  });
+  it("keeps exact-match semantics: only 'Bearer <key>' passes", () => {
+    expect(authorizedByAutoImportKey(req("Basic s3cr3t-key-value"))).toBe(false);
+    expect(authorizedByAutoImportKey(req("bearer s3cr3t-key-value"))).toBe(false);
+    expect(authorizedByAutoImportKey(req("s3cr3t-key-value"))).toBe(false);
+  });
+});
+
 describe("guardAutomation", () => {
   it("with the service key: runs the job directly with a null session, no permission check", async () => {
     process.env.AUTO_IMPORT_API_KEY = "s3cr3t";

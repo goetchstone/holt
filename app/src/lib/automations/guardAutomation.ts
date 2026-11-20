@@ -24,11 +24,19 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { secretsEqual } from "@/lib/auth/secretsEqual";
 
-/** The scheduler's service-key path. Absent key or wrong token -> not the scheduler. */
+/**
+ * The scheduler's service-key path, and the only place AUTO_IMPORT_API_KEY is
+ * compared, in constant time (lib/auth/secretsEqual.ts). Only the exact
+ * `Bearer <key>` passes (scheme is case-sensitive). Unset or empty key, or no
+ * header -> false (fail closed).
+ */
 export function authorizedByAutoImportKey(req: NextApiRequest): boolean {
   const key = process.env.AUTO_IMPORT_API_KEY;
-  return !!key && req.headers.authorization === `Bearer ${key}`;
+  const header = req.headers.authorization;
+  if (!key || typeof header !== "string") return false;
+  return secretsEqual(header, `Bearer ${key}`);
 }
 
 export type AutomationHandler = (

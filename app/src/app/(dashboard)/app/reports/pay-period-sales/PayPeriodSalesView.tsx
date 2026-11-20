@@ -20,6 +20,7 @@ import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { api } from "@/lib/trpc/client";
+import { csvCell } from "@/lib/csvExport";
 
 const PERIOD_DAYS = 14;
 
@@ -208,7 +209,6 @@ export function PayPeriodSalesView() {
       o.sharePercent === null ? "" : `${o.sharePercent}%`,
       o.creditedNet.toFixed(2),
     ]);
-    const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v);
     const lines = [
       header,
       ...rows,

@@ -870,5 +870,9 @@ Not built in PR 4, tracked in `ROADMAP.md` → "Handheld floor" (rule 50): an of
 | What makes a PO "partially received" differs: native receiving counts any quantity, the POS import a complete line. Owner decision (ROADMAP, "Decisions only you can make" #3); not merged until decided | `lib/purchasing/receiptStatus.ts`, `runners.ts` `classifyPOReceiptStatus` | owner |
 | ✅ The Buyers report would have counted a committed receipt twice (ledger and PO chain). Per order and product, the PO-chain half now counts only what the ledger does not already hold as committed | `lib/reports/buyersReport.ts` (query 2) | fixed (PR 2) |
 
+## CSV exports neutralise formula cells
+
+Exports neutralise formula cells (CSV injection, 2026-11-20). A cell whose text starts with `=`, `+`, `-`, `@`, tab or CR is run as a formula by Excel/Sheets/Numbers, and customer, product and note fields are user-entered. `neutraliseFormulaCell` in `app/src/lib/csv.ts` is the one function: it prefixes a single quote to such a string, except a string that is wholly a plain number (`-12.50`, `+3`), and never touches a number value. `csvCell`/`csvRow` (`app/src/lib/csvExport.ts`) and `rowsToCsv` (`app/src/lib/csv.ts`) both go through it, and `neutraliseRow` covers exporters that hand rows to json2csv or Papa. Covers here: the stock-count variance export (`pages/api/inventory/export-variance.ts`), which keeps json2csv and passes each row through `neutraliseRow`. `app/__tests__/fixtures/csv-producers.txt` lists every CSV-producing file under `app/src` and `app/__tests__/csvExportManifest.test.ts` fails when a producer is unlisted or bypasses a helper; a new export goes through a helper and into that manifest.
+
 ---
 Last verified: 2026-10-21

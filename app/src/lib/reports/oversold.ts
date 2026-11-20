@@ -16,6 +16,7 @@
 // Whether the product's last count by area showed a variance is a flag the
 // count-by-area pages add (ledger plan PR 4).
 
+import { csvCell } from "@/lib/csvExport";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { freePositionWhere } from "@/lib/inventory/allocation";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
@@ -258,10 +259,7 @@ export async function getOversoldReport(
 
 /** The report as CSV, one row per order short of a product. */
 export function oversoldCsv(rows: OversoldRow[]): string {
-  const cell = (v: string | number | null) => {
-    const s = v == null ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-  };
+  const cell = csvCell;
   const fixText = (f: SuggestedFix) => {
     if (f.kind === "FREE_HERE")
       return `${f.quantity} free at ${f.storeName}: commit it to the order`;

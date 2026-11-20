@@ -740,6 +740,10 @@ All season windows are data-backed (CLAUDE.md rule 41); the hypotheses documente
 - **Stockout tracking** (Ship 4 roadmap) — daily `InventoryDailySnapshot` cron enables "days out of stock in last 90" per product.
 - **Configuration distribution report** (Ship 5) — under a frame-leaf, break down which fabric/grade/color combos actually sell. Guides "what should the next floor sample be."
 
+## CSV exports neutralise formula cells
+
+Exports neutralise formula cells (CSV injection, 2026-11-20). A cell whose text starts with `=`, `+`, `-`, `@`, tab or CR is run as a formula by Excel/Sheets/Numbers, and customer, product and note fields are user-entered. `neutraliseFormulaCell` in `app/src/lib/csv.ts` is the one function: it prefixes a single quote to such a string, except a string that is wholly a plain number (`-12.50`, `+3`), and never touches a number value. `csvCell`/`csvRow` (`app/src/lib/csvExport.ts`) and `rowsToCsv` (`app/src/lib/csv.ts`) both go through it, and `neutraliseRow` covers exporters that hand rows to json2csv or Papa. Covers here: the Traffic export (`pages/api/reports/traffic/export.ts`, now on `csvCell`), the oversold CSV (`lib/reports/oversold.ts`), the Pay-Period, Buyers and Wealth Insights downloads and the shared `ReportTable` export (`neutraliseRow` before `Papa.unparse`). `app/__tests__/fixtures/csv-producers.txt` lists every CSV-producing file under `app/src` and `app/__tests__/csvExportManifest.test.ts` fails when a producer is unlisted or bypasses a helper; a new export goes through a helper and into that manifest.
+
 ---
 
 Last verified: 2026-10-02 (the report gate table and View cost notes: Inventory Health, PO Sell-Thru, the Buyers Report, Open PO Gaps); 2026-10-01 (the report gate table: Gross Margin, Sales Explorer, Top & Bottom Sellers); 2026-04-24 (Buyers Report Ship 2 — stock/special split, data-driven frame rollup, dept hint banner)

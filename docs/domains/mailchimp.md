@@ -4,7 +4,7 @@ Email campaign sync, attribution, lead ingestion, housekeeping. This split out f
 
 ## Daily orchestrator
 
-Single entry point: `POST /api/automations/mailchimp-sync` (runs 4 phases). Scheduled by "Mailchimp campaign results" at Admin → Automations, off to start (`docs/domains/automations.md`). By hand: Bearer `AUTO_IMPORT_API_KEY` or a session.
+Single entry point: `POST /api/automations/mailchimp-sync` (runs 4 phases). Scheduled by "Mailchimp campaign results" at Admin → Automations, off to start (`docs/domains/automations.md`). By hand: Bearer `AUTO_IMPORT_API_KEY` or a session. `/api/mailchimp/backfill-customer-links` checks the key through the shared constant-time `authorizedByAutoImportKey` (`lib/automations/guardAutomation.ts`), not an inline compare.
 
 Phases:
 

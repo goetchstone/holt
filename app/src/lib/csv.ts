@@ -31,8 +31,44 @@ export function serializeCsvValue(value: unknown): string {
   return String(value);
 }
 
-function escapeCell(raw: string): string {
-  return /[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+/**
+ * CSV injection (OWASP): a spreadsheet runs a cell whose text starts with
+ * = + - @ (or a tab or carriage return) as a formula. Customer, product and
+ * note fields are user-entered, so any export can carry a payload. This is the
+ * ONE neutraliser; `escapeCell` here and `csvCell` in csvExport.ts both call
+ * it, so every export that emits through either helper gets it.
+ *
+ * Prefixes a single quote, which spreadsheets render as literal text. A string
+ * that is wholly a plain number ("-12.50", "+3") is left alone so negative
+ * amounts stay numbers; exports emit amounts via toFixed(2), never with a
+ * thousands separator or currency symbol.
+ */
+const PLAIN_NUMBER = /^[+-]?(\d+(\.\d+)?|\.\d+)$/;
+export function neutraliseFormulaCell(text: string): string {
+  if (!/^[=+\-@\t\r]/.test(text)) return text;
+  if (PLAIN_NUMBER.test(text)) return text;
+  return `'${text}`;
+}
+
+/**
+ * Neutralise every string value of a flat row object, for exporters that hand
+ * rows to another serializer. Numbers, null and other types pass through.
+ */
+export function neutraliseRow<T extends Record<string, unknown>>(row: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    out[k] = typeof v === "string" ? neutraliseFormulaCell(v) : v;
+  }
+  return out as T;
+}
+
+/**
+ * Quote a cell for CSV. `isText` is false for a value that was a JS number,
+ * which is never neutralised (a negative amount is a number, not a formula).
+ */
+export function escapeCell(raw: string, isText = true): string {
+  const text = isText ? neutraliseFormulaCell(raw) : raw;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 /**
@@ -55,9 +91,13 @@ export function rowsToCsv(rows: ReadonlyArray<Record<string, unknown>>): string 
     }
   }
 
-  const lines: string[] = [headers.map(escapeCell).join(",")];
+  const lines: string[] = [headers.map((h) => escapeCell(h)).join(",")];
   for (const row of rows) {
-    lines.push(headers.map((h) => escapeCell(serializeCsvValue(row[h]))).join(","));
+    lines.push(
+      headers
+        .map((h) => escapeCell(serializeCsvValue(row[h]), typeof row[h] !== "number"))
+        .join(","),
+    );
   }
   return lines.join("\r\n");
 }

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { api } from "@/lib/trpc/client";
 import type { CustomerRow } from "@/lib/reports/wealthInsights";
+import { csvRow } from "@/lib/csvExport";
 
 const TIER_LABELS: Record<string, string> = {
   ULTRA_HIGH: "$10M+",
@@ -115,7 +116,7 @@ function exportCsv(rows: CustomerRow[], filename: string) {
     r.orderCount,
     r.totalSpend,
   ]);
-  const csv = [headers, ...csvRows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+  const csv = [headers, ...csvRows].map((r) => csvRow(r)).join("");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

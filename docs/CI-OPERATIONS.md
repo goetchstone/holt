@@ -86,7 +86,7 @@ Tracked as an optional cost-saving step; do this if the $5/month budget runs tig
 `npm run check:local` (in `app/`) runs the local-developer equivalent of CI. (It ran a local SonarQube scan as well until 2026-10-16; CodeQL in CI covers that ground, and the SonarSource rules worth keeping run in lint through `eslint-plugin-sonarjs`.)
 
 1. **`validate`** — lint + typecheck + format (~30 sec)
-2. **`test:coverage`** — unit + integration tests, merged coverage gate (~1 min)
+2. **`test:coverage`** — unit + integration tests, merged coverage gate against the floors in `app/scripts/test-coverage.sh` (about 30 min locally; in CI the step took 55 to 71 min on green runs in November 2026)
 3. **`lint:md`** — markdown formatting (~5 sec). Lints only Markdown git tracks or would track (`"gitignore": true` in `.markdownlint-cli2.jsonc`), so gitignored local docs such as `/PLAN.md` can't fail it. CI's Markdown lint job runs this same script, so both use the markdownlint-cli2 version pinned exactly in `app/package.json` (Dependabot bumps it)
 4. **`security:semgrep`** — OWASP/Next.js/secrets pattern scan (~2 min via Docker)
 5. **`security:deps`** — OSV CVE scan, only when `package-lock.json` changed in last commit (~30 sec)

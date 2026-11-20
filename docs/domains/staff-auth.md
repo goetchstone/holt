@@ -632,6 +632,7 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `components/auth/IdleLogoff.tsx` -- the browser's idle timer, warning and sign-out
 - `lib/auth/endSession.ts` -- every sign-out, and the sign-in screen's check that it held
 - `lib/auth/roleAdmin.ts` -- wire types + serialization shared by the Roles GUI and its API
+- `lib/auth/secretsEqual.ts` -- the one constant-time comparison for a secret a request presents (`timingSafeEqual` always over the expected secret's length, then the lengths must match; no hashing, which CodeQL read as a weak password hash; an empty expected secret never matches). Used by the scheduler's service key (`lib/automations/guardAutomation.ts`) and the bookings feed token (`pages/api/bookings/feed.ics.ts`); `automationKeyTripwire.test.ts` fails on a `Bearer` header compared with `===` or `!==`
 - `server/trpc/trpc.ts` -- `roleProcedure` / `permissionProcedure`
 - `__tests__/trpcProcedureAuthorization.test.ts` -- the tRPC manifest (see "tRPC procedure manifest")
 - `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role

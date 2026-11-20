@@ -17,23 +17,32 @@
 // keep the helpers small and obvious; resist piling more knobs on.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { escapeCell } from "@/lib/csv";
 
 /**
  * RFC 4180-ish CSV escaping: wrap in quotes if the value contains
- * commas, quotes, or newlines; double any embedded quotes.
+ * commas, quotes, or newlines; double any embedded quotes. A string that
+ * starts with = + - @ tab or CR is neutralised first so a spreadsheet does
+ * not run it as a formula (`neutraliseFormulaCell` in csv.ts); a number
+ * never is.
  */
 export function csvCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const s = String(value);
-  if (/[",\n\r]/.test(s)) {
-    return `"${s.replaceAll('"', '""')}"`;
-  }
-  return s;
+  return escapeCell(String(value), typeof value !== "number");
 }
 
 /** Join cells into a CSV row terminated with a newline. */
 export function csvRow(cells: (string | number | null | undefined)[]): string {
   return cells.map(csvCell).join(",") + "\n";
+}
+
+/**
+ * Rows of cells as CSV with CRLF line endings, the last row included, for a file
+ * another program imports. Join here, never by rewriting csvRow's "\n" after the
+ * fact: that would also rewrite a newline inside a quoted cell.
+ */
+export function crlfCsv(rows: (string | number | null | undefined)[][]): string {
+  return rows.map((cells) => cells.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
 
 /**
