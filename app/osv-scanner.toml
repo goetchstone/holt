@@ -39,12 +39,12 @@
 [[IgnoredVulns]]
 id = "GHSA-4r6h-8v6p-xvw6"
 ignoreUntil = 2027-01-22
-reason = "Prototype pollution in SheetJS xlsx (CVE-2023-30533), fixed upstream in 0.19.3 per cdn.sheetjs.com/advisories/CVE-2023-30533. package.json:86 and the lockfile install xlsx 0.20.3 from the SheetJS CDN tarball; OSV matches the frozen npm registry package, which has no fixed version. Re-verified 2026-10-22."
+reason = "Prototype pollution in SheetJS xlsx (CVE-2023-30533), fixed upstream in 0.19.3 per cdn.sheetjs.com/advisories/CVE-2023-30533. package.json's xlsx entry and the lockfile's node_modules/xlsx install 0.20.3 from the SheetJS CDN tarball; OSV matches the frozen npm registry package, which has no fixed version. Re-verified 2026-11-20."
 
 [[IgnoredVulns]]
 id = "GHSA-5pgg-2g8v-p4x9"
 ignoreUntil = 2027-01-22
-reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per cdn.sheetjs.com/advisories/CVE-2024-22363. Installed as 0.20.3 from the SheetJS CDN tarball (package.json:86, lockfile resolved URL), as GHSA-4r6h-8v6p-xvw6. Re-verified 2026-10-22."
+reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per cdn.sheetjs.com/advisories/CVE-2024-22363. Installed as 0.20.3 from the SheetJS CDN tarball (package.json's xlsx entry, lockfile resolved URL), as GHSA-4r6h-8v6p-xvw6. Re-verified 2026-11-20."
 
 # Removed 2026-10-24, the advisory itself withdrawn:
 #   GHSA-vfj7-8cjw-p6xm (braces <=3.0.3, dev-only) -- OSV marks it withdrawn
@@ -61,20 +61,11 @@ reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per c
 #     0.18.x. markdownlint imports only its `math` tokenizer, never the KaTeX
 #     renderer; lint:md output is identical before and after.
 
-# Added 2026-10-27: GHSA-gcqx-w48m-w2h4, prototype poisoning in deepmerge's
-# mergeObject() "through 4.3.1" (OSV: introduced 4.2.0, last_affected 4.3.1,
-# no fixed version; npm's latest deepmerge is 4.3.1, so nothing to move to).
-# It reaches the DEV tree only: jest -> @jest/core -> jest-config, which
-# merges Jest's own defaults with this repo's jest.config.ts
-# (node_modules/jest-config/build/index.js:943) and a preset's globals
-# (:1442). Both inputs are developer-authored config files, never request or
-# upload data, and nothing in src/ imports deepmerge. Re-check when jest is
-# bumped or deepmerge publishes a fix.
-
-[[IgnoredVulns]]
-id = "GHSA-gcqx-w48m-w2h4"
-ignoreUntil = 2027-01-27
-reason = "Prototype poisoning in deepmerge mergeObject() through 4.3.1; no fixed version exists (npm latest is 4.3.1). Dev-only: jest -> @jest/core -> jest-config, which merges Jest's defaults with jest.config.ts (jest-config/build/index.js:943) and preset globals (:1442), developer-authored config only; src/ never imports deepmerge. Verified 2026-10-27."
+# Removed 2026-11-20, the advisory itself withdrawn:
+#   GHSA-gcqx-w48m-w2h4 (deepmerge mergeObject() prototype poisoning, dev-only
+#     via jest-config) -- OSV marks it withdrawn 2026-11-16, so the entry
+#     filtered nothing. Suppressed from 2026-10-27; deepmerge 4.3.1 is still in
+#     the dev tree.
 
 # Fixed 2026-10-31 with version-scoped overrides in app/package.json (CLAUDE.md
 # rule 53), not suppressed:
@@ -97,32 +88,22 @@ reason = "Prototype poisoning in deepmerge mergeObject() through 4.3.1; no fixed
 # move only in modules the fast-check fuzz suites reach, and they move as much
 # between two runs of one tree.
 
-# Added 2026-10-31: GHSA-g3hv-75wg-m249 on minimatch 3.1.5 only. The advisory
-# is globParts amplification in firstPhasePreProcess() at optimizationLevel >= 2.
-# minimatch added optimizationLevel in 7.1 (its changelog); 3.1.5 has neither
-# (node_modules/minimatch/minimatch.js: make() at :180-199 maps each
-# brace-expanded part straight to parse(), with no **/.. rewriting). OSV lists
-# the range as introduced 0, so every version matches. 3.1.5 is the copy that
-# eslint 9.39.5, @eslint/config-array, @eslint/eslintrc and eslint-plugin-
-# import/jsx-a11y/react require (^3.1.x); none of their releases on our majors
-# moves off 3.x (eslint 9 pins @eslint/config-array ^0.21.2, still on ^3.1.5),
-# and they call minimatch as a default function (eslint-helpers.js:18,
-# config-array index.cjs:5), an export 9+ dropped: forcing 11 would be the
-# brace-expansion break of 2026-07-25. Its patterns come from eslint.config.mjs
-# and file paths eslint walks, never request input.
-#
-# The suppression is by advisory id, so it would also hide a 4.x-10.x minimatch
-# that re-entered. On renewal, list every minimatch in package-lock.json and
-# confirm the only copy below 11.0.1 is the 3.x one.
+# Removed 2026-11-20, no longer matched:
+#   GHSA-g3hv-75wg-m249 on minimatch 3.1.5 (dev-only, eslint 9 and its
+#     plugins) -- OSV narrowed the advisory on 2026-11-04 to introduced 7.0.0,
+#     fixed 11.0.1, which matches what this file argued from 2026-10-31: 3.1.5
+#     predates the optimizationLevel pass it concerns. Every other minimatch in
+#     package-lock.json is 11.0.3 or later.
 
-[[IgnoredVulns]]
-id = "GHSA-g3hv-75wg-m249"
-ignoreUntil = 2027-01-31
-reason = "minimatch globParts amplification in firstPhasePreProcess() at optimizationLevel >= 2 (added in minimatch 7.1). Suppressed for 3.1.5 only, the dev copy eslint 9 and its plugins require: its make() (minimatch.js:180-199) has no optimizationLevel or preprocess pass. Every other minimatch in the tree is 11.0.3 (the minimatch@10 override, and glob 14's own ^11). Verified 2026-10-31."
+# Removed 2026-11-20, the advisory itself withdrawn:
+#   GHSA-fc5q-39xc-vjpf (picomatch extglob ReDoS, dev-only) -- OSV marks it
+#     withdrawn 2026-11-18, the day it was suppressed here.
 
-# Added 2026-11-18. Short expiry on purpose: no fixed version exists yet, so
-# re-check on expiry and replace this with an upgrade once one is published.
-[[IgnoredVulns]]
-id = "GHSA-fc5q-39xc-vjpf"
-ignoreUntil = 2026-12-18
-reason = "ReDoS in picomatch through 4.0.7 on single-branch repeated extglobs such as +(*); no fixed version exists (npm latest is 4.0.7, checked 2026-11-18). Dev-only: `npm ls picomatch --omit=dev` is empty; the copies (2.3.2, 4.0.4) come in through jest (jest-haste-map, jest-util, jest-message-util), eslint-import-resolver-typescript (tinyglobby) and markdownlint-cli2 (micromatch). The glob patterns those tools match come from this repo's own config, never from a request, so there is no attacker-supplied pattern to trigger it."
+# Fixed 2026-11-20 with a path-scoped override in app/package.json (CLAUDE.md
+# rule 53), not suppressed:
+#   GHSA-7589-6fvf-x4pw (effect Schema.TemplateLiteral ReDoS, fixed in 3.22.1)
+#     -- every @prisma/config 7.x, the latest included, pins effect to exactly
+#     3.20.0, so "@prisma/config" > "effect" is set to ^3.22.1, the same major.
+#     Only the prisma CLI depends on @prisma/config (`npm ls`), and its
+#     dist/index.js never calls Schema.TemplateLiteral, so the path was
+#     unreachable; a fix exists in the same major, so it is taken.
