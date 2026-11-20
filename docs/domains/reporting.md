@@ -89,18 +89,21 @@ both wrong, fixed together; tripwire `__tests__/designerDashboardCost.test.ts`.
 
 Files that enforce this (audit regularly):
 
+The report queries moved from REST routes under `pages/api/reports/` to tRPC
+procedures in `server/trpc/routers/reports.ts`, which call the functions in
+`lib/reports/`. Checked against source 2026-11-20:
+
 - `pages/api/dashboard/sales-summary.ts`
-- `pages/api/reports/salesperson-detail.ts`
-- `pages/api/reports/monthly-performance.ts`
-- `pages/api/reports/designer-dashboard.ts`
-- `pages/api/reports/sales-performance.ts`
+- `lib/reports/salespersonDetail.ts` and `lib/reports/monthlyPerformance.ts` (both build their line filter with `buildLineItemWhere` in `lib/salesBySalesperson.ts`, which spreads `COUNTED_ITEM_LINE`)
+- `lib/reports/designerDashboard.ts`
+- `lib/reports/salesPerformance.ts`
+- `lib/reports/detailedSales.ts`
+- `lib/reports/salesDaily.ts`
 - `pages/api/exports/windfall-sales.ts`
 
 Files to audit (may aggregate without filtering):
 
-- `pages/api/reports/detailed-sales.ts`
-- `pages/api/reports/sales-daily.ts`
-- `pages/api/reports/tax-summary.ts`
+- `lib/reports/taxSummary.ts` (sums invoice tax for orders in ORDER, FULFILLED or RETURNED; it reads invoices, not order lines, so it has no line filter to apply, but audit it when it changes)
 
 ## Order Status Filter
 
@@ -174,7 +177,7 @@ The the POS sales import only populates `SalesOrder.salesperson` (string), never
 
 - Use `applySalesPersonFilter(orderWhere, { ids, names })` from `lib/salesBySalesperson.ts`. It emits one OR clause per name (Prisma `in` is case-sensitive on string columns; each name uses `equals` + `mode: "insensitive"`).
 - Use `effectiveStaffId(order, idByLcName)` in `bucketBySalesperson` — when the FK is null but the name matches a known staff `displayName`, route the order into the same `sp-${id}` bucket as FK-linked rows. Without this, unlinked + linked orders for the same person split across two rows and the report grossly understates totals (the FK/name-split under-counting bug's root cause).
-- For drilldowns: `narrowSalesperson` in `pages/api/reports/sales-by-salesperson/items.ts` handles three group-key shapes: `sp-${id}` ORs in a `(salesPersonId IS NULL AND salesperson = displayName insensitive)` clause; `sp-name-${name}` is scoped to FK-null only (so bucket and drilldown stay consistent); `sp-unassigned` matches both fields null.
+- For drilldowns: `narrowSalesperson` in `lib/reports/salesBySalespersonReport.ts` (the `salesBySalespersonItems` procedure) handles three group-key shapes: `sp-${id}` ORs in a `(salesPersonId IS NULL AND salesperson = displayName insensitive)` clause; `sp-name-${name}` is scoped to FK-null only (so bucket and drilldown stay consistent); `sp-unassigned` matches both fields null.
 
 If you build a new salesperson-aware report, copy this pattern. Filtering only by FK silently drops nearly every imported order.
 
@@ -224,7 +227,8 @@ This procedure was applied 2026-04-30 to a user-reported April month-to-date dis
 
 ## Key Files
 
-- `pages/api/reports/` -- 23 report API endpoints (includes pipeline-detail, pipeline-reassign, sales-by-salesperson)
+- `server/trpc/routers/reports.ts` -- the report procedures (sales daily, tax summary, sales performance, sales by salesperson, detailed sales, designer dashboard, pipeline detail, buyers, and more), backed by `lib/reports/*`
+- `pages/api/reports/` -- the 13 REST routes that remain: pipeline-reassign, factsalesday, on-hold, monthly-percentages, get-departments, stock-by, oversold, the CSV exports (traffic, sales-by-salesperson, detailed-sales), pay-period-sales confirm and report-issue, and opportunities log-send
 - `pages/api/dashboard/sales-summary.ts` -- home page dashboard: each store's net sales today against the same
   date last year. Days are the BUSINESS day (`AppSettings.timezone` via `businessDayRange`; it was the UTC day,
   so an Eastern store's card read $0 from 8pm), 29 February compares with the 28th (`sameDateLastYear`), and an
@@ -254,7 +258,7 @@ Gaps: No test verifies that report endpoints include the cancelled-line filter. 
 
 ## Available Reports
 
-Roles below reflect the **card visibility** on `/reports` (governed by `CardGridPageLayout.roles` in `src/pages/reports/index.tsx`). Server APIs may have stricter or laxer gates (see "Per-Report Notes" below). When the two diverge, the API gate is the authoritative limit on data exposure.
+Roles below reflect the **card visibility** on `/reports` (governed by each card's `roles` in `app/(dashboard)/app/reports/page.tsx`, filtered by `CardGrid`). Server APIs may have stricter or laxer gates (see "Per-Report Notes" below). When the two diverge, the API gate is the authoritative limit on data exposure.
 
 ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Designers always get card access for sales-attribution reports because they need to see their own numbers (server-side scope-locks them to self).
 
@@ -299,6 +303,8 @@ ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Des
 | Open PO Gaps              | `/app/reports/po-gaps`              | ADMIN                                      | ADMIN; PO cost: View cost                                                               | POs missing expected delivery date or vendor acknowledgement number.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### Internal endpoints (no card; called by other pages)
+
+Most of the `/api/reports/*` names below are now tRPC procedures on `server/trpc/routers/reports.ts` (`reports.salesDaily`, `reports.salesPerformance`, `reports.crossSell`, and so on) rather than REST paths; only the routes listed under Key Files as remaining in `pages/api/reports/` are still REST. The table names the report, not the transport. (`buyers/{positions,summary}` are `reports.buyersPositions` and `reports.buyersSummary`; `monthly-percentages` is still REST.)
 
 | Endpoint                                                         | Used by                         | Purpose                                           |
 | ---------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
@@ -728,7 +734,7 @@ All season windows are data-backed (CLAUDE.md rule 41); the hypotheses documente
 
 ### Ship 3/4 watchlist
 
-- **Rugs Buying Guide** (Ship 3) — new page `/reports/rugs-buying-guide` with size/quality pivots + heatmap + trending + trip-prep export. Pure helper `lib/rugsBuyingGuide.ts`. Data from `ConsignmentItem` (size, quality, year, saleDate) — no schema change.
+- **Rugs Buying Guide** (Ship 3) — planned page `/reports/rugs-buying-guide` with size/quality pivots + heatmap + trending + trip-prep export, with a pure helper under `lib/`. Not built: neither the page nor the helper exists in the source (checked 2026-11-20). Data from `ConsignmentItem` (size, quality, year, saleDate) — no schema change.
 - **Arrival-cohort badge + weekly velocity sparkline** (Ship 4) — "received 45 days ago" chip per row + 12-week sparkline. Turns every row from a static number into a readable trend-with-context.
 - **Cost backfill job** — nightly batch copying `li.cost` from the most recent sale of a SKU onto `Product.baseCost` so new sales inherit the known cost. Shrinks the retail/2 estimated-margin footprint without waiting for receive events.
 - **Stockout tracking** (Ship 4 roadmap) — daily `InventoryDailySnapshot` cron enables "days out of stock in last 90" per product.

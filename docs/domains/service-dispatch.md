@@ -318,7 +318,7 @@ Cutover bridge for the team's Excel-based customer-service workflow. Until the G
 - `lib/runServiceCaseSheetImport.ts` — orchestrator (taxonomy caches, customer/order matching, upserts, dry-run accounting, initial-issue note date-precedence + stale-cleanup)
 - `lib/serviceCaseLastAction.ts` — pure helpers for the `/service` list view's "Last Action" column. `computeLastActionAt` computes `max(case.created, latest note.created)` and intentionally does NOT take a `case.updated` parameter. `summarizeNoteText` produces the truncated one-line comment preview rendered below the relative time.
 - `pages/api/admin/service/import-sheet.ts` — POST endpoint (multipart, `dryRun` flag, ADMIN/SUPER_ADMIN only) + GET endpoint for last-sync status
-- `pages/admin/import/service-cases.tsx` — admin UI with file picker, dry-run toggle (default on), results panel, unmatched list with copy-as-TSV
+- `app/(dashboard)/app/admin/import/service-cases/ServiceCasesImportView.tsx` — admin UI with file picker, dry-run toggle (default on), results panel, unmatched list with copy-as-TSV
 
 **Cutover path**: once the operator is happy with the data + the team works natively in the ERP, the Google Form intake rewires to call a new `POST /api/service/cases/from-intake` endpoint (Phase 2, not in this PR). The importer stays around for occasional historical refreshes.
 

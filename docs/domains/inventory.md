@@ -370,10 +370,10 @@ Since 2026-04-24:
 This is the store-grain count against the POS, kept for the cutover. Holt's own
 count is by place: see "The handheld floor" → "Counting" (DECISIONS #21).
 
-1. **Freeze** — `pages/inventory/freeze.tsx` declares a count event for a location. Locks edits while the count runs.
+1. **Freeze** — `app/(dashboard)/app/inventory/freeze/FreezeView.tsx` declares a count event for a location. Locks edits while the count runs.
 2. **Scan** — barcode scanner posts UPCs to `/api/inventory/physical-count`. Each scan creates a `PhysicalInventoryCount` row. Unidentified UPCs (no `Upc` row, no `Product` match) become `UnidentifiedScan` with an optional photo.
-3. **Reconcile** — `pages/inventory/reconcile-photos.tsx` walks each unidentified scan; admin either creates a new Product (with the photo attached) or marks the scan as "not stock" (e.g., display fixture).
-4. **Variance report** — `pages/inventory/variance-report.tsx` shows scanned-qty vs expected-qty per product. Admin posts a reconciliation per product (accept count, accept book, or split).
+3. **Reconcile** — `app/(dashboard)/app/inventory/reconcile-photos/ReconcilePhotosView.tsx` walks each unidentified scan; admin either creates a new Product (with the photo attached) or marks the scan as "not stock" (e.g., display fixture).
+4. **Variance report** — `app/(dashboard)/app/inventory/variance-report/VarianceReportView.tsx` shows scanned-qty vs expected-qty per product. Admin posts a reconciliation per product (accept count, accept book, or split).
 5. **Reconcile a variance** — `pages/api/inventory/reconcile.ts` stamps a `Reconciliation` row per product and place (found, confirmed, or a corrected count). It does not change stock: nothing reads `Reconciliation` back into `InventoryPosition`, and only `lib/inventory/ledger.ts` writes positions. `undo-reconciliation.ts` deletes the row.
 
 Counts are fractional like the balance (`Decimal(12,3)`, since 2026-10-16): a roll of fabric is counted in yards. `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected, counted and variance columns were `Int`, and Prisma truncated silently: a count of 12.5 yards was stored as 12, and two scans of 0.1 and 0.2 as 0 and 0. The sums, the variance and the numbers sent to a screen go through `lib/inventory/storeCount.ts`; a typed count is read with `parseCount` (`lib/inventory/qtyInput.ts`), where zero is a count. Tests: `storeCount.test.ts`, `storeCountFractional.integration.test.ts`.

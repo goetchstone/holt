@@ -6,9 +6,9 @@ Token-gated, no-login customer-facing surfaces. Customers receive a link via ema
 
 | Surface | UI | API |
 |---|---|---|
-| Order detail (balance + pay button + status) | `pages/portal/order.tsx` | `GET /api/portal/order?token=...` (totals by `computeBalance`; only lines still owed and payments that settled are listed, a refund as a negative amount; fixed 2026-11-11, `sales-orders.md`) |
+| Order detail (balance + pay button + status) | `app/portal/order/PortalOrderView.tsx` | `GET /api/portal/order?token=...` (totals by `computeBalance`; only lines still owed and payments that settled are listed, a refund as a negative amount; fixed 2026-11-11, `sales-orders.md`) |
 | Stripe pay flow | (same page) | `POST /api/portal/pay` |
-| Return request | `pages/portal/return/*` | `pages/api/portal/returns/*` |
+| Return request | `app/portal/return/*` | `pages/api/portal/returns/*` |
 | Generate link (admin / SMS / email) | — | `POST /api/portal/generate-link` |
 
 ## Token format
@@ -59,11 +59,11 @@ So idempotency is enforced by the **status filter**, NOT by a unique index. `Pay
 - Truly concurrent deliveries (rare but possible) could theoretically race the status check + update. The window is small.
 - Adding `@unique` on `processorTxnId` would tighten this, but requires confirming no legitimate Payment rows currently share a null/repeated processorTxnId.
 
-Tracked as a master-plan checklist item (C8 in `~/.claude/plans/check-the-repo-familiarize-lovely-leaf.md`).
+Tracked as a master-plan checklist item (C8); the plan is not kept in the repo.
 
 ## Return request flow
 
-`pages/portal/return/[token]/*` — customer fills out a return reason, attaches photo, submits. Creates a `Return` row in `INITIATED` status (per `docs/domains/returns.md`). Notifies the warehouse via the dispatch board.
+`app/portal/return/[token]/*` — customer fills out a return reason, attaches photo, submits. Creates a `Return` row in `INITIATED` status (per `docs/domains/returns.md`). Notifies the warehouse via the dispatch board.
 
 The customer cannot approve, inspect, or process the refund — those are staff-only state transitions handled in `/api/returns/[id]/*`.
 
