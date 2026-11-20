@@ -13,8 +13,8 @@
 // settings API as the signed-in admin would. That changes the deployment's
 // settings, so it is for a throwaway database (CI's), never a real one.
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { request, type APIRequestContext, type FullConfig } from "@playwright/test";
 import { MODULES } from "../src/lib/modules/registry";
 
@@ -70,6 +70,8 @@ export default async function signIn(config: FullConfig): Promise<void> {
   const read = await owner.get("/api/settings/features");
   if (!read.ok()) throw new Error(`could not read the module switches: ${read.status()}`);
   const { features } = (await read.json()) as { features: Record<string, boolean> };
+  // e2e/.auth/ is gitignored, so a fresh checkout (CI's) does not have it.
+  mkdirSync(dirname(FEATURES_FILE), { recursive: true });
   writeFileSync(FEATURES_FILE, JSON.stringify(features ?? {}));
 
   await owner.storageState({ path: SIGN_INS.owner.state });
