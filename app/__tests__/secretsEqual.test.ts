@@ -30,4 +30,21 @@ describe("secretsEqual", () => {
   it("is case-sensitive", () => {
     expect(secretsEqual("S3CRET-TOKEN", "s3cret-token")).toBe(false);
   });
+
+  // The compare runs over the expected secret's length, so these are the cases
+  // where cutting or zero-padding the guess could fool it; the length check
+  // must refuse each one.
+  it("refuses a guess that starts with the secret and runs on", () => {
+    expect(secretsEqual("s3cret-token\u0000", "s3cret-token")).toBe(false);
+    expect(secretsEqual("s3cret-token-extra", "s3cret-token")).toBe(false);
+  });
+
+  it("refuses a shorter guess even when the secret ends in zero bytes", () => {
+    expect(secretsEqual("abc", "abc\u0000\u0000")).toBe(false);
+  });
+
+  it("compares multi-byte characters by their bytes", () => {
+    expect(secretsEqual("clé-secrète", "clé-secrète")).toBe(true);
+    expect(secretsEqual("cle-secrete", "clé-secrète")).toBe(false);
+  });
 });

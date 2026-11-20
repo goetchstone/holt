@@ -74,14 +74,15 @@ They and the scheduler call the same functions, moved out of the routes for that
 ## Service-key auth
 
 The scheduler authenticates with `Authorization: Bearer <AUTO_IMPORT_API_KEY>`. The one check is
-`authorizedByAutoImportKey` in `lib/automations/guardAutomation.ts`: both sides are SHA-256 hashed
-and compared with `timingSafeEqual` (constant time, no throw or length leak on a different length);
-an unset or empty key, a missing header, or any scheme but exactly `Bearer` fails closed.
+`authorizedByAutoImportKey` in `lib/automations/guardAutomation.ts`, which compares through
+`lib/auth/secretsEqual.ts` in constant time (always over the expected secret's length, then the lengths
+must match, so the time says nothing about the guess); an unset or empty key, a missing header, or any
+scheme but exactly `Bearer` fails closed.
 `guardAutomation`, `source-import`, `email-queue`, `customer-level-recalc` and
 `mailchimp/backfill-customer-links` all call it, and `app/__tests__/automationKeyTripwire.test.ts` fails
-if a file under `src` compares an authorization header to a `Bearer ${...}` template again. Not
-covered: `BOOKING_FEED_TOKEN` in `pages/api/bookings/feed.ics.ts` still compares a query token with
-`!==`.
+if a file under `src` compares an authorization header to a `Bearer ${...}` template again. The
+bookings calendar feed's `?token=` (`BOOKING_FEED_TOKEN`, `pages/api/bookings/feed.ics.ts`) goes
+through the same `secretsEqual`.
 
 ## Adding one
 
