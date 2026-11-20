@@ -48,7 +48,7 @@ All FK relations are `ON DELETE SET NULL` so deleting a parent never cascades th
 
 All routes wrapped in `requireAuthWithRole(["ADMIN"], handler)`. Body coercion + sparse-patch logic lives in `lib/buyerDraftRequestBody.ts` per CLAUDE.md rule 14 — every PATCH endpoint is a thin Prisma + HTTP wrapper around `buildItemUpdateData` / `buildPoUpdateData` / `buildBuyUpdateData`.
 
-### UI surface (`app/src/pages/admin/buyer-drafts/index.tsx` + components)
+### UI surface (`app/(dashboard)/app/admin/buyer-drafts/BuyerDraftsView.tsx` + components)
 
 | Component | Role |
 |---|---|
@@ -196,13 +196,13 @@ DRAFT  →  READY  →  EXPORTED  →  FULFILLED
 |---|---|---|
 | `BuyerDraftBuy` | PLANNING → OPEN → EXPORTED → CLOSED | **Fully manual.** `DraftBuyModal` exposes the status dropdown. |
 | `BuyerDraftPurchaseOrder` | DRAFT → READY → EXPORTED → FULFILLED → CANCELLED | **Fully manual.** `DraftPoModal` exposes the status dropdown on edit (added 2026-05-14 — Slice 6.5 in the roadmap below). No auto-driver — slice 5 auto-link only flips ITEM status, not PO. |
-| `BuyerDraftItem` | DRAFT → READY → EXPORTED → FULFILLED → CANCELLED | **Mostly manual.** Wizard exposes DRAFT/READY radio on save. Slice 5 (`autoLinkBuyerDrafts` in `importRunners.ts`) automatically flips EXPORTED items to FULFILLED when their barcode appears in the daily Stock-by-Item file. Other transitions (DRAFT/READY → EXPORTED, → CANCELLED) require admin action or a future bulk affordance. |
+| `BuyerDraftItem` | DRAFT → READY → EXPORTED → FULFILLED → CANCELLED | **Mostly manual.** Wizard exposes DRAFT/READY radio on save. Slice 5 (`autoLinkBuyerDrafts` in `lib/adapters/legacyPos/runners.ts`) automatically flips EXPORTED items to FULFILLED when their barcode appears in the daily Stock-by-Item file. Other transitions (DRAFT/READY → EXPORTED, → CANCELLED) require admin action or a future bulk affordance. |
 
 There is no cascading status mechanic — closing a Buy does NOT flip child POs or items. This is intentional: a buyer might mark a Buy CLOSED while some POs are still in-flight (and should stay EXPORTED until they receive) and others were never executed (and should be CANCELLED). Per-record control is the right granularity.
 
 ### Slice 5 — Auto-link via Stock-by-Item (2026-05-12)
 
-Closes the loop. After the buyer downloads the export CSVs and the POS imports them, the resulting Product gets a UPC. When that UPC arrives in the next daily Stock-by-Item file, the post-import sweep (`autoLinkBuyerDrafts` in `lib/importRunners.ts`) finds every EXPORTED draft with a matching `barcode`, sets `fulfilledProductId` + `fulfilledAt`, and flips status to FULFILLED.
+Closes the loop. After the buyer downloads the export CSVs and the POS imports them, the resulting Product gets a UPC. When that UPC arrives in the next daily Stock-by-Item file, the post-import sweep (`autoLinkBuyerDrafts` in `lib/adapters/legacyPos/runners.ts`) finds every EXPORTED draft with a matching `barcode`, sets `fulfilledProductId` + `fulfilledAt`, and flips status to FULFILLED.
 
 **Detection** (pure helper `lib/buyerDraftAutoLink.ts:planAutoLinks`):
 
@@ -316,7 +316,7 @@ Whitespace-only draft descriptions count as blank.
 
 **API wire-in**: the list endpoint (`pages/api/admin/buyer-drafts/items/index.ts`) includes `fulfilledProduct: { select: { id, productNumber, name, description, baseCost, baseRetail, mapPrice, width, depth, height } }`. The detail/edit views can include the same shape when needed.
 
-**UI**: `ItemCard` in `pages/admin/buyer-drafts/index.tsx` calls `resolveDraftDisplay(draft, item.fulfilledProduct ?? null)` and renders each field with a small "from catalog" hint when `source[field] === "linked"`. A "🔗 Linked to catalog: {productNumber}" anchor jumps to `/products/{id}`.
+**UI**: `ItemCard` in `app/(dashboard)/app/admin/buyer-drafts/ItemCard.tsx` calls `resolveDraftDisplay(draft, item.fulfilledProduct ?? null)` and renders each field with a small "from catalog" hint when `source[field] === "linked"`. A "🔗 Linked to catalog: {productNumber}" anchor jumps to `/products/{id}`.
 
 ## Export endpoints — filter semantics (2026-05-14 fix)
 
@@ -354,7 +354,7 @@ Read-only view on the Buy performance page that answers "which real the POS POs 
 |---|---|
 | `lib/buyerDraftRealPoLink.ts` | Pure helper `computeLinkedPos` + `detectVendorMismatches`. A-grade, 15 unit tests. |
 | `pages/api/admin/buyer-drafts/buys/[id]/linked-pos.ts` | Thin handler. Hydrates inputs from Prisma + calls the helper. ADMIN-only. |
-| `pages/admin/buyer-drafts/buy/[id]/performance.tsx` | `LinkedRealPosPanel` component below the per-frame performance grid. |
+| `app/(dashboard)/app/admin/buyer-drafts/buy/[id]/performance/BuyPerformanceView.tsx` | `LinkedRealPosPanel` component below the per-frame performance grid. |
 | `__tests__/integration/buyerDraftLinkedPos.integration.test.ts` | B-grade real-DB. 4 tests pin the hydration shape against Postgres. |
 
 ### What it shows
@@ -418,7 +418,7 @@ One small schema addition + a search/import flow that creates draft graph rows p
 | API | `POST /api/admin/buyer-drafts/import-purchase-order` body `{ buyId, purchaseOrderId }` — ADMIN-only. Pre-checks idempotency (single indexed `findUnique` on the unique FK), refuses CANCELLED POs, runs a single transaction that creates the draft PO + every draft item. Returns `{ draftPoId, buyId, buyName, itemsImported, skipped }`. The 409 response on duplicate import carries `alreadyImported: { draftPoId, buyId, buyName }` so the modal can give a useful message. **Skipped reasons**: `no-product-link` (PurchaseOrderItem.productId is NULL), `zero-quantity` (CLAUDE.md rule 31 — orderedQuantity = 0 means the POS cancelled the line, e.g. partial-receive remainder; importing as qty=1 would inflate "qty ordered" in the Slice 6 report). |
 | API | `GET /api/admin/buyer-drafts/find-sibling-pos?purchaseOrderId=N` — ADMIN-only. Surfaces sibling PONs the buyer should ALSO import after a successful import. Use case: the POS's partial-receive workflow creates a NEW PO for the un-received remainder with no parent reference. Endpoint pulls same-vendor + ± 90-day POs with partNo overlap, scores them via `lib/historicalPoSiblings.ts:scoreSiblings`, returns top 10 ranked by `overlapCount DESC, fullyContainedBySource DESC, orderDate ASC`. Excludes the source itself + candidates already imported into any buy. |
 | UI | `HistoricalPoImportModal` (`components/admin/buyer-drafts/HistoricalPoImportModal.tsx`) — Headless UI Dialog with search box (PON or vendor, 2+ chars), optional date range, result table with "Import" / "In <Buy>" per row, confirm dialog before commit, success toast. After import, a "Likely sibling POs" panel appears with one-click import buttons for the suggestions returned by `find-sibling-pos`. Importing a sibling auto-fetches THAT sibling's suggestions (chains a 3-way split case naturally). |
-| UI | `BuyCard` (in `pages/admin/buyer-drafts/index.tsx`) gains an "Import historical PO" action next to "View performance →". Page-level modal state so a single modal instance handles every Buy. |
+| UI | `BuyCard` (in `app/(dashboard)/app/admin/buyer-drafts/BuysPanel.tsx`) gains an "Import historical PO" action next to "View performance →". Page-level modal state so a single modal instance handles every Buy. |
 | Tests | A-grade pure helpers: 17 tests in `__tests__/historicalPoImport.test.ts` (`buildImportFromPurchaseOrder` + qty=0 / negative-qty / NaN-qty skip per rule 31) + 12 tests in `__tests__/historicalPoSiblings.test.ts` (`scoreSiblings` — self-exclude, already-imported skip, zero-overlap skip, fully-contained flag, sort order, partial-receive remainder shape). Source-text tripwires: 16 tests in `__tests__/historicalPoImport.tripwire.test.ts` covering ADMIN-gating, idempotency pre-check, CANCELLED refusal, transaction wrap, HISTORICAL_PO_IMPORT source stamp, FULFILLED status stamp, qty=0 skip pattern, siblings API vendor+date window, siblings helper zero-overlap drop + sort. Real-DB integration: 3 tests in `__tests__/integration/historicalPoImport.integration.test.ts` covering happy-path create chain, @unique FK rejection on second import, idempotency findUnique pattern. |
 | Migration | `20260522c_buyer_drafts_historical_po_import` — adds the column, the unique constraint, the FK, and the enum value. Idempotent (`IF NOT EXISTS` on the column + `ADD VALUE IF NOT EXISTS` on the enum + existence guards on the constraint/FK). |
 
@@ -619,6 +619,6 @@ The page-level test gap is what kept new-code coverage in the 50-60% range (on t
 2. **Optimistic updates can desync**: `moveItemToPo` and `movePoToBuy` set local state first, then PATCH. On 4xx/5xx the local state rolls back, but only the touched record. Other state (the PO's item-count, the Buy's spent rollup) is recomputed via memos so it picks up automatically. If you add a non-memoized derived value, you must also rollback it.
 3. **`expectedShipMonth` is a `DateTime?`** (promoted from `String?` on 2026-05-13). First-of-month UTC. Write boundary (`buildPoCreateData` / `buildPoUpdateData`) accepts ISO datetime, `YYYY-MM`, `MM-YYYY`, or `Date` and coerces to Date via `coerceShipMonthInput`. Read boundary: API returns ISO datetime string (Next.js JSON serialization); UI formats for display via `formatShipMonthForDisplay` ("March 2026") and for HTML input via `formatShipMonthForInput` ("2026-03"). Legacy free-text like "March" stored before the promotion was converted to NULL by the `20260513b_expected_ship_month_to_datetime` migration.
 4. **Cross-vendor drops are blocked**. `lib/buyerDraftValidation.ts:isCompatiblePoForItem` enforces this on both UI and API: when an item.vendorId and a target po.vendorId both non-null and differ, the drop is rejected (UI: toast warning; API: 400). Lenient when either side is null so mid-edit workflows aren't broken. Pure helper, 6 A-grade tests + 3 B-grade integration tests against hydrated rows.
-5. **PO item count is derived from `items` state, not the server's `_count` projection**. The `_count` only refreshes on a full `pos` reload; deriving from local state means drag-drop reflects instantly. See `itemCountByPo` useMemo in `pages/admin/buyer-drafts/index.tsx`.
+5. **PO item count is derived from `items` state, not the server's `_count` projection**. The `_count` only refreshes on a full `pos` reload; deriving from local state means drag-drop reflects instantly. See `itemCountByPo` in `app/(dashboard)/app/admin/buyer-drafts/BuyerDraftsView.tsx`, passed down to `DraftPosPanel.tsx`.
 6. **All imported drafts default to MANUAL source**. The other source values (HD_PROPOSAL, APPAREL_SCAN, CONFIGURATOR) are reserved for future slices. Don't repurpose without a plan.
 7. **Draft fields beat linked Product fields, always**. The Slice 6.1 fallback (`resolveDraftDisplay`) only fills in BLANK draft fields from the linked Product — it never overwrites what the buyer typed. The "from catalog" hint marker is the user-visible signal that a value came from the link, not the draft. If you ever need a "force-reload from catalog" action, build it as an explicit button that overwrites draft fields server-side; don't invert the precedence in the display helper.

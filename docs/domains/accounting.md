@@ -792,7 +792,7 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
 - `docs/domains/consignment.md` — consignment rugs (PAID synced via PO import, not directly in JE)
 - `CLAUDE.md` rule 33 — cancelled lines must never inflate aggregations
 - `CLAUDE.md` rule 40 — status mutations affect every report that reads the field; same caution applies to the JE
-- `.claude/plans/check-the-repo-familiarize-lovely-leaf.md` — the SOR-cutover plan that this runbook supports
+- The SOR-cutover master plan, which this runbook supports. It is not kept in the repo; the decisions it produced are in `docs/DECISIONS.md` and the rules in `CLAUDE.md`.
 
 ## Roadmap
 
