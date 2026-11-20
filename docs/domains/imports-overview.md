@@ -23,7 +23,7 @@ This doc exists because 2026-05-20 was the day we discovered we had **3 import-r
 
 | Path | Cadence | Trigger | Surface |
 |---|---|---|---|
-| **Gmail → automated daily orchestrator** | "Daily POS import" at Admin → Automations, off to start, 6 AM by default | `POST /api/automations/source-import` by hand (Bearer auth or a session) | 13 routes in `lib/adapters/legacyPos/reportRouter.ts` |
+| **Gmail → automated daily orchestrator** | "Daily POS import" at Admin → Automations, off to start, 6 AM by default | `POST /api/automations/source-import` by hand (Bearer auth, checked by `authorizedByAutoImportKey` in `lib/automations/guardAutomation.ts`, or a session) | 13 routes in `lib/adapters/legacyPos/reportRouter.ts` |
 | **Manual products import** | Ad-hoc, owner-triggered | No screen in this repo today | `runProductsImport` |
 
 Plus a few one-off / legacy paths (the FileMaker Data API client, since removed, see `integrations.md`; Windfall weekly CSV via `/admin/import/windfall`, HD Proposal PDF) — covered in `integrations.md`.

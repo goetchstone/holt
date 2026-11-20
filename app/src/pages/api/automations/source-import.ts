@@ -23,16 +23,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { authorizedByAutoImportKey } from "@/lib/automations/guardAutomation";
 import { getActiveSourceAdapter } from "@/lib/adapters";
 import { reportOpsAlert } from "@/lib/opsAlert";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
-
-function authorizedByApiKey(req: NextApiRequest): boolean {
-  const key = process.env.AUTO_IMPORT_API_KEY;
-  if (!key) return false;
-  return req.headers.authorization === `Bearer ${key}`;
-}
 
 async function run(req: NextApiRequest, res: NextApiResponse) {
   const dryRun = req.query.dryRun === "true";
@@ -85,6 +80,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   }
-  if (authorizedByApiKey(req)) return run(req, res);
+  if (authorizedByAutoImportKey(req)) return run(req, res);
   return requirePermission("admin.data", run)(req, res);
 }

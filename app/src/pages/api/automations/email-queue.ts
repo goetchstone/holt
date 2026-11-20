@@ -13,14 +13,9 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { authorizedByAutoImportKey } from "@/lib/automations/guardAutomation";
 import { runEmailQueueCycle } from "@/lib/email/queueCycle";
 import { logError } from "@/lib/logger";
-
-function authorizedByApiKey(req: NextApiRequest): boolean {
-  const key = process.env.AUTO_IMPORT_API_KEY;
-  if (!key) return false;
-  return req.headers.authorization === `Bearer ${key}`;
-}
 
 async function drain(_req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -36,6 +31,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   }
-  if (authorizedByApiKey(req)) return drain(req, res);
+  if (authorizedByAutoImportKey(req)) return drain(req, res);
   return requirePermission("admin.integrations", drain)(req, res);
 }

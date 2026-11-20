@@ -17,12 +17,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { authorizedByAutoImportKey } from "@/lib/automations/guardAutomation";
 import { prisma } from "@/lib/prisma";
 import { logError, logger } from "@/lib/logger";
 
 async function isAuthorized(req: NextApiRequest, session: unknown): Promise<boolean> {
-  const apiKey = process.env.AUTO_IMPORT_API_KEY;
-  if (apiKey && req.headers.authorization === `Bearer ${apiKey}`) return true;
+  if (authorizedByAutoImportKey(req)) return true;
   // Database, not the token. The Bearer path above is for cron; this branch is a
   // human, and a demoted or deactivated one kept access until their JWT expired.
   const role = await activeStaffRole(session as { user?: { id?: string | null } | null } | null);
