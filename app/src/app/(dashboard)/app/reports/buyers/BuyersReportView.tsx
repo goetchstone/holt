@@ -49,6 +49,7 @@ import { api } from "@/lib/trpc/client";
 import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
 import type { BuyersNodeForCaller, BuyersPivot } from "@/lib/buyersRollup";
 import type { PositionsResponse } from "@/lib/reports/buyersReport";
+import { csvRow } from "@/lib/csvExport";
 
 type SavedView = "all" | "top-sellers" | "dead-stock" | "running-low" | "new-not-moving";
 
@@ -307,13 +308,13 @@ function downloadCsv(
     "Last Sold",
   ];
   const scope = crumbLabels.length === 0 ? "All" : crumbLabels.join(" > ");
-  const rows = [header.join(",")];
+  const rows = [csvRow(header)];
   for (const l of leaves) {
     rows.push(
-      [
-        JSON.stringify(scope),
+      csvRow([
+        scope,
         pivot,
-        JSON.stringify(l.name),
+        l.name,
         l.productCount,
         l.onHand,
         l.customerStock,
@@ -330,10 +331,10 @@ function downloadCsv(
         l.sellThroughPct,
         l.weeksSupply ?? "",
         l.lastSold ?? "",
-      ].join(","),
+      ]),
     );
   }
-  const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+  const blob = new Blob([rows.join("")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

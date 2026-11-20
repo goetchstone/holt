@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
+import { neutraliseRow } from "@/lib/csv";
 import { logger, logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -84,7 +85,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     ];
 
     const parser = new AsyncParser({ fields });
-    const csv = await parser.parse(rows).promise();
+    const csv = await parser.parse(rows.map(neutraliseRow)).promise();
 
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "_");
     const filename = `${today}_holt_customers.csv`;

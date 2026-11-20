@@ -158,5 +158,9 @@ Covered fully in `docs/domains/import-pipeline.md`. Service account with domain-
 - **SMS** has its own runbook, `sms.md` (Twilio, GAP-12)
 - **No QuickBooks Online API** — accounting export is manual CSV/IIF to QB Desktop (per `docs/domains/accounting.md`)
 
+## CSV exports neutralise formula cells
+
+Exports neutralise formula cells (CSV injection, 2026-11-20). A cell whose text starts with `=`, `+`, `-`, `@`, tab or CR is run as a formula by Excel/Sheets/Numbers, and customer, product and note fields are user-entered. `neutraliseFormulaCell` in `app/src/lib/csv.ts` is the one function: it prefixes a single quote to such a string, except a string that is wholly a plain number (`-12.50`, `+3`), and never touches a number value. `csvCell`/`csvRow` (`app/src/lib/csvExport.ts`) and `rowsToCsv` (`app/src/lib/csv.ts`) both go through it, and `neutraliseRow` covers exporters that hand rows to json2csv or Papa. Covers here: the Windfall customer and sales exports (`pages/api/exports/windfall-*.ts`), which keep json2csv and pass each row through `neutraliseRow` so their bytes are otherwise unchanged. `app/__tests__/fixtures/csv-producers.txt` lists every CSV-producing file under `app/src` and `app/__tests__/csvExportManifest.test.ts` fails when a producer is unlisted or bypasses a helper; a new export goes through a helper and into that manifest.
+
 ---
 Last verified: 2026-05-20

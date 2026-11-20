@@ -6,6 +6,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
+import { neutraliseRow } from "@/lib/csv";
 import { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
 import { toQty } from "@/lib/inventory/quantity";
@@ -96,7 +97,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     }
 
     const parser = new AsyncParser();
-    const csv = await parser.parse(finalReport).promise();
+    const csv = await parser.parse(finalReport.map(neutraliseRow)).promise();
 
     const fileName = `FINAL_${varianceType || "all"}_variances_${location}_${new Date().toISOString().split("T")[0]}.csv`;
     await auditLog("DATA_EXPORTED", auditActor(session), {

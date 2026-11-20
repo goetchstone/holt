@@ -1,0 +1,62 @@
+# Every file under app/src that produces, or touches the delivery of, a CSV.
+# See __tests__/csvExportManifest.test.ts. Rule 65 manifest: exhaustive, fails both
+# ways. A CSV cell that starts with = + - @ tab or CR is run as a formula by a
+# spreadsheet, so every producer emits through csvCell/csvRow (lib/csvExport.ts),
+# rowsToCsv (lib/csv.ts) or neutraliseRow (lib/csv.ts) -- all one neutraliser.
+#
+# Format:  path | helper                  (imports a neutralising helper)
+#          path | excluded: <reason>      (reason is mandatory)
+
+src/app/(dashboard)/app/admin/export/windfall/WindfallExportView.tsx | excluded: downloads the server CSV from the windfall export routes, which neutralise; builds no cells
+src/app/(dashboard)/app/admin/gift-cards/import/GiftCardImportView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/admin/import/consignment/ConsignmentImportView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/admin/import/data/GenericImportView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/admin/import/inventory-snapshot/InventorySnapshotImportView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/admin/import/windfall/WindfallImportView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/admin/pricing/fabrics/FabricsView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/admin/pricing/import/PricingImportView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/admin/setup/database/DatabaseBackupView.tsx | excluded: downloads the SQL backup, not a CSV
+src/app/(dashboard)/app/admin/setup/tax/load-zips/LoadZipsView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/purchasing/import-order/ImportOrderView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/reports/buyers/BuyersReportView.tsx | helper
+src/app/(dashboard)/app/reports/pay-period-sales/PayPeriodSalesView.tsx | helper
+src/app/(dashboard)/app/reports/wealth-insights/WealthInsightsView.tsx | helper
+src/app/(dashboard)/app/tools/apparel-order/ApparelOrderView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/tools/home-accessory-order/HomeAccessoryOrderView.tsx | excluded: IMPORT: upload form or parser, reads CSV and produces none
+src/app/(dashboard)/app/tools/query-builder/QueryBuilderView.tsx | helper
+src/components/layout/CsvImportForm.tsx | excluded: IMPORT: upload form
+src/components/report/ReportTable.tsx | helper
+src/lib/adapters/legacyPos/gmailClient.ts | excluded: IMPORT: picks up inbound CSV attachments
+src/lib/adapters/legacyPos/reportRouter.ts | excluded: IMPORT: routes inbound report file names
+src/lib/buyerDraftExport.ts | helper
+src/lib/csv.ts | excluded: the helper itself: defines neutraliseFormulaCell, escapeCell and rowsToCsv
+src/lib/csvExport.ts | excluded: the helper itself: csvCell/csvRow call the shared neutraliser
+src/lib/customerLedgerBackfill.ts | excluded: IMPORT: comment cites an inbound POS CSV
+src/lib/customers/emailList.ts | helper
+src/lib/pricing/standardPriceBook.ts | excluded: reads a download file name from Content-Disposition, builds no CSV
+src/lib/reports/onHold.ts | helper
+src/lib/reports/oversold.ts | helper
+src/lib/secureUpload.ts | excluded: upload accept-list (inbound), not a producer
+src/lib/toolFileUtils.ts | excluded: downloadCsv wraps a finished string in a Blob and has no caller; the string is built elsewhere
+src/pages/api/accounting/export-journal.ts | helper
+src/pages/api/accounting/journal-entries/[id]/export.ts | helper
+src/pages/api/admin/buyer-drafts/export/items.ts | excluded: emits through lib/buyerDraftExport.ts (listed above)
+src/pages/api/admin/buyer-drafts/export/pos.ts | excluded: emits through lib/buyerDraftExport.ts (listed above)
+src/pages/api/admin/buyer-drafts/export/workbook.ts | excluded: xlsx workbook response, no CSV
+src/pages/api/admin/config/presets/export.ts | excluded: YAML/JSON response, no CSV
+src/pages/api/admin/database/backup.ts | excluded: SQL dump response, no CSV
+src/pages/api/admin/export/[entity].ts | helper
+src/pages/api/billing/invoices/[id]/pdf.ts | excluded: PDF response, no CSV
+src/pages/api/bookings/[id]/ics.ts | excluded: iCalendar response, no CSV
+src/pages/api/customers/email-list.ts | excluded: emits through lib/customers/emailList.ts (listed above)
+src/pages/api/exports/windfall-customers.ts | helper
+src/pages/api/exports/windfall-sales.ts | helper
+src/pages/api/inventory/export-variance.ts | helper
+src/pages/api/proposals/[id]/generate-pdf.ts | excluded: PDF response, no CSV
+src/pages/api/purchasing/orders/[id]/pdf.ts | excluded: PDF response, no CSV
+src/pages/api/reports/detailed-sales/export.ts | helper
+src/pages/api/reports/on-hold.ts | excluded: emits through lib/reports/onHold.ts (listed above)
+src/pages/api/reports/oversold.ts | excluded: emits through lib/reports/oversold.ts (listed above)
+src/pages/api/reports/sales-by-salesperson/export.ts | helper
+src/pages/api/reports/traffic/export.ts | helper
+src/pages/api/uploads/[...path].ts | excluded: serves stored uploads as attachments, not a CSV producer

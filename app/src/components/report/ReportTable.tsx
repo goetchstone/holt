@@ -9,6 +9,7 @@
 
 import { useState, useCallback } from "react";
 import Papa from "papaparse";
+import { neutraliseRow } from "@/lib/csv";
 
 export interface ReportColumn<T> {
   key: keyof T | string;
@@ -110,7 +111,7 @@ export function ReportTable<T>({
       }
       return out;
     });
-    const csv = Papa.unparse(csvRows);
+    const csv = Papa.unparse(csvRows.map(neutraliseRow));
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

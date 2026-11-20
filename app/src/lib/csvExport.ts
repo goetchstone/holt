@@ -17,18 +17,18 @@
 // keep the helpers small and obvious; resist piling more knobs on.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { escapeCell } from "@/lib/csv";
 
 /**
  * RFC 4180-ish CSV escaping: wrap in quotes if the value contains
- * commas, quotes, or newlines; double any embedded quotes.
+ * commas, quotes, or newlines; double any embedded quotes. A string that
+ * starts with = + - @ tab or CR is neutralised first so a spreadsheet does
+ * not run it as a formula (`neutraliseFormulaCell` in csv.ts); a number
+ * never is.
  */
 export function csvCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const s = String(value);
-  if (/[",\n\r]/.test(s)) {
-    return `"${s.replaceAll('"', '""')}"`;
-  }
-  return s;
+  return escapeCell(String(value), typeof value !== "number");
 }
 
 /** Join cells into a CSV row terminated with a newline. */

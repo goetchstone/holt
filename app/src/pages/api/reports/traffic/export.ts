@@ -14,6 +14,7 @@ import { fetchAxperTraffic } from "@/lib/axperClient";
 import { rollupByDayAndStore, type TrafficRowForSummary } from "@/lib/trafficSummary";
 import { getTrafficStoreMap } from "@/lib/trafficStoreMap";
 import { logError } from "@/lib/logger";
+import { csvCell } from "@/lib/csvExport";
 
 function parseDateInput(s: unknown): Date | null {
   if (typeof s !== "string") return null;
@@ -43,14 +44,6 @@ function startOfTodayLocal(): Date {
 
 function endOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-}
-
-/** CSV-safe quoting: wrap in double quotes if the value contains a comma, quote, or newline. */
-function csvCell(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return "";
-  const s = String(v);
-  if (/[",\n]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
-  return s;
 }
 
 export default requirePermission(

@@ -832,3 +832,7 @@ Adding a format is a registry entry in `lib/accounting/journalFormats.ts` —
 headers plus a `toRows`. `__tests__/journalFormats.test.ts` asserts every format
 emits one row per journal line using only its own declared headers, so a new one
 cannot quietly emit a column nobody declared.
+
+## CSV exports neutralise formula cells
+
+Exports neutralise formula cells (CSV injection, 2026-11-20). A cell whose text starts with `=`, `+`, `-`, `@`, tab or CR is run as a formula by Excel/Sheets/Numbers, and customer, product and note fields are user-entered. `neutraliseFormulaCell` in `app/src/lib/csv.ts` is the one function: it prefixes a single quote to such a string, except a string that is wholly a plain number (`-12.50`, `+3`), and never touches a number value. `csvCell`/`csvRow` (`app/src/lib/csvExport.ts`) and `rowsToCsv` (`app/src/lib/csv.ts`) both go through it, and `neutraliseRow` covers exporters that hand rows to json2csv or Papa. Covers here: the journal-entry CSV (`pages/api/accounting/journal-entries/[id]/export.ts`, memo now emitted through `csvRow`; the default tab-delimited format for the accounting package's import is NOT neutralised, since a quote prefix would corrupt that import) and the general-journal export (`rowsToCsv`). `app/__tests__/fixtures/csv-producers.txt` lists every CSV-producing file under `app/src` and `app/__tests__/csvExportManifest.test.ts` fails when a producer is unlisted or bypasses a helper; a new export goes through a helper and into that manifest.

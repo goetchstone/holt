@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
+import { csvRow } from "@/lib/csvExport";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -53,14 +54,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const dateParts = dateStr.replace(/\//g, "");
 
     if (format === "csv") {
-      const header = "Journ #,Date,Memo,Accnt #,Debit,Credit";
+      const header = csvRow(["Journ #", "Date", "Memo", "Accnt #", "Debit", "Credit"]);
       const rows = entry.lines.map((l) => {
         const debit = formatAmount(Number(l.debit));
         const credit = formatAmount(Number(l.credit));
-        return `${entry.journalNumber},${dateStr},"${l.memo}",${l.glAccount.code},${debit},${credit}`;
+        return csvRow([entry.journalNumber, dateStr, l.memo, l.glAccount.code, debit, credit]);
       });
 
-      const body = [header, ...rows].join("\r\n") + "\r\n";
+      const body = [header, ...rows].join("").replaceAll("\n", "\r\n");
 
       await auditLog("DATA_EXPORTED", auditActor(session), {
         summary: `Journal entry ${id} exported`,
