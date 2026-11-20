@@ -1,7 +1,8 @@
 // /app/playwright.config.ts
 //
 // The browser smoke suite (e2e/). Opens every App Router page in a real
-// browser as a signed-in admin against a running, seeded app. Run with
+// browser, once as the seeded Owner and once as the seeded Administrator,
+// against a running, seeded app. Run with
 // `npm run test:pages`; BASE_URL defaults to http://localhost:3000.
 
 import { defineConfig, devices } from "@playwright/test";
@@ -16,8 +17,11 @@ export default defineConfig({
   globalSetup: "./e2e/signIn.ts",
   use: {
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
-    storageState: "e2e/.auth/admin.json",
     trace: "off",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // Project names are e2e/signIn.ts's SIGN_INS keys; pages.spec.ts reads them.
+  projects: [
+    { name: "owner", use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" } },
+    { name: "admin", use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/admin.json" } },
+  ],
 });

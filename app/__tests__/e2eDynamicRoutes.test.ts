@@ -10,6 +10,7 @@
 import { DYNAMIC_ROUTES } from "../e2e/dynamicRoutes";
 import { KNOWN_FAILURES } from "../e2e/knownFailures";
 import { isDynamic, pageRoutes } from "../e2e/pageRoutes";
+import { REDIRECTS } from "../e2e/redirects";
 
 const routes = pageRoutes();
 const dynamic = routes.filter(isDynamic);
@@ -39,7 +40,24 @@ describe("e2e/dynamicRoutes.ts covers every dynamic page (rule 65)", () => {
 describe("e2e/knownFailures.ts names real pages and says why", () => {
   it("every entry is a page route with a reason", () => {
     const bad = Object.entries(KNOWN_FAILURES)
-      .filter(([route, reason]) => !routes.includes(route) || reason.trim().length < 15)
+      .filter(
+        ([route, entry]) =>
+          !routes.includes(route) ||
+          entry.reason.trim().length < 15 ||
+          !["owner", "admin"].includes(entry.as),
+      )
+      .map(([route]) => route);
+    expect(bad).toEqual([]);
+  });
+});
+
+describe("e2e/redirects.ts names real pages, a target and a reason", () => {
+  it("every entry is a page route with a pathname target and a reason", () => {
+    const bad = Object.entries(REDIRECTS)
+      .filter(
+        ([route, entry]) =>
+          !routes.includes(route) || !entry.to.startsWith("/") || entry.reason.trim().length < 15,
+      )
       .map(([route]) => route);
     expect(bad).toEqual([]);
   });

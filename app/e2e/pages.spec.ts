@@ -1,9 +1,13 @@
 // /app/e2e/pages.spec.ts
 //
-// Opens every App Router page in a real browser, signed in as the seeded admin,
-// and fails on anything a person opening it would see go wrong: an HTTP error,
-// a bounce to sign-in, an uncaught client error, a console error, a failed call
-// to the app's own API, or the error-boundary screen. Six PRs (#118 to #124)
+// Opens every App Router page in a real browser and fails on anything a person
+// opening it would see go wrong: an HTTP error, a redirect, an uncaught client
+// error, a console error, a failed call to the app's own API, or the
+// error-boundary screen. It runs twice (playwright.config.ts projects): as the
+// seeded Owner, who holds every permission, so every page must render at its
+// own address; and as the seeded Administrator, for whom a page that refuses
+// them (requirePage sends them to /app) is skipped, and a page that admits them
+// must work, which is how a page gate wider than its API's shows up. Six PRs (#118 to #124)
 // shipped screens that no test and no person had opened; unit and integration
 // tests never render a page, and scripts/smoke.sh fetches one.
 //
@@ -20,7 +24,8 @@ import { isFeatureEnabled } from "../src/lib/featureCatalog";
 import { DYNAMIC_ROUTES } from "./dynamicRoutes";
 import { KNOWN_FAILURES } from "./knownFailures";
 import { isDynamic, moduleOf, pageRoutes } from "./pageRoutes";
-import { FEATURES_FILE } from "./signIn";
+import { REDIRECTS } from "./redirects";
+import { FEATURES_FILE, type SignInName } from "./signIn";
 
 /** Text only an error screen shows. */
 const ERROR_SCREENS = ["Something went wrong", "Application error", "This page could not be found"];
@@ -70,14 +75,15 @@ for (const route of pageRoutes()) {
     continue;
   }
 
-  test(route, async ({ page, baseURL }) => {
+  test(route, async ({ page, baseURL }, testInfo) => {
+    const as = testInfo.project.name as SignInName;
     const requiredModule = moduleOf(route);
     test.skip(
       requiredModule !== null && !isFeatureEnabled(features(), requiredModule),
       `module ${requiredModule} is off on this deployment`,
     );
     const knownFailure = KNOWN_FAILURES[route];
-    test.fail(knownFailure !== undefined, knownFailure);
+    test.fail(knownFailure?.as === as, knownFailure?.reason);
 
     let url: string | null = route;
     if (isDynamic(route)) {
@@ -95,7 +101,18 @@ for (const route of pageRoutes()) {
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
 
     expect(response?.status(), "HTTP status").toBeLessThan(400);
-    expect(new URL(page.url()).pathname, "redirected to sign-in").not.toMatch(SIGN_IN);
+    const landed = decodeURIComponent(new URL(page.url()).pathname);
+    expect(landed, "redirected to sign-in").not.toMatch(SIGN_IN);
+    // Where this page should land: itself, or where e2e/redirects.ts says.
+    const expected = REDIRECTS[route]?.to ?? decodeURIComponent(new URL(url, baseURL).pathname);
+    // requirePage sends a signed-in person it does not admit to /app. The Owner
+    // is admitted everywhere, so for them any other redirect is a failure: the
+    // page was never rendered, and passing it would claim a page nobody opened.
+    test.skip(
+      as !== "owner" && landed === "/app" && expected !== "/app",
+      `the ${as} is not admitted to ${route}`,
+    );
+    expect(landed, "redirected").toBe(expected);
     const body = await page.locator("body").innerText();
     for (const text of ERROR_SCREENS) expect(body, "error screen").not.toContain(text);
     expect(problems).toEqual([]);
