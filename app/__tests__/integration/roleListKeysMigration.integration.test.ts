@@ -5,8 +5,11 @@
 // journals" (accounting.post). The deploy seeder gives them to built-in roles
 // nobody has edited; it never touches an edited built-in (grantsCustomized) or
 // a role the store built, so this migration grants them there, to exactly the
-// roles each old list let through. Real database, real seeder, the migration
-// file itself.
+// roles each old list let through. It also grants "Manage client books"
+// (sales.clients.manage), which the Pipeline's manager checks now ask for, to
+// edited Managers and Administrators: the key entered the catalog in #96 with
+// no migration, so a role edited before then never had it. Real database, real
+// seeder, the migration file itself.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -36,6 +39,8 @@ const EDITED_BUILT_INS: Record<string, string[]> = {
     "payment.return-refund",
     "reporting.financial",
     "reporting.management",
+    // Not new (#96): the Pipeline's MANAGER/ADMIN checks moved onto it.
+    "sales.clients.manage",
     "sales.proposal",
     "service.setup",
   ],
@@ -47,6 +52,7 @@ const EDITED_BUILT_INS: Record<string, string[]> = {
     "customer.trade",
     "payment.return-refund",
     "reporting.management",
+    "sales.clients.manage",
     "sales.proposal",
     "service.setup",
   ],
@@ -54,7 +60,8 @@ const EDITED_BUILT_INS: Record<string, string[]> = {
   REGISTER: ["payment.return-refund"],
   WAREHOUSE: ["customer.address", "payment.return-refund"],
   MARKETING: ["customer.address", "customer.wealth", "marketing.lists"],
-  // Passed none of the lists.
+  // Passed none of the lists, the Pipeline's included, though it holds Manage
+  // client books by default.
   GENERAL_MANAGER: [],
 };
 

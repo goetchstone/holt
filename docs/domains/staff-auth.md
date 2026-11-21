@@ -232,6 +232,21 @@ customer-ledger backfill (`admin/customer-ledger/backfill.ts`,
 (`admin.settings`), their screens' key, and the invoice PDF moved from View
 accounting to Bill customers directly.
 
+The same migration grants **Manage client books** (`sales.clients.manage`) to
+the edited Manager and Administrator rows. It is not new: it entered the
+catalog in #96 (2026-11-05) with no migration, so a Manager or Administrator
+edited before then never had it. The Pipeline's all-staff view, one
+salesperson's board, search across every open quote and archiving or
+bulk-archiving anyone's quotes checked the staff enum against MANAGER/ADMIN
+until this sweep and now ask for this key, so without the grant those roles
+would have lost them. It was the only such key. A key in the catalog at the
+first commit existed when every role was created, so an edited role without it
+had it unticked; of the seven added since, `reporting.all-salespeople` already
+had its migration (`20261118120000`), and the other five gate nothing the sweep
+converted. The cost: a Manager or Administrator role an owner unticked it on
+after 2026-11-05 gets it back, and a row edited before then also gains the
+client-book actions an unedited Manager already has.
+
 Set up service and Set up the chart of accounts cover writes that a
 MANAGER/ADMIN list let Managers make by API while their screens stayed on Change
 settings or Manage configuration. Each route takes the new key or the screen's

@@ -40,6 +40,29 @@
 -- Managers posted, marked exported and deleted the daily journal through the
 -- MANAGER/ADMIN list on journal-entries/[id], and that is now this key.
 --
+-- One existing key reaches edited rows it never reached: "Manage client books"
+-- (sales.clients.manage), for MANAGER and ADMIN. The Pipeline's all-staff
+-- view, one salesperson's board, search across every open quote, and archiving
+-- or bulk-archiving anyone's quotes compared the staff ENUM with MANAGER, ADMIN
+-- (and SUPER_ADMIN); they now ask for this key. It entered the catalog on
+-- 2026-11-05 (#96) with no migration, so a Manager or Administrator edited
+-- before then never had it, and without this would lose those actions on a
+-- screen it opens. Why only this one: a key already in the catalog at the
+-- repository's first commit existed when every role was created, so an edited
+-- role without it had it unticked (accounting.post for ADMIN, below). Of the
+-- seven keys added since, it is the only one a converted check now asks for
+-- that no migration granted to edited rows: reporting.all-salespeople, which
+-- the salesperson report pickers and Sales by Salesperson now read, was
+-- granted by 20261118120000, and sales.undo-handover, admin.audit,
+-- sales.cancel-acknowledged, reporting.adhoc and staff.commission-pay gate no
+-- check this sweep converted. Two costs, accepted because Holt is pre-launch:
+-- an owner who unticked the key for Managers or Administrators after
+-- 2026-11-05 gets it back, and a row edited before then also gains what the
+-- key has gated since #96 (Follow-Ups, any salesperson's client book,
+-- assigning clients nobody owns), which an unedited Manager already holds.
+-- GENERAL_MANAGER holds the key by default but passed none of the Pipeline
+-- checks, so its edited rows get nothing.
+--
 -- Who gets what here:
 --   * SUPER_ADMIN is a wildcard role: it holds every key and stores no rows.
 --   * Built-in roles nobody has edited get the keys from syncBuiltInRoles() on
@@ -160,4 +183,13 @@ SELECT "id", 'accounting.post'
 FROM "Role"
 WHERE NOT "grantsAllPermissions"
   AND "key" IN ('MANAGER')
+ON CONFLICT ("roleId", "permission") DO NOTHING;
+
+-- Manage client books, for MANAGER and ADMIN (see above). An unedited row holds
+-- it already from the seeder, so this changes only the edited ones.
+INSERT INTO "RolePermission" ("roleId", "permission")
+SELECT "id", 'sales.clients.manage'
+FROM "Role"
+WHERE NOT "grantsAllPermissions"
+  AND "key" IN ('ADMIN', 'MANAGER')
 ON CONFLICT ("roleId", "permission") DO NOTHING;
