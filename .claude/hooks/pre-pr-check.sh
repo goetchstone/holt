@@ -25,17 +25,24 @@
 
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SKILL_PATH="$REPO_ROOT/.claude/skills/pre-pr/SKILL.md"
-COVERAGE_PATH="$REPO_ROOT/app/coverage/lcov.info"
+# Launched under git (a hook's child, or a test run from pre-push), git's own
+# variables would point every `git -C` below at that checkout instead of the
+# directory named: rev-parse --show-toplevel then returns the directory itself.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR
+
+# The checkout this script lives in. Not necessarily the one the PR is opened
+# from: see resolve_root below.
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 HAVE_PY=0
 command -v python3 >/dev/null 2>&1 && HAVE_PY=1
 
 INPUT="$(cat)"
 COMMAND=""
+HOOK_CWD=""
 if [ "$HAVE_PY" -eq 1 ]; then
   COMMAND="$(printf '%s' "$INPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('tool_input', {}).get('command', ''))" 2>/dev/null || echo "")"
+  HOOK_CWD="$(printf '%s' "$INPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('cwd', ''))" 2>/dev/null || echo "")"
 fi
 
 # Command-position matcher, shared in shape by the pre-pr and pre-commit hooks.
@@ -55,6 +62,52 @@ if [ -z "$COMMAND" ] || ! printf '%s' "$COMMAND" | grep -qE -- "$GH_PR_CREATE_RE
 fi
 # Test seam (app/__tests__/hookMatchers.test.ts): report the match, run nothing.
 [ "${HOLT_HOOK_MATCH_ONLY:-}" = "1" ] && exit 10
+
+# The checkout the PR is opened FROM. The hook is configured in the main
+# checkout, so SCRIPT_ROOT is always that checkout, sitting on main: diffing
+# its origin/main...HEAD found nothing, and every PR opened from a worktree
+# passed this gate unchecked (found 2026-11-20). In order:
+#   1. `--head <branch>` (or -H): the worktree that has that branch checked out;
+#   2. a leading `cd <dir>`: the checkout containing <dir>;
+#   3. the session's working directory from the hook input;
+#   4. this script's own checkout.
+resolve_root() {
+  local head dir candidate root
+  head=$(printf '%s' "$COMMAND" | sed -nE 's/.*(--head|-H)[[:space:]=]+([^[:space:];&|]+).*/\2/p' | head -n 1)
+  head="${head##*:}"
+  if [ -n "$head" ]; then
+    root=$(git -C "$SCRIPT_ROOT" worktree list --porcelain 2>/dev/null |
+      awk -v want="branch refs/heads/$head" '/^worktree /{w=substr($0,10)} $0==want{print w; exit}')
+    if [ -n "$root" ]; then
+      printf '%s' "$root"
+      return
+    fi
+  fi
+  dir=$(printf '%s' "$COMMAND" | sed -nE "s/^[[:space:]]*cd[[:space:]]+(\"([^\"]+)\"|'([^']+)'|([^[:space:];&|]+)).*/\\2\\3\\4/p" | head -n 1)
+  case "$dir" in
+    "~"*) dir="$HOME${dir#\~}" ;;
+    /*) ;;
+    "") ;;
+    *) [ -n "$HOOK_CWD" ] && dir="$HOOK_CWD/$dir" ;;
+  esac
+  for candidate in "$dir" "$HOOK_CWD"; do
+    [ -n "$candidate" ] || continue
+    root=$(git -C "$candidate" rev-parse --show-toplevel 2>/dev/null)
+    if [ -n "$root" ]; then
+      printf '%s' "$root"
+      return
+    fi
+  done
+  printf '%s' "$SCRIPT_ROOT"
+}
+REPO_ROOT="$(resolve_root)"
+SKILL_PATH="$REPO_ROOT/.claude/skills/pre-pr/SKILL.md"
+COVERAGE_PATH="$REPO_ROOT/app/coverage/lcov.info"
+# Test seam (app/__tests__/prePrCheckRoot.test.ts): report the checkout, run nothing.
+if [ "${HOLT_HOOK_PRINT_ROOT:-}" = "1" ]; then
+  printf '%s\n' "$REPO_ROOT"
+  exit 11
+fi
 
 # Always surface the checklist as informational stderr.
 {
