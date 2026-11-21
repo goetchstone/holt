@@ -1,7 +1,8 @@
 // /app/src/lib/capabilityToken.ts
 //
-// Signed, stateless capability links — the order portal (lib/portalToken.ts)
-// and the client portal (lib/clientPortalToken.ts). The token is the ONLY
+// Signed, stateless capability links — the order portal (lib/portalToken.ts),
+// the client portal (lib/clientPortalToken.ts) and a customer's link to one
+// ticket file (lib/tickets/attachmentToken.ts). The token is the ONLY
 // credential such a link carries, so every family is pinned the same way, in
 // this one place (CLAUDE.md principle 3: a guard on one path is no guard):
 //
