@@ -7,7 +7,8 @@
 // lib/pricing, lib/inventory, lib/sales, lib/purchasing and server/trpc.
 //
 // Fails in both directions: a source file no line covers, and a line that
-// covers no file or names a runbook that does not exist. A line whose runbook is
+// covers no file, can never be the first match, or names a runbook that does
+// not exist. A line whose runbook is
 // `-` says the files have no runbook of their own, and must say why.
 
 import { execFileSync } from "node:child_process";
@@ -66,6 +67,39 @@ describe("domain-map.txt covers every source file (rule 65)", () => {
       .filter((m) => !files.some((f) => m.regex.test(f)))
       .map((m) => `${m.line}: ${m.pattern}`);
     expect(stale).toEqual([]);
+  });
+
+  // The first matching line wins, so a specific line below a broader one that
+  // matches all of its files can never win: its runbook is never asked for.
+  // Found 2026-11-20: 13 such lines, among them reports/wealth-insights (to
+  // customer-intelligence.md) under reports/* (to reporting.md).
+  it("every line is the first match for some file, so none sits under a broader line", () => {
+    const winners = new Set(
+      files.map((f) => map.find((m) => m.regex.test(f))?.line).filter((l) => l !== undefined),
+    );
+    const shadowed = map
+      .filter((m) => !winners.has(m.line) && files.some((f) => m.regex.test(f)))
+      .map((m) => {
+        const mine = files.filter((f) => m.regex.test(f));
+        const above = map.find((w) => w.line < m.line && mine.some((f) => w.regex.test(f)));
+        return `${m.line}: ${m.pattern} (under ${above?.line}: ${above?.pattern})`;
+      });
+    expect(shadowed).toEqual([]);
+  });
+
+  // readMap trims and splits on "\n"; doc-gate.sh reads with `IFS='|' read -r`,
+  // which keeps leading spaces and a trailing CR and skips a last line with no
+  // newline. Where the two would disagree, the hook blocks or matches nothing
+  // while this test stays green, so the map must not take those shapes at all.
+  it("is in the shape doc-gate.sh reads: no CR, no padded lines, a final newline", () => {
+    const text = readFileSync(join(ROOT, ".claude/hooks/domain-map.txt"), "utf8");
+    const padded = text
+      .split("\n")
+      .map((l, i) => ({ l, n: i + 1 }))
+      .filter(({ l }) => l.includes("\r") || (l.trim() !== "" && l !== l.trim()))
+      .map(({ n, l }) => `${n}: ${JSON.stringify(l)}`);
+    expect(padded).toEqual([]);
+    expect(text.endsWith("\n")).toBe(true);
   });
 
   it("every runbook exists, and every `-` line gives a reason", () => {

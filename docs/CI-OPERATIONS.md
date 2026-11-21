@@ -95,8 +95,10 @@ Most of the wall time is the integration tests.
 
 The `pre-pr-check.sh` hook fires before `gh pr create` and verifies (the command may follow `;`, `&&`, `||`, `|`, `(` or a newline, and may carry `VAR=value` prefixes such as `GH_TOKEN=$(...)`; `pre-commit-check.sh` matches `git commit` the same way, including `git -C <path> commit`. Both fail closed, so words inside a quoted string can also trigger them. `app/__tests__/hookMatchers.test.ts` pins both matchers):
 
-- `coverage/lcov.info` exists and is newer than the HEAD commit (i.e. tests were re-run since last code change)
-- substantial code under `app/src` changed with a runbook (or CLAUDE.md / ROADMAP.md) touched, OR a commit on the branch carries a `docs-not-needed: <rationale>` marker
+- `app/coverage/lcov.info` exists and is newer than the HEAD commit (i.e. tests were re-run since last code change), when the branch touches instrumented code
+- the doc gate (`doc-gate.sh`): a branch past 20 lines of code under `app/src` touches every runbook its files map to in `.claude/hooks/domain-map.txt` (each file takes its first matching line), and one whose files map to no runbook touches some doc under `docs/` or `CLAUDE.md`; OR a commit on the branch carries a `docs-not-needed: <rationale>` marker
+
+**Which checkout it inspects.** The hook is configured in the main checkout, so until 2026-11-20 it diffed that checkout, which sits on `main`, and every PR opened from a worktree passed unchecked. It now resolves the checkout the PR is opened from: the worktree holding the `--head` branch, else a leading `cd <dir>`, else the session's working directory, else its own checkout (`app/__tests__/prePrCheckRoot.test.ts`). So a worktree needs its own fresh `app/coverage/lcov.info` before `gh pr create`.
 
 ## Required setup (local checks)
 
