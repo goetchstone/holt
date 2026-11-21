@@ -5,13 +5,15 @@
 // by deleting the DeliveryStop and ServiceAppointment.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import { assignOrderToRun, findOrCreatePlanningRun } from "@/lib/deliveryService";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "WAREHOUSE"],
+// Adds and removes a stop on a planning run, as runs/[id]/stops does — same
+// capability as the rest of dispatch.
+export default requirePermission(
+  "warehouse.operate",
   async (req, res: NextApiResponse, session) => {
     if (req.method === "POST") {
       return handlePost(req, res, session.user?.email ?? null);

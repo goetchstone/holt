@@ -131,18 +131,12 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/admin/tools/categorize-products": { permission: "admin.settings" },
   "/app/admin/tools/customer-ledger-backfill": { permission: "admin.settings" },
   "/app/admin/tools/merge-customers": { permission: "admin.settings" },
-  "/app/dispatch": { permission: "warehouse.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
+  "/app/dispatch": { permission: "warehouse.operate" },
   "/app/dispatch/driver": { permission: "warehouse.operate" },
-  "/app/dispatch/pick-list/[id]": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/dispatch/planner": { permission: "warehouse.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
-  "/app/dispatch/ready-to-deliver": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/dispatch/run/[id]": { permission: "warehouse.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
+  "/app/dispatch/pick-list/[id]": { permission: "warehouse.operate" },
+  "/app/dispatch/planner": { permission: "warehouse.operate" },
+  "/app/dispatch/ready-to-deliver": { permission: "warehouse.operate" },
+  "/app/dispatch/run/[id]": { permission: "warehouse.operate" },
   "/app/help": { permission: "staff.self" },
   "/app/help/[slug]": { permission: "staff.self" },
   "/app/helpdesk": { permission: "service.read" },
@@ -317,53 +311,20 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/tools/legacy-archive": { permission: "admin.settings" },
   "/app/tools/query-builder": { permission: "reporting.adhoc" },
   "/app/warehouse": { permission: "warehouse.read" },
-  "/app/warehouse/awaiting-delivery": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/dashboard": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/dispatch": {
-    permission: "warehouse.operate",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/inbound": { permission: "warehouse.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
-  "/app/warehouse/locations": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/outbound": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/overview": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/pickups": {
-    permission: "warehouse.operate",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/positions": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/returns": { permission: "warehouse.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
+  "/app/warehouse/awaiting-delivery": { permission: "inventory.transfer" },
+  "/app/warehouse/dashboard": { permission: "inventory.transfer" },
+  "/app/warehouse/dispatch": { permission: "warehouse.operate" },
+  "/app/warehouse/inbound": { permission: "purchasing.receive" },
+  "/app/warehouse/locations": { permission: "inventory.transfer" },
+  "/app/warehouse/outbound": { permission: "inventory.transfer" },
+  "/app/warehouse/overview": { permission: "inventory.transfer" },
+  "/app/warehouse/pickups": { permission: "sales.return" },
+  "/app/warehouse/positions": { permission: "inventory.transfer" },
+  "/app/warehouse/returns": { permission: "sales.return" },
   "/app/warehouse/set-aside": { permission: "inventory.read" },
-  "/app/warehouse/transfers": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/transfers/[id]": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/warehouse/transfers/new": {
-    permission: "warehouse.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
+  "/app/warehouse/transfers": { permission: "inventory.transfer" },
+  "/app/warehouse/transfers/[id]": { permission: "inventory.transfer" },
+  "/app/warehouse/transfers/new": { permission: "inventory.transfer" },
 };
 
 /** Pages whose mapped permission is applied and enforced. */

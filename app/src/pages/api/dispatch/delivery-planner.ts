@@ -10,14 +10,16 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { startOfWeek, endOfWeek, addWeeks, format } from "date-fns";
 
 type WeekFilter = "all" | "thisWeek" | "nextWeek" | "later" | "noEsd";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "WAREHOUSE"],
+// The delivery planner's working list — same capability as the rest of
+// dispatch (dispatch/unassigned.ts, runs, pick-lists).
+export default requirePermission(
+  "warehouse.operate",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

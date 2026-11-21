@@ -10,7 +10,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 
@@ -35,8 +35,10 @@ interface ZoneGroup {
   orders: ReadyOrder[];
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "WAREHOUSE"],
+// Orders ready to go out — same capability as the rest of dispatch
+// (dispatch/unassigned.ts, warehouse/dispatch/ready.ts).
+export default requirePermission(
+  "warehouse.operate",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);
