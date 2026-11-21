@@ -8,7 +8,7 @@
 // Supports dry-run mode via ?dryRun=true query parameter.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
+import { consignmentVendorOr404 } from "@/lib/consignmentVendor";
 import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { toVendorNumber } from "@/lib/vendorNumbering";
 import { prisma } from "@/lib/prisma";
@@ -28,12 +28,8 @@ export default requirePermission(
     try {
       // By flag, not by name. A deployment that does not consign gets a clear
       // 404 rather than a route that silently matches nothing.
-      const consignmentVendorId = await getPrimaryConsignmentVendorId(prisma);
-      if (!consignmentVendorId) {
-        return res.status(404).json({
-          error: "No consignment vendor configured. Set isConsignment on the vendor first.",
-        });
-      }
+      const consignmentVendorId = await consignmentVendorOr404(prisma, res);
+      if (consignmentVendorId === null) return;
 
       const results = {
         soldSynced: 0,

@@ -7,6 +7,12 @@
 // checks the key per request: the campaigns read says "not configured" with an
 // empty list, and the sync actions refuse with one shared message, as
 // sync-all-activity already did. No request leaves the box either way.
+//
+// The customer audience sync reads its key and audience through Settings
+// (resolveCredential) when it runs, and threw its "not configured" message into
+// the route's catch. That catch answers a fixed 500 (rule 11), so the refusal
+// read "Mailchimp customer sync failed". It refuses with a 400 now: the shared
+// message for the key, its own for a missing audience.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
@@ -17,13 +23,25 @@ jest.mock("@/lib/auth/requireAuth", () => ({
       handler(req, res, { user: { email: "admin@example.com" } }),
 }));
 
+jest.mock("@/lib/integrationCredentials", () => ({
+  // Settings first, then the env, in production. A unit test has no database,
+  // so the env stands for both.
+  resolveCredential: async (_provider: string, _field: string, envVar: string) =>
+    process.env[envVar]?.trim() || undefined,
+}));
+
 const axiosCalls: string[] = [];
 jest.mock("axios", () => {
   const record = (method: string) => (url: string) => {
     axiosCalls.push(`${method} ${url}`);
     return Promise.reject(new Error("no network in this test"));
   };
-  const axios = { get: record("GET"), post: record("POST"), isAxiosError: () => false };
+  const axios = {
+    get: record("GET"),
+    post: record("POST"),
+    put: record("PUT"),
+    isAxiosError: () => false,
+  };
   return { __esModule: true, default: axios, ...axios };
 });
 
@@ -71,6 +89,8 @@ const SYNC_ROUTES = [
   "@/pages/api/mailchimp/sync-all-activity",
 ];
 
+const CUSTOMER_SYNC = "@/pages/api/automations/mailchimp-customer-sync";
+
 // Unset, and a key whose datacenter suffix is not one (mailchimpDatacenter -> null).
 describe.each([
   ["unset", undefined],
@@ -97,6 +117,37 @@ describe.each([
     const res = await call(load(route, key), "POST", { campaignId: "a1b2c3d4e5" });
     expect(res.statusCode).toBe(400);
     expect(res.payload).toEqual({ error: MAILCHIMP_NOT_CONFIGURED });
+    expect(axiosCalls).toEqual([]);
+  });
+
+  it("the customer audience sync refuses with the shared message", async () => {
+    const { MAILCHIMP_NOT_CONFIGURED } = await import("@/lib/mailchimp/baseUrl");
+    const res = await call(load(CUSTOMER_SYNC, key), "POST");
+    expect(res.statusCode).toBe(400);
+    expect(res.payload).toEqual({ error: MAILCHIMP_NOT_CONFIGURED });
+    expect(axiosCalls).toEqual([]);
+  });
+});
+
+describe("the customer audience sync with a usable key and no audience", () => {
+  const saved = {
+    MAILCHIMP_API_KEY: process.env.MAILCHIMP_API_KEY,
+    MAILCHIMP_AUDIENCE_ID: process.env.MAILCHIMP_AUDIENCE_ID,
+  };
+  afterAll(() => {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  it("refuses with a 400 that says to set the audience", async () => {
+    delete process.env.MAILCHIMP_AUDIENCE_ID;
+    axiosCalls.length = 0;
+    const { MAILCHIMP_AUDIENCE_NOT_CONFIGURED } = await import("@/lib/mailchimpAudienceSync");
+    const res = await call(load(CUSTOMER_SYNC, "abc123-us18"), "POST");
+    expect(res.statusCode).toBe(400);
+    expect(res.payload).toEqual({ error: MAILCHIMP_AUDIENCE_NOT_CONFIGURED });
     expect(axiosCalls).toEqual([]);
   });
 });

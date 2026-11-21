@@ -32,6 +32,12 @@ per size/part-number) → pick the destination PO's vendor/department/category/s
 single transaction (`pages/api/tools/apparel-order/commit.ts`). From there the buyer curates and
 exports exactly like any other draft via the existing Buyer Drafts workbench.
 
+**Upload refusals** (since 2026-11-21): the PDF preview (`pages/api/tools/apparel-order/preview.ts`)
+answers a file over the PDF preset's size limit, or a second file, with `413` and the limit, from
+`uploadLimitRefusal()` in `lib/secureUpload.ts`; they used to fail the parse into a 500 "Parse
+failed". No file, or one of a type the preset drops, stays `400 "No file uploaded"`. The
+home-accessory preview below does the same with the preset its format picks.
+
 **No catalog matching**: the predecessor's version ran a second pass matching parsed rows against existing
 the POS `Product` rows (NEW vs UPDATE, style/color candidate suggestions) because its output was a
 CSV headed straight into the POS. Holt's Buyer Drafts domain has no such step — every row becomes a
@@ -169,6 +175,8 @@ Use when:
 Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and adapted to write into holt's own Buyer Drafts pipeline instead of downloading the POS CSVs — holt is its own system of record (see `docs/domains/buyer-drafts.md`), unlike the predecessor, where the POS is the system of record.
 
 **Flow**: upload a home-accessory vendor order file (K&K Interiors, Wendover Art Group, MarketTime/Graf & Lantz, BrandWise/Zodax, Aesthetic Movement, SuperCatSolutions, Simblist Group CSV, or Beatriz Ball) → `POST /api/tools/home-accessory-order/preview` parses it (vendor parsers already live at `lib/pricing/*OrderParser.ts`) → the buyer reviews a one-card-per-item preview (classify department/category per item, optionally split a "Set of N" line into its priced pieces, optionally apply a markup to fill Selling + MSRP) → `POST /api/tools/home-accessory-order/commit` creates the rows.
+
+**Upload refusals** (since 2026-11-21): the preview parses with the preset its format picks (`?format=`: a CSV format takes `CSV_XLSX`, the rest `PDF`) and asks `uploadLimitRefusal(err, thatPreset)` first in its catch, so a file over that preset's size limit, or a second file, is a `413` that says the limit (50 MB or 30 MB), not a 500 "Parse failed". No file stays `400 "No file uploaded"`.
 
 **Output mapping** (the adaptation): the composed rows group by their effective order reference — one `BuyerDraftPurchaseOrder` per distinct reference, so a vendor bundle carrying several orders (a K&K PDF can hold two) creates several draft POs in one commit ("multi-PO bundles"). Every composed row becomes exactly one `BuyerDraftItem` regardless of PO assignment; a row the buyer takes "off PO" (already ordered elsewhere) still gets created, just with `draftPoId: null`. Field mapping and the full rationale live in `lib/homeAccessoryBuyerDraftMapping.ts`. `BuyerDraftItem.source` is stamped `HOME_ACCESSORY_ORDER_IMPORT` (migration `20260722134701_home_accessory_order_source`, additive `ALTER TYPE ... ADD VALUE`).
 

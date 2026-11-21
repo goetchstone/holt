@@ -140,6 +140,22 @@ REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
   the same file. `apiResponse.test.ts` holds `handleError` to it. Until
   2026-11-21 the tripwire read only the body's own text, and 29 routes put
   `err.message` into a 500 through a variable it couldn't see.
+- Some of those 500s were refusals, and their messages went with them. Each
+  is now decided before the work starts, or by a typed error, and answered
+  with a 4xx:
+  - **An upload past its preset's limits is a 413 that says the limit.**
+    formidable refuses a file over the size limit, or one too many files, by
+    failing `parse()`; an upload route's catch asks
+    `uploadLimitRefusal(err, preset)` (`lib/secureUpload.ts`) first. A file of
+    a type the preset does not take is dropped by its filter, so the route
+    finds no file and answers `400 "No file uploaded"`. Seven routes ask so
+    far (the service sheet import, the two order-tool previews, the four
+    purchasing PDF routes); the other upload routes still answer a refused
+    upload with their 500, or with formidable's own text in a 400.
+  - **No consignment vendor** is a 404 from `consignmentVendorOr404`
+    (`docs/domains/consignment.md`).
+  - **The email-marketing customer sync without its key or audience** is a
+    400 from a typed error (`docs/domains/mailchimp.md`, "Audience sync").
 
 ## Database Schema Domains
 

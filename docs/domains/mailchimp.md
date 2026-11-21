@@ -33,6 +33,8 @@ Admin UI: `/admin/automations/mailchimp-sync` — "Run All Steps" plus four indi
 
 `lib/mailchimpAudienceSync.ts` — keeps the Mailchimp audience in sync with Customer rows. Pure helper `buildMemberPayload({email, firstName, lastName, tags})` validates the email (rejects empty / staff / malformed) and returns the Mailchimp API payload shape.
 
+**Not configured is a 400, not a fault** (since 2026-11-21). `runCustomerAudienceSync` resolves its key and audience through Settings first, then the env (`resolveCredential`), before any work. With no usable key it throws `MailchimpNotConfiguredError` carrying `MAILCHIMP_NOT_CONFIGURED` (`lib/mailchimp/baseUrl.ts`, the message the campaign sync routes answer with); with a key and no audience, `MAILCHIMP_AUDIENCE_NOT_CONFIGURED`. `POST /api/automations/mailchimp-customer-sync` answers that error `400 { error: <the message> }`. It used to throw a plain `Error` into the route's catch, which answers a fixed `500 "Mailchimp customer sync failed"` (rule 11), so the "Sync new customers" button said only that. The scheduled run skips a deployment with no key at all (`notReady` in `lib/automations/jobs.ts`); past that, `lib/automations/runner.ts` records the thrown message as the failed run's summary, as before. Pinned in `__tests__/mailchimpNotConfigured.test.ts`.
+
 Tests pin the validation cases (`__tests__/mailchimpAudienceSync.test.ts`). Real-DB integration: `__tests__/integration/mailchimpAudienceSync.runner.integration.test.ts`.
 
 ## Auto-lead ingestion (the conversion step)

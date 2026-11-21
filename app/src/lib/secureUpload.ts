@@ -9,7 +9,7 @@
 // security posture centralised and prevents one endpoint from drifting
 // relative to the others.
 
-import formidable, { type File } from "formidable";
+import formidable, { errors as formidableErrors, type File } from "formidable";
 import path from "path";
 import fs from "fs";
 import { randomBytes } from "node:crypto";
@@ -192,6 +192,52 @@ export function createSecureForm(preset: UploadPresetName, options: CreateFormOp
       return `${stamp}-${rand}${ext}`;
     },
   });
+}
+
+/** A size limit as a person reads it: "30 MB". */
+function megabytes(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`;
+}
+
+/**
+ * The 413 for an upload that `preset`'s limits stopped, or null for any other
+ * error, which stays the route's own 500. Every upload route's catch asks here
+ * first, with the preset it parsed with.
+ *
+ * formidable refuses by failing parse() with a FormidableError: a file past the
+ * size limit (maxTotalFileSize, which defaults to maxFileSize and trips first
+ * while the file streams, or maxFileSize itself), or a file past maxFiles. Its
+ * message names its own options and byte counts, so the caller is told the
+ * limit instead. Routes used to answer it as "Parse failed" or "Import failed".
+ *
+ * A file of a type the preset does not take is not an error here: the filter
+ * drops it before it is written, so the route finds no file and says so itself.
+ */
+export function uploadLimitRefusal(
+  err: unknown,
+  preset: UploadPresetName,
+): { status: 413; error: string } | null {
+  if (!(err instanceof formidableErrors.default)) return null;
+  const { maxFileSize, maxFiles = 1 } = UPLOAD_PRESETS[preset];
+  switch (err.code) {
+    case formidableErrors.biggerThanTotalMaxFileSize:
+    case formidableErrors.biggerThanMaxFileSize:
+      return {
+        status: 413,
+        error: `The upload is larger than the ${megabytes(maxFileSize)} limit.`,
+      };
+    case formidableErrors.maxFilesExceeded:
+      return {
+        status: 413,
+        error:
+          maxFiles === 1
+            ? "Upload one file at a time."
+            : `Upload at most ${maxFiles} files at a time.`,
+      };
+    default:
+      return null;
+  }
 }
 
 /**

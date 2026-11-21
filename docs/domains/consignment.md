@@ -4,6 +4,8 @@ A consigning vendor's goods sit on the floor but stay **theirs** until sold. The
 
 **A vendor consigns when `Vendor.isConsignment` is true.** Nothing resolves a consignor by name. Routes used to — `where: { name: { contains: "the consignor" } }`, with one import route carrying six spellings and three routes CREATING a vendor of that name when they could not find one, which is how a catalog ends up with the same supplier three times. `lib/consignmentVendor.ts` resolves by flag, and a missing configuration is an error rather than a new vendor.
 
+**A deployment with no consigning vendor gets a 404 before any work.** Every route that writes against the single consigning vendor asks `consignmentVendorOr404(prisma, res)` first (rule 42): with none flagged it answers `404 { error: NO_CONSIGNMENT_VENDOR }` ("No consignment vendor configured. Set isConsignment on the vendor first.") and the route returns, having written nothing. The six callers: the consignment-items, manifest, payment-lines and sale-lines imports, the backfill from POS data, and the vendor-return import. The four imports used to throw the message from inside their transaction, so it reached the caller only as a 500's body, and once 500 bodies stopped carrying error text (2026-11-21, rule 11) it read "Import failed"; the manifest's second message, "Configured consignment vendor no longer exists.", went with its second lookup, since a vendor that no longer exists is not flagged either. `return-items.ts` is the one caller that carries on without a vendor (it sends rugs back without a vendor-return record), and `__tests__/consignmentVendor.test.ts` fails if any other caller reads the vendor without the shared check. The admin import tool's CSV section panel (`ConsignmentImportView.tsx`, `ImportSectionPanel`) counts a refused chunk as failed rows and does not show the message; the manifest screen, the backfill and the vendor-return panels show it.
+
 **Number prefixes** (`VendorNumberPrefix`) carry the vendor's numbering: `ATR-1000` on the POS, `A1000` on the physical tag. They exist because two suppliers both ship a part numbered "1827" — prefixing makes it unique. See `lib/vendorNumbering.ts`.
 
 ## Matching Rule
@@ -137,7 +139,8 @@ When a PAID item with `creditOwed=true` re-sells (appears on a new sale order), 
 - `pages/api/consignment/` -- 33 API endpoints (27 + 4 PO management + credits owed)
 - `pages/inventory/consignment/` -- 12 UI pages (10 + PO management + credits owed)
 - `app/(dashboard)/app/admin/import/consignment/ConsignmentImportView.tsx` -- backfill + import tools
-- `pages/api/consignment/import/manifest.ts` -- `resolveConsignmentVendor()` resolves by `Vendor.isConsignment` and REFUSES when none is configured. It used to search six name variants, fall back to a hardcoded vendor code, and create a vendor when it still found nothing.
+- `lib/consignmentVendor.ts` -- `getConsignmentVendorIds()` / `getPrimaryConsignmentVendorId()` by `Vendor.isConsignment`, and `consignmentVendorOr404()`, the one refusal for a deployment with none (above)
+- `pages/api/consignment/import/manifest.ts` -- resolves the vendor through `consignmentVendorOr404()` and REFUSES when none is configured. It used to search six name variants, fall back to a hardcoded vendor code, and create a vendor when it still found nothing.
 
 ## Verification Checklist
 
@@ -152,7 +155,9 @@ When a PAID item with `creditOwed=true` re-sells (appears on a new sale order), 
 
 Covered: `calculateRugPricing`, `mapFileMakerStatus`, `isValidConsignmentTransition`, `getValidConsignmentTransitions`
 
-Covered: `__tests__/vendorNumbering.test.ts` (every case the hardcoded version proved, now driven by configuration, plus a second vendor) and `__tests__/consignmentVendor.test.ts` (no route names a consignor; no import creates one)
+Covered: `__tests__/vendorNumbering.test.ts` (every case the hardcoded version proved, now driven by configuration, plus a second vendor) and `__tests__/consignmentVendor.test.ts` (no route names a consignor; no import creates one; `consignmentVendorOr404` answers 404 or returns the vendor; every caller but `return-items.ts` goes through it)
+
+Real database: `__tests__/integration/consignmentVendorRefusal.integration.test.ts` (each of the six routes answers 404 with the message and writes nothing when no vendor is flagged; with one flagged, the backfill and the vendor-return import get past the check)
 
 ## Verification re-check (2026-05-20)
 
@@ -169,4 +174,4 @@ No new code paths since last verification need adding. Refresh below is just a d
 
 ---
 
-Last verified: 2026-10-01 (Cost visibility; the rest as of 2026-05-20)
+Last verified: 2026-11-21 (the missing-vendor 404 and its callers; Cost visibility 2026-10-01; the rest as of 2026-05-20)

@@ -476,6 +476,27 @@ named `constructor` shadow the object's members (CodeQL
 js/remote-property-injection, 2026-10-15). A new import route lists its
 fields the same way.
 
+## Upload refusals (since 2026-11-21)
+
+The four PDF routes (`preview-nuorder.ts`, `import-nuorder.ts`,
+`preview-zsupply.ts`, `import-zsupply.ts`) parse with
+`createSecureForm("PDF")` and refuse what the caller sent with a 4xx that
+says so:
+
+- A file over the PDF preset's size limit, or a second file: `413`, from
+  `uploadLimitRefusal(err, "PDF")` in `lib/secureUpload.ts` ("The upload is
+  larger than the 30 MB limit.", "Upload one file at a time."). These failed
+  `parse()` into the catch and read "Parse failed" or "Import failed", a 500.
+- No file: `400 { error: "No file uploaded" }`. A file of a type the preset
+  does not take lands here too, because the preset's filter drops it before it
+  is written. The two imports' `parseForm` threw this message into the catch,
+  where it became the same 500; it now returns the form with no file and the
+  route answers before any work. The previews already answered it this way.
+
+Every other failure stays a 500 with a fixed message, logged with `logError`.
+Tested in `__tests__/uploadLimitRefusal.test.ts`, which drives the routes with
+real multipart bodies.
+
 ## The vendor an import names (GAP-22, since 2026-11-02)
 
 The PO file imports find their vendor by the name the file carries through

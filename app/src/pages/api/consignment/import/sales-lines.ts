@@ -1,7 +1,7 @@
 // /app/src/pages/api/consignment/import/sales-lines.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
+import { consignmentVendorOr404 } from "@/lib/consignmentVendor";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { safeString, safeFloat } from "@/lib/importHelpers";
 import { calculateRugPricing } from "@/lib/consignment";
@@ -23,20 +23,16 @@ export default requirePermission(
     }
 
     try {
-      const result = await prisma.$transaction(async (tx) => {
-        // The consigning vendor, by flag. These routes used to UPSERT a
-        // hardcoded consignor by name when they could not find one -- which is
-        // exactly how a catalog ends up with several spellings of one supplier
-        // as separate vendors. A missing configuration is now an error,
-        // not a new row.
-        const consignmentVendorId = await getPrimaryConsignmentVendorId(tx);
-        if (!consignmentVendorId) {
-          throw new Error(
-            "No consignment vendor configured. Set isConsignment on the vendor before importing.",
-          );
-        }
-        const vendor = { id: consignmentVendorId };
+      // The consigning vendor, by flag, before any work. These routes used to
+      // UPSERT a hardcoded consignor by name when they could not find one --
+      // which is exactly how a catalog ends up with several spellings of one
+      // supplier as separate vendors. A missing configuration is a 404 now,
+      // not a new row (lib/consignmentVendor.ts).
+      const consignmentVendorId = await consignmentVendorOr404(prisma, res);
+      if (consignmentVendorId === null) return;
+      const vendor = { id: consignmentVendorId };
 
+      const result = await prisma.$transaction(async (tx) => {
         let imported = 0;
         let skipped = 0;
         let itemsCreated = 0;

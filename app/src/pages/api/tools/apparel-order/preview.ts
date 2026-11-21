@@ -15,7 +15,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "node:fs";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm } from "@/lib/secureUpload";
+import { createSecureForm, uploadLimitRefusal, type UploadPresetName } from "@/lib/secureUpload";
 import { parseNuOrderPDF } from "@/lib/pricing/nuorderParser";
 import { parseNuOrderPrintoutPDF } from "@/lib/pricing/nuorderPrintoutParser";
 import { parseZSupplyPDF } from "@/lib/pricing/zSupplyParser";
@@ -32,6 +32,8 @@ import {
 import { logError } from "@/lib/logger";
 
 export const config = { api: { bodyParser: false } };
+
+const UPLOAD: UploadPresetName = "PDF";
 
 // Dispatch by the registry entry's parser -- several vendor formats
 // (Rails, Rag & Bone, Faherty, Favorite Daughter, generic) share the
@@ -72,7 +74,7 @@ export default requirePermission(
     }
 
     try {
-      const form = createSecureForm("PDF");
+      const form = createSecureForm(UPLOAD);
       const [fields, files] = await form.parse(req);
       const format = Array.isArray(fields.format) ? fields.format[0] : fields.format;
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
@@ -91,6 +93,8 @@ export default requirePermission(
       }
       return res.status(200).json(draft);
     } catch (err) {
+      const refused = uploadLimitRefusal(err, UPLOAD);
+      if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("Apparel order preview parse failed", err);
       return res.status(500).json({ error: "Parse failed" });
     }

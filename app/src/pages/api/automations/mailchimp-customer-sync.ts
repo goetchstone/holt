@@ -14,7 +14,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { logError, logger } from "@/lib/logger";
-import { runCustomerAudienceSync } from "@/lib/mailchimpAudienceSync";
+import { MailchimpNotConfiguredError, runCustomerAudienceSync } from "@/lib/mailchimpAudienceSync";
 
 async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
@@ -42,6 +42,10 @@ async function run(req: NextApiRequest, res: NextApiResponse, session: Session |
 
     return res.status(200).json(result);
   } catch (err: unknown) {
+    // No usable key or audience: refused before any work, with what to set.
+    if (err instanceof MailchimpNotConfiguredError) {
+      return res.status(400).json({ error: err.message });
+    }
     logError("Mailchimp customer sync failed", err);
     return res.status(500).json({ error: "Mailchimp customer sync failed" });
   }

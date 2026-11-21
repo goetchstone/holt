@@ -21,7 +21,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import fs from "node:fs";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm } from "@/lib/secureUpload";
+import { createSecureForm, uploadLimitRefusal } from "@/lib/secureUpload";
 import { parseKKOrderPDF } from "@/lib/pricing/kkOrderParser";
 import { parseWendoverOrderPDF } from "@/lib/pricing/wendoverOrderParser";
 import { parseMarketTimeOrderPDF } from "@/lib/pricing/marketTimeOrderParser";
@@ -112,8 +112,9 @@ export default requirePermission(
       return res.status(400).json({ error: `Unknown vendor format "${formatId}"` });
     }
 
+    const upload = entry.accepts === "csv" ? "CSV_XLSX" : "PDF";
     try {
-      const form = createSecureForm(entry.accepts === "csv" ? "CSV_XLSX" : "PDF");
+      const form = createSecureForm(upload);
       const [, files] = await form.parse(req);
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
       if (!file) {
@@ -126,6 +127,8 @@ export default requirePermission(
       }
       return res.status(200).json(draft);
     } catch (err) {
+      const refused = uploadLimitRefusal(err, upload);
+      if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("Home accessory order preview parse failed", err);
       return res.status(500).json({ error: "Parse failed" });
     }

@@ -18,7 +18,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm } from "@/lib/secureUpload";
+import { createSecureForm, uploadLimitRefusal, type UploadPresetName } from "@/lib/secureUpload";
 import { runServiceCaseSheetImport } from "@/lib/runServiceCaseSheetImport";
 import { logger, logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -27,15 +27,17 @@ import type { File as FormidableFile } from "formidable";
 
 export const config = { api: { bodyParser: false } };
 
+const UPLOAD: UploadPresetName = "CSV_XLSX";
+
+/** The parsed form. No file when none was sent, or the preset dropped its type. */
 async function parseUploadedFile(
   req: NextApiRequest,
-): Promise<{ file: FormidableFile; dryRun: boolean }> {
+): Promise<{ file: FormidableFile | undefined; dryRun: boolean }> {
   return new Promise((resolve, reject) => {
-    const form = createSecureForm("CSV_XLSX");
+    const form = createSecureForm(UPLOAD);
     form.parse(req, (err, rawFields, files) => {
       if (err) return reject(err);
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
-      if (!file) return reject(new Error("No file uploaded"));
       const dryRunRaw = Array.isArray(rawFields.dryRun)
         ? rawFields.dryRun[0]
         : (rawFields.dryRun as string | undefined);
@@ -72,6 +74,7 @@ export default requirePermission(
     let filePath: string | undefined;
     try {
       const { file, dryRun } = await parseUploadedFile(req);
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
       filePath = file.filepath;
       const buffer = fs.readFileSync(file.filepath);
 
@@ -95,6 +98,8 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
+      const refused = uploadLimitRefusal(err, UPLOAD);
+      if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("service-case-sheet-import failed", err);
       return res.status(500).json({ error: "The service sheet import failed." });
     } finally {
