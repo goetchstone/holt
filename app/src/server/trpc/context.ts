@@ -4,8 +4,14 @@
 // the JWT (next-auth v4, session strategy = "jwt") via getToken, which decrypts
 // the session cookie off the raw Request — the reliable way to read a v4
 // session outside the Pages Router req/res world. The jwt callback in
-// [...nextauth].ts puts `id` and `role` on the token, so they're available here
-// without a DB hit. The holt-impersonate cookie is surfaced for role procedures.
+// [...nextauth].ts puts `id` on the token, so it is available here without a DB
+// hit. The holt-impersonate cookie is surfaced for the gates.
+//
+// The token's `role` is deliberately NOT surfaced. It is the role at sign-in,
+// stale after a re-role and blind to isActive, and two report decisions once
+// read it from here (the wealth columns and Sales by Salesperson's scope) when
+// every gate re-reads the staff row. Without the field a procedure that reaches
+// for it is a compile error (role-list sweep, 2026-11-21).
 
 import { getToken } from "next-auth/jwt";
 
@@ -13,8 +19,6 @@ export interface TrpcContext {
   userId: string | null;
   /** Email from the JWT — used for createdBy/updatedBy audit fields. */
   userEmail: string | null;
-  /** Role carried on the JWT (may be stale vs DB; role procedures re-resolve). */
-  tokenRole: string | null;
   impersonate: string | null;
   headers: Headers;
 }
@@ -40,7 +44,6 @@ export async function createContext({ req }: { req: Request }): Promise<TrpcCont
   return {
     userId: (token?.id as string | undefined) ?? null,
     userEmail: (token?.email as string | undefined) ?? null,
-    tokenRole: (token?.role as string | undefined) ?? null,
     impersonate: readImpersonateCookie(req),
     headers: req.headers,
   };

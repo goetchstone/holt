@@ -69,11 +69,11 @@ The customer cannot approve, inspect, or process the refund — those are staff-
 
 ## Link generation paths
 
-`POST /api/portal/generate-link` accepts `{ orderId }`, returns `{ url, expiresAt }`. Gated `roles: ["ADMIN", "MANAGER", "REGISTER"]`. The URL embeds the token as `?token=<jwt>`.
+`POST /api/portal/generate-link` accepts `{ orderId }` and returns `{ url, orderno }`; the link's lifetime is the `portalTokenTtlHours` setting. It takes Write orders (`sales.write`), the key `POST /api/portal/text-link` takes to text the customer the same link. Until 2026-11-21 it was a DESIGNER/REGISTER/MANAGER/ADMIN role list: General Manager gains it, and staff on a store's own role (who passed as the enum DESIGNER) need the key. The URL embeds the token as `?token=<jwt>`.
 
 Used by:
 
-- Order detail page → "Send Payment Link" button (manager/register)
+- Order detail page → "Generate Portal Link" (the Customer Portal section)
 - "Text the link" on the order page (`POST /api/portal/text-link`, `sales.write`), and each automatic customer message that goes by text. Who may get a text: `sms.md`
 - Email follow-up templates
 

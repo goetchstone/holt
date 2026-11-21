@@ -395,8 +395,8 @@ on the account. That needs `payment.refund`.
 That comes back as a return, which puts its stock and money right. A sale handed over whole counts as all of it gone,
 even if its lines recorded no quantity.
 
-**Deleting.** Only a quote with no payment and no invoice can be deleted, by a manager. An audit entry is what's
-left.
+**Deleting.** Only a quote with no payment and no invoice can be deleted, by a holder of Cancel orders
+(`sales.cancel`), the key the order screen shows Delete on. An audit entry is what's left.
 
 **A sale with nothing paid** only goes ahead where the store allows it (Settings, Sales with no payment,
 `AppSettings.allowSaleWithoutPayment`, off by default). That covers the status buttons, raising a PO by hand and
@@ -591,6 +591,8 @@ now and says whether it went (`POST /api/portal/text-link`, `sales.write`). Staf
 chose to send it, so "No automatic messages" doesn't stop it, but the rules on who
 may get a text do. It's listed in the panel above.
 
+**What the order screen offers follows the keys its routes require** (2026-11): Change salesperson `sales.reassign`, Void on a pending payment `payment.void`, the Payment Request panel `payment.take`, the Customer Portal panel `sales.write`, Delete on a quote `sales.cancel`, Undo handover `sales.undo-handover`. The page answers them (`requirePage` `also`) and passes one flag per control. The first five followed the role name on the session token before, so View as changed nothing and staff on a store's own role never saw them.
+
 ## Key Files
 
 - `lib/adapters/legacyPos/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
@@ -602,7 +604,7 @@ may get a text do. It's listed in the panel above.
 
 ## B2B Proposals
 
-`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item. PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
+`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (Work B2B proposals, `sales.proposal`, which the eight `/api/proposals` routes take too: Managers by default). User-entered cost + retail pricing. Image upload per line item. PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
 
 **Line quantity is fractional** (migration `20261022120000_draft_and_proposal_qty_decimal`, 2026-10-17). Fabric is quoted by the yard, so `ProposalLineItem.quantity` is `Decimal(12,3)`, like the `OrderLineItem.orderedQuantity` it becomes. While it was `Int`, a line of 12.5 yards was stored and ordered as 12, and a quantity that was not a number answered 500 (`draftAndProposalQtyFractional.integration.test.ts`). Now:
 
@@ -615,7 +617,7 @@ may get a text do. It's listed in the panel above.
 
 Quote cards show:
 
-- Customer name + **Lead Score badge** (all roles — HOT/WARM/COOL/NEW) + Wealth Tier badge (ADMIN/SUPER_ADMIN/MARKETING only)
+- Customer name + **Lead Score badge** (the tier for everyone; the number for View marketing, `marketing.read`) + Wealth Tier badge (See wealth data, `customer.wealth`)
 - Order number, store, salesperson, quote date
 - Urgency badge (days since last contact or quote creation)
 - Line item summary and last interaction
@@ -624,7 +626,7 @@ Days are the store's days. `daysSince()` in `pages/api/sales/pipeline/index.ts` 
 business time zone from Settings, so a call at 22:00 reads as a day ago once it's past
 midnight at the store. Until GAP-36 this was a hardcoded `America/New_York`.
 
-Pipeline API (`api/sales/pipeline/index.ts`) computes lead score per customer and conditionally includes/omits `wealthTier` in the response based on session role (server-side enforcement — never leak wealth even if client hides it).
+Pipeline API (`api/sales/pipeline/index.ts`) computes lead score per customer. It sends `wealthTier` only to a holder of See wealth data, and the numeric `leadScore` only to View marketing, both answered by its gate's `also` (server-side enforcement — never leak wealth even if client hides it). The board shows the badge from the response's `wealthVisible`. Every salesperson's pipeline (`canViewAll`: All Staff, one salesperson's board, search across everyone's quotes) is Manage client books (`sales.clients.manage`).
 
 ## The client book (GAP-36, since 2026-11-05)
 
@@ -649,7 +651,7 @@ when saving; any other answer outside the list is refused.
 | Action | Permission | Who, by default |
 |---|---|---|
 | Open My Clients, log a contact or note, edit Client Info | `sales.lead` | Designers, managers |
-| Open someone else's book, the clients no one owns, assign | `sales.clients.manage` | Managers, General Manager, admins |
+| Open someone else's book, the clients no one owns, assign; every salesperson's Pipeline, and archiving anyone's quotes one at a time or in bulk | `sales.clients.manage` | Managers, General Manager, admins |
 | Read Client Info and notes on a customer | `customer.write` or `sales.lead` | The above, plus Customer Service and Register |
 | Read a customer | `customer.read` | Also Warehouse, Dispatch, Installer, Marketing, who don't get Client Info |
 
@@ -677,7 +679,7 @@ Designers, Managers and Admins, the same list the Pipeline Opportunity report us
 - `followUpState` (`lib/pipelineFollowUp.ts`): `scheduled` before the date, `due` from that
   day until someone is contacted, otherwise `overdue` past 7 days with no contact, or
   `current`. Staff summaries count `due` and `overdue` as overdue.
-- `?search=` looks across open quotes: a manager's across everyone's, a salesperson's across
+- `?search=` looks across open quotes: a `sales.clients.manage` holder's across everyone's, a salesperson's across
   their own (`lib/pipelineSearch.ts`). It reads names, the quote's own notes, a `NOTE` on
   any of the client's quotes, and Client Info.
 - Filters and sorts run in the browser on what's loaded (`lib/pipelineFilters.ts`). The
@@ -756,7 +758,7 @@ Archived quotes:
 - Excluded from `quoteCount` / `totalValue` staff metrics
 - Show as greyed cards with a "Replaced by SO-1234" link when the link is set
 
-Designers can archive their own quotes. Managers/Admins can archive any.
+A salesperson (`sales.lead`) can archive their own quotes. A holder of `sales.clients.manage` can archive or restore anyone's, and can archive every open quote dated before a cutoff in bulk (`POST /api/sales/pipeline/bulk-archive`, which ends their holds too). Both were role-name checks until 2026-11, and the bulk one refused the Owner.
 
 ## Duplicate Quote Detection
 

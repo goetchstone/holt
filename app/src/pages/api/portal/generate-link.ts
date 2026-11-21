@@ -1,7 +1,7 @@
 // /app/src/pages/api/portal/generate-link.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { portalOrderUrl } from "@/lib/portalLink";
 import { getAppSettings } from "@/lib/appSettings";
@@ -42,4 +42,5 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);
+// Write orders, the key text-link.ts takes to text the customer this same link.
+export default requirePermission("sales.write", handler);

@@ -495,7 +495,6 @@ describe("setting a register PIN (My Account)", () => {
     createCallerFactory(appRouter)({
       userId,
       userEmail: `${userId}@example.com`,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     });

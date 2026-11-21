@@ -122,6 +122,15 @@ DECISIONS 43). Every built-in role holding `catalog.write` also holds
 `catalog.pricing` (`permissionCatalog.ts`), so the split only bites a store's own
 roles.
 
+**Creating a product** (`POST /api/products/basic` from Create Basic Product and
+Create Variant's master picker, `POST /api/products/quick-create` from the Detailed
+Sales drilldown) takes "Edit catalog" (`catalog.write`): the key of the two create
+pages, and the one whose description names creating products. A new product's first
+cost and retail are part of creating it, as in `import-basic.ts`'s create branch. Both routes were MANAGER/ADMIN role lists until
+2026-11-21, so Buyers, Data Entry, Department Heads and General Managers opened the
+create pages and were refused on save. Tested by
+`__tests__/integration/catalogAdminGates.integration.test.ts`.
+
 **Mass price change.** Inventory → Mass Price Change
 (`app/(dashboard)/app/inventory/mass-price-change/`), gated `catalog.pricing`, routes
 under `pages/api/pricing/mass-change/` (`index` list, `options` for the filters,
@@ -461,8 +470,10 @@ strict side of not knowing.
 the one writer of `Customer.tradeTierId`, used by `PUT /api/customers/[id]/trade` (one
 transaction) and the demo seed. It refuses a tier that's turned off, and records
 `TRADE_TIER_ASSIGNED`. Saving a customer with the tier they already have is no change,
-even a tier turned off since. The route stays on the MANAGER/ADMIN role array: no
-permission covers both a standing discount and a tax exemption.
+even a tier turned off since. The route has its own key, Set trade accounts and tax
+exemptions (`customer.trade`, 2026-11), since no other permission covers both a standing
+discount and a tax exemption. Managers hold it by default, as the MANAGER/ADMIN list it replaced
+admitted them.
 
 **Making and changing a tier.** `/api/admin/trade-tiers` (gate `catalog.pricing`)
 takes a percent from 0 to 100 to the hundredth (`tierPercentProblem`, which the Trade

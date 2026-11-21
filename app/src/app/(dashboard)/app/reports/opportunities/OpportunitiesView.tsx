@@ -4,7 +4,10 @@
 //
 // Marketing Opportunities hub. Tile counts via tRPC; per-tile drilldown fetched
 // imperatively (dedup toggle + mark-sent). "Mark as sent" stays a REST POST to
-// the log-send mutation route. MARKETING/ADMIN; the page gated server-side.
+// the log-send mutation route. "See customer lists"; the page gated
+// server-side. Without "See wealth data" the server leaves the wealth-based
+// tiles out and no row carries a wealth tier, so the wealth column hides itself
+// from the rows (showWealth below).
 
 import { useState } from "react";
 import axios from "axios";

@@ -1,7 +1,7 @@
 // /app/src/pages/api/accounting/gl-accounts/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -77,4 +77,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+// The list serves the Chart of Accounts screen and the GL picker in the tax
+// district editor (both Manage configuration), so a GET takes that key, View
+// accounting, or the write key. Creating an account is chart setup: the
+// screen's key, or "Set up the chart of accounts", which Managers hold (they
+// made these writes by API under the old MANAGER/ADMIN list).
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    return requirePermission(
+      { anyOf: ["admin.config", "accounting.chart.manage", "accounting.read"] },
+      handler,
+    )(req, res);
+  }
+  return requirePermission({ anyOf: ["admin.config", "accounting.chart.manage"] }, handler)(
+    req,
+    res,
+  );
+}

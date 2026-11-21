@@ -2,16 +2,17 @@
 //
 // PUT    /api/admin/product-pairings/[id] -- update
 // DELETE /api/admin/product-pairings/[id] -- delete
-// ADMIN / MARKETING only.
+// "Manage configuration" (admin.config), the key of the Product Pairings setup
+// page that calls it, like /api/admin/product-pairings beside it.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { validateProductPairingInput } from "@/lib/productPairingValidation";
 
-export default requireAuthWithRole(
-  ["ADMIN", "MARKETING"],
+export default requirePermission(
+  "admin.config",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const id = Number.parseInt(req.query.id as string, 10);
     if (!Number.isInteger(id) || id <= 0) {

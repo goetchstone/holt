@@ -19,10 +19,11 @@ jest.mock("@/lib/prisma", () => ({
   prisma: { upc: { findFirst: (...a: unknown[]) => findFirst(...a) }, product: { findFirst } },
 }));
 jest.mock("@/lib/auth/requireAuth", () => ({
-  // Bypass the role gate; the gates are covered by the apiRouteAuthorization tripwire.
-  requireAuthWithRole:
-    (_roles: unknown, handler: (...a: unknown[]) => unknown) => (req: unknown, res: unknown) =>
-      handler(req, res, { user: { email: "manager@example.com" } }, { holds: {} }),
+  // Bypass the permission gate; the gates are covered by the apiRouteAuthorization tripwire.
+  requirePermission:
+    (_requirement: unknown, handler: (...a: unknown[]) => unknown) =>
+    (req: unknown, res: unknown) =>
+      handler(req, res, { user: { email: "admin@example.com" } }, { holds: {} }),
 }));
 const logError = jest.fn();
 jest.mock("@/lib/logger", () => ({ logError: (...a: unknown[]) => logError(...a) }));

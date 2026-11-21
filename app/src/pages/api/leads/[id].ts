@@ -2,12 +2,16 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   const userEmail = session.user.email;
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) {
@@ -125,11 +129,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 
   if (req.method === "DELETE") {
-    // Narrower than the outer gate: any of the leads-board roles can edit a
-    // lead, but only managers/admins can delete one outright.
-    const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
-    if (role !== "MANAGER" && role !== "ADMIN") {
-      return res.status(403).json({ error: "Only managers can delete leads" });
+    // Narrower than the outer gate: anyone who works leads can edit one, but
+    // deleting one outright is "Run marketing" (marketing.write), the key the
+    // Leads board shows its Delete button on.
+    if (!access.holds["marketing.write"]) {
+      return res.status(403).json({ error: "Deleting a lead needs the Run marketing permission." });
     }
 
     try {
@@ -150,9 +154,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).json({ error: `Method ${req.method} not allowed` });
 }
 
-// Deviates from the generic "leads -> MARKETING,MANAGER,ADMIN" policy bucket:
-// the leads board page (app/leads/page.tsx) is gated
-// requirePage(["MANAGER","ADMIN","DESIGNER"]) with no MARKETING at all, and
-// leads auto-assign to a customer's primary designer. Matching that real
-// access pattern here instead of the generic bucket.
-export default requirePermission("sales.lead", handler);
+// "Work leads" (sales.lead), the key of the Leads board page (app/leads/page.tsx):
+// leads auto-assign to a customer's primary designer, who works them there.
+// DELETE also needs "Run marketing" (marketing.write), answered from the same
+// staff read as the gate.
+export default requirePermission("sales.lead", handler, { also: ["marketing.write"] });

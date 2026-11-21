@@ -1,13 +1,14 @@
 // /app/src/pages/api/sales/pipeline/[id].ts
 //
 // PATCH: archive or restore a single quote from the pipeline.
-// Designers can only act on their own quotes; managers can act on any.
+// A salesperson can only act on their own quotes; a holder of "Manage client
+// books" (sales.clients.manage) can act on anyone's.
 // Optional fields lock the archived quote to a replacement (for "Updated Quote" /
 // "Duplicate" reasons) so conversion reports can roll them together.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requirePermission } from "@/lib/auth/requireAuth";
+import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
 import { isQuoteInStaffPipeline } from "@/lib/clientOwnership";
 import { prisma } from "@/lib/prisma";
 import { endQuoteHolds } from "@/lib/sales/quoteHolds";
@@ -24,7 +25,12 @@ interface ArchiveBody {
   replacedByOrderId?: number | null;
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   if (req.method !== "PATCH") return res.status(405).json({ error: "Method not allowed" });
 
   if (!session.user?.email) return res.status(401).json({ error: "Unauthorized" });
@@ -60,7 +66,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   const staff = await prisma.staffMember.findUnique({
     where: { email: session.user.email },
-    select: { id: true, displayName: true, aliases: true, role: true },
+    select: { id: true, displayName: true, aliases: true },
   });
   // Deny when no StaffMember record exists. The earlier `|| !staff`
   // branch granted any Google account without a staff record manager-level
@@ -68,8 +74,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (!staff) {
     return res.status(403).json({ error: "Staff record required" });
   }
-  const isManager =
-    staff.role === "MANAGER" || staff.role === "ADMIN" || staff.role === "SUPER_ADMIN";
+  // Answered by the gate's `also`, from the same staff read as the gate.
+  const canActOnAny = access.holds["sales.clients.manage"];
 
   const order = await prisma.salesOrder.findUnique({
     where: { id },
@@ -86,8 +92,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (order.status !== "QUOTE")
     return res.status(400).json({ error: "Only quotes can be archived" });
 
-  // Designers may only archive their own quotes
-  if (!isManager) {
+  // Everyone else may only archive their own quotes
+  if (!canActOnAny) {
     const activeStaff = await prisma.staffMember.findMany({
       where: { isActive: true },
       select: { id: true, displayName: true, aliases: true },
@@ -139,7 +145,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(200).json(updated);
 }
 
-// Quotes are a designer/manager concern (register and warehouse have no
-// ownership stake in the pipeline), matching this file's own isManager
-// ownership check above.
-export default requirePermission("sales.lead", handler);
+// "Work leads" (sales.lead), the key of the pipeline's data (register and
+// warehouse have no ownership stake in the pipeline). Acting on someone else's
+// quote also needs "Manage client books" (sales.clients.manage), the same key
+// that shows every salesperson's Pipeline (pipeline/index.ts).
+export default requirePermission("sales.lead", handler, { also: ["sales.clients.manage"] });

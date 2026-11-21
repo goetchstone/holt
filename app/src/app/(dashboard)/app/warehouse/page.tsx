@@ -1,12 +1,13 @@
 // /app/src/app/(dashboard)/app/warehouse/page.tsx
 //
-// Warehouse hub -- App Router port of the legacy warehouse/index. MANAGER /
-// ADMIN / WAREHOUSE, gated on the "warehousing" feature module (mirrors the
-// legacy withAuth roles + feature). Cards self-filter by role via CardGrid;
-// hrefs are unchanged so existing links keep working. Chrome from the
-// (dashboard) layout.
+// Warehouse hub -- App Router port of the legacy warehouse/index, on View
+// warehouse, gated on the "warehousing" feature module (mirrors the legacy
+// withAuth feature). A card shows only to a viewer holding the key of the page
+// it opens (lib/auth/hubCards.ts); hrefs are unchanged so existing links keep
+// working. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -29,19 +30,16 @@ const ITEMS: CardGridItem[] = [
     title: "Overview",
     description: "Inventory counts by store and stock location at a glance.",
     href: "/app/warehouse/overview",
-    roles: ["ADMIN", "WAREHOUSE"],
   },
   {
     title: "Receiving",
     description: "Confirm received items against purchase orders.",
     href: "/app/purchasing/receiving",
-    roles: ["ADMIN", "WAREHOUSE"],
   },
   {
     title: "Transfers",
     description: "Create and track inventory transfers between locations.",
     href: "/app/warehouse/transfers",
-    roles: ["ADMIN", "WAREHOUSE"],
   },
   {
     title: "Consignment Rugs",
@@ -57,7 +55,6 @@ const ITEMS: CardGridItem[] = [
     title: "Returns Queue",
     description: "Inspect and restock returned items.",
     href: "/app/warehouse/returns",
-    roles: ["ADMIN", "WAREHOUSE"],
   },
   {
     title: "Set aside",
@@ -73,6 +70,10 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function WarehouseHubPage() {
-  await requirePage(undefined, { permission: "warehouse.read", feature: "warehousing" });
-  return <CardGrid title="Warehouse" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "warehouse.read",
+    feature: "warehousing",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="Warehouse" items={visibleHubCards(ITEMS, holds)} />;
 }

@@ -16,12 +16,13 @@
 // regression the type checker could not see.
 //
 // Rules encoded here:
-//   - Impersonation (holt-impersonate cookie) is honored ONLY for a real
-//     SUPER_ADMIN or ADMIN, and can only ever REDUCE privilege. An ADMIN used
-//     to be able to set the cookie to SUPER_ADMIN and pass a SUPER_ADMIN-gated
-//     check, which defeated the whole point of having an owner-only tier above
-//     ADMIN. Impersonation exists to see the app as a less-privileged user,
-//     never as a more-privileged one.
+//   - Impersonation (holt-impersonate cookie) is honored ONLY for a real role
+//     holding a key of IMPERSONATE (Impersonate, or Change settings), and can
+//     only ever REDUCE privilege. An ADMIN used to be able to set the cookie to
+//     SUPER_ADMIN and pass a SUPER_ADMIN-gated check, which defeated the whole
+//     point of having an owner-only tier above ADMIN. Impersonation exists to
+//     see the app as a less-privileged user, never as a more-privileged one, so
+//     under View as BOTH decisions also require the real role to pass.
 //   - SUPER_ADMIN auto-satisfies any check that lists ADMIN (strictly more
 //     privileged), without ADMIN having to name SUPER_ADMIN explicitly.
 //   - Bootstrap safeguard: if the user's effective role isn't allowed, access
@@ -45,11 +46,36 @@ const ROLE_RANK: Record<string, number> = {
 };
 
 /**
+ * Who may View as another role: a role holding either key. Impersonate
+ * (admin.impersonate) is the owner tier; Change settings (admin.settings) is
+ * how an Administrator has always been allowed to, so the built-in audience is
+ * still the Owner and the Administrator, and a store can now give it to a role
+ * of its own in Roles. Decided on keys, not role names, because a role name
+ * says nothing about what a store's own roles may do (PERM-01).
+ *
+ * THE ONE home of the rule. decidePermissionAccess applies it to the grants it
+ * is given, resolveRoleListAccess to the grant table before decideRoleAccess,
+ * and useEffectiveRole to the session's keys, all through mayImpersonate.
+ * pages/api/admin/impersonate.ts writes the same requirement inline, because
+ * the permissionKeysExist tripwire parses only literals there;
+ * impersonateGate.test.ts pins the two equal.
+ */
+export const IMPERSONATE = { anyOf: ["admin.impersonate", "admin.settings"] } as const;
+
+/** May a role holding the keys `holds` answers for View as another role? */
+export function mayImpersonate(holds: (key: string) => boolean): boolean {
+  return requirementKeys(IMPERSONATE).some(holds);
+}
+
+/**
  * Resolve the role a check should actually run against, given the real role and
  * whatever the holt-impersonate cookie claims.
  *
  * THE ONE implementation of the anti-escalation rule. Both decideRoleAccess and
  * decidePermissionAccess call it; nothing else may re-derive it.
+ *
+ * `canImpersonate` is mayImpersonate's answer for the REAL role; without it the
+ * cookie is ignored.
  *
  * `ranks` overrides the built-in ROLE_RANK table. The permission path passes the
  * ranks read from the Role rows, so a deployment's own role (which the
@@ -59,9 +85,9 @@ const ROLE_RANK: Record<string, number> = {
 export function resolveEffectiveRole(
   realRole: string,
   impersonate: string | null,
+  canImpersonate: boolean,
   ranks: Record<string, number> = ROLE_RANK,
 ): string {
-  const canImpersonate = realRole === "SUPER_ADMIN" || realRole === "ADMIN";
   if (!canImpersonate || !impersonate) return realRole;
   // Impersonation must never escalate. An ADMIN impersonating SUPER_ADMIN is
   // just an ADMIN; a SUPER_ADMIN impersonating anyone is that lesser role.
@@ -94,6 +120,12 @@ export interface RoleDecisionInput {
   /** Value of the holt-impersonate cookie, or null. */
   impersonate: string | null;
   /**
+   * May the real role View as another (mayImpersonate over its grants)? A role
+   * list carries no keys, so the caller answers it from the grant table, as
+   * resolveRoleListAccess does.
+   */
+  canImpersonate: boolean;
+  /**
    * Count of active, linked privileged staff (SUPER_ADMIN/ADMIN/MANAGER).
    * Only consulted when the role check would otherwise fail.
    */
@@ -108,18 +140,31 @@ export interface RoleDecision {
   bootstrapBypass: boolean;
 }
 
+/**
+ * Is the caller's role in the allowed list?
+ *
+ * Under View as, the real role must be in the list too: viewing as another role
+ * only ever narrows, as decidePermissionAccess has required since F12a. Without
+ * it, anyone allowed to View as passes every list that names the role they view
+ * as, and a store role holding Change settings (which may View as since View as
+ * moved to keys) would pass, say, a WAREHOUSE list by viewing as WAREHOUSE.
+ */
 export function decideRoleAccess(input: RoleDecisionInput): RoleDecision {
-  const { allowedRoles, realRole, impersonate, privilegedCount } = input;
+  const { allowedRoles, realRole, impersonate, canImpersonate, privilegedCount } = input;
 
-  const effectiveUserRole = resolveEffectiveRole(realRole, impersonate);
+  const effectiveUserRole = resolveEffectiveRole(realRole, impersonate, canImpersonate);
 
   // SUPER_ADMIN satisfies any ADMIN-gated check.
   const effectiveAllowed =
     allowedRoles.includes("ADMIN") && !allowedRoles.includes("SUPER_ADMIN")
       ? [...allowedRoles, "SUPER_ADMIN"]
       : allowedRoles;
+  const viewingAs = effectiveUserRole !== realRole;
 
-  if (effectiveAllowed.includes(effectiveUserRole)) {
+  if (
+    effectiveAllowed.includes(effectiveUserRole) &&
+    (!viewingAs || effectiveAllowed.includes(realRole))
+  ) {
     return { allowed: true, effectiveUserRole, bootstrapBypass: false };
   }
 
@@ -223,11 +268,12 @@ export interface PermissionDecision {
 export function decidePermissionAccess(input: PermissionDecisionInput): PermissionDecision {
   const { permission, realRole, impersonate, grantsByRole, wildcardRoles, privilegedCount } = input;
 
-  const ranks = input.ranks && Object.keys(input.ranks).length > 0 ? input.ranks : ROLE_RANK;
-  const effectiveUserRole = resolveEffectiveRole(realRole, impersonate, ranks);
-
   const holds = (role: string, key: string) =>
     wildcardRoles.includes(role) || (grantsByRole[role] ?? []).includes(key);
+
+  const ranks = input.ranks && Object.keys(input.ranks).length > 0 ? input.ranks : ROLE_RANK;
+  const canImpersonate = mayImpersonate((key) => holds(realRole, key));
+  const effectiveUserRole = resolveEffectiveRole(realRole, impersonate, canImpersonate, ranks);
   const viewingAs = effectiveUserRole !== realRole;
 
   if (

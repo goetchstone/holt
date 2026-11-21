@@ -2,17 +2,26 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-// Vendor contacts are buyer/purchasing/manager data. Writes gated to
-// the staff who maintain vendor relationships. GETs are wrapped under
-// the same role set since contact details (direct emails/phones) are
-// sensitive enough that register / marketing / installer don't need
-// API-level access.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE"],
-  async (req: NextApiRequest, res: NextApiResponse) => {
+// A vendor's contacts: names, direct emails and phones. Reading them takes
+// either key of the staff who deal with vendors: "View purchasing"
+// (purchasing.read), or "Edit catalog" (catalog.write), the key of the vendor
+// list whose detail modal shows them. Register, Marketing and Installer hold
+// neither by default, since direct contact details are sensitive enough that
+// they don't need API-level access. Adding or removing a contact edits the
+// vendor, so POST and DELETE need "Edit catalog", answered by the gate's
+// `also` from the same staff read as the gate.
+export default requirePermission(
+  { anyOf: ["purchasing.read", "catalog.write"] },
+  async (req: NextApiRequest, res: NextApiResponse, _session, access) => {
+    if ((req.method === "POST" || req.method === "DELETE") && !access.holds["catalog.write"]) {
+      return res
+        .status(403)
+        .json({ error: "Adding or removing a vendor contact needs the Edit catalog permission." });
+    }
+
     const vendorId = Number.parseInt(req.query.id as string);
     if (Number.isNaN(vendorId)) {
       return res.status(400).json({ error: "Invalid vendor ID" });
@@ -88,4 +97,5 @@ export default requireAuthWithRole(
     res.setHeader("Allow", ["GET", "POST", "DELETE"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   },
+  { also: ["catalog.write"] },
 );

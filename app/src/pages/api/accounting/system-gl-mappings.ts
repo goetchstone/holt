@@ -1,7 +1,7 @@
 // /app/src/pages/api/accounting/system-gl-mappings.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -47,4 +47,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+// Pointing a payment type or system line at a GL account decides where every
+// later journal books that money: chart setup, on the Chart of Accounts
+// screen's key or "Set up the chart of accounts", which Managers hold (they
+// made this change by API under the old MANAGER/ADMIN list). Reading the
+// mappings also takes View accounting.
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    return requirePermission(
+      { anyOf: ["admin.config", "accounting.chart.manage", "accounting.read"] },
+      handler,
+    )(req, res);
+  }
+  return requirePermission({ anyOf: ["admin.config", "accounting.chart.manage"] }, handler)(
+    req,
+    res,
+  );
+}

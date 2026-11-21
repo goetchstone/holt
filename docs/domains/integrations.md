@@ -66,7 +66,7 @@ When a new Axper store appears that isn't mapped, the import persists it with `s
 - Per-store totals table with share-of-traffic %.
 - CSV export at `GET /api/reports/traffic/export?dateFrom&dateTo&stores` — one row per (day × Axper store).
 - **Hybrid data source**: historical days read from `TrafficSnapshot`; if the requested range includes today, the page also calls `fetchAxperTraffic` for today (one Axper call, per the day-by-day clamp in `axperClient.ts`) and merges. Surfaces as `liveTodayPulled: true` in the API response + a small UI badge.
-- MANAGER+ only. JSON endpoint at `GET /api/reports/traffic?dateFrom&dateTo&stores` returns `{ totals, byDay, byStore, byDayAndStore, byHour, byDayOfWeek }`.
+- On View management reports (`reporting.management`, built in for the Owner, Administrator and Manager): the page and the tRPC procedure `reports.traffic` (`{ dateFrom, dateTo, stores }`), which returns `{ totals, byDay, byStore, byDayAndStore, byHour, byDayOfWeek }`. The CSV export takes Export data (`reporting.export`).
 
 ## PBX / pbxact — call logging (ROADMAP only)
 
@@ -120,7 +120,7 @@ This runbook entry exists as a forward-pointer. When the work starts, this secti
 
 **Model**: `WindfallEnrichment` — 1:1 with `Customer`. Includes net worth, wealth tier, 20+ lifestyle/asset/philanthropy/political boolean signals, match confidence.
 
-**Visibility**: ADMIN + MARKETING only. NEVER MANAGER (per `docs/domains/staff-auth.md` "Wealth Data Visibility").
+**Visibility**: See wealth data (`customer.wealth`): Marketing by default, beside the Owner and Administrators. Not Managers by default (per `docs/domains/staff-auth.md` "Wealth Data Visibility").
 
 **Pricing**: paid service. Stop the import if Windfall's contract ends — historical rows stay valid but don't refresh.
 
@@ -163,4 +163,4 @@ Covered fully in `docs/domains/import-pipeline.md`. Service account with domain-
 Exports neutralise formula cells (CSV injection, 2026-11-20). A cell whose text starts with `=`, `+`, `-`, `@`, tab or CR is run as a formula by Excel/Sheets/Numbers, and customer, product and note fields are user-entered. `neutraliseFormulaCell` in `app/src/lib/csv.ts` is the one function: it prefixes a single quote to such a string, except a string that is wholly a plain number (`-12.50`, `+3`), and never touches a number value. `csvCell`/`csvRow` (`app/src/lib/csvExport.ts`) and `rowsToCsv` (`app/src/lib/csv.ts`) both go through it, and `neutraliseRow` covers exporters that hand rows to json2csv or Papa. Covers here: the Windfall customer and sales exports (`pages/api/exports/windfall-*.ts`), which keep json2csv and pass each row through `neutraliseRow` so their bytes are otherwise unchanged. `app/__tests__/fixtures/csv-producers.txt` lists every CSV-producing file under `app/src` and `app/__tests__/csvExportManifest.test.ts` fails when a producer is unlisted or bypasses a helper; a new export goes through a helper and into that manifest.
 
 ---
-Last verified: 2026-05-20
+Last verified: 2026-11-21 (the Store Traffic report's key and data path, against `PAGE_ACCESS` and `routers/reports.ts`); the rest 2026-05-20

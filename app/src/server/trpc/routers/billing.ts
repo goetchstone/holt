@@ -1,14 +1,16 @@
 // /app/src/server/trpc/routers/billing.ts
 //
-// Authored-invoice procedures (composer + lifecycle). MANAGER/ADMIN — every
-// procedure exposes or moves money. The whole router is behind the `billing`
+// Authored-invoice procedures (composer + lifecycle). Every procedure is on
+// "Bill customers directly" (accounting.invoice), the key of the Invoices
+// screens that call them: each one exposes or moves money, and View accounting
+// alone does not open them. The whole router is behind the `billing`
 // feature flag: disabled deployments get NOT_FOUND, mirroring how gated pages
 // call notFound(). Logic lives in lib/billing/* so the REST PDF endpoint and
 // the Stripe webhook share it.
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { roleProcedure } from "../trpc";
+import { permissionProcedure } from "../trpc";
 import { router } from "../trpc";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
 import {
@@ -30,8 +32,6 @@ import { listTenders } from "@/lib/payments/tenders";
 import { REFERENCE_MAX, type TenderKind } from "@/lib/payments/tenderShared";
 import { CheckoutAlreadyOpenError } from "@/lib/paymentService";
 import { parseLocalDate } from "@/lib/dateUtils";
-
-const BILLING_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
 
 const lineInput = z.object({
   description: z.string().min(1).max(2000),
@@ -92,7 +92,7 @@ function parseDueDate(value: string | null | undefined): Date | null {
 }
 
 export const billingRouter = router({
-  list: roleProcedure(BILLING_ROLES)
+  list: permissionProcedure("accounting.invoice")
     .input(
       z
         .object({
@@ -106,14 +106,14 @@ export const billingRouter = router({
       return listInvoices(input ?? {});
     }),
 
-  detail: roleProcedure(BILLING_ROLES)
+  detail: permissionProcedure("accounting.invoice")
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input }) => {
       await requireBillingEnabled();
       return translate(() => getInvoiceDetail(input.id));
     }),
 
-  create: roleProcedure(BILLING_ROLES)
+  create: permissionProcedure("accounting.invoice")
     .input(draftInput)
     .mutation(async ({ input, ctx }) => {
       await requireBillingEnabled();
@@ -129,7 +129,7 @@ export const billingRouter = router({
       );
     }),
 
-  update: roleProcedure(BILLING_ROLES)
+  update: permissionProcedure("accounting.invoice")
     .input(draftInput.extend({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       await requireBillingEnabled();
@@ -145,28 +145,28 @@ export const billingRouter = router({
       );
     }),
 
-  delete: roleProcedure(BILLING_ROLES)
+  delete: permissionProcedure("accounting.invoice")
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       await requireBillingEnabled();
       return translate(() => deleteDraftInvoice(input.id));
     }),
 
-  issue: roleProcedure(BILLING_ROLES)
+  issue: permissionProcedure("accounting.invoice")
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       await requireBillingEnabled();
       return translate(() => issueInvoice(input.id, ctx.userEmail ?? null));
     }),
 
-  void: roleProcedure(BILLING_ROLES)
+  void: permissionProcedure("accounting.invoice")
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       await requireBillingEnabled();
       return translate(() => voidInvoice(input.id, ctx.userEmail ?? null));
     }),
 
-  recordPayment: roleProcedure(BILLING_ROLES)
+  recordPayment: permissionProcedure("accounting.invoice")
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -192,7 +192,7 @@ export const billingRouter = router({
     }),
 
   /** The store's own payment types offered on invoices (Settings -> Payment Types). */
-  tenders: roleProcedure(BILLING_ROLES).query(async () => {
+  tenders: permissionProcedure("accounting.invoice").query(async () => {
     await requireBillingEnabled();
     const tenders = await listTenders(prisma, "invoices");
     return tenders.map(({ id, name, kind, referenceRequired }) => ({
@@ -203,7 +203,7 @@ export const billingRouter = router({
     }));
   }),
 
-  paymentLink: roleProcedure(BILLING_ROLES)
+  paymentLink: permissionProcedure("accounting.invoice")
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -219,7 +219,7 @@ export const billingRouter = router({
       );
     }),
 
-  sendEmail: roleProcedure(BILLING_ROLES)
+  sendEmail: permissionProcedure("accounting.invoice")
     .input(
       z.object({
         id: z.number().int().positive(),

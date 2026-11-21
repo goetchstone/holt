@@ -72,6 +72,11 @@ payment. A tenant that never applies is balance-forward by behavior.
   61-90 / 90+). Balance-forward customers age on the customer balance instead.
 - **Statement:** per customer — open invoices, their applications, on-account
   credits, running balance. Drives the portal + dunning later.
+- **Today's aging report:** Balance Due Aging (`/app/reports/balance-aging`,
+  tRPC `reports.balanceAging`) buckets unpaid balances on open orders by age.
+  Page and procedure gate on "View financial reports" (`reporting.financial`),
+  held by default only by the Administrator and the Owner; it was an ADMIN-only
+  role list until 2026-11-21.
 
 ## Build order (each its own careful, real-DB-tested change — money code)
 
@@ -136,8 +141,8 @@ version. Owner decides how far per slice.
 
 ## Invoice authoring (shipped 2026-06-10 — Ledger Risk 3 closed)
 
-The composer flow (`/app/sales/invoices`, feature flag `billing`, MANAGER/
-ADMIN) creates standalone invoices: `Invoice.organizationId` set,
+The composer flow (`/app/sales/invoices`, feature flag `billing`, "Bill
+customers directly") creates standalone invoices: `Invoice.organizationId` set,
 `customerId` + `total` + freeform `InvoiceLineItem` rows (`orderLineItemId`
 NULL, `description`/`quantity`/`unitPrice`/`amount` set — `amount` is the
 LINE TOTAL like `OrderLineItem.netPrice`). Imported/legacy invoices keep
@@ -207,10 +212,21 @@ tripwire in `__tests__/invoiceAuthoring.test.ts`. The AR drift check folds
 into the source side so billed customers tie out —
 `customerArDriftRunner.ts` hydrates authored invoices per candidate.
 
-Surfaces: tRPC `billing.*` router (feature-gated, MANAGER/ADMIN), pages
+Surfaces: tRPC `billing.*` router (feature-gated), pages
 under `/app/sales/invoices` (list / composer / detail), PDF at
 `GET /api/billing/invoices/[id]/pdf`, email template `invoiceIssuedEmail`
 through the durable queue (optionally embedding a Stripe pay link).
+
+**Who may bill (2026-11-21).** The pages, every `billing.*` procedure, the PDF
+route and the client-hub link (`clientPortal.generateLink`, client-portal.md)
+take one key, "Bill customers directly" (`accounting.invoice`). It is on for
+the Owner, Administrator and Manager, the audience of the role lists it
+replaced (`BILLING_ROLES`, `PORTAL_ROLES` and the pages' MANAGER/ADMIN lists).
+View accounting does not open invoices: the PDF route was on it, which let a
+General Manager download a PDF from screens it could not open. General Manager
+holds no invoice key by default. Pinned by
+`__tests__/accountingBillingGates.test.ts` and, against a real database,
+`billingRouter.integration.test.ts`.
 
 Real-DB proof: `__tests__/integration/invoiceLifecycle.integration.test.ts`
 (issue → balanced journal + ledger; partial + closing payments; drift

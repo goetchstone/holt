@@ -1,16 +1,19 @@
 // /app/src/pages/api/proposals/[id]/line-items/index.ts
 //
 // POST: Add a line item to a proposal.
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { parseQty } from "@/lib/inventory/qtyInput";
 import { proposalLineForClient } from "@/lib/proposalQty";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.proposal",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

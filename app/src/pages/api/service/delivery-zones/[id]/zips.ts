@@ -1,7 +1,10 @@
 // /app/src/pages/api/service/delivery-zones/[id]/zips.ts
+//
+// The ZIP codes a delivery zone covers, which decide the fee an order is
+// charged. Setup, gated as delivery-zones/index.ts is.
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -21,7 +24,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission({ anyOf: ["service.setup", "admin.settings"] }, handler);
 
 async function handleGet(zoneId: number, res: NextApiResponse) {
   try {

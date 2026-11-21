@@ -2,8 +2,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
+import { canViewWealth, VIEW_WEALTH } from "@/lib/auth/wealthVisibility";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { calculateLeadScore } from "@/lib/leadScore";
@@ -11,12 +11,16 @@ import { leadTemperature, daysSinceLastAction } from "@/lib/leadHousekeeping";
 import { logError } from "@/lib/logger";
 import { COUNTED_ITEM_LINE, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   const userEmail = session.user.email!;
-  const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
-  const canSeeWealth = role === "ADMIN" || role === "SUPER_ADMIN" || role === "MARKETING";
-  const canSeeNumericScore =
-    role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER" || role === "MARKETING";
+  // Both answered by the gate from the same staff read (its `also` below).
+  const canSeeWealth = canViewWealth(access);
+  const canSeeNumericScore = access.holds["marketing.read"];
 
   if (req.method === "GET") {
     const page = Number.parseInt(req.query.page as string) || 1;
@@ -282,7 +286,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         const temp = leadTemperature(lead.lastActionAt ?? lead.created);
         const daysSince = daysSinceLastAction(lead.lastActionAt ?? lead.created, now);
 
-        // Strip customer wealth field from output for designers
+        // The customer's wealth enrichment never goes out whole; its tier goes
+        // out below only to a holder of See wealth data.
         const customerOut = lead.customer
           ? {
               id: lead.customer.id,
@@ -327,6 +332,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         total,
         page,
         totalPages: Math.ceil(total / limit),
+        // The board hides the wealth badge and the numeric score from the same
+        // answers that stripped them, rather than guessing from missing fields.
+        wealthVisible: canSeeWealth,
+        scoreVisible: canSeeNumericScore,
       });
     } catch (err) {
       logError("Failed to fetch leads", err);
@@ -390,10 +399,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).json({ error: `Method ${req.method} not allowed` });
 }
 
-// Deviates from the generic "leads -> MARKETING,MANAGER,ADMIN" policy bucket:
-// the leads board page (app/leads/page.tsx) is gated
-// requirePage(["MANAGER","ADMIN","DESIGNER"]) with no MARKETING at all, and
-// leads auto-assign to a customer's primary designer. Matching that real
-// access pattern here instead of the generic bucket. canSeeWealth /
-// canSeeNumericScore below still further restrict wealth-tier fields.
-export default requirePermission("sales.lead", handler);
+// "Work leads" (sales.lead), the key of the Leads board page (app/leads/page.tsx):
+// leads auto-assign to a customer's primary designer, who works them there.
+// Within it, each lead's wealth tier needs "See wealth data" (customer.wealth)
+// and its numeric score "View marketing" (marketing.read); without them the
+// lead goes out without those fields.
+export default requirePermission("sales.lead", handler, {
+  also: [VIEW_WEALTH, "marketing.read"],
+});

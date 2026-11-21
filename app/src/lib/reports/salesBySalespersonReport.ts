@@ -13,13 +13,13 @@
 // lines are excluded (rule 33) and RETURNED is in the status filter so negative
 // return lines net out rewrite chains.
 //
-// Role gating is resolved through the existing resolveSalesPersonFilter helper,
-// which reads a NextAuth Session. The tRPC procedure has no Session object, so
-// these functions accept the role + userId as plain params and build the minimal
-// Session shape the helper reads (`role`, `user.id`).
+// Which salespeople a caller sees is resolved through resolveSalesPersonFilter
+// from `auth`: whether the caller may see everyone, which the screen's
+// procedures and the CSV export decide from permission keys at their gates
+// (salesBySalespersonSeesEveryone in lib/reports/salespersonScope.ts), and the
+// caller's user id, which finds their own staff record when they may not.
 
 import type { PrismaClient, Prisma } from "@prisma/client";
-import type { Session } from "next-auth";
 import {
   aggregateMargin,
   applyShare,
@@ -35,6 +35,7 @@ import {
   resolveSalesPersonFilter,
   applySalesPersonFilter,
   customerLabel,
+  type SalesPersonFilterCaller,
 } from "@/lib/salesBySalesperson";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import { creditShare, partnerShare, primaryShare } from "@/lib/commissionSplit";
@@ -44,15 +45,12 @@ export type { GroupBy } from "@/lib/salesBySalesperson";
 const MAX_ROWS = 500;
 
 /**
- * Role context for the report. resolveSalesPersonFilter reads a NextAuth
- * Session (`role` at the top level, `user.id` nested); the tRPC procedure only
- * has the JWT-derived role + userId, so we accept those and reconstruct the
- * minimal shape the helper inspects.
+ * Who is asking: whether they may see every salesperson (decided by the gate
+ * from permission keys) and their user id. Never a role name: a role read off
+ * the session token outlives a demotion, and a custom role carries the enum
+ * DESIGNER whatever the store granted it.
  */
-export interface SalesBySalespersonAuth {
-  role: string | undefined;
-  userId: string | undefined;
-}
+export type SalesBySalespersonAuth = SalesPersonFilterCaller;
 
 export interface SalesBySalespersonParams {
   auth: SalesBySalespersonAuth;
@@ -164,19 +162,6 @@ interface OrderForReport {
       department: { name: string } | null;
     } | null;
   }[];
-}
-
-/**
- * resolveSalesPersonFilter inspects `(session as any).role` and
- * `(session.user as any).id`. Rebuild that minimal shape from plain params so
- * the helper stays untouched and the attribution rules are identical to the
- * legacy REST path.
- */
-function toSession(auth: SalesBySalespersonAuth): Session {
-  return {
-    role: auth.role,
-    user: { id: auth.userId },
-  } as unknown as Session;
 }
 
 function emptyResponse(
@@ -375,7 +360,7 @@ export async function getSalesBySalesperson(
   const departmentNames = params.departmentNames ?? [];
   const includeDeliveryFreight = params.includeDeliveryFreight ?? false;
 
-  const filter = await resolveSalesPersonFilter(toSession(params.auth), requestedSalesPersonIds);
+  const filter = await resolveSalesPersonFilter(params.auth, requestedSalesPersonIds);
   if (filter === null) {
     // Authenticated but no staff record -- return empty rather than throwing.
     return emptyResponse(groupBy, startDate, endDate, includeDeliveryFreight);
@@ -427,7 +412,7 @@ export async function getSalesBySalesperson(
   const staffMaps = await loadStaffMaps(prisma, orders);
   const buckets = new Map<string, { label: string; lines: MarginLine[] }>();
 
-  // When the caller is a non-privileged designer, lock buckets to
+  // When the caller may not see every salesperson, lock buckets to
   // their own staff id so split-order partners' names + revenue
   // never appear in the rows. resolvedIds.length === 1 in that case
   // (resolveSalesPersonFilter sets ids = [callerStaff.id]).
@@ -823,7 +808,7 @@ export async function getSalesBySalespersonItems(
   const groupKey = params.groupKey;
   if (!groupKey) return [];
 
-  const filter = await resolveSalesPersonFilter(toSession(params.auth), requestedSalesPersonIds);
+  const filter = await resolveSalesPersonFilter(params.auth, requestedSalesPersonIds);
   if (filter === null) return [];
 
   const orderWhere = buildBaseOrderWhere(filter, startDate, endDate);
