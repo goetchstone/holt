@@ -2,17 +2,19 @@
 //
 // One journal entry as a file for the accounting package: tab-delimited by
 // default (its General Journal import), or CSV with ?format=csv. The rows are
-// built by journalEntryFileRows in lib/quickbooksExport.ts, pure and tested.
+// built by journalEntryFileRows in lib/quickbooksExport.ts, pure and tested,
+// dated by the journal's business day in the store's zone.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 import { crlfCsv } from "@/lib/csvExport";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { logError } from "@/lib/logger";
-import { formatJournalDate, journalEntryFileRows, tabDelimited } from "@/lib/quickbooksExport";
+import { journalEntryFileRows, journalFileDate, tabDelimited } from "@/lib/quickbooksExport";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -43,8 +45,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (!entry) return res.status(404).json({ error: "Journal entry not found" });
 
-    const rows = journalEntryFileRows({
+    const timeZone = await getBusinessTimeZone();
+    const file = {
       journalNumber: entry.journalNumber,
+      journalType: entry.journalType,
       journalDate: entry.journalDate,
       lines: entry.lines.map((l) => ({
         accountCode: l.glAccount.code,
@@ -53,8 +57,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         debit: Number(l.debit),
         credit: Number(l.credit),
       })),
-    });
-    const fileDate = formatJournalDate(entry.journalDate).replace(/\//g, "");
+    };
+    const rows = journalEntryFileRows(file, timeZone);
+    const fileDate = journalFileDate(file, timeZone).replace(/\//g, "");
 
     if (format === "csv") {
       // CRLF rows; a newline inside a quoted memo is kept as it is.

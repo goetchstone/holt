@@ -119,17 +119,21 @@ describe("crlfCsv (journal-entry export)", () => {
       "=SUM(A1:A2)",
       "-12.50",
     ];
-    const rows: string[][] = journalEntryFileRows({
-      journalNumber: "SJ20260501",
-      journalDate: new Date("2026-05-01T00:00:00.000Z"),
-      lines: memos.map((memo) => ({
-        accountCode: "1-1006",
-        accountName: "Cash",
-        memo,
-        debit: 1000,
-        credit: 0,
-      })),
-    });
+    const rows: string[][] = journalEntryFileRows(
+      {
+        journalNumber: "SJ20260501",
+        journalType: "SALES",
+        journalDate: new Date("2026-05-01T00:00:00.000Z"),
+        lines: memos.map((memo) => ({
+          accountCode: "1-1006",
+          accountName: "Cash",
+          memo,
+          debit: 1000,
+          credit: 0,
+        })),
+      },
+      "America/New_York",
+    );
     const back = Papa.parse<string[]>(crlfCsv(rows), { newline: "\r\n", skipEmptyLines: true });
 
     expect(back.errors).toEqual([]);
