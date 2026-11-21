@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useBranding } from "@/components/branding/BrandingProvider";
+import type { PortalReturn } from "@/lib/returns/portalReturnContract";
 
 const REASON_OPTIONS = [
   { value: "DEFECTIVE", label: "Defective product" },
@@ -21,21 +22,11 @@ const REASON_OPTIONS = [
   { value: "OTHER", label: "Other" },
 ];
 
-interface ReturnInfo {
-  returnNumber: string;
-  status: string;
-  reason: string;
-  productName: string | null;
-  quantity: number;
-  created: string;
-  customerNotes: string | null;
-}
-
 export function ReturnRequestView({ token }: { token: string }) {
   const branding = useBranding();
   const storeName = branding.companyName ?? branding.appName;
 
-  const [returnInfo, setReturnInfo] = useState<ReturnInfo | null>(null);
+  const [returnInfo, setReturnInfo] = useState<PortalReturn | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

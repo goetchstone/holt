@@ -214,7 +214,11 @@ the register's sale (`create-from-cart`, body `deliveryFee`) and the order scree
   is asked to include delivery and freight.
 - **Not goods.** The line takes no stock and isn't picked or handed over. The generic
   line route (`line-items/[lineItemId].ts`) and a new return
-  (`POST /api/returns`) refuse it through `deliveryFeeLineEditProblem()`. Refunding a
+  (`POST /api/returns`) refuse it through `deliveryFeeLineEditProblem()`. A customer
+  return link (`POST /api/sales/orders/[id]/return-link`) and the customer's own
+  return request refuse it through `returnLineProblem()` (`lib/returns/returnLine.ts`,
+  returns.md "The return's line"), which also refuses a line from another order, a
+  cancelled or replaced line, a zero quantity and a gift card. Refunding a
   delivery fee after the order is handed over is not built (ROADMAP GAP-09).
 
 **The printed receipt and invoice (2026-10-30).** `GET /api/print/order/[id]`
@@ -602,7 +606,7 @@ may get a text do. It's listed in the panel above.
 
 ## B2B Proposals
 
-`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item. PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
+`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item; the pictures, under `data/uploads/proposals/`, are read by every holder of `sales.read`, not only MANAGER/ADMIN (staff-auth.md, "Uploaded files"). PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
 
 **Line quantity is fractional** (migration `20261022120000_draft_and_proposal_qty_decimal`, 2026-10-17). Fabric is quoted by the yard, so `ProposalLineItem.quantity` is `Decimal(12,3)`, like the `OrderLineItem.orderedQuantity` it becomes. While it was `Int`, a line of 12.5 yards was stored and ordered as 12, and a quantity that was not a number answered 500 (`draftAndProposalQtyFractional.integration.test.ts`). Now:
 

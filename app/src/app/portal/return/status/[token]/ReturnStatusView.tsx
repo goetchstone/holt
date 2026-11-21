@@ -10,16 +10,7 @@
 
 import { useState, useEffect } from "react";
 import { useBranding } from "@/components/branding/BrandingProvider";
-
-interface ReturnInfo {
-  returnNumber: string;
-  status: string;
-  reason: string;
-  productName: string | null;
-  quantity: number;
-  created: string;
-  customerNotes: string | null;
-}
+import type { PortalReturn } from "@/lib/returns/portalReturnContract";
 
 const PROGRESS_STEPS = [
   { key: "SUBMITTED", label: "Submitted" },
@@ -57,7 +48,7 @@ export function ReturnStatusView({ token }: { token: string }) {
   const branding = useBranding();
   const storeName = branding.companyName ?? branding.appName;
 
-  const [returnInfo, setReturnInfo] = useState<ReturnInfo | null>(null);
+  const [returnInfo, setReturnInfo] = useState<PortalReturn | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
