@@ -17,7 +17,14 @@
 // What did not change is pinned, so a later move onto Work service cannot
 // widen it: service setup (zones and their fees, installers, case settings,
 // email templates) stays with the Owner, Administrators and Managers, and the
-// bookable-services catalog with the Owner and Administrators.
+// bookable-services catalog with the Owner and Administrators. The setup
+// routes ask for Set up service itself, which only a role built in Roles can
+// show: Managers hold several keys nobody else below the Administrator does.
+//
+// A route that sends GET to one gate and every other method to another ends on
+// the second (`return writeGate(req, res)`). apiRouteAuthorization.test.ts
+// checks that line is a gate; only a refusal here shows it is the right one, so
+// each such route is refused a write by a role that passes its read gate.
 //
 // Real routes, real permission gate, real database; next-auth's session is the
 // only mock.
@@ -34,20 +41,25 @@ import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { DEFAULT_ORG_ID, invalidateAppSettingsCache } from "@/lib/appSettings";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
+import { permissionsForBuiltInRole, stripBaselinePermissions } from "@/lib/auth/permissionCatalog";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import casesRoute from "@/pages/api/service/cases/index";
 import caseTasksRoute from "@/pages/api/service/cases/[id]/tasks";
 import typesRoute from "@/pages/api/service/settings/types";
 import typeRoute from "@/pages/api/service/settings/types/[id]";
 import statusesRoute from "@/pages/api/service/settings/statuses";
+import statusRoute from "@/pages/api/service/settings/statuses/[id]";
 import prioritiesRoute from "@/pages/api/service/settings/priorities";
+import priorityRoute from "@/pages/api/service/settings/priorities/[id]";
 import appointmentsRoute from "@/pages/api/service/dispatch/index";
 import appointmentRoute from "@/pages/api/service/dispatch/[id]";
 import installersRoute from "@/pages/api/service/installers/index";
 import installerRoute from "@/pages/api/service/installers/[id]";
 import zonesRoute from "@/pages/api/service/delivery-zones/index";
+import zoneRoute from "@/pages/api/service/delivery-zones/[id]";
 import zoneZipsRoute from "@/pages/api/service/delivery-zones/[id]/zips";
 import templatesRoute from "@/pages/api/service/email-templates/index";
+import templateRoute from "@/pages/api/service/email-templates/[id]";
 import bookableServicesRoute from "@/pages/api/services/index";
 
 const sessionMock = getServerSession as jest.Mock;
@@ -217,6 +229,23 @@ describe("service cases", () => {
     expect(await status(casesRoute, "GET")).toBe(200);
     expect(await status(casesRoute, "POST", {}, newCase())).toBe(201);
   });
+
+  it("View service alone reads the queue and writes nothing to it", async () => {
+    // Every built-in role holding View service also holds Work service, so only
+    // a role built in Roles shows that the queue's last line, which takes every
+    // method but GET, asks for Work service.
+    await makeCustomRoleStaff("viewer", ["service.read"]);
+    signInAs("viewer");
+
+    expect(await status(casesRoute, "GET")).toBe(200);
+    for (const method of ["POST", "PUT", "DELETE"]) {
+      expect({ method, status: await status(casesRoute, method, {}, newCase()) }).toEqual({
+        method,
+        status: 403,
+      });
+    }
+    expect(await prisma.serviceCase.count()).toBe(1);
+  });
 });
 
 describe("case types, statuses and priorities", () => {
@@ -231,6 +260,51 @@ describe("case types, statuses and priorities", () => {
     expect(
       await status(typeRoute, "PUT", { id: String(lookups.typeId) }, { name: "Repairs" }),
     ).toBe(403);
+  });
+
+  it("View service is refused every write to the lists, by any method", async () => {
+    // Each list sends GET to its read gate and every other method to its setup
+    // gate on its last line. A Designer passes the read gate, so a write it is
+    // refused could only have been refused by the setup gate.
+    await makeStaff("dee", "DESIGNER");
+    signInAs("dee");
+
+    const lists: Array<[string, Route]> = [
+      ["types", typesRoute],
+      ["statuses", statusesRoute],
+      ["priorities", prioritiesRoute],
+    ];
+    for (const [list, route] of lists) {
+      for (const method of ["POST", "PUT", "DELETE"]) {
+        expect({
+          list,
+          method,
+          status: await status(route, method, {}, { name: "Urgent" }),
+        }).toEqual({ list, method, status: 403 });
+      }
+    }
+    // The single-row routes behind them are setup for every method.
+    const rows: Array<[string, Route, number]> = [
+      ["statuses/[id]", statusRoute, lookups.statusId],
+      ["priorities/[id]", priorityRoute, lookups.priorityId],
+    ];
+    for (const [row, route, id] of rows) {
+      for (const method of ["PUT", "DELETE"]) {
+        expect({
+          row,
+          method,
+          status: await status(route, method, { id: String(id) }, { name: "Urgent" }),
+        }).toEqual({ row, method, status: 403 });
+      }
+    }
+
+    expect(await prisma.serviceCaseType.count()).toBe(1);
+    expect(await prisma.serviceCaseStatus.findMany({ select: { name: true } })).toEqual([
+      { name: "Open" },
+    ]);
+    expect(await prisma.serviceCasePriority.findMany({ select: { name: true } })).toEqual([
+      { name: "Normal" },
+    ]);
   });
 
   it("Managers keep setting them up, as their role list let them", async () => {
@@ -365,6 +439,101 @@ describe("service setup stays with the Owner, Administrators and Managers", () =
     expect(await status(templatesRoute, "GET")).toBe(200);
     expect(await status(installersRoute, "GET")).toBe(200);
     expect(await status(typesRoute, "POST", {}, { name: "Warranty" })).toBe(201);
+  });
+});
+
+describe("the setup routes ask for Set up service, not another Manager key", () => {
+  // Below the Administrator, only Managers hold Set up service, and they also
+  // hold several keys no other built-in role does (Bill customers directly, Set
+  // up the chart of accounts, View management reports...). So the built-in
+  // roles above pass whichever of those a setup route asked for. Two roles
+  // built in Roles tell them apart: one holding only Set up service, and one
+  // holding every other key a Manager holds.
+  const template = {
+    name: "Install booked",
+    subject: "Your install",
+    body: "See you then.",
+    category: "INSTALL",
+  };
+
+  it("a role holding only Set up service makes every setup write", async () => {
+    await makeCustomRoleStaff("sam", ["service.setup"]);
+    signInAs("sam");
+
+    const zone = await call(zonesRoute, "POST", {}, { name: "North", baseFee: 50 });
+    expect(zone.statusCode).toBe(201);
+    const zoneId = String((zone.body as { id: number }).id);
+    expect(await status(zoneRoute, "PUT", { id: zoneId }, { baseFee: 60 })).toBe(200);
+    expect(await status(zoneZipsRoute, "POST", { id: zoneId }, { zipCodes: ["60601"] })).toBe(200);
+
+    const installer = await call(installersRoute, "POST", {}, { name: "Crew A" });
+    expect(installer.statusCode).toBe(201);
+    const installerId = String((installer.body as { id: number }).id);
+    expect(await status(installerRoute, "PUT", { id: installerId }, { notes: "Weekends" })).toBe(
+      200,
+    );
+
+    expect(await status(typesRoute, "POST", {}, { name: "Warranty" })).toBe(201);
+    expect(
+      await status(typeRoute, "PUT", { id: String(lookups.typeId) }, { name: "Repairs" }),
+    ).toBe(200);
+    expect(await status(statusesRoute, "POST", {}, { name: "Waiting on vendor" })).toBe(201);
+    expect(
+      await status(statusRoute, "PUT", { id: String(lookups.statusId) }, { name: "Opened" }),
+    ).toBe(200);
+    expect(await status(prioritiesRoute, "POST", {}, { name: "High" })).toBe(201);
+    expect(
+      await status(priorityRoute, "PUT", { id: String(lookups.priorityId) }, { name: "Routine" }),
+    ).toBe(200);
+
+    const created = await call(templatesRoute, "POST", {}, template);
+    expect(created.statusCode).toBe(201);
+    const templateId = String((created.body as { id: number }).id);
+    expect(
+      await status(templateRoute, "PUT", { id: templateId }, { subject: "Your install date" }),
+    ).toBe(200);
+  });
+
+  it("a role holding every other Manager key makes none of them", async () => {
+    const everyOtherManagerKey = stripBaselinePermissions(
+      permissionsForBuiltInRole("MANAGER"),
+    ).filter((key) => key !== "service.setup");
+    await makeCustomRoleStaff("almost", everyOtherManagerKey);
+    signInAs("almost");
+
+    const one = { id: "1" };
+    const writes: Array<[string, Route, string, Record<string, string>]> = [
+      ["delivery-zones", zonesRoute, "POST", {}],
+      ["delivery-zones/[id]", zoneRoute, "PUT", one],
+      ["delivery-zones/[id]/zips", zoneZipsRoute, "POST", one],
+      ["delivery-zones/[id]/zips", zoneZipsRoute, "DELETE", one],
+      ["installers", installersRoute, "POST", {}],
+      ["installers/[id]", installerRoute, "PUT", one],
+      ["settings/types", typesRoute, "POST", {}],
+      ["settings/types/[id]", typeRoute, "PUT", one],
+      ["settings/types/[id]", typeRoute, "DELETE", one],
+      ["settings/statuses", statusesRoute, "POST", {}],
+      ["settings/statuses/[id]", statusRoute, "PUT", one],
+      ["settings/statuses/[id]", statusRoute, "DELETE", one],
+      ["settings/priorities", prioritiesRoute, "POST", {}],
+      ["settings/priorities/[id]", priorityRoute, "PUT", one],
+      ["settings/priorities/[id]", priorityRoute, "DELETE", one],
+      ["email-templates", templatesRoute, "POST", {}],
+      ["email-templates/[id]", templateRoute, "PUT", one],
+      ["email-templates/[id]", templateRoute, "DELETE", one],
+    ];
+    for (const [path, route, method, query] of writes) {
+      expect({ path, method, status: await status(route, method, query, template) }).toEqual({
+        path,
+        method,
+        status: 403,
+      });
+    }
+
+    // What its other keys open is untouched: the case lists through View
+    // service, the installer picker through Operate warehouse.
+    expect(await status(typesRoute, "GET")).toBe(200);
+    expect(await status(installersRoute, "GET", { active: "true" })).toBe(200);
   });
 });
 
