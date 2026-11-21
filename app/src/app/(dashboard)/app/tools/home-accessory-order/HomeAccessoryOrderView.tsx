@@ -49,6 +49,7 @@ import {
   unclassifiedRowCount,
 } from "@/lib/homeAccessoryBuyerDraftMapping";
 import { readServerError } from "@/lib/toolFileUtils";
+import { getErrorWarnings } from "@/lib/toastError";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { usePersistentFilters } from "@/hooks/usePersistentFilters";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,8 @@ export function HomeAccessoryOrderView() {
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [draft, setDraft] = useState<HomeAccessoryDraft | null>(null);
+  // Why the last upload yielded no line at all (the route sends its warnings).
+  const [failedWarnings, setFailedWarnings] = useState<string[]>([]);
   const [result, setResult] = useState<CommitResult | null>(null);
 
   const [departments, setDepartments] = useState<DeptOption[]>([]);
@@ -162,6 +165,7 @@ export function HomeAccessoryOrderView() {
 
   function reset() {
     setDraft(null);
+    setFailedWarnings([]);
     setResult(null);
     setSplits({});
     setRowDepts({});
@@ -178,6 +182,7 @@ export function HomeAccessoryOrderView() {
 
   async function parseFile(f: File) {
     setLoading(true);
+    setFailedWarnings([]);
     const formData = new FormData();
     formData.append("file", f);
     try {
@@ -186,6 +191,11 @@ export function HomeAccessoryOrderView() {
         { method: "POST", body: formData },
       );
       if (!res.ok) {
+        const body: unknown = await res
+          .clone()
+          .json()
+          .catch(() => null);
+        setFailedWarnings(getErrorWarnings(body));
         throw new Error(await readServerError(res, "Parse failed"));
       }
       const next = (await res.json()) as HomeAccessoryDraft;
@@ -461,6 +471,18 @@ export function HomeAccessoryOrderView() {
               />
             </div>
           </div>
+          {failedWarnings.length > 0 && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-4">
+              <h4 className="mb-1 text-sm font-semibold text-amber-800">
+                No line could be read from that file. The parser says:
+              </h4>
+              <ul className="list-inside list-disc space-y-0.5 text-sm text-amber-700">
+                {failedWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       )}
 

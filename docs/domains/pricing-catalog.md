@@ -620,22 +620,35 @@ away from the store-wide default.
      what tells the buyer is `splitLines(text, warnings)`, the first thing each seam
      calls: it cuts a line to 1000 characters so the quadratic-backtracking regexes
      see a bounded string, and puts a warning on the order when it cut a line or
-     met a number of 300+ digits. A 308-digit number still reads, and overflows
-     once doubled or added, so a total of read amounts goes through `finiteSum`
-     (0 when the sum overflows); Wendover reads a line total too large to count in
-     cents as a $0 unit cost; Z Supply leaves out, with a warning naming the
-     style, an item whose pack count or price overflows once multiplied out to
-     sizes.
+     met a number of 300 or more digits (`hasOverlongNumber`, which counts
+     "9,999" as four digits: `parseMoney` drops thousands commas before it reads,
+     so a 331-digit amount written in groups of three overflows to 0 like a
+     331-digit run, and until 2026-11-21 did so with no warning). A 308-digit
+     number still reads, and overflows once doubled or added, so a total of read
+     amounts goes through `finiteSum` (0 when the sum overflows); Wendover reads a
+     line total too large to count in cents as a $0 unit cost; Z Supply leaves
+     out, with a warning naming the style, an item whose pack count or price
+     overflows once multiplied out to sizes.
    - **A parser that can name the cell leaves the line out, with a warning naming
-     it.** Simblist CSV does so for a Quantity that is not a whole number of up to
-     nine digits and for a Unit or Total Price that is not a finite number ("Infinity", "1e999", a
-     400-digit run; until 2026-11-21 these imported at $0 and nothing named them).
-     A BLANK price still reads as $0, as it always has; whether it should be left
-     out too is the owner's open question. Simblist reads cells, not lines, so it
-     never calls `splitLines`. The nuORDER printout drops a block whose wholesale
-     price does not read, and does not match a line total or Grand Total too long
-     to be real, so those fall into its "no line total" and "Grand Total not
-     found" refusals.
+     it, and applies the same 300-digit rule to the cell.** Simblist CSV does so
+     for a Quantity that is not a whole number of up to nine digits ("2.0",
+     "2.00" and "+2" are whole, as they always read) and for a Unit or Total Price
+     that is not a finite number ("Infinity", "1e999") or has 300 or more digits;
+     an Order Total like that is warned about and not checked against. Until
+     2026-11-21 a price that did not read was read as 0: a line with both prices
+     so passed its line check at $0 and nothing named it, and a price of 300-308
+     digits, which still reads, imported as read. **A blank Unit or Total Price
+     imports at $0 with no warning.** That is today's behaviour, shipped; whether
+     a blank should leave its line out too is the owner's open question.
+     Simblist reads cells, not lines, so it never calls `splitLines`. The nuORDER
+     printout drops a block whose wholesale price does not read, or whose
+     wholesale price, suggested retail price or a grid quantity has 300 or more
+     digits (a 305-digit retail price used to become the selling price), and does
+     not match a line total or Grand Total too long to be real, so those fall into
+     its "no line total" and "Grand Total not found" refusals; a printed Total
+     Quantity that long is not read, with a warning. When a parse leaves every
+     line out, the order-upload routes answer 400 with these warnings, and the
+     pages list them (`purchasing.md`, `tools.md`).
    - **Price books leave the cell out, as they do "N/A":** `finiteOrNull` gives
      null, and `pricingUtils.parseCurrency` gives NaN, its "no price in this
      cell". Until 2026-11-21 an overflow there read as `Infinity`, which passed
@@ -657,11 +670,26 @@ away from the store-wide default.
    Regexes over uploaded text use bounded runs (`{1,200}`, not `+`) where a
    run is followed by a literal, as `extractCushionOptions()` does: an
    unbounded run is quadratic on a long line with no match (CodeQL
-   js/polynomial-redos; 2026-10-15). A character class that also matches `\n`
-   (`[A-Za-z\s]`) is not bounded by the 1000-character line cut, so bound it
-   too (nuORDER's footer). An unanchored money pattern can be pinned to the
-   first digit of a run with `(?<!\d)` where that changes no match: a match
-   that starts after a digit also matches one digit earlier (MarketTime's
+   js/polynomial-redos; 2026-10-15). A run that also matches `\n` (`\s`,
+   `[A-Za-z\s]`, `[^)]`) is not bounded by the 1000-character line cut, so bound
+   it too where it can go quadratic: two such runs side by side split one long
+   run of whitespace every way (nuORDER's footer, and its `Order\s*#?:?\s*`,
+   `PO\s*#?:?\s*` and `Sizes:\s*\n?\s*`, 1-3.5 s for a label and 50 lines of
+   spaces or line ends); a repeated label with no terminator scans to the end of
+   a string the cut does not bound, from every one (MarketTime's `(Avail:` match
+   over a name joined from many lines, 4.9 s for 200 lines). Collapsing a
+   growing string again for every line it gains is quadratic the same way:
+   collect the lines and join once (Beatriz Ball's wrapped names, 3 s for 20,000
+   one-letter lines). All fixed 2026-11-21; the fuzz test's label-then-whitespace
+   property builds the first shape at every seed line. The sweep for that shape
+   left these unbounded, each one run between literals, whose time grows with
+   the text, not its square (under 0.2 ms for 100,000 characters of spaces or
+   line ends): nuORDER's Order Date, Delivery, Terms, Total Units, Total Price,
+   Style, MSRP, Season, Color, Color Code and price-line regexes; Hunter
+   Douglas's valid through, Sidemark, Freight and Installation; Frank & Eileen's
+   season and Merchandise USD Total. An unanchored money pattern can be pinned
+   to the first digit of a run with `(?<!\d)` where that changes no match: a
+   match that starts after a digit also matches one digit earlier (MarketTime's
    money tails, 2026-11-21)
 
 ## Verification Checklist
@@ -686,4 +714,4 @@ Gap: no source-text tripwire ensuring that any new `pdf-parse`-using file isn't 
 
 ---
 
-Last verified: 2026-05-20; "Retail is changed in one place", "Scheduled sale prices" and the unique-constraint correction 2026-11-14 against source; "HD Proposal import path" and "Adding a New Vendor" steps 6-7 2026-11-21 against source.
+Last verified: 2026-05-20; "Retail is changed in one place", "Scheduled sale prices" and the unique-constraint correction 2026-11-14 against source; "HD Proposal import path" and "Adding a New Vendor" steps 6-7 2026-11-21 against source, steps 6-7 again later that day (the comma and 300-digit rules, the blank-price question, the regex sweep).

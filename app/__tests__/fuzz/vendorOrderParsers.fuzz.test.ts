@@ -5,26 +5,32 @@
 // dealer cost. Each parser starts from a short seed document in its own
 // format (lines from its fixtures, data invented); the generator in support.ts
 // deletes, duplicates and inserts lines and swaps digit runs for hostile
-// numerals (400- and 308-digit runs, "Infinity", "-Infinity", "1e999").
+// numerals (400- and 308-digit runs, a 331-digit amount with thousands commas,
+// "Infinity", "-Infinity", "1e999").
 // Properties:
-//   - the unmutated seed yields at least one item, so the number reads are
-//     reached and the other properties are not vacuous;
+//   - the unmutated seed yields at least one item and no warning, so the number
+//     reads are reached and a warning a property looks for comes from the
+//     mutation;
 //   - never throws;
 //   - every number in the result is finite -- an Infinity or NaN cost must
 //     never reach a purchase order;
-//   - a line holding a number of 300 or more digits puts a warning on the
-//     order (lib/pricing/parseBoundary.ts splitLines);
+//   - the order carries the 300-digit warning (lib/pricing/parseBoundary.ts
+//     splitLines), counting exactly the lines that hold such a number, as this
+//     file counts them, commas dropped, without parseBoundary's regex;
 //   - where the parser documents it, every accepted line satisfies
 //     qty > 0 and qty x unit price == line total (to the cent);
 //   - a 50k-character line, and a block of 50 lines each MAX_LINE_LENGTH long,
-//     parse in well under a second. The per-line cut does not bound a regex
-//     whose character class crosses "\n", so the block is the check for that.
+//     parse in well under a second; and so does a label followed by 50 lines
+//     of whitespace, since the per-line cut does not bound a regex whose class
+//     crosses "\n". Each seed line, cut after its label at its own place, is a
+//     fixed example of the last, run every time.
 //
 // Two parsers get a describe of their own below. Simblist reads CSV cells by
 // name, so its property is model-based: the parser must import exactly the rows
-// whose cells all read and name every other row in a warning. The nuORDER
-// printout reads positioned text items rather than lines, so its generator
-// mutates items and its property is the documented refuse-to-guess rule.
+// whose cells all read (a number of 300 or more digits does not) and name every
+// other row in a warning. The nuORDER printout reads positioned text items
+// rather than lines, so its generator mutates items and its property is the
+// documented refuse-to-guess rule. Neither keeps a number of 300 or more digits.
 //
 // A property that finds a bug the change in hand cannot fix goes in
 // KNOWN_FAILURES with its counterexample and runs as it.skip.
@@ -162,7 +168,7 @@ const CASES: ParserCase[] = [
       "3$1,200.00",
       "Patterned Dignity 4 3$900.00",
       "SKU: WAN2555",
-      "Subtotal$2,100.00",
+      "Subtotal $2,100.00",
     ],
   },
   {
@@ -200,7 +206,7 @@ const CASES: ParserCase[] = [
       "Ordered",
       "349672.0045.0018.004GLASS Vento Medium Vase (Clear)",
       "66440.000.000.001Beatriz Ball metal placard",
-      "Net Order:90.00",
+      "Net Order:72.00",
     ],
   },
   {
@@ -225,7 +231,8 @@ const CASES: ParserCase[] = [
     checksLineMath: true,
     noOverlongWarning:
       "it reads CSV cells by name and never splits lines; the model-based describe below " +
-      "checks that every cell it cannot read is reported",
+      "checks that every cell it cannot read, a number of 300 or more digits included, leaves " +
+      "its row out with a warning naming it",
     seed: [
       "RepGroup,Manufacturer,PO #,Order Date,Order Total",
       "Simblist Group,MAISON ZOE FORD,PON00001,2026-01-05,132.00",
@@ -328,6 +335,58 @@ const CASES: ParserCase[] = [
   },
 ];
 
+/** Labels a parser looks for, besides its own seed's: anchors for the timing properties. */
+const LABELS = [
+  "",
+  "Vendor: a",
+  "PO: #",
+  "Earliest Ship Date a",
+  "SKU: ",
+  "Order Number: ",
+  "Date: ",
+  "1$",
+  "PO",
+  "Order",
+  "Sizes:",
+];
+
+/**
+ * How many lines of `text` hold a number of 300 or more digits, counted the way
+ * parseMoney reads a number (thousands commas dropped) and not with the regex
+ * parseBoundary.ts detects one by: each run of digits and commas, measured.
+ */
+function overlongLines(text: string): number {
+  return text
+    .split("\n")
+    .filter((line) =>
+      (line.match(/[\d,]+/g) ?? []).some((run) => run.replaceAll(",", "").length >= 300),
+    ).length;
+}
+
+/**
+ * The labels `line` starts with: its first word, and everything up to its first
+ * colon ("PO #: PON00006" gives "PO" and "PO #:").
+ */
+function labelsOf(line: string): string[] {
+  const word = /^[^A-Za-z\d]*[A-Za-z]+/.exec(line)?.[0];
+  const toColon = /^[^:]*:/.exec(line)?.[0];
+  return [...new Set([word, toColon].filter((l): l is string => !!l))];
+}
+
+/**
+ * `label`, then `unit` to fill 50 lines of MAX_LINE_LENGTH, then `tail`: one run
+ * of 50k characters for a regex whose class crosses "\n" (" ", "\t" and "\r"
+ * repeat within each line, and "\n" makes 1000 lines of each).
+ */
+function crossing(label: string, unit: string, tail: string): string[] {
+  const fill = unit.repeat(MAX_LINE_LENGTH);
+  return [
+    label + fill.slice(label.length),
+    ...Array.from({ length: 48 }, () => fill),
+    fill.slice(tail.length) + tail,
+  ];
+}
+
 type Property = "finite" | "overlong" | "slow";
 
 // Properties that currently FAIL, each with the counterexample that shows it, run
@@ -340,9 +399,11 @@ describe.each(CASES)(
   ({ name, parse, seed, checksLineMath, itemsOf, noOverlongWarning }) => {
     const known = (property: Property) => (KNOWN_FAILURES[name]?.[property] ? it.skip : it);
 
-    it("reaches its number reads: the unmutated seed yields at least one item", () => {
+    it("reaches its number reads: the unmutated seed yields at least one item, and no warning", () => {
       const result = parse(seed.join("\n"));
       expect((itemsOf ? itemsOf(result) : (result.items ?? [])).length).toBeGreaterThan(0);
+      // So a warning a property looks for comes from the mutation, not the seed.
+      expect(result.warnings).toEqual([]);
     });
 
     it("never throws on a mutated document", () => {
@@ -364,15 +425,22 @@ describe.each(CASES)(
     });
 
     if (noOverlongWarning === undefined) {
-      known("overlong")("puts a warning on the order when a line holds a 300-digit number", () => {
-        fc.assert(
-          fc.property(documentFor(seed), (text) => {
-            fc.pre(/\d{300}/.test(text));
-            // `?? []`: a result with no warnings field at all fails here, not passes.
-            expect(parse(text).warnings ?? []).not.toEqual([]);
-          }),
-        );
-      });
+      known("overlong")(
+        "puts the 300-digit warning on the order, counting every line that holds such a number",
+        () => {
+          fc.assert(
+            fc.property(documentFor(seed), (text) => {
+              const lines = overlongLines(text);
+              fc.pre(lines > 0);
+              // The warning says how many lines, so another warning, or this one
+              // about other lines, does not satisfy it. `?? []`: a result with no
+              // warnings field at all fails here, not passes.
+              const says = `^${lines} line${lines === 1 ? " has" : "s have"} a number of 300 or more digits`;
+              expect(parse(text).warnings ?? []).toContainEqual(expect.stringMatching(says));
+            }),
+          );
+        },
+      );
     }
 
     if (checksLineMath) {
@@ -398,20 +466,10 @@ describe.each(CASES)(
         // A label the parser looks for (its own seed lines, plus common ones),
         // then one character repeated -- the shape that makes a backtracking
         // regex go quadratic -- then a tail that forces the match to fail late.
-        const anchor = fc.oneof(
-          fc.constantFrom(...seed),
-          fc.constantFrom(
-            "",
-            "Vendor: a",
-            "PO: #",
-            "Earliest Ship Date a",
-            "SKU: ",
-            "Order Number: ",
-            "Date: ",
-            "1$",
-          ),
-        );
-        const filler = fc.constantFrom(" ", "9", " ", "9", "$", ",", "a", "\t", ".0");
+        // "\r" ends a line for `.` and `^` but not for the line cut; a run of
+        // "\n" itself is the next property's.
+        const anchor = fc.oneof(fc.constantFrom(...seed), fc.constantFrom(...LABELS));
+        const filler = fc.constantFrom(" ", "9", " ", "9", "$", ",", "a", "\t", ".0", "\r");
         const tail = fc.constantFrom("", "b", "$1.00");
         // Where the hostile text goes: first, half the time, so a regex over the
         // whole text meets it before the seed's own match ends the scan (placed
@@ -432,6 +490,52 @@ describe.each(CASES)(
               expect(timeMs(() => parse(doc.join("\n")))).toBeLessThan(500);
             }
           }),
+          // Shrinking a timing failure re-runs slow parses and chases noise.
+          { endOnFailure: true },
+        );
+      },
+    );
+
+    known("slow")(
+      "parses a label followed by 50 lines of whitespace, at any line, in well under a second",
+      () => {
+        // The block above starts every line with its anchor, so a run that can
+        // cross "\n" (\s, or a class like [^)]) meets the next anchor within a
+        // line. Here one label is followed by 50 lines of whitespace alone: 50k
+        // characters of one run. Two such runs side by side (`PO\s*#?:?\s*`)
+        // try every split of it and take seconds. Every seed line, cut after
+        // its label (its first word, or up to its first colon), is an example
+        // at its own place, with the rest of the seed dropped: a regex over the
+        // whole text meets the run before the seed's own match, and one over an
+        // item's block (nuORDER's Sizes:) meets it at the end of the block.
+        const examples = seed.flatMap((line, i) =>
+          labelsOf(line).flatMap((label) =>
+            // "\r" ends a line for `.` as "\n" does, at a fiftieth of the lines.
+            [" ", "\r"].map((unit): [string, string, string, number, boolean] => [
+              label,
+              unit,
+              "",
+              i,
+              false,
+            ]),
+          ),
+        );
+        fc.assert(
+          fc.property(
+            fc.oneof(fc.constantFrom(...LABELS), fc.constantFrom(...seed.flatMap(labelsOf))),
+            fc.constantFrom(" ", "\t", "\r", "\n"),
+            fc.constantFrom("", "b", "$1.00"),
+            fc.nat(),
+            // Whether the rest of the seed follows the run, or the run ends the text.
+            fc.boolean(),
+            (label, unit, tail, at, keepRest) => {
+              const i = at % (seed.length + 1);
+              const rest = keepRest ? seed.slice(i) : [];
+              const doc = [...seed.slice(0, i), ...crossing(label, unit, tail), ...rest];
+              expect(timeMs(() => parse(doc.join("\n")))).toBeLessThan(500);
+            },
+          ),
+          { examples, endOnFailure: true },
         );
       },
     );
@@ -442,25 +546,30 @@ describe.each(CASES)(
 //
 // The CSV is built from a model: an Order Total, then 1-5 item rows. Each row's
 // Quantity, Unit Price and Total Price cell is either valid or hostile, and the
-// model knows which. A valid row has qty 1-99, a price from whole cents with an
-// optional "$", and a total of qty x price computed in cents, so it always
-// passes the parser's own line check.
+// model knows which. A valid row has qty 1-99, written as "2", "2.0", "2.00" or
+// "+2", a price from whole cents with an optional "$", and a total of qty x price
+// computed in cents, so it always passes the parser's own line check. A number of
+// 300 or more digits is hostile even where it still reads as finite.
 //
-// A BLANK price cell keeps importing at $0 with no warning (owner decision,
-// 2026-11-21), so it is neither valid nor hostile and the model never makes
-// one. A blank Quantity has always left its line out with a warning, so it is
-// hostile.
+// A BLANK price cell imports at $0 with no warning: today's behaviour, while
+// whether it should leave the line out is the owner's open question
+// (pricing-catalog.md, "Adding a New Vendor" step 6). So it is neither valid nor
+// hostile, and the model never makes one. A blank Quantity has always left its
+// line out with a warning, so it is hostile.
 
 const unreadable = fc.constantFrom(
   "9".repeat(400),
   `$${"9".repeat(400)}.00`,
+  "9".repeat(300),
+  `$${"9".repeat(308)}.00`,
+  `$9${",999".repeat(110)}.00`,
   "Infinity",
   "-Infinity",
   "1e999",
   "NaN",
   "abc",
 );
-const unreadableQty = fc.oneof(unreadable, fc.constantFrom("", "1.5"));
+const unreadableQty = fc.oneof(unreadable, fc.constantFrom("", "1.5", "2.5"));
 
 /** A cell that is valid (null: keep the model's value) three times in four. */
 const maybe = (hostile: fc.Arbitrary<string>) =>
@@ -477,6 +586,7 @@ interface SimblistRow {
 const simblistRow = fc
   .record({
     qty: fc.integer({ min: 1, max: 99 }),
+    qtyWritten: fc.constantFrom("", ".0", ".00", "+"),
     priceCents: fc.nat(9_999_999),
     dollarPrice: fc.boolean(),
     dollarTotal: fc.boolean(),
@@ -485,7 +595,7 @@ const simblistRow = fc
     badTotal: maybe(unreadable),
   })
   .map((r): Omit<SimblistRow, "itemNumber"> => ({
-    qty: r.badQty ?? String(r.qty),
+    qty: r.badQty ?? (r.qtyWritten === "+" ? `+${r.qty}` : `${r.qty}${r.qtyWritten}`),
     price: r.badPrice ?? `${r.dollarPrice ? "$" : ""}${(r.priceCents / 100).toFixed(2)}`,
     total: r.badTotal ?? `${r.dollarTotal ? "$" : ""}${((r.priceCents * r.qty) / 100).toFixed(2)}`,
     valid: r.badQty === null && r.badPrice === null && r.badTotal === null,
@@ -504,11 +614,12 @@ const simblistOrder = fc
     const items: SimblistRow[] = rows.map((r, i) => ({ ...r, itemNumber: `A${i + 1}` }));
     const text = [
       "RepGroup,Manufacturer,PO #,Order Date,Order Total",
-      `Simblist Group,SAMPLE MAKER,PON00001,2026-01-05,${orderTotal.text}`,
+      // Cells quoted: a hostile amount can carry thousands commas.
+      `Simblist Group,SAMPLE MAKER,PON00001,2026-01-05,"${orderTotal.text}"`,
       "Sequence #,Item Number,Name,Quantity,Unit Price,UPC,Total Price",
       ...items.map(
         (r, i) =>
-          `${i + 1},${r.itemNumber},Item ${i + 1},${r.qty},${r.price},0001234567890,${r.total}`,
+          `${i + 1},${r.itemNumber},Item ${i + 1},"${r.qty}","${r.price}",0001234567890,"${r.total}"`,
       ),
     ].join("\n");
     return { text, orderTotal, items };
@@ -550,11 +661,11 @@ describe("Simblist CSV order parser: every cell it cannot read (model-based)", (
     );
   });
 
-  it("puts only finite numbers in its result", () => {
+  it("puts only finite numbers of fewer than 300 digits in its result", () => {
     fc.assert(
       fc.property(simblistOrder, ({ text }) => {
         for (const [path, n] of numbersIn(parseSimblistCsvText(text))) {
-          expect([path, Number.isFinite(n)]).toEqual([path, true]);
+          expect([path, Number.isFinite(n) && Math.abs(n) < 1e299]).toEqual([path, true]);
         }
       }),
     );
@@ -705,11 +816,11 @@ describe("nuORDER order printout parser (lib/pricing, positioned items)", () => 
     );
   });
 
-  it("puts only finite numbers in its result", () => {
+  it("puts only finite numbers of fewer than 300 digits in its result", () => {
     fc.assert(
       fc.property(printoutPage, (page) => {
         for (const [path, n] of numbersIn(parseNuOrderPrintoutItems([page]))) {
-          expect([path, Number.isFinite(n)]).toEqual([path, true]);
+          expect([path, Number.isFinite(n) && Math.abs(n) < 1e299]).toEqual([path, true]);
         }
       }),
     );

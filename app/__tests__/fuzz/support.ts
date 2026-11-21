@@ -169,6 +169,9 @@ export const hostileAmount = fc.oneof(
   fc.constantFrom(
     `${"9".repeat(400)}.00`,
     `${"9".repeat(308)}.00`,
+    // 331 digits with thousands commas: no run of 300, but it overflows once
+    // parseMoney drops the commas.
+    `9${",999".repeat(110)}.00`,
     "Infinity",
     "-Infinity",
     "1e999",

@@ -30,7 +30,13 @@ describe("splitLines", () => {
     );
     expect(lines.map((l) => l.length)).toEqual([MAX_LINE_LENGTH, 2, MAX_LINE_LENGTH]);
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toMatch(/^2 lines are longer than 1000 characters/);
+    expect(warnings[0]).toMatch(/^2 lines are longer than 1000 characters and were cut off there/);
+  });
+
+  it("says a single cut line was cut, in the singular", () => {
+    const warnings: string[] = [];
+    splitLines("x".repeat(MAX_LINE_LENGTH + 1), warnings);
+    expect(warnings[0]).toMatch(/^1 line is longer than 1000 characters and was cut off there/);
   });
 
   it("warns of a number with 300 or more digits, and not of a 299-digit one", () => {
@@ -40,6 +46,19 @@ describe("splitLines", () => {
     splitLines(`1$${"9".repeat(300)}.00`, warnings);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/^1 line has a number of 300 or more digits/);
+  });
+
+  it("counts the digits of a number written with thousands commas, as parseMoney reads it", () => {
+    // parseMoney drops the commas before it reads, so these overflow to 0 like a
+    // 400-digit run does, though no run of digits in them is 300 long.
+    const grouped = `9${",999".repeat(110)}.00`; // 331 digits in runs of 3
+    const halves = `${"9".repeat(200)},${"9".repeat(200)}.00`;
+    expect([parseMoney(grouped), parseMoney(halves)]).toEqual([0, 0]);
+    const warnings: string[] = [];
+    // The third line's number has 299 digits once its commas are dropped.
+    splitLines(`$${grouped} 3\n$${halves}\n$9${",999".repeat(99)},9.00`, warnings);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^2 lines have a number of 300 or more digits/);
   });
 
   it("says the long number may have been read as 0 or left out, true of every caller", () => {
@@ -111,6 +130,30 @@ describe("parsers surface the warning on their order", () => {
 
   const big = `${"9".repeat(400)}.00`;
 
+  it.each([
+    ["nuORDER", parseNuOrderText, (amt: string) => ["Style #: ET100BLK", `$${amt} 3 $${amt}`]],
+    [
+      "Z Supply",
+      parseZSupplyText,
+      (amt: string) => [
+        "ZT100001BLKEasy Rib Tank Black",
+        "A    B    C    D    E    F   XS    S    M    L   XL",
+        `1  ${amt}     ${amt}`,
+      ],
+    ],
+    [
+      "Hunter Douglas",
+      parseHDProposalText,
+      (amt: string) => ["Hunter Douglas Duette Honeycomb Shades", `Freight Charges : ${amt}`],
+    ],
+  ])(
+    "%s: an amount that overflows once its thousands commas are dropped is reported",
+    (_name, parse, doc) => {
+      const parsed = parse(doc(`9${",999".repeat(110)}.00`).join("\n"));
+      expect(parsed.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
+    },
+  );
+
   it("nuORDER: a 400-digit price and total read as 0, never Infinity, and are reported", () => {
     const po = parseNuOrderText(
       ["Style #: ET100BLK", `$${big} 3 $${big}`, `Total Price: $${big}`].join("\n"),
@@ -120,17 +163,23 @@ describe("parsers surface the warning on their order", () => {
     expect(po.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
   });
 
-  it("Hunter Douglas: a 400-digit amount reads as 0, never Infinity, and is reported", () => {
+  it("Hunter Douglas: an amount that overflows reads as 0, never Infinity, and is reported", () => {
+    // 320 digits overflow a double. The quantity and three such amounts make a
+    // 970-character price line, under the 1000-character cut, so the line is read
+    // whole: the quantity 2 (the default is 1) shows it was.
+    const huge = `${"9".repeat(320)}.00`;
+    const priceLine = `2${huge}${huge}${huge}`;
+    expect(priceLine.length).toBeLessThan(MAX_LINE_LENGTH);
     const proposal = parseHDProposalText(
       [
         "Hunter Douglas Duette Honeycomb Shades",
-        `1${big}${big}${big}`,
+        priceLine,
         `Freight Charges : ${big}`,
         `Installation Charges : ${big}`,
       ].join("\n"),
     );
     expect(proposal.items).toMatchObject([
-      { msrp: 0, each: 0, extended: 0, freight: 0, install: 0 },
+      { qty: 2, msrp: 0, each: 0, extended: 0, freight: 0, install: 0 },
     ]);
     expect([proposal.totalFreight, proposal.totalInstall]).toEqual([0, 0]);
     expect(proposal.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);

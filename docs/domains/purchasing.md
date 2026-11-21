@@ -487,6 +487,12 @@ request, as read: an amount that overflowed is written at $0, and an item left o
 written. They return the same warnings with the result, and the page shows them again under it.
 Whether a warning should refuse the import is the owner's open question.
 
+When the parse reads no item at all, `preview-nuorder.ts`, `import-nuorder.ts` and
+`import-zsupply.ts` answer 400 "No line items found in PDF" with the parser's `warnings` in the
+body, since they are then the only account of why (an item past a cut line, every style left
+out); the page lists them under the upload (`__tests__/orderUploadNoLines.test.ts`).
+`preview-zsupply.ts` has no such refusal and returns its warnings with the empty preview.
+
 ## The vendor an import names (GAP-22, since 2026-11-02)
 
 The PO file imports find their vendor by the name the file carries through
@@ -583,4 +589,4 @@ The the POS "Daily Quote Temp Purchase Orders" report (formerly named "Prior_Day
 The owner-facing decision for "is this temp PO actionable yet?" is the `status = CONFIRMED` filter that already applies to most operational surfaces. No code changes needed beyond the runner fix itself.
 
 ---
-Last verified: 2026-10-30 (stock POs by hand, landed cost and receipt corrections; sections before them 2026-05-21)
+Last verified: 2026-10-30 (stock POs by hand, landed cost and receipt corrections; sections before them 2026-05-21); "Parser warnings on the apparel PO import" 2026-11-21 against source

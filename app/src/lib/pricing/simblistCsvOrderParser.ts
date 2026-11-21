@@ -21,18 +21,20 @@
 //    (10% less) -- an order-level discount that is NOT in the unit prices. It is
 //    surfaced as a warning, never applied (same doctrine as SuperCat).
 //
-// A cell it cannot read is never imported as $0 (2026-11-21). A Quantity that is
-// not a whole number, or a Unit or Total Price that is not a finite number
-// ("Infinity", "1e999", a 400-digit run), leaves its line out with a warning that
-// names the item and the cell. Until then such a price read as 0, and 0 x qty = 0
-// passed the line check, so the item was imported at $0 and nothing named it. A
-// BLANK Unit or Total Price still reads as $0, as it always has; whether a blank
-// should be left out too is the owner's open question. This parser reads cells,
-// not lines, so it never calls parseBoundary's splitLines: Papa is linear, and a
-// cell can spell an overflow as "1e999", which a digit-run check cannot see.
+// A cell it cannot read is never imported (2026-11-21). A Quantity that is not a
+// whole number of up to nine digits ("2.0" and "+2" are whole), or a Unit or Total
+// Price that is not a finite number ("Infinity", "1e999") or has 300 or more
+// digits (parseBoundary's rule: 300-308 digits still read, as an absurd amount),
+// leaves its line out with a warning that names the item and the cell. Until then
+// a price that did not read was read as 0, so a line with both prices so passed
+// the line check at $0 and nothing named it, and a 300-308 digit price imported as
+// read. A BLANK Unit or Total Price still reads as $0 (pricing-catalog.md, "Adding
+// a New Vendor" step 6). This parser reads cells, not lines, so it never calls
+// parseBoundary's splitLines: Papa is linear, and a cell can spell an overflow as
+// "1e999", which a digit-run check cannot see.
 
 import Papa from "papaparse";
-import { finiteOrNull } from "./parseBoundary";
+import { finiteOrNull, hasOverlongNumber, OVERLONG_REASON } from "./parseBoundary";
 
 export interface SimblistItem {
   itemNumber: string;
@@ -56,16 +58,28 @@ export interface SimblistOrder {
   warnings: string[];
 }
 
-/** A money cell: null when it is blank or is not a finite number. */
-function readMoney(raw: string): number | null {
-  if (!raw) return null;
-  return finiteOrNull(raw.replaceAll(/[$,]/g, "").trim());
+/** A cell's number, or the words for why it does not read. */
+type Cell = { value: number } | { unread: string };
+
+/**
+ * A money cell. A number of 300 or more digits does not read even where it is
+ * finite: it cannot be a real amount (parseBoundary.ts `hasOverlongNumber`).
+ */
+function readMoney(raw: string): Cell {
+  if (hasOverlongNumber(raw)) return { unread: OVERLONG_REASON };
+  const value = finiteOrNull(raw.replaceAll(/[$,]/g, "").trim());
+  return value === null ? { unread: "is not a number" } : { value };
 }
 
-/** A Quantity cell: a whole number of up to nine digits, else null. */
-function readQuantity(raw: string): number | null {
-  return /^\d{1,9}$/.test(raw) ? Number(raw) : null;
+/** A Quantity cell: a whole number of up to nine digits, "2.0" and "+2" included. */
+function readQuantity(raw: string): Cell {
+  return /^\+?\d{1,9}(?:\.0+)?$/.test(raw)
+    ? { value: Number(raw) }
+    : { unread: "is not a whole number" };
 }
+
+/** A blank Unit Price, Total Price or Order Total: 0 (see the header). */
+const BLANK: Cell = { value: 0 };
 
 /** `raw` cut to 20 characters, so a 400-digit cell does not swamp its warning. */
 function clip(raw: string): string {
@@ -86,6 +100,12 @@ function cell(row: readonly string[], idx: Map<string, number>, name: string): s
 
 const ITEM_HEADER_KEY = "item number";
 
+/** The List Price cell: null when it is blank or does not read. */
+function listPrice(raw: string): number | null {
+  const read = readMoney(raw);
+  return "value" in read ? read.value : null;
+}
+
 /** One item row, or null with a warning naming it when its line is left out. */
 function readItem(
   row: readonly string[],
@@ -96,19 +116,24 @@ function readItem(
   const qtyRaw = cell(row, idx, "Quantity");
   const priceRaw = cell(row, idx, "Unit Price");
   const totalRaw = cell(row, idx, "Total Price");
-  const qty = readQuantity(qtyRaw);
-  // A blank price is $0, as it always was; anything else must read as a number.
-  const unitPrice = priceRaw === "" ? 0 : readMoney(priceRaw);
-  const lineTotal = totalRaw === "" ? 0 : readMoney(totalRaw);
-  const unread = (column: string, raw: string) =>
-    warnings.push(
-      `Item ${itemNumber}: the ${column} "${clip(raw)}" is not a number, so the line was ` +
-        "left out — add it by hand.",
-    );
-  if (qty === null) unread("Quantity", qtyRaw);
-  else if (unitPrice === null) unread("Unit Price", priceRaw);
-  else if (lineTotal === null) unread("Total Price", totalRaw);
-  if (qty === null || unitPrice === null || lineTotal === null) return null;
+  const cells: [string, string, Cell][] = [
+    ["Quantity", qtyRaw, readQuantity(qtyRaw)],
+    ["Unit Price", priceRaw, priceRaw === "" ? BLANK : readMoney(priceRaw)],
+    ["Total Price", totalRaw, totalRaw === "" ? BLANK : readMoney(totalRaw)],
+  ];
+  const values: number[] = [];
+  for (const [column, raw, read] of cells) {
+    // The first cell that does not read names the line.
+    if ("unread" in read) {
+      warnings.push(
+        `Item ${itemNumber}: the ${column} "${clip(raw)}" ${read.unread}, so the line was ` +
+          "left out — add it by hand.",
+      );
+      return null;
+    }
+    values.push(read.value);
+  }
+  const [qty, unitPrice, lineTotal] = values;
 
   if (qty <= 0 || Math.abs(unitPrice * qty - lineTotal) > 0.01) {
     warnings.push(
@@ -125,7 +150,7 @@ function readItem(
     lineTotal,
     upc: cell(row, idx, "UPC"),
     // Null when blank or unreadable; nothing downstream reads it.
-    listPrice: readMoney(cell(row, idx, "List Price")),
+    listPrice: listPrice(cell(row, idx, "List Price")),
     notes: cell(row, idx, "Notes"),
   };
 }
@@ -162,13 +187,15 @@ export function parseSimblistCsvText(text: string): SimblistOrder {
   order.orderDate = cell(orderValues, orderIdx, "Order Date");
   order.shipDate = cell(orderValues, orderIdx, "Ship Date");
   const totalRaw = cell(orderValues, orderIdx, "Order Total");
-  const printedTotal = readMoney(totalRaw);
-  order.printedTotal = printedTotal ?? 0;
-  if (totalRaw && printedTotal === null) {
+  // A blank Order Total is not stated: nothing to check against, nothing to warn.
+  const printedTotal = totalRaw === "" ? BLANK : readMoney(totalRaw);
+  if ("unread" in printedTotal) {
     warnings.push(
-      `The Order Total "${clip(totalRaw)}" is not a number, so the line totals were not ` +
-        "checked against it.",
+      `The Order Total "${clip(totalRaw)}" ${printedTotal.unread}, so the line totals were ` +
+        "not checked against it.",
     );
+  } else {
+    order.printedTotal = printedTotal.value;
   }
 
   const itemIdx = headerIndex(rows[itemHeaderRow]);

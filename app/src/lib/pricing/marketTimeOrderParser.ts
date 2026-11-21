@@ -76,7 +76,11 @@ const ORDER_DATE = /(?:Order Date:\s*(\d{2}\/\d{2}\/\d{4})|(\d{2}\/\d{2}\/\d{4})
 const SHIP_DATE = /(?:Ship Date:\s*(\d{2}\/\d{2}\/\d{4})|(\d{2}\/\d{2}\/\d{4})\s*Ship Date:)/;
 const SUBTOTAL = /^\$([\d,]+\.\d{2})$/;
 const SKUS_UNITS = /^(\d+)\s*Skus\s*\|\s*(\d+)\s*Units/i;
-const AVAIL = /\(Avail:([^)]*)\)/i;
+// Bounded: it runs over an item's whole name, joined from every line before its
+// money line, which the per-line cut does not bound. Unbounded, each "(Avail:"
+// with no ")" after it scanned to the end of the name: 4.9 s for 200 lines of them
+// (Node 24). A real marker is a date ("(Avail:07/10/26)").
+const AVAIL = /\(Avail:([^)]{0,80})\)/i;
 const SPECIAL_INSTRUCTIONS = /^Special Instructions:\s*(.+?)\s*$/;
 const HOLD_WORDS = /\b(hold|quote)\b/i;
 // Fallback vendor source: the MFR line only prints on a continuation page, so a

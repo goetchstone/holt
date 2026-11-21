@@ -135,6 +135,23 @@ describe("parseMarketTimeOrderText", () => {
     expect(order.items[1].name).toBe('Merino Wool 16" Laptop Computer Sleeve - Granite V');
   });
 
+  it("reads a name of 200 lines of unclosed availability markers in well under a second", () => {
+    // The name joins every line before the money line, so the per-line cut does
+    // not bound it; a "(Avail:" with no ")" after it made the marker's match scan
+    // to the end of the name from every one of them: 4.9 s for these 200 lines.
+    const marker = "(Avail:".repeat(143).slice(0, 1000);
+    const text = [
+      "QtyImageItem #NameUPCPriceUQUOMTotal",
+      "1GL60BIN50FTLG",
+      ...Array.from({ length: 200 }, () => marker),
+      "84002724476255.00$55.00",
+    ].join("\n");
+    const start = performance.now();
+    const parsed = parseMarketTimeOrderText(text);
+    expect(performance.now() - start).toBeLessThan(500);
+    expect(parsed.items.map((i) => i.itemNumber)).toEqual(["GL60BIN50FTLG"]);
+  });
+
   it("reconciles against the printed SKU, unit and money totals", () => {
     expect(order.warnings).toEqual([]);
     expect(order.printedSkus).toBe(3);

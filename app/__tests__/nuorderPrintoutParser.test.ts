@@ -265,19 +265,23 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
 
 describe("parseNuOrderPrintoutItems — an amount it cannot read", () => {
   const big = `${"9".repeat(400)}.00`;
+  const LONG = "has 300 or more digits, which cannot be a real amount";
 
-  /** The EILEEN block with its wholesale, retail and line total swapped in. */
-  function block(wholesale: string, retail: string, lineTotal: string): PositionedItem[] {
+  /** The EILEEN block with its prices, line total and quantities swapped in. */
+  function block(
+    wholesale: string,
+    retail: string,
+    lineTotal: string,
+    sizes = ["1", "1", "1", "1"],
+    qty = "4",
+  ): PositionedItem[] {
     return [
       pi("Relaxed Button-Up Shirt", 57, 687),
       ...styleAnchor("EILEEN", wholesale, retail, 675),
       ...letterSizeHeader(654),
       pi("PRBG", 183, 639),
-      pi("1", 333, 636),
-      pi("1", 351, 636),
-      pi("1", 369, 636),
-      pi("1", 387, 636),
-      pi("4", 425, 636),
+      ...sizes.map((s, i) => pi(s, [333, 351, 369, 387][i], 636)),
+      pi(qty, 425, 636),
       pi(`USD ${lineTotal}`, 480, 636),
     ];
   }
@@ -291,11 +295,21 @@ describe("parseNuOrderPrintoutItems — an amount it cannot read", () => {
     ]);
     expect(parsed.items).toEqual([]);
     expect(parsed.warnings).toContain(
-      "Style EILEEN: the wholesale price is not a number — add this item manually.",
+      `Style EILEEN: the wholesale price ${LONG} — add this item manually.`,
     );
     // The Grand Total does not read either, so it is reported missing, not Infinity.
     expect(parsed.totalPrice).toBe(0);
     expect(parsed.warnings.some((w) => /Grand Total not found/.test(w))).toBe(true);
+  });
+
+  it("refuses a block whose wholesale price is not a number", () => {
+    const parsed = parseNuOrderPrintoutItems([
+      [...pageHeader(), ...block(".", "274.00", "512.00"), ...orderSummary("4", "512.00")],
+    ]);
+    expect(parsed.items).toEqual([]);
+    expect(parsed.warnings).toContain(
+      "Style EILEEN: the wholesale price is not a number — add this item manually.",
+    );
   });
 
   it("refuses a block whose line total overflows, as one with no line total", () => {
@@ -308,13 +322,43 @@ describe("parseNuOrderPrintoutItems — an amount it cannot read", () => {
     );
   });
 
-  it("reads an overflowing retail price as none, and keeps the item", () => {
+  // A price of 300-308 digits still reads as a number: a retail price of 1e305
+  // was kept as the item's suggested retail, and with it its selling price.
+  it.each([
+    ["the wholesale price", `${"9".repeat(300)}.00`, "274.00"],
+    ["the suggested retail price", "128.00", `${"9".repeat(305)}.00`],
+    ["the suggested retail price", "128.00", big],
+  ])("refuses a block where %s has 300 or more digits, and says so", (which, wholesale, retail) => {
     const parsed = parseNuOrderPrintoutItems([
-      [...pageHeader(), ...block("128.00", big, "512.00"), ...orderSummary("4", "512.00")],
+      [...pageHeader(), ...block(wholesale, retail, "512.00"), ...orderSummary("4", "512.00")],
     ]);
-    expect(parsed.warnings).toEqual([]);
+    expect(parsed.items).toEqual([]);
+    expect(parsed.warnings).toContain(`Style EILEEN: ${which} ${LONG} — add this item manually.`);
+  });
+
+  it("refuses a block with a quantity of 300 or more digits, even at $0", () => {
+    // 0 x 1e300 is 0, so a free line's own checks would keep it.
+    const huge = "9".repeat(300);
+    const parsed = parseNuOrderPrintoutItems([
+      [
+        ...pageHeader(),
+        ...block("0.00", "0.00", "0.00", [huge, "1", "1", "1"], huge),
+        ...orderSummary("4", "0.00"),
+      ],
+    ]);
+    expect(parsed.items).toEqual([]);
+    expect(
+      parsed.warnings.some((w) => /^Style EILEEN.*: a quantity has 300 or more digits/.test(w)),
+    ).toBe(true);
+  });
+
+  it("does not read a printed Total Quantity of 300 or more digits, and says so", () => {
+    const parsed = parseNuOrderPrintoutItems([
+      [...pageHeader(), ...eileenBlock(), ...orderSummary("9".repeat(300), "512.00")],
+    ]);
     expect(parsed.items).toHaveLength(1);
-    expect(parsed.items[0].msrp).toBe(0);
+    expect(parsed.totalUnits).toBe(0);
+    expect(parsed.warnings).toEqual([`The printed Total Quantity ${LONG}, so it was not read.`]);
   });
 });
 

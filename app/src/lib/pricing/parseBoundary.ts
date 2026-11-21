@@ -10,9 +10,11 @@
 // - An order parser reads it as 0 and keeps the line (parseMoney, finiteFloat,
 //   finiteInt). A $0 line does not trip the parser's own line-math check
 //   (0 x qty = 0), so what tells the user is `splitLines`, which puts a warning on
-//   the order when a line holds a run of 300 or more digits. A parser that can
-//   name the cell it could not read leaves that line out instead, with a warning
-//   naming it (Simblist CSV, the nuORDER printout).
+//   the order when a line holds a number of 300 or more digits (`hasOverlongNumber`,
+//   which counts "9,999" as four digits because parseMoney drops the commas). A
+//   parser that can name the cell it could not read leaves that line out instead,
+//   with a warning naming it, and applies the same 300-digit rule to the cell
+//   (Simblist CSV, the nuORDER printout).
 // - A price book leaves the cell out, as it does "N/A": `finiteOrNull` gives null,
 //   and `pricingUtils.parseCurrency` gives NaN, its "no price in this cell".
 //
@@ -56,6 +58,19 @@ export const MAX_LINE_LENGTH = 1000;
 const OVERLONG_NUMBER = /\d{300}/;
 
 /**
+ * Whether `text` holds a number of 300 or more digits, which cannot be a real
+ * amount. Thousands commas do not break the number: parseMoney drops them before
+ * it reads, so "9,999,...,999.00" with 331 digits overflows to 0 like a 331-digit
+ * run, and is reported the same way.
+ */
+export function hasOverlongNumber(text: string): boolean {
+  return OVERLONG_NUMBER.test(text.replaceAll(",", ""));
+}
+
+/** Why a cell that `hasOverlongNumber` was not read, after what the cell is. */
+export const OVERLONG_REASON = "has 300 or more digits, which cannot be a real amount";
+
+/**
  * `text` split on newlines, each line cut to MAX_LINE_LENGTH. Anything this
  * changes or cannot read is reported on `warnings` (the order's own array), once
  * per kind, in words a store user can act on.
@@ -64,15 +79,18 @@ export function splitLines(text: string, warnings: string[]): string[] {
   let cut = 0;
   let overlong = 0;
   const lines = text.split("\n").map((l) => {
-    if (OVERLONG_NUMBER.test(l)) overlong++;
+    if (hasOverlongNumber(l)) overlong++;
     if (l.length <= MAX_LINE_LENGTH) return l;
     cut++;
     return l.slice(0, MAX_LINE_LENGTH);
   });
   if (cut > 0) {
     warnings.push(
-      `${cut} line${cut === 1 ? " is" : "s are"} longer than ${MAX_LINE_LENGTH} characters and ` +
-        "was cut off there, so a price at the end of it may be missing. Check the PDF against the items.",
+      cut === 1
+        ? `1 line is longer than ${MAX_LINE_LENGTH} characters and was cut off there, so a ` +
+            "price at the end of it may be missing. Check the PDF against the items."
+        : `${cut} lines are longer than ${MAX_LINE_LENGTH} characters and were cut off there, ` +
+            "so a price at the end of one may be missing. Check the PDF against the items.",
     );
   }
   if (overlong > 0) {

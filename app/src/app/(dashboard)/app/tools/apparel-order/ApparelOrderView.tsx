@@ -24,7 +24,7 @@ import axios from "axios";
 import Papa from "papaparse";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
-import { getErrorMessage } from "@/lib/toastError";
+import { getErrorMessage, getErrorWarnings } from "@/lib/toastError";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import {
   APPAREL_VENDOR_FORMATS,
@@ -91,6 +91,8 @@ export function ApparelOrderView() {
   const [draft, setDraft] = useState<ApparelOrderDraft | null>(null);
   const [rows, setRows] = useState<ApparelOrderRow[]>([]);
   const [csvWarning, setCsvWarning] = useState<string | null>(null);
+  // Why the last PDF yielded no line at all (the preview route sends its warnings).
+  const [failedWarnings, setFailedWarnings] = useState<string[]>([]);
 
   const [vendorId, setVendorId] = useState<string>("");
   const [vendorName, setVendorName] = useState<string>("");
@@ -139,7 +141,8 @@ export function ApparelOrderView() {
         setVendorName(format?.catalogVendorName || d.vendorName || "");
       }
       if (d.warnings && d.warnings.length > 0) {
-        toast.warn(`${d.warnings.length} line(s) need a look — see the warnings above the table.`);
+        // It counts warnings: one warning can be about several lines.
+        toast.warn(`${d.warnings.length} warning(s) need a look — see them above the table.`);
       }
     },
     [format],
@@ -149,6 +152,7 @@ export function ApparelOrderView() {
     async (file: File) => {
       setParsing(true);
       setCsvWarning(null);
+      setFailedWarnings([]);
       try {
         const form = new FormData();
         form.append("format", formatId);
@@ -159,6 +163,7 @@ export function ApparelOrderView() {
         resetForNewDraft(res.data, lookups?.vendors ?? []);
         toast.success(`Parsed ${res.data.rows.length} line(s) from the PDF.`);
       } catch (err) {
+        setFailedWarnings(getErrorWarnings(err));
         toast.error(getErrorMessage(err, "Failed to parse the PDF"));
       } finally {
         setParsing(false);
@@ -171,6 +176,7 @@ export function ApparelOrderView() {
     (file: File) => {
       setParsing(true);
       setCsvWarning(null);
+      setFailedWarnings([]);
       Papa.parse<Record<string, unknown>>(file, {
         header: true,
         skipEmptyLines: true,
@@ -350,6 +356,19 @@ export function ApparelOrderView() {
       {csvWarning && (
         <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-800">
           {csvWarning}
+        </div>
+      )}
+
+      {failedWarnings.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-800">
+          <p className="font-semibold mb-1">
+            No line could be read from that PDF. The parser says:
+          </p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {failedWarnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
         </div>
       )}
 

@@ -7,9 +7,9 @@
 //
 // It parses and writes in one request, so the PO is written as read and the
 // parser's warnings (a line cut short, an amount that overflowed and read as 0,
-// an item left out) come back with the result; the preview showed the same
-// warnings before the import. Whether warnings should refuse the import is the
-// owner's open question.
+// an item left out) come back with the result, or with the 400 when every item
+// was left out; the preview showed the same warnings before the import. Whether
+// warnings should refuse the import is the owner's open question.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
@@ -52,7 +52,10 @@ export default requirePermission(
       const parsed = await parseZSupplyPDF(buffer);
 
       if (!parsed.items.length) {
-        return res.status(400).json({ error: "No line items found in PDF" });
+        // An item left out is explained only by its warning; the page lists them.
+        return res
+          .status(400)
+          .json({ error: "No line items found in PDF", warnings: parsed.warnings });
       }
 
       // Find or create Z Supply vendor, by an earlier name too (a vendor

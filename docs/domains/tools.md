@@ -38,6 +38,12 @@ Z Supply (`normalizeNuOrder`, `normalizeZSupply`), which before then had no warn
 line cut at 1000 characters, an amount that overflowed and read as 0, a Z Supply item left out
 because its pack count or price overflowed (`lib/pricing/parseBoundary.ts`; pricing-catalog.md,
 "Adding a New Vendor" step 6). The printout and Frank & Eileen formats already passed theirs.
+The toast counts warnings, not lines: one warning can cover several lines. When the parse yields
+no row at all, both tools' preview routes (`tools/apparel-order/preview.ts`,
+`tools/home-accessory-order/preview.ts`) answer 400 with the draft's `warnings` beside the error,
+since they are then the only account of why (a Simblist row whose cell does not read, a style
+left out), and the page lists them under the upload (`__tests__/orderUploadNoLines.test.ts`,
+2026-11-21).
 
 **No catalog matching**: the predecessor's version ran a second pass matching parsed rows against existing
 the POS `Product` rows (NEW vs UPDATE, style/color candidate suggestions) because its output was a
@@ -210,4 +216,4 @@ Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and ada
 
 ---
 
-Last verified: 2026-11-07 (Query Builder); 2026-05-20 (the rest)
+Last verified: 2026-11-07 (Query Builder); "Parser warnings" 2026-11-21 against source; 2026-05-20 (the rest)

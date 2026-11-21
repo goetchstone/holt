@@ -87,7 +87,11 @@ export default requirePermission(
 
       const draft = await parseFor(entry, fs.readFileSync(file.filepath));
       if (!draft?.rows.length) {
-        return res.status(400).json({ error: "No line items found in PDF" });
+        // A line the parser left out is explained only by its warning, so the
+        // warnings go with the refusal and the page lists them.
+        return res
+          .status(400)
+          .json({ error: "No line items found in PDF", warnings: draft?.warnings ?? [] });
       }
       return res.status(200).json(draft);
     } catch (err) {

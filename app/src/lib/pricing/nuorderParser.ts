@@ -73,22 +73,28 @@ export function parseNuOrderText(raw: string): NuOrderPO {
   // We'll try to extract it from the footer: "Favorite Daughter * New York..."
   // Bounded runs: [A-Za-z\s] crosses "\n", so the per-line cut does not bound an
   // unbounded run here. Unbounded, 50 lines of 1000 spaces took 21 s (Node 24).
-  const footerMatch = text.match(/^([A-Za-z\s]{1,80}?)\s{0,8}\*\s{0,8}[A-Za-z\s]{1,80}\d{5}/m);
+  // The name takes the spaces before "*" itself (trimmed below): a separate
+  // \s{0,8} there made every line start try 80 x 9 splits, 75 ms over 50k
+  // empty lines, against 7 ms now.
+  const footerMatch = text.match(/^([A-Za-z\s]{1,88}?)\*\s{0,8}[A-Za-z\s]{1,80}\d{5}/m);
   if (footerMatch) {
     vendorName = footerMatch[1].trim();
   }
 
-  // Order number and date
+  // Order number and date. This, the PO and the Sizes regexes bound their runs
+  // for the footer's reason: \s crosses "\n", and two runs side by side split one
+  // long run of whitespace every possible way. Unbounded, "Order" or "PO" and 50
+  // lines of 1000 spaces took 1-1.2 s (Node 24).
   let orderNumber = "";
   let orderDate = "";
-  const orderNumMatch = text.match(/Order\s*#?:?\s*([\d-]+)/i);
+  const orderNumMatch = text.match(/Order\s{0,20}#?:?\s{0,20}([\d-]+)/i);
   if (orderNumMatch) orderNumber = orderNumMatch[1];
   const orderDateMatch = text.match(/Order\s*Date:\s*([A-Z]{3}\s+\d{1,2},\s*\d{4})/i);
   if (orderDateMatch) orderDate = orderDateMatch[1];
 
   // PO number
   let poNumber = "";
-  const poMatch = text.match(/PO\s*#?:?\s*([A-Za-z0-9]+)/i);
+  const poMatch = text.match(/PO\s{0,20}#?:?\s{0,20}([A-Za-z0-9]+)/i);
   if (poMatch) poNumber = poMatch[1];
 
   // Delivery dates
@@ -202,9 +208,11 @@ export function parseNuOrderText(raw: string): NuOrderPO {
       itemTotalPrice = parseMoney(priceLineMatch[3]);
     }
 
-    // Sizes -- may be on the same line as "Sizes:" or the next line
+    // Sizes -- may be on the same line as "Sizes:" or the next line. Bounded as
+    // the Order regex is: unbounded, "Sizes:" and 50k line ends that end the
+    // item's block took 2.4-3.5 s (Node 24).
     let sizes: NuOrderSize[] = [];
-    const sizesMatch = forwardBlock.match(/Sizes:\s*\n?\s*(.+)/i);
+    const sizesMatch = forwardBlock.match(/Sizes:\s{0,20}\n?\s{0,20}(.+)/i);
     if (sizesMatch) {
       sizes = parseSizes(sizesMatch[1]);
     }
