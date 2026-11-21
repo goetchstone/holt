@@ -781,19 +781,22 @@ export async function importWholesaleBook(
             update: {},
           });
 
+          // `grades` is an array this import built from the validated body, so
+          // its length cannot be forged; iterating its entries says so to
+          // CodeQL's js/loop-bound-injection too (alert 67, 2026-11-20).
           const sorted = grades.sort(sortGrades);
-          for (let i = 0; i < sorted.length; i++) {
+          for (const [i, code] of sorted.entries()) {
             const tier = await tx.priceDimensionTier.upsert({
-              where: { dimensionId_code: { dimensionId: dim.id, code: sorted[i] } },
+              where: { dimensionId_code: { dimensionId: dim.id, code } },
               create: {
                 dimensionId: dim.id,
-                name: tierDisplayName(sorted[i]),
-                code: sorted[i],
+                name: tierDisplayName(code),
+                code,
                 sortOrder: i,
               },
               update: { sortOrder: i },
             });
-            tierMap.set(sorted[i], tier.id);
+            tierMap.set(code, tier.id);
           }
 
           // Extend to full range for riser extrapolation

@@ -40,13 +40,24 @@ while IFS='|' read -r pattern runbook _reason; do
   RUNBOOKS+=("$runbook")
 done <"$MAP"
 
+# Each pattern as an anchored ERE, built once with ONE sed for the whole map.
+# The map's `*` matches across directories, as the coverage test reads it.
+# Matching below is bash's own =~ (the same POSIX ERE as grep -E), so it starts
+# no process per pattern: spawning a sed and a grep for every pattern of every
+# changed file took 2 hours on 2026-11-20, on a loaded machine whose endpoint
+# agent inspects each process.
+REGEXES=()
+if [ "${#PATTERNS[@]}" -gt 0 ]; then
+  while IFS= read -r escaped; do
+    REGEXES+=("^${escaped}\$")
+  done < <(printf '%s\n' "${PATTERNS[@]}" | sed -e 's/[][().+?^$|{}\\]/\\&/g' -e 's/\*/.*/g')
+fi
+
 EXPECTED=""
 while IFS= read -r file; do
   [ -z "$file" ] && continue
   for i in "${!PATTERNS[@]}"; do
-    # The map's `*` matches across directories, as the coverage test reads it.
-    regex="^$(printf '%s' "${PATTERNS[$i]}" | sed -e 's/[][().+?^$|{}\\]/\\&/g' -e 's/\*/.*/g')\$"
-    if printf '%s\n' "$file" | grep -qE "$regex"; then
+    if [[ "$file" =~ ${REGEXES[$i]} ]]; then
       runbook="${RUNBOOKS[$i]}"
       if [ "$runbook" != "-" ]; then
         case $'\n'"$EXPECTED" in *$'\n'"$runbook"$'\n'*) ;; *) EXPECTED="${EXPECTED}${runbook}"$'\n' ;; esac
