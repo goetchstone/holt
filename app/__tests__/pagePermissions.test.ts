@@ -90,6 +90,28 @@ describe("the guards match what the manifest claims", () => {
     expect(applied).toEqual([]);
   });
 
+  it("keeps on each of those pages the role list the manifest records", () => {
+    // The check above only looks for the mapped key. A pending page cut to a
+    // bare requirePage() opens to any signed-in user and still passes it, and
+    // the e2e sweep signs in only as the Owner and the Administrator. So each
+    // pending page must still call requirePage with exactly its widensFrom
+    // roles: no fewer (a quiet narrowing) and no more (a quiet widening).
+    const pending = pendingWidening();
+    expect(pending.length).toBeGreaterThan(0);
+    const drifted = pending
+      .map(([route, a]) => {
+        const list = /requirePage\(\s*\[([^\]]*)\]/.exec(sourceOf(route))?.[1];
+        const roles =
+          list === undefined ? [] : [...list.matchAll(/["'](\w+)["']/g)].map((m) => m[1]);
+        return { route, roles: roles.sort(), recorded: (a.widensFrom ?? "").split(",").sort() };
+      })
+      .filter(({ roles, recorded }) => roles.join(",") !== recorded.join(","))
+      .map(
+        ({ route, roles, recorded }) => `${route}: requirePage([${roles}]), recorded ${recorded}`,
+      );
+    expect(drifted).toEqual([]);
+  });
+
   it("still covers the pages that had no authorization at all", () => {
     // Regression pin for the original finding: these admitted any signed-in user.
     for (const route of [

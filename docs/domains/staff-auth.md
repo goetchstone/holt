@@ -326,7 +326,14 @@ session) waits out the 30-second TTL. Tested across two module instances in
 - `roleProcedure` has no caller outside tests. `requireAuthWithRole` loses its
   last callers when the two house-call routes convert, and `requirePage`'s role
   list when the Service dispatch board and the two house-call pages do; then
-  the three and `decideRoleAccess` can go.
+  the three and `decideRoleAccess` can go. Until then tripwires hold each at what
+  the sweep left: `trpcProcedureAuthorization.test.ts` fails on any mounted
+  procedure built with `roleProcedure` (its gates are marked in
+  `authMiddlewareMarkers.roleLists`); `apiRolePermissionRatchet.test.ts` counts
+  every `requireAuthWithRole(` call in an API route, whatever its first argument
+  (it once matched only a literal `[`, so a list passed as a constant escaped
+  it); and `pagePermissions.test.ts` fails if a `widensFrom` page stops calling
+  `requirePage` with exactly the roles its entry records.
 - Dropping the `StaffRole` enum.
 
 ## Roles
@@ -458,6 +465,16 @@ the real `appRouter._def.procedures` (nothing is hand-listed) and fails on any
 procedure that is `publicProcedure` or session-only `protectedProcedure` unless
 it is in the test's `ALLOWED` map with a written reason; it also fails on an
 `ALLOWED` entry that no longer exists or is now gated.
+
+`apiRouteAuthorization.test.ts` also reads every route whose default export
+dispatches on `req.method`: each `if (req.method === "X") return ...` branch,
+and, since 2026-11-21, the last statement, which runs for every method no branch
+took, must return through a gate or answer 405. In `if (GET) return readGate(...);
+return writeGate(...);` that line is the whole write path, and a bare handler
+there passed every check (seen on `service/settings/statuses.ts`). Which gate it
+takes is behavioural: `serviceRouteKeys.integration.test.ts` and
+`accountingBillingGates.test.ts` refuse each such route a write by a role that
+passes its read gate.
 
 To add a procedure: use `permissionProcedure("<key>")` with the key of the screen
 that calls it (that page's `requirePage(undefined, { permission })`, or a sibling

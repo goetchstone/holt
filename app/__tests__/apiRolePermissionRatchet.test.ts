@@ -37,14 +37,24 @@ function walk(dir: string): string[] {
   return out;
 }
 
+/** A file's code without its comment lines: a comment that names the wrapper
+ *  ("requireAuthWithRole (which needs real cookies)") is not a call to it. */
+function codeOf(src: string): string {
+  return src
+    .split("\n")
+    .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+    .join("\n");
+}
+
+// Any call to requireAuthWithRole, whatever its first argument. Until
+// 2026-11-21 this matched only `requireAuthWithRole([`, so a list passed as a
+// constant (main's tickets route, `requireAuthWithRole(STAFF_ROLES, ...)`)
+// never counted, and a file that also called requirePermission was skipped
+// whole, so a dispatcher could gate one method on a key and another on a list.
 function roleArrayRoutes(): string[] {
   return [join(APP_ROOT, "src", "pages", "api"), join(APP_ROOT, "src", "app", "api")]
     .flatMap(walk)
-    .filter((f) => {
-      const src = readFileSync(f, "utf8");
-      if (/requirePermission|withPermission/.test(src)) return false;
-      return /requireAuthWithRole\(\s*\[/.test(src);
-    })
+    .filter((f) => /\brequireAuthWithRole\s*\(/.test(codeOf(readFileSync(f, "utf8"))))
     .map((f) => relative(APP_ROOT, f))
     .sort();
 }

@@ -39,10 +39,17 @@ export const publicProcedure = t.procedure;
  * so __tests__/trpcProcedureAuthorization.test.ts can classify every mounted
  * procedure from `_def.middlewares` (a procedure's own input and resolver steps
  * are middlewares too, so counting them cannot tell the tiers apart).
+ * `roleLists` holds roleProcedure's gates alone, so the same test can hold the
+ * routers at no role lists, where the 2026-11 role-list sweep left them.
  */
-export const authMiddlewareMarkers: { session: unknown; gates: WeakSet<object> } = {
+export const authMiddlewareMarkers: {
+  session: unknown;
+  gates: WeakSet<object>;
+  roleLists: WeakSet<object>;
+} = {
   session: undefined,
   gates: new WeakSet<object>(),
+  roleLists: new WeakSet<object>(),
 };
 
 function lastMiddleware(proc: unknown): unknown {
@@ -89,6 +96,7 @@ export function roleProcedure(allowedRoles: string[], options?: GateOptions) {
     return next({ ctx: { ...ctx, role: result.effectiveUserRole, holds: result.holds } });
   });
   authMiddlewareMarkers.gates.add(lastMiddleware(gated) as object);
+  authMiddlewareMarkers.roleLists.add(lastMiddleware(gated) as object);
   return gated;
 }
 
