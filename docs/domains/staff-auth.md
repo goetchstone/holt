@@ -380,7 +380,29 @@ by the owner:
   are left (the house-call routes, the Service dispatch board and the house-call
   pages). That is the owner's chosen trade-off.
 
+**The same rule decides two other doors to the same power** (2026-11-20). Both
+sat behind `staff.manage` alone, which People Operations and the General
+Manager hold:
+
+- **Setting a password** (`POST /api/admin/staff/[id]/set-password`). With
+  local sign-in on, whoever sets a password can sign in as that person, so it
+  is assigning their role: `passwordRefusalFor` admits an ADMIN or SUPER_ADMIN,
+  and a member in the owner tier only to a SUPER_ADMIN. It judges the member's
+  current role (the linked Role row, else the built-in row for their enum).
+- **Changing what a role can do** (`POST /api/admin/roles`, `PUT` and `DELETE
+  /api/admin/roles/[id]`). Editing a role's grants reaches everyone who holds
+  it, the editor included: `roleEditRefusalFor` admits an ADMIN or SUPER_ADMIN,
+  and only a SUPER_ADMIN may grant or revoke an `OWNER_ONLY_PERMISSIONS` key,
+  create a role holding one (cloning the Owner included), or delete a role that
+  holds one. Keeping an owner-granted key while changing other grants is not
+  moving it. The check runs inside the write's transaction, against the grants
+  it re-reads there. Reading roles (`GET`) stays on `staff.manage`: the Staff
+  screen's role picker needs the list.
+- The Roles screen does not yet mark owner-only keys, so an ADMIN who ticks one
+  sees the server's refusal, which names it.
+
 → `__tests__/integration/staffRoleAssignment.integration.test.ts`,
+`__tests__/integration/ownerTierEscalation.integration.test.ts`,
 `__tests__/roleAssignment.test.ts`
 
 ## The `isDesigner` flag — report inclusion, not auth (added 2026-05-29)
@@ -798,7 +820,7 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `__tests__/trpcProcedureAuthorization.test.ts` -- the tRPC manifest (see "tRPC procedure manifest")
 - `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role; who may View as is `mayImpersonate` over the session's keys
 - `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie, gated on `IMPERSONATE`; refuses a target the gates would ignore (`viewAsIgnored`)
-- `pages/api/admin/roles/` -- Roles GUI's REST contract, gated on `staff.manage`
+- `pages/api/admin/roles/` -- Roles GUI's REST contract, gated on `staff.manage`; its writes also take `roleEditRefusalFor` (admins only; owner-only keys by an owner)
 - `lib/upboard.ts` -- up-board rotation logic
 - `app/(dashboard)/app/admin/setup/roles/` -- build and edit roles (page gate: Manage configuration, `admin.config`)
 
