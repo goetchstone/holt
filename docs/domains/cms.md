@@ -51,15 +51,27 @@ Per `Organization` (single-org runtime = `DEFAULT_ORG_ID = 1`):
 - `requestBody.ts` — pure zod validation for the admin API (rule 14); handlers
   stay thin. `parsePageInput` / `parsePostInput` / `parseMenuInput`.
 
-Author HTML (`richText`, `embed`) is sanitized where it is rendered
-(`lib/cms/sanitize.ts`, called from `BlockRenderer.tsx`): no scripts, event
-handlers or script URLs, and an iframe only from the embed providers in
-`lib/cms/embedHosts.ts`. That list is also the Content-Security-Policy's
-`frame-src` (`lib/contentSecurityPolicy.ts`), so a provider added there is both
-kept by the sanitizer and allowed to load. Until the two shared it (SEC-06,
-2026-11-21), the policy blocked every embed the sanitizer kept, and an embed
-block rendered empty. (This paragraph said the HTML was rendered as-is long
-after the sanitizer landed.)
+Author HTML (`richText`, `embed`) is sanitized at the render boundary:
+`BlockRenderer.tsx` passes it through `sanitizeCmsHtml` (`lib/cms/sanitize.ts`,
+sanitize-html), which strips scripts, `on*` handlers and unknown URL schemes,
+limits iframes to the embed providers in `lib/cms/embedHosts.ts`, and forces
+`rel="noopener noreferrer"` on links. Authoring is back-office only, but the
+public site never trusts it.
+
+- **Embeds and the CSP share one list.** `lib/cms/embedHosts.ts` is also the
+  Content-Security-Policy's `frame-src` (`lib/contentSecurityPolicy.ts`), so a
+  provider added there is both kept by the sanitizer and allowed to load. Until
+  the two shared it (SEC-06, 2026-11-21), the policy blocked every embed the
+  sanitizer kept, and an embed block rendered empty. External image URLs stay
+  blocked by `img-src 'self' data: blob:`.
+- **The parser under it.** sanitize-html runs on htmlparser2 12, the major it
+  declares. Until 2026-11-20 a blanket `overrides` entry pinned htmlparser2 to
+  9.1.0 below that range (rule 53); it was dropped, and since htmlparser2 12 and
+  its dependencies are ESM-only, `jest.config.ts` compiles them so the CMS and
+  help-center tests sanitize with the real parser, not a stand-in.
+- **Slugs.** The page and post editors fill the slug from the title with
+  `slugify` in `lib/slugify.ts`, the app's URL slug maker (services and
+  booking calendar UIDs use it too).
 
 ### Section variants (background + eyebrow)
 

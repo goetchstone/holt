@@ -30,12 +30,3 @@ export function minutesToHHMM(minutes: number): string {
   const m = minutes % 60;
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
-
-// URL-safe slug from a service name: lowercase words joined by '-'.
-export function slugify(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
