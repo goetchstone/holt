@@ -1,10 +1,12 @@
 // /app/src/pages/api/services/index.ts
 //
 // Service catalog (admin). GET lists every service for the org; POST creates one
-// with a slug derived from the name. Drives the public booking flow.
+// with a slug derived from the name. Drives the public booking flow. "Change
+// settings" (admin.settings), like Admin > Scheduling, the screen that calls it,
+// and the weekly-hours and time-off routes on the same screen.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseServiceCreateInput } from "@/lib/booking/serviceRequestBody";
@@ -13,8 +15,8 @@ import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method === "GET") {
       const services = await prisma.service.findMany({

@@ -1,8 +1,12 @@
 // /app/src/pages/api/service/installers/[id].ts
+//
+// One installer's record (contact details, linked staff member), edited or
+// switched off from Admin > Service > Installers. Setup: "Set up service"
+// (service.setup), or "Change settings", the key that screen opens on.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -20,7 +24,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission({ anyOf: ["service.setup", "admin.settings"] }, handler);
 
 async function handleGet(id: number, res: NextApiResponse) {
   try {

@@ -1,11 +1,15 @@
 // /app/src/pages/api/service/cases/[id]/tasks.ts
+//
+// A service case's tasks: list them (GET) and add one (POST, from the case
+// page). Both are "Work service" (service.write), like the case, notes,
+// checklist and task routes beside it. Register and Marketing hold no service
+// key and are refused, as on the rest of the case's data (cases/[id]/index.ts).
 
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import {
   success,
   created,
@@ -40,13 +44,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 
   if (req.method === "POST") {
-    // Narrower than the outer gate (GET stays open to any staff): case tasks
-    // are a service-team action, register/marketing have no reason to add one.
-    const mutationRole = await activeStaffRole(session as { user?: { id?: string | null } | null });
-    if (!["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     const {
       title,
       description,
@@ -83,7 +80,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return methodNotAllowed(res, ["GET", "POST"]);
 }
 
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+export default requirePermission("service.write", handler);

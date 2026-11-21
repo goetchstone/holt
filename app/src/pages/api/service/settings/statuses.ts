@@ -1,10 +1,16 @@
 // /app/src/pages/api/service/settings/statuses.ts
+//
+// The service-case statuses. The list (GET) fills the case page's status
+// changer ("View service") and Settings > Service ("Manage configuration"), and
+// takes the same keys as the type and priority lists beside it. Adding a status
+// (POST) is setup: "Set up service" (service.setup), or "Manage
+// configuration", the key Settings > Service opens on.
 
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import {
   success,
   created,
@@ -21,8 +27,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         orderBy: { sortOrder: "asc" },
         include: { _count: { select: { cases: true } } },
       });
-      // Wrapped: Service Settings, the new-case form, the service list and the
-      // case page all read `.statuses`. A bare list showed none of them (2026-11-01).
+      // Wrapped: Service Settings and the case page both read `.statuses`. A
+      // bare list left both empty (2026-11-01).
       return success(res, { statuses });
     } catch (err) {
       return handleError(res, err, "GET /service/settings/statuses");
@@ -55,4 +61,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return methodNotAllowed(res, ["GET", "POST"]);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+const readGate = requirePermission(
+  { anyOf: ["service.read", "service.write", "service.setup", "admin.config"] },
+  handler,
+);
+const writeGate = requirePermission({ anyOf: ["service.setup", "admin.config"] }, handler);
+
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") return readGate(req, res);
+  return writeGate(req, res);
+}

@@ -2,10 +2,11 @@
 //
 // Single service (admin): PATCH any subset of fields (slug follows a rename),
 // DELETE removes it (bookings keep their history via SetNull; windows cascade).
+// "Change settings" (admin.settings), as services/index.ts.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseServiceUpdateInput } from "@/lib/booking/serviceRequestBody";
@@ -14,8 +15,8 @@ import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const id = Number(req.query.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
