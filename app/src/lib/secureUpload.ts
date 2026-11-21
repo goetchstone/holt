@@ -9,7 +9,7 @@
 // security posture centralised and prevents one endpoint from drifting
 // relative to the others.
 
-import formidable, { type File } from "formidable";
+import formidable, { errors as formidableErrors, type File } from "formidable";
 import path from "path";
 import fs from "fs";
 import { randomBytes } from "node:crypto";
@@ -192,6 +192,93 @@ export function createSecureForm(preset: UploadPresetName, options: CreateFormOp
       return `${stamp}-${rand}${ext}`;
     },
   });
+}
+
+/** A size limit as a person reads it: "30 MB". */
+function megabytes(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`;
+}
+
+/** What an upload route answers the caller: a refusal of its upload, in plain words. */
+export interface UploadRefusal {
+  status: number;
+  error: string;
+}
+
+/**
+ * The 4xx for an upload the parser refused, or null for any other error, which
+ * stays the route's own 500. Every upload route's catch asks here first, with
+ * the preset it parsed with (rule 42).
+ *
+ * formidable refuses an upload by failing parse() with a FormidableError whose
+ * httpCode is a 4xx, and whose message names its own options and byte counts,
+ * so the caller is told in plain words instead:
+ *   - past the size limit (maxTotalFileSize, which defaults to maxFileSize and
+ *     trips first while the file streams, or maxFileSize itself): 413, the limit;
+ *   - a file past maxFiles: 413, how many the preset takes;
+ *   - an empty file (allowEmptyFiles is off, minFileSize 1): 400;
+ *   - too many form fields, or fields too long: 413;
+ *   - a body it can't read as a form (malformed or cut off on its way, no
+ *     boundary, no content type, not multipart) and any 4xx refusal formidable
+ *     adds later: its own 4xx, "couldn't be read".
+ * cannotCreateDir is coded 409 but is the server's directory, not the caller's
+ * upload, so it stays a 500. Routes answered all of these as their fixed 500
+ * ("Parse failed", "Import failed") and logged them as faults.
+ *
+ * A file of a type the preset does not take is not an error here: the filter
+ * drops it before it is written, so the route finds no file (noFileMessage).
+ */
+export function uploadRefusal(err: unknown, preset: UploadPresetName): UploadRefusal | null {
+  if (!(err instanceof formidableErrors.default)) return null;
+  const { maxFileSize, maxFiles = 1 } = UPLOAD_PRESETS[preset];
+  switch (err.code) {
+    case formidableErrors.biggerThanTotalMaxFileSize:
+    case formidableErrors.biggerThanMaxFileSize:
+      return {
+        status: 413,
+        error: `The upload is larger than the ${megabytes(maxFileSize)} limit.`,
+      };
+    case formidableErrors.maxFilesExceeded:
+      return {
+        status: 413,
+        error:
+          maxFiles === 1
+            ? "Upload one file at a time."
+            : `Upload at most ${maxFiles} files at a time.`,
+      };
+    case formidableErrors.noEmptyFiles:
+    case formidableErrors.smallerThanMinFileSize:
+      return { status: 400, error: "The file is empty." };
+    case formidableErrors.maxFieldsExceeded:
+    case formidableErrors.maxFieldsSizeExceeded:
+      return { status: 413, error: "The upload's form has more fields than an upload takes." };
+    case formidableErrors.cannotCreateDir:
+      return null;
+    default: {
+      const status = err.httpCode ?? 500;
+      return status >= 400 && status < 500
+        ? { status, error: "The upload couldn't be read. Send the file again." }
+        : null;
+    }
+  }
+}
+
+/** ".pdf", or ".csv, .xlsx or .xls": the extensions a preset takes, as a person reads them. */
+function extensionsOf(preset: UploadPresetName): string {
+  const exts = UPLOAD_PRESETS[preset].allowedExtensions;
+  const last = exts[exts.length - 1];
+  return exts.length > 1 ? `${exts.slice(0, -1).join(", ")} or ${last}` : last;
+}
+
+/**
+ * What a route's 400 says for a form with no file the preset takes: none was
+ * sent, or the filter dropped one of another type before it was written, which
+ * the route can't tell apart. Either way it names the types to send, as the
+ * product picture's route does ("Upload a JPEG, PNG, WebP or HEIC picture.").
+ */
+export function noFileMessage(preset: UploadPresetName): string {
+  return `Upload a ${extensionsOf(preset)} file.`;
 }
 
 /**

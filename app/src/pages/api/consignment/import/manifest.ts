@@ -1,7 +1,7 @@
 // /app/src/pages/api/consignment/import/manifest.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
+import { consignmentVendorOr404 } from "@/lib/consignmentVendor";
 import { prisma } from "@/lib/prisma";
 import { safeString, safeFloat } from "@/lib/importHelpers";
 import { calculateRugPricing } from "@/lib/consignment";
@@ -16,6 +16,7 @@ import {
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 /** Changing an existing product's retail needs this as well (DECISIONS 58). */
@@ -31,30 +32,6 @@ interface ManifestRow {
 }
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
-
-/**
- * The consigning vendor for this manifest.
- *
- * This function used to find-or-create a hardcoded consignor: it searched
- * several spellings of one vendor's name, fell back to a vendor code, and
- * CREATED the vendor when it still found nothing. That last step is how a
- * catalog acquires duplicate suppliers who are the same company -- a
- * manifest imported before anyone set the vendor up quietly minted a new one.
- *
- * Now it resolves by flag and refuses when none is configured. Setting up a
- * consignor is a deliberate act, not a side effect of importing a file.
- */
-async function resolveConsignmentVendor(tx: TxClient) {
-  const vendorId = await getPrimaryConsignmentVendorId(tx);
-  if (!vendorId) {
-    throw new Error(
-      "No consignment vendor configured. Set isConsignment on the vendor before importing a manifest.",
-    );
-  }
-  const vendor = await tx.vendor.findUnique({ where: { id: vendorId } });
-  if (!vendor) throw new Error("Configured consignment vendor no longer exists.");
-  return vendor;
-}
 
 async function findOrCreateRugsDepartment(tx: TxClient) {
   const dept = await tx.department.upsert({
@@ -100,9 +77,19 @@ export default requirePermission(
     const mayChangePrice = access.holds[PRICING];
 
     try {
-      // Set up vendor, department, and receipt outside the per-row loop so they
-      // are not rolled back if an individual row fails.
-      const vendor = await prisma.$transaction((tx) => resolveConsignmentVendor(tx));
+      // The consigning vendor, by flag, before any work. This route used to
+      // find-or-create a hardcoded consignor: it searched several spellings of
+      // one vendor's name, fell back to a vendor code, and CREATED the vendor
+      // when it still found nothing -- how a catalog acquires duplicate
+      // suppliers who are the same company. Setting up a consignor is a
+      // deliberate act, not a side effect of importing a file, so a missing
+      // one is a 404 (lib/consignmentVendor.ts).
+      const vendorId = await consignmentVendorOr404(prisma, res);
+      if (vendorId === null) return;
+      const vendor = { id: vendorId };
+
+      // Set up department and receipt outside the per-row loop so they are not
+      // rolled back if an individual row fails.
       const { departmentId, categoryId } = await prisma.$transaction((tx) =>
         findOrCreateRugsDepartment(tx),
       );
@@ -268,8 +255,8 @@ export default requirePermission(
         ...kept,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      logError("Consignment manifest import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
   { also: [PRICING] },

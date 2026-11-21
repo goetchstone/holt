@@ -14,6 +14,7 @@ import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 export default requirePermission(
   "admin.data",
@@ -97,8 +98,8 @@ export default requirePermission(
         itemsAlreadyOnFloor,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Backfill failed";
-      return res.status(500).json({ error: message });
+      logError("Consignment revert of returned rugs failed", err);
+      return res.status(500).json({ error: "Backfill failed" });
     }
   },
 );

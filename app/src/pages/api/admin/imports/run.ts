@@ -129,11 +129,12 @@ export default requirePermission(
         },
       });
     } catch (err: unknown) {
+      logError("import definition run failed", err);
       // getImportRunner throws for an unregistered key with an operator-readable
       // message; surfaced as a 409 rather than swallowed into a generic 500.
-      const message = err instanceof Error ? err.message : "Import failed";
-      logError("import definition run failed", err);
-      return res.status(message.includes("is not registered") ? 409 : 500).json({ error: message });
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("is not registered")) return res.status(409).json({ error: message });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

@@ -15,8 +15,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       const balance = await calculateOrderBalance(orderId);
       return res.status(200).json(balance);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Internal server error";
-      return res.status(500).json({ error: msg });
+      logError("GET /sales/orders/[orderId]/payments error", err);
+      return res.status(500).json({ error: "Couldn't load the order's payments." });
     }
   }
 

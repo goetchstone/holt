@@ -4,19 +4,26 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { parseZSupplyPDF } from "@/lib/pricing/zSupplyParser";
 import fs from "fs";
-import { createSecureForm } from "@/lib/secureUpload";
+import {
+  createSecureForm,
+  noFileMessage,
+  uploadRefusal,
+  type UploadPresetName,
+} from "@/lib/secureUpload";
 import { logError } from "@/lib/logger";
 
 export const config = { api: { bodyParser: false } };
+
+const UPLOAD: UploadPresetName = "PDF";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const form = createSecureForm("PDF");
+    const form = createSecureForm(UPLOAD);
     const [, files] = await form.parse(req);
     const file = Array.isArray(files.file) ? files.file[0] : files.file;
-    if (!file) return res.status(400).json({ error: "No file uploaded" });
+    if (!file) return res.status(400).json({ error: noFileMessage(UPLOAD) });
 
     const buffer = fs.readFileSync(file.filepath);
     const parsed = await parseZSupplyPDF(buffer);
@@ -49,9 +56,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     return res.status(200).json(normalized);
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const refused = uploadRefusal(error, UPLOAD);
+    if (refused) return res.status(refused.status).json({ error: refused.error });
     logError("Z Supply preview error", error);
-    return res.status(500).json({ error: msg || "Parse failed" });
+    return res.status(500).json({ error: "Parse failed" });
   }
 }
 

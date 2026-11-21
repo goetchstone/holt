@@ -5,10 +5,11 @@
 // as RETURNED_VENDOR.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
+import { consignmentVendorOr404 } from "@/lib/consignmentVendor";
 import { prisma } from "@/lib/prisma";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 export default requirePermission(
   "inventory.adjust",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
@@ -26,12 +27,8 @@ export default requirePermission(
     try {
       // By flag, not by name. A deployment that does not consign gets a clear
       // 404 rather than a route that silently matches nothing.
-      const consignmentVendorId = await getPrimaryConsignmentVendorId(prisma);
-      if (!consignmentVendorId) {
-        return res.status(404).json({
-          error: "No consignment vendor configured. Set isConsignment on the vendor first.",
-        });
-      }
+      const consignmentVendorId = await consignmentVendorOr404(prisma, res);
+      if (consignmentVendorId === null) return;
 
       // Look up items by barcode
       const items = await prisma.consignmentItem.findMany({
@@ -92,8 +89,8 @@ export default requirePermission(
         alreadyReturned,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return res.status(500).json({ error: message });
+      logError("Consignment vendor return import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

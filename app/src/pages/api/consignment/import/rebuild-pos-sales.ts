@@ -10,6 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 export default requirePermission(
   "admin.data",
@@ -160,8 +161,8 @@ export default requirePermission(
         outstandingTotal: Math.round(outstandingTotal * 100) / 100,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Rebuild failed";
-      return res.status(500).json({ error: message });
+      logError("Consignment rebuild of POS sales failed", err);
+      return res.status(500).json({ error: "Rebuild failed" });
     }
   },
 );

@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 async function handler(
   req: NextApiRequest,
@@ -59,8 +60,8 @@ async function handler(
 
     return res.json({ returns: safeReturns, costVisible: showCost });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return res.status(500).json({ error: message });
+    logError("Consignment vendor returns list failed", err);
+    return res.status(500).json({ error: "Couldn't load the vendor returns." });
   }
 }
 
