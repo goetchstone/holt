@@ -851,6 +851,26 @@ describe("printing from receiving in a batch", () => {
     const none = await post(batchHandler, { items: [{ productId: sofa.id }] });
     expect(none.body).toMatchObject({ results: [{ success: true }] });
   });
+
+  it("answers a POST with no body 400, and a null item fails on its own", async () => {
+    // Next gives req.body as null when nothing was sent; destructuring it was a 500.
+    const empty = await post(batchHandler, null);
+    expect(empty.statusCode).toBe(400);
+    expect(empty.body).toEqual({ error: "items array is required" });
+
+    const withNull = await post(batchHandler, {
+      items: [null, { productId: sofa.id }],
+      storeLocationId: mill.id,
+    });
+    expect(withNull.statusCode).toBe(200);
+    expect(withNull.body).toMatchObject({
+      message: "1/2 labels printed",
+      results: [
+        { success: false, error: "productId is required" },
+        { success: true, productId: sofa.id },
+      ],
+    });
+  });
 });
 
 describe("how someone prints tags", () => {

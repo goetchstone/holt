@@ -77,6 +77,8 @@ ADMIN-only for printer-config CRUD.
 
 The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per call); the item limit lives in `lib/labels/batchPrintShared.ts`, which the route and the screens share, and the copies limit is `MAX_TAG_COPIES` above. Beyond that, a screen slices the work into multiple batch calls (`inBatches`), as the Sales screen's "Print all" does; at 10 requests a minute, a run of more than 500 tags is stopped by the rate limit and the screen says how many printed before it. The cap prevents accidentally queuing the entire catalog when a filter glitches.
 
+**What the batch reads from its body**, and the 400s it answers, are `readBatchPrintRequest` in `lib/labels/batchPrintRequest.ts` (since 2026-11-21; the route looks up the store and prints). In order: `items` must be a non-empty array of at most 50, `kind` absent or PRODUCT, SALE or LAW, and `storeLocationId` is a store's id when given. Then each item on its own: no `productId` fails it with "productId is required", and its `copies` (1 when left out) go through `validateTagCopies`. It never throws, so a POST with no body (Next gives `null`) is a 400 "items array is required", and an item that isn't an object fails on its own. Until then both were a 500 that echoed the TypeError, with any item before a null one already printed. It's server only, because `validateTagCopies` lives in `lib/labelPrinter.ts`, which builds the Prisma client; `batchPrintShared.ts`, which the screens import, stays free of it.
+
 ## HTML print pages
 
 `app/print/receipt/[id]/ReceiptPrintView.tsx` (80mm thermal, 203 DPI; pinned against source 2026-10-17):
@@ -136,7 +138,7 @@ Add a printer: store its IP and save. There is no ping test in the admin UI (che
 |---|---|
 | `labelPrinter.ts` retry logic | Unit tests TBD — **gap**, would mock the `net.Socket` |
 | Template rendering | `labelRender.test.ts`: each context's fields, ZPL escaping |
-| Batch endpoint caps | Copies: fourteen refused in `tags.integration.test.ts`; none for the item cap; `kind` in `scheduledSales.integration.test.ts`; `inBatches` in `scheduledSalesScreen.test.ts` |
+| Batch endpoint caps and request rules | `batchPrintRequest.test.ts` (50 items taken and 51 refused, each `kind`, `storeLocationId`, a missing `productId` or null item, copies accepted and refused, order, and a property that no JSON body throws); the route in `tags.integration.test.ts` (fourteen copies refused; no body a 400) and `kind` in `scheduledSales.integration.test.ts`; `inBatches` in `scheduledSalesScreen.test.ts` |
 | Receiving's tag copies | `labelCopies.test.ts` (`receivedTagCopies`, with a property over every quantity a receipt holds, and `receivedTagsShortNote`); `tags.integration.test.ts` (`receivedTagCopies(14)` prints ten) |
 | Sale tag during a scheduled sale | `scheduledSales.integration.test.ts` (sale price, regular as was, `saleEnds`; PRODUCT tag at the sale price) and `scheduledSales.test.ts` (`saleTagFields`) |
 | Receipt total cross-check | None — should be a real-DB integration |
@@ -150,4 +152,4 @@ Add a printer: store its IP and save. There is no ping test in the admin UI (che
 - ZPL preview (render-to-PNG locally before sending) would help template authoring
 
 ---
-Last verified: 2026-05-20; tags during a scheduled sale, batch `kind` and tags to change 2026-11-14; receiving's tag copies 2026-11-21 against source.
+Last verified: 2026-05-20; tags during a scheduled sale, batch `kind` and tags to change 2026-11-14; receiving's tag copies and the batch's request rules 2026-11-21 against source.
