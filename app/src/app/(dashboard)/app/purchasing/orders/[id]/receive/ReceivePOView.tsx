@@ -19,6 +19,7 @@ import type { TagPrintMode } from "@/lib/labels/tagPrintMode";
 import { RECEIPT_CONDITIONS } from "@/lib/purchasing/receiptConditions";
 import { getErrorMessage } from "@/lib/toastError";
 import { api } from "@/lib/trpc/client";
+import { TagsOwedNotice, withTagsOwed } from "./TagsOwedNotice";
 
 interface LineItem {
   id: number;
@@ -89,6 +90,8 @@ export function ReceivePOView({ id }: { id: string }) {
   const [lineStates, setLineStates] = useState<ReceiveLineState[]>([]);
   const [printed, setPrinted] = useState<Record<number, number>>({});
   const [printingLine, setPrintingLine] = useState<number | null>(null);
+  // What receipts left to print, kept until the receiver dismisses it (TagsOwedNotice).
+  const [tagsOwed, setTagsOwed] = useState<string[]>([]);
   const me = api.account.me.useQuery();
   const saveMode = api.account.setTagPrintMode.useMutation();
   const [chosenMode, setChosenMode] = useState<TagPrintMode | null>(null);
@@ -194,7 +197,8 @@ export function ReceivePOView({ id }: { id: string }) {
       // A line asks for one tag per piece of a count, at most MAX_TAG_COPIES, and one
       // for a length (receivedTagCopies), in requests of at most 50 lines, the most
       // the batch route takes (printReceivedTags). The receiver is told what did
-      // not print, batch by batch, and which lines are left with pieces to tag.
+      // not print, batch by batch, and the lines left with pieces to tag stay on
+      // the screen until dismissed.
       if (printItems?.length > 0) {
         const lines = (printItems as { productId: number; quantity: number }[]).map((pi) => {
           const line = po.lineItems.find((li) => li.productId === pi.productId);
@@ -210,7 +214,7 @@ export function ReceivePOView({ id }: { id: string }) {
         const { errors, note } = receivedTagsReport(lines, batches);
         if (errors.length > 0) errors.forEach((error) => toast.error(error));
         else toast.success("Tags sent to printer");
-        if (note) toast.warning(note);
+        setTagsOwed((notes) => withTagsOwed(notes, note));
       }
 
       const poRes = await axios.get(`/api/purchasing/orders/${po.id}`);
@@ -276,6 +280,8 @@ export function ReceivePOView({ id }: { id: string }) {
           </p>
         )}
       </div>
+
+      <TagsOwedNotice notes={tagsOwed} onDismiss={() => setTagsOwed([])} />
 
       {/* Config bar: receiving location, and how this person prints tags */}
       <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm p-3 space-y-3">
