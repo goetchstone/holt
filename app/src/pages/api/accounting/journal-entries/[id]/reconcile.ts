@@ -95,8 +95,7 @@ export async function handleReconcile(
     res.status(200).json(result);
   } catch (err: unknown) {
     logError(`Reconciliation failed for JE ${id}`, err);
-    const message = err instanceof Error ? err.message : "Reconciliation failed";
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: "Reconciliation failed" });
   }
 }
 

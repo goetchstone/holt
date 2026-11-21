@@ -31,6 +31,7 @@ import { logger } from "@/lib/logger";
 import { photoField } from "@/lib/labels/photo";
 import { ZplGraphic } from "@/lib/labels/renderTemplate";
 import { MAX_TAG_COPIES } from "@/lib/labels/productTag";
+import { receivedTagCopies } from "@/lib/labels/tagCopies";
 import { UPLOAD_ROOT } from "@/lib/secureUpload";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { handler as printHandler } from "@/pages/api/print-label";
@@ -819,6 +820,28 @@ describe("printing from receiving in a batch", () => {
     expect(printerAtMill.received().match(/\^XA/g)).toHaveLength(2);
   });
 
+  it("prints ten of a line of fourteen, as receiving asks, and still refuses fourteen", async () => {
+    // The Receive PO screen asked for the quantity received, so from #127 a line
+    // of more than ten printed none of its tags. It asks for receivedTagCopies now.
+    const asked = await post(batchHandler, {
+      items: [{ productId: sofa.id, copies: 14 }],
+      storeLocationId: mill.id,
+    });
+    expect(asked.body).toMatchObject({
+      results: [{ success: false, error: "copies must be a whole number from 1 to 10." }],
+    });
+
+    const { copies, untagged } = receivedTagCopies(14);
+    expect(untagged).toBe(4);
+    const printed = await post(batchHandler, {
+      items: [{ productId: sofa.id, copies }],
+      storeLocationId: mill.id,
+    });
+    expect(printed.body).toMatchObject({ results: [{ success: true, printer: "Mill Zebra" }] });
+    await settled();
+    expect(printerAtMill.received().match(/\^XA/g)).toHaveLength(MAX_TAG_COPIES);
+  });
+
   it("refuses a store that doesn't exist, and still works with none named", async () => {
     const bad = await post(batchHandler, {
       items: [{ productId: sofa.id }],
@@ -827,6 +850,27 @@ describe("printing from receiving in a batch", () => {
     expect(bad.statusCode).toBe(400);
     const none = await post(batchHandler, { items: [{ productId: sofa.id }] });
     expect(none.body).toMatchObject({ results: [{ success: true }] });
+  });
+
+  it("answers a JSON body of null 400, and a null item fails on its own", async () => {
+    // req.body is null only for the JSON literal null (a POST with no body parses
+    // to "" or {}, which was already a 400); destructuring it was a 500.
+    const empty = await post(batchHandler, null);
+    expect(empty.statusCode).toBe(400);
+    expect(empty.body).toEqual({ error: "items array is required" });
+
+    const withNull = await post(batchHandler, {
+      items: [null, { productId: sofa.id }],
+      storeLocationId: mill.id,
+    });
+    expect(withNull.statusCode).toBe(200);
+    expect(withNull.body).toMatchObject({
+      message: "1/2 labels printed",
+      results: [
+        { success: false, error: "productId is required" },
+        { success: true, productId: sofa.id },
+      ],
+    });
   });
 });
 

@@ -6,7 +6,7 @@
 //
 // Triggered by:
 //   - scripts/auto-mailchimp-customer-sync.sh (external cron, daily)
-//   - "Sync new customers" button on /admin/automations/mailchimp-sync
+//   - "Push new customers" button on /app/admin/automations/mailchimp-sync
 //
 // Auth: Bearer AUTO_IMPORT_API_KEY (cron) or authenticated session (UI).
 
@@ -14,7 +14,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { logError, logger } from "@/lib/logger";
-import { runCustomerAudienceSync } from "@/lib/mailchimpAudienceSync";
+import { MailchimpNotConfiguredError, runCustomerAudienceSync } from "@/lib/mailchimpAudienceSync";
 
 async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
@@ -42,9 +42,12 @@ async function run(req: NextApiRequest, res: NextApiResponse, session: Session |
 
     return res.status(200).json(result);
   } catch (err: unknown) {
+    // No usable key or audience: refused before any work, with what to set.
+    if (err instanceof MailchimpNotConfiguredError) {
+      return res.status(400).json({ error: err.message });
+    }
     logError("Mailchimp customer sync failed", err);
-    const message = err instanceof Error ? err.message : "unknown error";
-    return res.status(500).json({ error: message });
+    return res.status(500).json({ error: "Mailchimp customer sync failed" });
   }
 }
 

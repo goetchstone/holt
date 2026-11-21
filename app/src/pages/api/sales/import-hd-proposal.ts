@@ -6,6 +6,7 @@ import { parseHDProposal } from "@/lib/pricing/hdProposalParser";
 import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -276,8 +277,8 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      logError("HD proposal import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

@@ -4,6 +4,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 export default requirePermission(
   "admin.data",
@@ -22,8 +23,8 @@ export default requirePermission(
       });
       return res.json({ updated: result.count });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return res.status(500).json({ error: message });
+      logError("Consignment bulk reset of missing items failed", err);
+      return res.status(500).json({ error: "Couldn't put the missing items back on the floor." });
     }
   },
 );
