@@ -1,10 +1,13 @@
 // /app/src/lib/hooks/useEffectiveRole.ts
 //
-// Returns the effective role for the current user. If the user is an ADMIN
-// with an active impersonation cookie, returns the impersonated role instead.
+// Returns the effective role for the current user. If the user may View as
+// (their own role holds a key of IMPERSONATE) and has an active impersonation
+// cookie, returns the impersonated role instead.
 
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { resolveViewerPermissions } from "@/lib/auth/navPermissions";
+import { mayImpersonate } from "@/lib/auth/roleDecision";
 
 const COOKIE_NAME = "holt-impersonate";
 
@@ -45,10 +48,13 @@ export function useEffectiveRole(): {
     setImpersonatedRole(getCookie(COOKIE_NAME));
   }, []);
 
-  // SUPER_ADMIN + ADMIN can both impersonate. Origin 2026-05-19: first
-  // SUPER_ADMIN login lost the impersonation feature because the gate
-  // only matched "ADMIN".
-  const canImpersonate = realRole === "SUPER_ADMIN" || realRole === "ADMIN";
+  // Who may View as: the server's rule (IMPERSONATE in roleDecision.ts), read
+  // from the session's keys, which are the REAL role's. A rule of its own here
+  // would let the banner and the menu claim a View as the server ignores, or
+  // hide one it applies. (A role-name copy of the rule once lost the Owner the
+  // feature, 2026-05-19: it matched only "ADMIN".)
+  const held = resolveViewerPermissions(session, null);
+  const canImpersonate = mayImpersonate((key) => held.includes(key));
   const isImpersonating = canImpersonate && impersonatedRole !== null;
   const effectiveRole = isImpersonating ? impersonatedRole! : realRole;
 

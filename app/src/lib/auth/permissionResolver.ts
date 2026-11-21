@@ -44,6 +44,7 @@ import {
   decidePermissionAccess,
   decideRoleAccess,
   describeRequirement,
+  mayImpersonate,
   type PermissionDecision,
   type PermissionRequirement,
   type RoleDecision,
@@ -286,6 +287,22 @@ function grantContext(
 }
 
 /**
+ * May this staff row's own role View as another? Its linked Role's keys, or the
+ * enum's when unlinked, exactly as grantContext resolves the real role for a
+ * permission gate, so the role-list path and the permission path agree on who
+ * may View as. The permission path needs no call: decidePermissionAccess reads
+ * the same keys from the grants it is given.
+ */
+function realRoleMayImpersonate(
+  staff: { role: string; roleId: number | null },
+  table: RoleGrantTable,
+): boolean {
+  const linkedKey = staff.roleId != null ? table.keyById[staff.roleId] : undefined;
+  const held = grantsForRoleKey(table, linkedKey ?? staff.role);
+  return mayImpersonate((key) => held.includes(key));
+}
+
+/**
  * Which of `keys` the caller holds, beside whatever admitted them: what lets
  * one route serve two audiences (a cost column for those holding "View cost",
  * the same screen without it for the rest) from the same staff read. Decided
@@ -328,8 +345,9 @@ function holdsFor(
  *     revokes access immediately rather than at session expiry.
  *   - No ACTIVE staff row means no role — NOT a default of DESIGNER, which used
  *     to make any session-holder staff.
- *   - Impersonation is honoured only for a real SUPER_ADMIN/ADMIN and only ever
- *     reduces privilege (resolveEffectiveRole, shared with decideRoleAccess).
+ *   - Impersonation is honoured only for a real role holding a key of
+ *     IMPERSONATE (roleDecision.ts) and only ever reduces privilege
+ *     (resolveEffectiveRole, shared with decideRoleAccess).
  *   - The bootstrap safeguard still applies when no privileged user exists yet.
  */
 export async function resolvePermissionAccess(
@@ -455,9 +473,13 @@ export interface RoleListAccessResult extends RoleDecision {
  *     DESIGNER, as before.
  *   - The list is matched against the StaffRole ENUM, not Role.key. Role lists
  *     are legacy gates; new gates use permission keys (PERM-01).
- *   - Impersonation only ever reduces (decideRoleAccess).
+ *   - Who may View as is decided on the real role's KEYS (IMPERSONATE), as on
+ *     the permission path, and impersonation only ever reduces: the real role
+ *     must pass the list too (decideRoleAccess).
  *
- * One staff read; the privileged count is read only when the role check fails.
+ * One staff read; the privileged count is read only when the role check fails,
+ * and the cached grant table only when a key is asked for or a View-as cookie
+ * came with the request.
  */
 export async function resolveRoleListAccess(
   input: RoleListAccessInput,
@@ -485,6 +507,8 @@ export async function resolveRoleListAccess(
       allowedRoles,
       realRole: "DESIGNER",
       impersonate: input.impersonate,
+      // No staff row is no role, so no key to View as with.
+      canImpersonate: false,
       privilegedCount,
     });
     // With no staff row and nobody privileged, any admission is the safeguard,
@@ -497,19 +521,21 @@ export async function resolveRoleListAccess(
     };
   }
 
-  // The grant table is read only when a key was asked for (it is cached, but a
-  // plain role-list gate has no use for it).
-  const ctx = input.also?.length
-    ? grantContext(staff, input.impersonate, await getRoleGrantTable(client))
-    : null;
+  // The grant table is read only when a key was asked for or a View-as cookie
+  // came with the request (it is cached, but a plain role-list gate has no use
+  // for it).
+  const table = input.also?.length || input.impersonate ? await getRoleGrantTable(client) : null;
+  const ctx = table && input.also?.length ? grantContext(staff, input.impersonate, table) : null;
   const holds = (bootstrapBypass: boolean) =>
     holdsFor(ctx, input.impersonate, input.also, bootstrapBypass);
+  const canImpersonate = table !== null && realRoleMayImpersonate(staff, table);
 
   const decide = (privilegedCount: number) =>
     decideRoleAccess({
       allowedRoles,
       realRole: staff.role,
       impersonate: input.impersonate,
+      canImpersonate,
       privilegedCount,
     });
 

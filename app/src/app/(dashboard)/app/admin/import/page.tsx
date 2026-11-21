@@ -1,11 +1,12 @@
 // /app/src/app/(dashboard)/app/admin/import/page.tsx
 //
-// Import Tools hub -- App Router port of the legacy admin/import/index.
-// MANAGER / ADMIN (mirrors the legacy withAuth roles). Cards self-filter by role
-// via CardGrid; hrefs are unchanged so existing links keep working. Chrome from
-// the (dashboard) layout.
+// Import Tools hub -- App Router port of the legacy admin/import/index, on
+// Destructive data operations. A card shows only to a viewer holding the key of
+// the page it opens (lib/auth/hubCards.ts); hrefs are unchanged so existing
+// links keep working. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -25,14 +26,12 @@ const ITEMS: CardGridItem[] = [
     title: "Windfall Enrichment",
     description: "Import wealth and lifestyle data from Windfall-enriched customer CSVs.",
     href: "/app/admin/import/windfall",
-    roles: ["ADMIN"],
   },
   {
     title: "Customer Service Sheet",
     description:
       "Sync the Excel-based Customer Service Sheet (active + completed cases + threaded comments) into the ERP's ServiceCase + ServiceCaseNote tables. Idempotent -- re-uploading the same file only applies deltas.",
     href: "/app/admin/import/service-cases",
-    roles: ["ADMIN"],
   },
   {
     title: "Consignment Import",
@@ -42,6 +41,9 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function ImportToolsHubPage() {
-  await requirePage(undefined, { permission: "admin.data" });
-  return <CardGrid title="Import Tools" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "admin.data",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="Import Tools" items={visibleHubCards(ITEMS, holds)} />;
 }
