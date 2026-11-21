@@ -191,8 +191,9 @@ export function ReceivePOView({ id }: { id: string }) {
 
       // Auto-route print: each product routes to the correct template and printer
       // based on its category's label template and the printer's loaded tag size.
-      // A line asks for one tag per piece, at most MAX_TAG_COPIES (receivedTagCopies);
-      // the receiver is told which lines that left with pieces still to tag.
+      // A line asks for one tag per piece of a count, at most MAX_TAG_COPIES, and one
+      // for a length (receivedTagCopies); the receiver is told which lines that left
+      // with pieces still to tag.
       if (printItems?.length > 0) {
         try {
           const tags = (printItems as { productId: number; quantity: number }[]).map((pi) => ({

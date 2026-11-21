@@ -53,22 +53,28 @@ describe("receivedTagCopies (the Receive PO screen's tag print)", () => {
     [7, 7, 0],
     [MAX_TAG_COPIES, MAX_TAG_COPIES, 0],
     [14, MAX_TAG_COPIES, 4],
-    // A quantity is a length too (a part roll), never truncated: a part piece is a piece.
-    [12.5, MAX_TAG_COPIES, 3],
-    [2.5, 3, 0],
-    [0.25, 1, 0],
-  ])("%p received asks for %p tags and leaves %p to print", (quantity, copies, untagged) => {
+    [30, MAX_TAG_COPIES, 20],
+  ])("%p pieces received ask for %p tags and leave %p to print", (quantity, copies, untagged) => {
     expect(receivedTagCopies(quantity)).toEqual({ copies, untagged });
   });
 
-  it("asks for copies the bound accepts for any quantity a receipt holds, one per piece", () => {
+  // A fractional quantity can only be a length: a part roll of fabric or
+  // wallpaper, received as 12.5 yards (lib/inventory/qtyInput.ts; schema.prisma,
+  // InventoryPosition.quantity). It is one item, so it gets one tag, and nothing
+  // is left to print for it.
+  it.each([12.5, 2.5, 0.25, 12.625])("%p received, a length, asks for one tag", (quantity) => {
+    expect(receivedTagCopies(quantity)).toEqual({ copies: 1, untagged: 0 });
+  });
+
+  it("asks for copies the bound accepts for any quantity a receipt holds", () => {
     // parseQty keeps a received quantity positive, to three places.
     fc.assert(
       fc.property(fc.integer({ min: 1, max: 10_000_000 }), (thousandths) => {
         const quantity = thousandths / 1000;
         const { copies, untagged } = receivedTagCopies(quantity);
         expect(boundedTagCopies(copies)).toBe(copies);
-        expect(copies + untagged).toBe(Math.ceil(quantity));
+        // One tag per piece of a count; one for a length, which is one item.
+        expect(copies + untagged).toBe(Number.isInteger(quantity) ? quantity : 1);
       }),
     );
   });
@@ -85,11 +91,15 @@ describe("receivedTagsShortNote", () => {
       receivedTagsShortNote([
         { name: "Sofa", ...receivedTagCopies(14) },
         { name: "Lamp", ...receivedTagCopies(2) },
-        { name: "Linen", ...receivedTagCopies(12.5) },
+        { name: "Chair", ...receivedTagCopies(30) },
       ]),
     ).toBe(
-      "Sofa: 10 tags printed, 4 still to print; Linen: 10 tags printed, 3 still to print. " +
+      "Sofa: 10 tags printed, 4 still to print; Chair: 10 tags printed, 20 still to print. " +
         "A print takes at most 10 of one tag, so print the rest from the product's page.",
     );
+  });
+
+  it("asks for no more tags for a part roll: its one tag is all it needs", () => {
+    expect(receivedTagsShortNote([{ name: "Linen", ...receivedTagCopies(12.5) }])).toBeNull();
   });
 });

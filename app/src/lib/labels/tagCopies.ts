@@ -25,21 +25,32 @@ export function tagCopiesProblem(copies: unknown): string | null {
 }
 
 /**
- * The tags receiving prints for a quantity received: one per piece, a part piece
- * counting as one, since a quantity can be a length (a part roll) and the receive
- * flow never truncates one. At most MAX_TAG_COPIES, as the batch print clamped them
- * before #127: since then it refuses more, and the Receive PO screen, which asked
- * for the quantity itself, printed none of a line of more than ten or of a part
- * roll. `untagged` is the pieces that leaves without a tag. The bound itself is
+ * The tags receiving prints for a quantity received.
+ *
+ * A fractional quantity can only be a length: a part roll of fabric or wallpaper
+ * arrives as 12.5 yards, and the receive flow keeps it as that length, never
+ * truncated (lib/inventory/qtyInput.ts). It is one item, so it gets one tag and
+ * leaves none to print. A whole number is a count of pieces: one tag each, at most
+ * MAX_TAG_COPIES, and `untagged` is the pieces that leaves without one. Nothing
+ * records a unit, so a whole-number length (a 30-yard bolt) reads as 30 pieces:
+ * an owner question (printing.md).
+ *
+ * At most MAX_TAG_COPIES, as the batch print clamped them before #127: since then
+ * it refuses more, and the Receive PO screen, which asked for the quantity itself,
+ * printed none of a line of more than ten or of a part roll. The bound itself is
  * unchanged: every other caller asking for more is still refused.
  */
 export function receivedTagCopies(quantity: number): { copies: number; untagged: number } {
-  const pieces = Math.max(1, Math.ceil(quantity));
+  if (!Number.isInteger(quantity)) return { copies: 1, untagged: 0 };
+  const pieces = Math.max(1, quantity);
   const copies = Math.min(pieces, MAX_TAG_COPIES);
   return { copies, untagged: pieces - copies };
 }
 
-/** What receiving tells the receiver about lines left with pieces to tag, or null. */
+/**
+ * What receiving tells the receiver about lines left with pieces to tag, or null.
+ * Only a count of more than MAX_TAG_COPIES pieces leaves any: a length has its one.
+ */
 export function receivedTagsShortNote(
   lines: readonly { name: string; copies: number; untagged: number }[],
 ): string | null {
