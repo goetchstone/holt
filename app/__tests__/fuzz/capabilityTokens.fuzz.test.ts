@@ -15,6 +15,7 @@
 
 import fc from "fast-check";
 import { signBookingId, verifyBookingToken } from "@/lib/booking/icsToken";
+import { signCapabilityToken } from "@/lib/capabilityToken";
 import { generatePortalToken, verifyPortalToken } from "@/lib/portalToken";
 import { generateClientPortalToken, verifyClientPortalToken } from "@/lib/clientPortalToken";
 import {
@@ -161,6 +162,30 @@ describe("portal capability tokens (lib/capabilityToken.ts)", () => {
         expect(verifyTicketAttachmentToken(client)).toBeNull();
         expect(verifyPortalToken(file)).toBeNull();
         expect(verifyClientPortalToken(file)).toBeNull();
+      }),
+    );
+  });
+
+  it("refuses a ticket-file claim signed for a portal, and a portal claim signed for files", () => {
+    // The six checks above refuse on claim shape: the file family's claims
+    // overlap neither portal's. These carry exactly the claims each verifier
+    // wants, signed for the wrong family, so only the family's own key refuses
+    // them. The last line is the control that the file family's audience is
+    // the one these tokens name.
+    const id = fc.integer({ min: 1, max: 2 ** 31 - 1 });
+    const FILE = "holt-ticket-attachment";
+    fc.assert(
+      fc.property(id, id, (attachmentId, customerId) => {
+        for (const portal of ["holt-portal", "holt-client-portal"]) {
+          const claim = signCapabilityToken({ attachmentId }, portal, 60);
+          expect(verifyTicketAttachmentToken(claim)).toBeNull();
+        }
+        const order = signCapabilityToken({ orderId: attachmentId, customerId }, FILE, 60);
+        expect(verifyPortalToken(order)).toBeNull();
+        expect(verifyClientPortalToken(signCapabilityToken({ customerId }, FILE, 60))).toBeNull();
+        expect(
+          verifyTicketAttachmentToken(signCapabilityToken({ attachmentId }, FILE, 60)),
+        ).toEqual({ attachmentId });
       }),
     );
   });

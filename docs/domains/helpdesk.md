@@ -51,9 +51,12 @@ Other helpers:
 - `token.ts` — `generateTicketToken()` (`randomBytes(24).base64url`).
 - `requestBody.ts` — zod parsers: `parseTicketCreateInput` (public submit),
   `parseTicketUpdateInput` (staff triage, ≥1 field), `parseTicketMessageInput`.
+- `publicAuthor.ts` — how the public status page names who wrote or uploaded:
+  `PUBLIC_STAFF_NAME` ("Support"), `customerUploaderName`, `publicUploaderName`
+  ("Ticket attachments" below).
 
 Tests: `__tests__/ticketContract.test.ts`, `ticketNumbering.test.ts`,
-`ticketRequestBody.test.ts`.
+`ticketRequestBody.test.ts`, `ticketPublicAuthor.test.ts`.
 
 ## API (`pages/api/tickets/`)
 
@@ -64,7 +67,7 @@ Tests: `__tests__/ticketContract.test.ts`, `ticketNumbering.test.ts`,
 | `/api/tickets/[id]` | GET | staff | Full ticket incl. internal notes |
 | `/api/tickets/[id]` | PATCH | staff | Triage: status (transition-validated) / priority / assignee / subject; manages `resolvedAt` |
 | `/api/tickets/[id]/messages` | POST | staff | Add a public reply or internal note; author resolved from session → StaffMember |
-| `/api/tickets/public/[token]` | GET | public | Status + public thread (internal notes filtered); each attachment's `url` is a fresh one-hour file link, never the stored path |
+| `/api/tickets/public/[token]` | GET | public | Status + public thread (internal notes filtered); each attachment's `url` is a fresh one-hour file link, never the stored path; a staff reply or file reads "Support" |
 | `/api/tickets/public/[token]` | POST | public (rate-limited) | Customer reply; reopens a WAITING/RESOLVED ticket to OPEN |
 | `/api/tickets/public/[token]/attachment` | POST | public (rate-limited 5/min) | Customer adds a file; answers with the file's one-hour link |
 | `/api/tickets/public/files/[token]` | GET | signed per-file token (rate-limited 30/min) | Streams one attachment to the customer; 404 for an expired, forged or foreign token, a deleted row, a file outside `attachments/`, or the module off |
@@ -121,10 +124,19 @@ no SVG). `TicketAttachment.url` stores `/uploads/attachments/<name>`.
 - **Staff** open the stored URL from the ticket page (`TicketDetailView`). The
   uploads route serves `attachments/` on "View service" (`service.read`), from
   `UPLOAD_READ_ACCESS` in `lib/secureUpload.ts` (staff-auth.md, "Uploaded
-  files"). The helpdesk roles hold it by default. One gap: a role edited to drop
-  `service.read` whose enum role is still in the helpdesk role lists
-  (`tickets/[id].ts`, `helpdesk/[id]/page.tsx`) opens the ticket but gets 404 on
-  its files, until those gates move to `service.read`.
+  files"). That is the key `PAGE_ACCESS` maps the ticket page to, but it is not
+  the page's gate yet: the page (`helpdesk/[id]/page.tsx`) and
+  `GET /api/tickets/[id]` still admit SUPER_ADMIN, ADMIN and MANAGER only, and
+  the entry carries `widensFrom` (not applied) in `lib/auth/pagePermissions.ts`.
+  The files cannot follow a role list (the manifest takes keys), so the files
+  and the page admit different roles. Every default holder of `service.read`
+  reads ticket files, six of them on a ticket they cannot open: GENERAL_MANAGER,
+  DISPATCH, CUSTOMER_SERVICE, DESIGNER, WAREHOUSE and INSTALLER
+  (`uploadReadAccess.integration.test.ts` reads them as WAREHOUSE, DESIGNER and
+  CUSTOMER_SERVICE). The other way round, a role edited to drop `service.read`
+  whose enum role is still on the list opens the ticket but gets 404 on its
+  files. Both close when the ticket page and its API move onto `service.read`.
+  Before, ticket files were public.
 - **Customers** get a one-hour link per file. `GET /api/tickets/public/[token]`
   mints one for each attachment on every load of the status page
   (`publicTicketAttachmentUrl` in `lib/tickets/attachmentToken.ts`), and the
@@ -134,14 +146,30 @@ no SVG). `TicketAttachment.url` stores `/uploads/attachments/<name>`.
   portal's token opens a file and a file token opens neither portal. The route
   serves only a file in `attachments/`, whatever the row's URL says; an image
   shows inline and a PDF downloads under its stored `<ms>-<hex>` name, with
-  `Cache-Control: private`. A page left open past the hour shows "This file link
-  has expired or is not valid. Reload your request page for a fresh one." when a
-  file is clicked. `TicketStatusView` needed no change: it already renders
-  `href={a.url}`.
+  `Cache-Control: private`. `TicketStatusView` needed no change: it already
+  renders `href={a.url}`. The links open in a new tab (`target="_blank"`), so a
+  link clicked more than an hour after the page loaded opens a tab showing the
+  route's 404 body as raw JSON, an `error` of "This file link has expired or is
+  not valid. Reload your request page for a fresh one."; the status page itself
+  shows nothing.
+
+**Who uploaded it (2026-11-21).** `TicketAttachment.uploadedBy` is display text,
+and the two upload routes fill it differently: the staff upload records the staff
+member's login email (or nothing), and the customer's upload records the name
+they gave (`customerUploaderName` in `lib/tickets/publicAuthor.ts`: the
+submitter name, else the linked customer's name, else "Customer"). The public
+status GET shows a file's uploader only when it is that customer name, and
+"Support" for anything else, as it signs staff replies (`publicUploaderName`).
+It used to send the stored value, so anyone holding a ticket's link saw the
+login email of each staff member who attached a file to it. The staff ticket page
+still shows the stored value.
 
 Tests: `__tests__/capabilityToken.test.ts` and
-`__tests__/fuzz/capabilityTokens.fuzz.test.ts` (the token family);
+`__tests__/fuzz/capabilityTokens.fuzz.test.ts` (the token family, including a
+file claim signed with a portal's key, which only the family's own key refuses);
+`__tests__/ticketPublicAuthor.test.ts` (the uploader name);
 `__tests__/integration/ticketAttachmentLinks.integration.test.ts` (the public
-JSON carries no `/uploads/`, each link opens its own bytes, and a tampered,
-expired, client-portal or deleted-row token, a row pointing at `imports/`, the
+JSON carries no `/uploads/` and no staff email, a staff file reads "Support" and a
+customer's keeps their name, each link opens its own bytes, and a tampered,
+expired, portal-signed or deleted-row token, a row pointing at `imports/`, the
 module off and the raw URL without a session all answer 404).

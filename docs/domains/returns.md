@@ -46,10 +46,11 @@ Auth is mixed. `/api/returns`, `/api/returns/[id]` and `/api/returns/[id]/exchan
 ### The return's line (2026-11-21)
 
 A return is valued from its line when it is paid out (`bookReturn` reads the line's
-price, tax and cost), so which line a return names is not a label. Two routes write
-`Return.lineItemId` from what a caller sends, and both ask `returnLineProblem()` in
-`lib/returns/returnLine.ts`: the customer's portal request, where a token holder
-names a line, and the staff return link. A line passes when it is on the return's own
+price, tax and cost), so which line a return names is not a label. Three routes write
+`Return.lineItemId` from what a caller sends, and two of them ask `returnLineProblem()`
+in `lib/returns/returnLine.ts`: the customer's portal request, where a token holder
+names a line, and the staff return link. The third, New return, does not (below). A
+line passes `returnLineProblem` when it is on the return's own
 order, still counted (not CANCELLED or REPLACED, `orderedQuantity` above zero: rules 31
 and 33, through `isCountedItemLine`), and goods: not a gift card (the item kind of the
 counted filter leaves it out) and not the order's delivery fee (as `POST /api/returns`
@@ -62,12 +63,22 @@ The portal request also checks its body before Prisma does
 (`parsePortalReturnRequest` in `lib/returns/portalReturn.ts`): an unknown `reason` is
 a 400 naming the `ReturnReason` values (it was a 500 from the enum column). Both portal
 routes answer `PortalReturn` (`lib/returns/portalReturnContract.ts`, imported by both
-portal pages): return number, status, reason, product name, quantity, created and
-customer notes. The request route used to answer with the whole `Return` row.
+portal pages): return number, status, product name, quantity, created and customer
+notes, the fields the two pages read. The reason is stored but not sent back, since
+neither page reads it. The request route used to answer with the whole `Return` row.
 
-`POST /api/returns` (New return) does not use `returnLineProblem` yet: it finds the line
-within the order and refuses a delivery fee, but takes a cancelled or replaced line, and
-an unknown reason there is still a 500.
+**New return is the third writer, and it does not ask `returnLineProblem`**, so this is
+not one guard on every path (CLAUDE.md rule 42). `POST /api/returns` takes the
+`lineItemId` from the body, finds the line within the order, refuses the delivery fee
+(`deliveryFeeLineEditProblem`) and defers a gift card to the store's "Refund unused gift
+cards" setting (`giftCardLineEditProblem`). It checks neither the line's status nor its
+quantity, so staff holding `sales.return` can start a return on a cancelled or replaced
+line, and `bookReturn` values it at that line's price when it is paid out (cancel and
+replace keep the line's price and quantity). A zero-quantity line is taken too, though
+`computeReturnValue` refuses to value it. An unknown reason there is still a 500.
+Moving it onto `returnLineProblem` needs care: that function refuses every gift card,
+where New return honours the store's setting (`giftCardSaleBooks.integration.test.ts`
+returns an unused card through it). Listed under "Known gaps" below.
 
 ## Returned stock: the piece, not the paperwork (since 2026-10-17)
 
@@ -178,6 +189,10 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`.
 
 ## Known gaps (master plan)
 
+- **New return takes a cancelled, replaced or zero-quantity line** (found 2026-11-21).
+  `POST /api/returns` should refuse what `returnLineProblem` refuses, except that a gift
+  card line stays the store's choice (`giftCardLineEditProblem`), and a reason outside
+  `ReturnReason` should be a 400. "The return's line" above has the detail.
 - ✅ **Pickups on a delivery run.** "Add to run" on the pickup schedule makes the pickup a run stop; completing it sets PICKUP_COMPLETED (`lib/fulfilment/returnPickup.ts`, `docs/domains/service-dispatch.md` → "Run stop outcomes"). The run planner does not suggest pickups by zone yet.
 - **Vendor return path** for damaged items (consignment-specific in `docs/domains/consignment.md`; non-consignment vendor returns have no formal workflow)
 

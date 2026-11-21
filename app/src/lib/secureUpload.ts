@@ -117,16 +117,22 @@ export type UploadReadAccess =
  * Who may read the files in each subdir of UPLOAD_ROOT, as served by
  * /api/uploads/[...path] (and /uploads/* through the rewrite in next.config.js).
  *
- * The rule: a subdir takes the key of the screen that shows its files, so
- * granting a role that screen in Roles grants the files behind it. A subdir no
- * screen shows takes admin.data. A subdir not listed here is served to nobody,
- * signed in or not: an unclassified subdir fails closed rather than guessing
- * (CLAUDE.md rule 63). Public means no session at all, so only files the
- * storefront and emails must load are public.
+ * The rule: a subdir takes the key PAGE_ACCESS (lib/auth/pagePermissions.ts)
+ * maps the screen that shows its files to. Where the screen is gated on that
+ * key, granting a role the screen in Roles grants the files behind it. Where it
+ * still checks a role list (a `widensFrom` entry, not applied), the files follow
+ * the key and the screen the list, so they admit different roles until the
+ * screen moves onto its key: ticket files and proposal pictures, each reason
+ * below says how. A subdir no screen shows takes admin.data. A subdir not
+ * listed here is served to nobody, signed in or not: an unclassified subdir
+ * fails closed rather than guessing (CLAUDE.md rule 63). Public means no
+ * session at all, so only files the storefront and emails must load are public.
  *
  * This is a rule-65 manifest: __tests__/uploadsRouteAuth.test.ts fails when a
- * preset or a hand-built path writes a subdir missing here, or when an entry
- * here names a subdir nothing writes.
+ * preset, or a hand-built path that names its subdir as a literal (joined under
+ * "data", "uploads" or UPLOAD_ROOT, or in a stored "/uploads/<subdir>/" URL),
+ * writes a subdir missing here, or when an entry here names a subdir nothing
+ * writes. A subdir held in a variable is not seen: name it as a literal.
  */
 export const UPLOAD_READ_ACCESS: Readonly<Record<string, UploadReadAccess>> = {
   images: {
@@ -144,12 +150,13 @@ export const UPLOAD_READ_ACCESS: Readonly<Record<string, UploadReadAccess>> = {
     public: false,
     permission: "service.read",
     reason:
-      "helpdesk ticket files for staff; customers open theirs through /api/tickets/public/files/[token]",
+      "helpdesk ticket files for staff, on the ticket page's key in PAGE_ACCESS, not yet its gate: the page admits SUPER_ADMIN, ADMIN and MANAGER, while every holder of service.read reads the files; customers open theirs through /api/tickets/public/files/[token]",
   },
   proposals: {
     public: false,
     permission: "sales.read",
-    reason: "proposal line pictures; the proposal page key in PAGE_ACCESS",
+    reason:
+      "proposal line pictures, on the proposal pages' key in PAGE_ACCESS, not yet their gate: the pages admit MANAGER and ADMIN, while every holder of sales.read reads the pictures",
   },
   imports: {
     public: false,
@@ -332,9 +339,14 @@ function notFound(res: NextApiResponse): void {
  * a plain file name, is named in Content-Disposition: `attachment` for a type
  * we force to download, `inline` for an image.
  *
- * A read that fails after the stat (the file removed, unreadable) answers 404
- * while nothing has been sent, and ends the response if it already started,
- * rather than leaving the client waiting: this is reachable from public routes.
+ * A stat that fails answers 404 like a missing file, whatever the reason: a
+ * name the filesystem refuses (a segment past 255 bytes is ENAMETOOLONG) is no
+ * file either. A read that fails after the stat (the file removed, unreadable)
+ * answers 404 while nothing has been sent, and ends the response if it already
+ * started, rather than leaving the client waiting: this is reachable from
+ * public routes.
+ *
+ * A client that has gone, before the send or during it, leaves no file open.
  */
 export function sendUploadedFile(
   res: NextApiResponse,
@@ -342,7 +354,18 @@ export function sendUploadedFile(
   opts: { cache: "public" | "private"; downloadName?: string },
 ): void {
   const resolved = assertInsideRoot(filePath);
-  const stat = fs.statSync(resolved, { throwIfNoEntry: false });
+  // A caller may wait on a session or a database read before it gets here (a
+  // private subdir, a ticket file). A client that left meanwhile has a response
+  // that has already closed, and the 'close' listener below would never fire:
+  // open nothing for it.
+  if (res.destroyed) return;
+
+  let stat: fs.Stats | undefined;
+  try {
+    stat = fs.statSync(resolved, { throwIfNoEntry: false });
+  } catch {
+    return notFound(res);
+  }
   if (!stat?.isFile()) return notFound(res);
 
   const ext = path.extname(resolved).toLowerCase();
@@ -384,7 +407,7 @@ export function sendUploadedFile(
     }
     notFound(res);
   });
-  // A client that goes away mid-download must not leave the file open.
+  // A client that goes away from here on closes the file with it.
   res.on("close", () => stream.destroy());
   stream.pipe(res);
 }

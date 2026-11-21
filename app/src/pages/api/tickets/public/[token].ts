@@ -7,12 +7,15 @@
 //   POST -- the customer adds a reply; a reply on a WAITING/RESOLVED ticket
 //           reopens it so it returns to the staff queue.
 // Internal notes never leave the building here -- the query filters them out.
+// Nor does staff identity: a staff reply or file reads "Support"
+// (lib/tickets/publicAuthor.ts).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
 import { parseTicketMessageInput } from "@/lib/tickets/requestBody";
 import { publicTicketAttachmentUrl } from "@/lib/tickets/attachmentToken";
+import { PUBLIC_STAFF_NAME, publicUploaderName } from "@/lib/tickets/publicAuthor";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
@@ -27,6 +30,7 @@ async function handleGet(token: string, res: NextApiResponse) {
       status: true,
       priority: true,
       submitterName: true,
+      customer: { select: { firstName: true, lastName: true } },
       created: true,
       messages: {
         where: { isInternal: false },
@@ -46,8 +50,16 @@ async function handleGet(token: string, res: NextApiResponse) {
     id: m.id,
     body: m.body,
     created: m.created,
-    author: m.authorStaffId ? "Support" : (m.authorName ?? "You"),
+    author: m.authorStaffId ? PUBLIC_STAFF_NAME : (m.authorName ?? "You"),
     fromStaff: m.authorStaffId != null,
+  }));
+  // The same for files: a staff upload records the staff login email.
+  const attachments = ticket.attachments.map((a) => ({
+    id: a.id,
+    filename: a.filename,
+    uploadedBy: publicUploaderName(a.uploadedBy, ticket),
+    created: a.created,
+    url: publicTicketAttachmentUrl(a.id),
   }));
 
   return res.status(200).json({
@@ -59,10 +71,7 @@ async function handleGet(token: string, res: NextApiResponse) {
       submitterName: ticket.submitterName,
       created: ticket.created,
       messages,
-      attachments: ticket.attachments.map((a) => ({
-        ...a,
-        url: publicTicketAttachmentUrl(a.id),
-      })),
+      attachments,
     },
   });
 }

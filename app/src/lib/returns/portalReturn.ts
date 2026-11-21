@@ -16,7 +16,6 @@ import { isLineItemId, LINE_ITEM_ID_ERROR } from "./returnLine";
 export const PORTAL_RETURN_SELECT = {
   returnNumber: true,
   status: true,
-  reason: true,
   productName: true,
   quantity: true,
   created: true,
@@ -29,7 +28,6 @@ export function toPortalReturn(row: PortalReturnRow): PortalReturn {
   return {
     returnNumber: row.returnNumber,
     status: row.status,
-    reason: row.reason,
     productName: row.productName,
     quantity: toQty(row.quantity),
     created: row.created.toISOString(),

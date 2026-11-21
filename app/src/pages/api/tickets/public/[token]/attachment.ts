@@ -3,7 +3,9 @@
 // POST — the customer adds a file to their own ticket from the public
 // status page. The publicToken IS the authorization (same capability the
 // status/reply endpoint uses). Rate-limited; same hardened upload preset
-// as the staff side. uploadedBy records the ticket's submitter name.
+// as the staff side. uploadedBy records the ticket's submitter name
+// (customerUploaderName, the name the public status GET recognises as the
+// customer's own; lib/tickets/publicAuthor.ts).
 // The answer links the file through its one-hour customer link, never the raw
 // /uploads path, which is staff-only (lib/tickets/attachmentToken.ts).
 
@@ -13,6 +15,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import { prisma } from "@/lib/prisma";
 import { createSecureForm, assertUploadedFileInRoot } from "@/lib/secureUpload";
 import { publicTicketAttachmentUrl } from "@/lib/tickets/attachmentToken";
+import { customerUploaderName } from "@/lib/tickets/publicAuthor";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
@@ -46,10 +49,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!file) return res.status(400).json({ error: "No file uploaded" });
     try {
       assertUploadedFileInRoot(file);
-      const uploadedBy =
-        ticket.submitterName ||
-        [ticket.customer?.firstName, ticket.customer?.lastName].filter(Boolean).join(" ") ||
-        "Customer";
+      const uploadedBy = customerUploaderName(ticket);
       const attachment = await prisma.ticketAttachment.create({
         data: {
           ticketId: ticket.id,

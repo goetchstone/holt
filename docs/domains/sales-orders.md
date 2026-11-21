@@ -606,7 +606,7 @@ may get a text do. It's listed in the panel above.
 
 ## B2B Proposals
 
-`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item. PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
+`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item; the pictures, under `data/uploads/proposals/`, are read by every holder of `sales.read`, not only MANAGER/ADMIN (staff-auth.md, "Uploaded files"). PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
 
 **Line quantity is fractional** (migration `20261022120000_draft_and_proposal_qty_decimal`, 2026-10-17). Fabric is quoted by the yard, so `ProposalLineItem.quantity` is `Decimal(12,3)`, like the `OrderLineItem.orderedQuantity` it becomes. While it was `Int`, a line of 12.5 yards was stored and ordered as 12, and a quantity that was not a number answered 500 (`draftAndProposalQtyFractional.integration.test.ts`). Now:
 

@@ -133,6 +133,48 @@ describe("family isolation", () => {
     expect(verifyTicketAttachmentToken(generatePortalToken(42, 42))).toBeNull();
     expect(verifyTicketAttachmentToken(generateClientPortalToken(42))).toBeNull();
   });
+
+  // The file family's claims overlap neither portal's, so the test above is
+  // refused on claim shape before any key is tried: it stays green if the file
+  // family shared a portal's key. These tokens carry exactly the claims the
+  // verifier wants and differ only in whose key or audience signed them.
+  describe("the ticket-file family is kept apart by its own key, not its claims", () => {
+    const FILE = "holt-ticket-attachment";
+    const keyedFor = (keyFamily: string) =>
+      jwt.sign({ attachmentId: 42 }, familyKey(keyFamily), {
+        algorithm: "HS256",
+        audience: FILE,
+        issuer: "holt",
+      });
+
+    it.each([["holt-portal"], ["holt-client-portal"]])(
+      "a file claim signed for %s opens no file",
+      (portal) => {
+        expect(
+          verifyTicketAttachmentToken(signCapabilityToken({ attachmentId: 42 }, portal, 60)),
+        ).toBeNull();
+        expect(verifyTicketAttachmentToken(keyedFor(portal))).toBeNull();
+      },
+    );
+
+    it("a portal's own claims signed for the file family open neither portal", () => {
+      expect(
+        verifyPortalToken(signCapabilityToken({ orderId: 7, customerId: 42 }, FILE, 60)),
+      ).toBeNull();
+      expect(verifyClientPortalToken(signCapabilityToken({ customerId: 42 }, FILE, 60))).toBeNull();
+    });
+
+    it("the same file claim, signed with the file family's own key, opens the file", () => {
+      // The control: without it, every refusal above (and the cases below
+      // that sign with the same literal: a claim that is not a whole id, the
+      // raw session secret) would also pass if the family's audience or key
+      // derivation drifted.
+      expect(verifyTicketAttachmentToken(keyedFor(FILE))).toEqual({ attachmentId: 42 });
+      expect(
+        verifyTicketAttachmentToken(signCapabilityToken({ attachmentId: 42 }, FILE, 60)),
+      ).toEqual({ attachmentId: 42 });
+    });
+  });
 });
 
 describe("ticket attachment link", () => {

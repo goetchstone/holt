@@ -8,6 +8,11 @@
 // "View service", and the link opens only a file in the ticket-attachment
 // directory.
 //
+// The same JSON named each file's uploader as stored, and a staff upload
+// stores the staff member's login email. A staff file now reads "Support", as
+// a staff reply does, and a customer's file keeps the name they gave
+// (lib/tickets/publicAuthor.ts).
+//
 // Real routes, real database, real files under data/uploads/attachments.
 
 jest.mock("next-auth", () => ({
@@ -25,18 +30,23 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { invalidateAppSettingsCache } from "@/lib/appSettings";
+import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
+import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { signCapabilityToken } from "@/lib/capabilityToken";
 import { generateClientPortalToken } from "@/lib/clientPortalToken";
 import { generateTicketAttachmentToken } from "@/lib/tickets/attachmentToken";
 import { UPLOAD_ROOT } from "@/lib/secureUpload";
 import publicTicket from "@/pages/api/tickets/public/[token]";
 import publicUpload from "@/pages/api/tickets/public/[token]/attachment";
+import staffUpload from "@/pages/api/tickets/[id]/attachments";
 import fileRoute from "@/pages/api/tickets/public/files/[token]";
 import uploadsRoute from "@/pages/api/uploads/[...path]";
 
 const SECRET = "ticket-attachment-links-test-secret";
 const savedSecret = process.env.NEXTAUTH_SECRET;
 const FILES_PREFIX = "/api/tickets/public/files/";
+/** The ticket-file token family's audience, as lib/tickets/attachmentToken.ts names it. */
+const FILE_FAMILY = "holt-ticket-attachment";
 const EXPIRED =
   "This file link has expired or is not valid. Reload your request page for a fresh one.";
 
@@ -103,6 +113,37 @@ async function call(
 }
 
 const openFile = (token: string) => call(fileRoute, { method: "GET", query: { token } });
+
+/** POST one PNG to an upload route, as the browser's multipart form sends it. */
+async function uploadPng(
+  route: (req: NextApiRequest, res: NextApiResponse) => unknown,
+  query: Record<string, string>,
+  filename: string,
+): Promise<Captured> {
+  const boundary = "----holt-test-boundary";
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+        "Content-Type: image/png\r\n\r\n",
+    ),
+    randomBytes(32),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  const req = Object.assign(Readable.from([body], { objectMode: false }), {
+    method: "POST",
+    query,
+    headers: {
+      "content-type": `multipart/form-data; boundary=${boundary}`,
+      "content-length": String(body.length),
+    },
+    cookies: {},
+    socket: socket(),
+  });
+  const { res, result } = capture();
+  await route(req as unknown as NextApiRequest, res);
+  return result;
+}
 
 const writeUpload = (subdir: string, name: string, bytes: Buffer) => {
   fs.mkdirSync(path.join(UPLOAD_ROOT, subdir), { recursive: true });
@@ -201,11 +242,20 @@ describe("customers open their ticket files through expiring per-file links", ()
     const last = token.slice(-1);
     const tampered = token.slice(0, -1) + (last === "A" ? "B" : "A");
     const attachment = await prisma.ticketAttachment.findFirstOrThrow({ where: { ticketId } });
+    const claim = { attachmentId: attachment.id };
+
+    // The control: the file family's own audience opens the file, so the
+    // refusals below turn on the key and the expiry, not on a literal that
+    // has drifted from the family's.
+    expect((await openFile(signCapabilityToken(claim, FILE_FAMILY, 3600))).status).toBe(200);
 
     for (const bad of [
       tampered,
+      // The file claim itself, signed for a portal: only the key refuses it.
+      signCapabilityToken(claim, "holt-client-portal", 3600),
+      signCapabilityToken(claim, "holt-portal", 3600),
       generateClientPortalToken(attachment.id),
-      signCapabilityToken({ attachmentId: attachment.id }, "holt-ticket-attachment", -60),
+      signCapabilityToken(claim, FILE_FAMILY, -60),
       "not-a-token",
     ]) {
       const got = await openFile(bad);
@@ -262,29 +312,7 @@ describe("customers open their ticket files through expiring per-file links", ()
   });
 
   it("the customer's upload answers with a link, not the raw path", async () => {
-    const boundary = "----holt-test-boundary";
-    const body = Buffer.concat([
-      Buffer.from(
-        `--${boundary}\r\n` +
-          'Content-Disposition: form-data; name="file"; filename="receipt.png"\r\n' +
-          "Content-Type: image/png\r\n\r\n",
-      ),
-      randomBytes(32),
-      Buffer.from(`\r\n--${boundary}--\r\n`),
-    ]);
-    const req = Object.assign(Readable.from([body], { objectMode: false }), {
-      method: "POST",
-      query: { token: publicToken },
-      headers: {
-        "content-type": `multipart/form-data; boundary=${boundary}`,
-        "content-length": String(body.length),
-      },
-      cookies: {},
-      socket: socket(),
-    });
-    const { res, result } = capture();
-    await publicUpload(req as unknown as NextApiRequest, res);
-    const got = await result;
+    const got = await uploadPng(publicUpload, { token: publicToken }, "receipt.png");
 
     expect(got.status).toBe(201);
     const { attachment } = got.body as { attachment: { id: number; url: string } };
@@ -299,5 +327,54 @@ describe("customers open their ticket files through expiring per-file links", ()
     expect(opened.headers["Content-Disposition"]).toBe(
       `inline; filename="${path.posix.basename(row.url)}"`,
     );
+  });
+
+  it("a staff member's file reads Support; a customer's keeps the name they gave", async () => {
+    const staffEmail = "sam.staff@example.com";
+    invalidateRoleGrantCache();
+    await syncBuiltInRoles({ prisma });
+    await prisma.user.create({ data: { id: "sam", email: staffEmail } });
+    const manager = await prisma.role.findUniqueOrThrow({ where: { key: "MANAGER" } });
+    await prisma.staffMember.create({
+      data: {
+        userId: "sam",
+        displayName: "Sam Staff",
+        email: staffEmail,
+        role: "MANAGER",
+        roleId: manager.id,
+        isActive: true,
+      },
+    });
+
+    // Each file through its own real route: the staff ticket page's upload,
+    // then the customer's from the status page.
+    (getServerSession as jest.Mock).mockResolvedValue({
+      user: { id: "sam", email: staffEmail, name: "Sam Staff" },
+    });
+    const staff = await uploadPng(staffUpload, { id: String(ticketId) }, "staff-photo.png");
+    expect(staff.status).toBe(201);
+    (getServerSession as jest.Mock).mockResolvedValue(null);
+    const customer = await uploadPng(publicUpload, { token: publicToken }, "customer-photo.png");
+    expect(customer.status).toBe(201);
+
+    // What each route records is what the status GET has to tell apart.
+    const rows = await prisma.ticketAttachment.findMany({ where: { ticketId } });
+    for (const row of rows) {
+      written.push(path.join(UPLOAD_ROOT, "attachments", path.posix.basename(row.url)));
+    }
+    const recorded = Object.fromEntries(rows.map((r) => [r.filename, r.uploadedBy]));
+    expect(recorded["staff-photo.png"]).toBe(staffEmail);
+    expect(recorded["customer-photo.png"]).toBe("Dana Client");
+
+    const got = await call(publicTicket, { method: "GET", query: { token: publicToken } });
+    expect(got.status).toBe(200);
+    const { attachments } = (
+      got.body as { ticket: { attachments: Array<{ filename: string; uploadedBy: string }> } }
+    ).ticket;
+    const shown = Object.fromEntries(attachments.map((a) => [a.filename, a.uploadedBy]));
+    expect(shown["staff-photo.png"]).toBe("Support");
+    expect(shown["customer-photo.png"]).toBe("Dana Client");
+    expect(JSON.stringify(got.body)).not.toContain(staffEmail);
+    expect(JSON.stringify(got.body)).not.toContain("Sam Staff");
   });
 });

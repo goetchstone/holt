@@ -7,11 +7,12 @@
 // was not explicitly public on a session, and forced SVGs to download.
 //
 // SEC-04b: a session was the whole gate, so any staff member of any role read
-// customer imports and delivery signatures, and inventory photos and ticket
-// files were public. Each subdir now takes the key of the screen that shows its
-// files (UPLOAD_READ_ACCESS in lib/secureUpload.ts), the route classifies the
-// file a request RESOLVES to rather than its first raw segment, and a subdir
-// nobody classified is served to nobody.
+// customer imports, vendor price PDFs and delivery photos (a delivery's
+// signature is text on its DeliveryStop row, never a file here), and inventory
+// photos and ticket files were public. Each subdir now takes the key of the
+// screen that shows its files (UPLOAD_READ_ACCESS in lib/secureUpload.ts), the
+// route classifies the file a request RESOLVES to rather than its first raw
+// segment, and a subdir nobody classified is served to nobody.
 //
 // No database: every case here is decided before the route reads one. The
 // permission decisions run against Postgres in
@@ -207,6 +208,14 @@ describe("uploads route, before any database read", () => {
     expect(res._status).toBe(404);
   });
 
+  it("a file name too long for the filesystem answers 404, as a missing file does", async () => {
+    // stat throws ENAMETOOLONG for a segment past 255 bytes. Uncaught, that was
+    // a 500 for an unauthenticated GET in a public subdir.
+    const res = await get(["images", `${"x".repeat(300)}.png`]);
+    expect(res._status).toBe(404);
+    expect(res._headers["Content-Type"]).toBeUndefined();
+  });
+
   it("an SVG is forced to download instead of rendering inline", async () => {
     const res = await get(FILES.svg);
     expect(res._headers["Content-Type"]).toBe("application/octet-stream");
@@ -264,6 +273,41 @@ describe("sendUploadedFile", () => {
     expect((await send(["attachments"], { cache: "private" }))._status).toBe(404);
   });
 
+  it("answers 404, rather than throwing, when the stat itself fails", async () => {
+    const res = await send(["attachments", `${"x".repeat(300)}.png`], { cache: "private" });
+    expect(res._status).toBe(404);
+    expect(res._headers["Content-Length"]).toBeUndefined();
+  });
+
+  it("a client gone before or during the send leaves no file open", async () => {
+    // A caller may wait on a session or a database read before sending. A
+    // client that leaves meanwhile has a response that has already closed, and
+    // a 'close' listener added after that never fires.
+    const opened = jest.spyOn(fs, "createReadStream");
+    const streams = () => opened.mock.results.map((r) => r.value as fs.ReadStream);
+    try {
+      const before = makeRes();
+      before.destroy();
+      await before.done;
+      sendUploadedFile(before, abs(FILES.png), { cache: "public" });
+
+      const during = makeRes();
+      sendUploadedFile(during, abs(FILES.png), { cache: "public" });
+      during.destroy();
+
+      await new Promise((r) => setImmediate(r));
+      expect(
+        streams()
+          .filter((s) => !s.destroyed)
+          .map((s) => s.path),
+      ).toEqual([]);
+      expect(before._bytes).toHaveLength(0);
+    } finally {
+      for (const s of streams()) s.destroy();
+      opened.mockRestore();
+    }
+  });
+
   // Root reads a mode-000 file anyway, so the read error cannot be staged there.
   const asNonRoot = process.getuid?.() === 0 ? it.skip : it;
   asNonRoot("a file that cannot be read answers 404, not a hung or broken response", async () => {
@@ -293,12 +337,20 @@ describe("sendUploadedFile", () => {
 
 /** `path.join(..., "data", "uploads", "<subdir>", ...)`: a writer building its own path. */
 const PATH_JOIN = /["']data["']\s*,\s*["']uploads["']\s*,\s*["']([\w-]+)["']/g;
-/** `` `/uploads/<subdir>/${...}` ``: the URL a writer stores for its file. */
-const URL_TEMPLATE = /`\/uploads\/([\w-]+)\//g;
+/** `path.join(UPLOAD_ROOT, "<subdir>", ...)`, `safePathJoin(UPLOAD_ROOT, ...)`: a path under the shared root. */
+const ROOT_JOIN = /\bUPLOAD_ROOT\s*,\s*["'`]([\w-]+)(?=["'`/])/g;
+/**
+ * One string naming the subdir: the URL a writer stores for its file, templated
+ * (`` `/uploads/<subdir>/${name}` ``) or concatenated (`"/uploads/<subdir>/" +
+ * name`), or a whole path (`"data/uploads/<subdir>"`).
+ */
+const LITERAL = /["'`](?:data)?\/uploads\/([\w-]+)(?=["'`/])/g;
 
 /** The upload subdirs a source text writes to. */
 function subdirsWrittenIn(text: string): string[] {
-  return [...text.matchAll(PATH_JOIN), ...text.matchAll(URL_TEMPLATE)].map((m) => m[1]);
+  return [PATH_JOIN, ROOT_JOIN, LITERAL].flatMap((pattern) =>
+    [...text.matchAll(pattern)].map((m) => m[1]),
+  );
 }
 
 function sourceTexts(dir: string, out: string[] = []): string[] {
@@ -324,15 +376,29 @@ describe("UPLOAD_READ_ACCESS covers every subdir the app writes (rule 65)", () =
     expect(subdirsWritten()).toEqual(Object.keys(UPLOAD_READ_ACCESS).sort());
   });
 
-  it("the scan finds a subdir from each kind of writer", () => {
-    // The detector can disagree: it is not merely agreeing with the manifest.
-    expect(
-      subdirsWrittenIn('const dir = path.join(process.cwd(), "data", "uploads", "receipts");'),
-    ).toEqual(["receipts"]);
-    expect(subdirsWrittenIn("const url = `/uploads/scans/${name}`;")).toEqual(["scans"]);
-    expect(subdirsWrittenIn('const root = path.join(process.cwd(), "data", "uploads");')).toEqual(
-      [],
-    );
+  // The detector can disagree: it is not merely agreeing with the manifest.
+  // One case per shape a writer names its subdir in.
+  it.each([
+    ['path.join(process.cwd(), "data", "uploads", "receipts")'],
+    ['path.join(process.cwd(), "data/uploads/receipts")'],
+    ['path.join(UPLOAD_ROOT, "receipts", name)'],
+    ['safePathJoin(UPLOAD_ROOT, "receipts", String(id))'],
+    ["path.join(UPLOAD_ROOT, `receipts/${id}`)"],
+    ["`/uploads/receipts/${name}`"],
+    ['"/uploads/receipts/" + name'],
+    ["'/uploads/receipts/' + name"],
+  ])("the scan finds the subdir in %s", (code) => {
+    expect(subdirsWrittenIn(`const x = ${code};`)).toEqual(["receipts"]);
+  });
+
+  it.each([
+    ['path.join(process.cwd(), "data", "uploads")'],
+    ['path.resolve(UPLOAD_ROOT, `.${imageUrl.slice("/uploads".length)}`)'],
+    ["url.startsWith(`/uploads/${SUBDIR}/`)"],
+    ['imageUrl.startsWith("/uploads/")'],
+    ['"/uploads/logo.png"'],
+  ])("the scan finds no subdir in %s", (code) => {
+    expect(subdirsWrittenIn(`const x = ${code};`)).toEqual([]);
   });
 
   it("every gated subdir names a real key, and every entry says why", () => {

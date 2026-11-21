@@ -5,10 +5,18 @@
 // line is not a label: pointing a return at someone else's line, or at a line
 // that was cancelled, would refund the wrong goods.
 //
-// Two routes write Return.lineItemId from what a caller sends -- the customer
-// portal's return request (a token holder, no session) and the staff
-// return-link endpoint -- and both ask returnLineProblem (CLAUDE.md rule 42:
-// one guard, every path). A line may be the return's when it is:
+// Three routes write Return.lineItemId from what a caller sends. Two ask
+// returnLineProblem: the customer portal's return request (a token holder, no
+// session) and the staff return-link endpoint, so the link and the request
+// cannot disagree. The third does not: POST /api/returns (staff New return)
+// finds the line within the order, refuses the delivery fee and defers a gift
+// card to the store's "Refund unused gift cards" setting, but takes a
+// cancelled, replaced or zero-quantity line. So this is not yet one guard on
+// every path (CLAUDE.md rule 42); docs/domains/returns.md, "Known gaps",
+// tracks it. Moving New return onto this function needs care: it refuses
+// every gift card, where New return honours the store's setting.
+//
+// A line may be the return's when it is:
 //
 //   - on the return's own order;
 //   - still counted, through the shared filter (rule 33: not cancelled or
@@ -23,7 +31,7 @@ import { isCountedItemLine } from "@/lib/salesOrderRevenue";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-/** What both routes answer when the line id sent is not one. */
+/** What the portal request and the return link answer when the line id sent is not one. */
 export const LINE_ITEM_ID_ERROR = "lineItemId must be a whole number above zero";
 
 /** A line id as a request may carry one: a whole number above zero. */

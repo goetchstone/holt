@@ -43,7 +43,6 @@ const PORTAL_FIELDS = [
   "customerNotes",
   "productName",
   "quantity",
-  "reason",
   "returnNumber",
   "status",
 ];
@@ -231,9 +230,14 @@ describe("the customer's return request", () => {
     expect(got.body).toMatchObject({
       returnNumber: "RET-TEST-001",
       status: "INITIATED",
-      reason: "WRONG_ITEM",
       customerNotes: "Wrong colour",
       quantity: 1,
+    });
+    // The reason is stored, though no page reads it back.
+    expect(await unchanged()).toEqual({
+      lineItemId: null,
+      reason: "WRONG_ITEM",
+      customerNotes: "Wrong colour",
     });
 
     const status = await call(statusRoute, { method: "GET", query: { token: w.portalToken } });

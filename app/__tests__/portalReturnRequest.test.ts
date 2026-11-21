@@ -87,7 +87,6 @@ describe("toPortalReturn", () => {
   const row = {
     returnNumber: "RET-261121-001",
     status: "INITIATED" as const,
-    reason: "DEFECTIVE" as const,
     productName: "Camelback Sofa",
     quantity: new Prisma.Decimal("2.5"),
     created: new Date("2026-11-21T15:00:00Z"),
@@ -95,10 +94,12 @@ describe("toPortalReturn", () => {
   };
 
   it("is exactly the fields the portal pages read, as JSON-ready values", () => {
+    // The request page reads the number, product, status, quantity and notes;
+    // the status page the number, product, status and created. Neither reads
+    // the reason.
     expect(toPortalReturn(row)).toEqual({
       returnNumber: "RET-261121-001",
       status: "INITIATED",
-      reason: "DEFECTIVE",
       productName: "Camelback Sofa",
       quantity: 2.5,
       created: "2026-11-21T15:00:00.000Z",

@@ -6812,7 +6812,9 @@ model TicketAttachment {
   url        String
   mimeType   String
   bytes      Int?
-  // Staff display name or the public submitter name — display only.
+  // Display only: a staff upload records the staff login email (or null), a
+  // customer's upload the name they gave. The public status page shows the
+  // first as "Support" (lib/tickets/publicAuthor.ts).
   uploadedBy String?
 
   created DateTime @default(now())
