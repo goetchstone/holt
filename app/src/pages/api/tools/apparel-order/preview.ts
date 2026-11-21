@@ -15,7 +15,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "node:fs";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm, uploadLimitRefusal, type UploadPresetName } from "@/lib/secureUpload";
+import {
+  createSecureForm,
+  noFileMessage,
+  uploadRefusal,
+  type UploadPresetName,
+} from "@/lib/secureUpload";
 import { parseNuOrderPDF } from "@/lib/pricing/nuorderParser";
 import { parseNuOrderPrintoutPDF } from "@/lib/pricing/nuorderPrintoutParser";
 import { parseZSupplyPDF } from "@/lib/pricing/zSupplyParser";
@@ -84,7 +89,7 @@ export default requirePermission(
         return res.status(400).json({ error: `Unknown PDF format "${format ?? ""}"` });
       }
       if (!file) {
-        return res.status(400).json({ error: "No file uploaded" });
+        return res.status(400).json({ error: noFileMessage(UPLOAD) });
       }
 
       const draft = await parseFor(entry, fs.readFileSync(file.filepath));
@@ -93,7 +98,7 @@ export default requirePermission(
       }
       return res.status(200).json(draft);
     } catch (err) {
-      const refused = uploadLimitRefusal(err, UPLOAD);
+      const refused = uploadRefusal(err, UPLOAD);
       if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("Apparel order preview parse failed", err);
       return res.status(500).json({ error: "Parse failed" });

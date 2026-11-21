@@ -18,7 +18,12 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm, uploadLimitRefusal, type UploadPresetName } from "@/lib/secureUpload";
+import {
+  createSecureForm,
+  noFileMessage,
+  uploadRefusal,
+  type UploadPresetName,
+} from "@/lib/secureUpload";
 import { runServiceCaseSheetImport } from "@/lib/runServiceCaseSheetImport";
 import { logger, logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -74,7 +79,7 @@ export default requirePermission(
     let filePath: string | undefined;
     try {
       const { file, dryRun } = await parseUploadedFile(req);
-      if (!file) return res.status(400).json({ error: "No file uploaded" });
+      if (!file) return res.status(400).json({ error: noFileMessage(UPLOAD) });
       filePath = file.filepath;
       const buffer = fs.readFileSync(file.filepath);
 
@@ -98,7 +103,7 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
-      const refused = uploadLimitRefusal(err, UPLOAD);
+      const refused = uploadRefusal(err, UPLOAD);
       if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("service-case-sheet-import failed", err);
       return res.status(500).json({ error: "The service sheet import failed." });

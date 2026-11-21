@@ -1,38 +1,61 @@
-// /app/__tests__/uploadLimitRefusal.test.ts
+// /app/__tests__/uploadRefusal.test.ts
 //
-// An upload that its preset's limits refuse is the caller's to fix, so the
-// route answers 413 and says the limit. The parser behind createSecureForm
-// (formidable, lib/secureUpload.ts) refuses a file past the size limit, and a
-// second file where the preset takes one, by failing parse(); the routes'
-// catch turned that into "Parse failed" or "Import failed", a 500.
-// uploadLimitRefusal is the one place that maps it (rule 42).
+// An upload the parser refuses is the caller's to fix, so the route answers a
+// 4xx that says what to fix. The parser behind createSecureForm (formidable,
+// lib/secureUpload.ts) refuses a file past the size limit, a second file where
+// the preset takes one, an empty file, and a body it can't read as a form (one
+// cut off on its way), by failing parse() with a 4xx-coded error; the routes'
+// catch turned each into "Parse failed" or "Import failed", a 500 logged as a
+// fault. uploadRefusal is the one place that maps them (rule 42).
 //
 // A file of a type the preset does not take fails nothing: the filter drops it
-// and the route finds no file. Three routes answered that, and a form with no
-// file at all, with a 500 too; it is a 400 now, as their sibling routes already
-// answered.
+// and the route finds no file. Every route answers that, and a form with no
+// file at all, with a 400 naming the types it takes (noFileMessage).
 //
 // The routes are driven with real multipart bodies through the real
 // createSecureForm and formidable. The size cases shrink the presets' limits
 // to 1 MB and 2 MB first, so a case streams a couple of megabytes rather than
 // 30 or 50; the real limits' wording is pinned on the function itself.
 //
+// formidable leaves some files it refused on disk: an empty file, and a second
+// file, which it opens after its own cleanup has run. So every form the routes
+// make here is watched, and the files it opened are removed after each test.
+//
 // A second file is refused through the routes' same catch, so it is checked
-// once, on a real parse, rather than per route: formidable opens and writes the
-// file it refused after its own cleanup has run and never removes it, and only
-// a test holding the form can wait for that file and remove it.
+// once, on a real parse, rather than per route; only a test holding the form
+// can wait for that file to be written and remove it.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { EventEmitter } from "node:events";
 import { rmSync } from "node:fs";
 import { Readable } from "node:stream";
-import { errors as formidableErrors } from "formidable";
+import { errors as formidableErrors, type File } from "formidable";
 import {
   createSecureForm,
   UPLOAD_PRESETS,
-  uploadLimitRefusal,
+  uploadRefusal,
   type UploadPresetName,
 } from "@/lib/secureUpload";
+
+/** Every file a form opened during the test now running. */
+const opened: string[] = [];
+jest.mock("@/lib/secureUpload", () => {
+  const actual = jest.requireActual("@/lib/secureUpload");
+  return {
+    ...actual,
+    createSecureForm: (...args: Parameters<typeof actual.createSecureForm>) => {
+      const form = actual.createSecureForm(...args);
+      form.on("fileBegin", (_name: string, file: File) => opened.push(file.filepath));
+      return form;
+    },
+  };
+});
+afterEach(async () => {
+  if (opened.length === 0) return;
+  // formidable opens a file asynchronously; give the open time to land first.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  for (const path of opened.splice(0)) rmSync(path, { force: true });
+});
 import importSheetRoute from "@/pages/api/admin/service/import-sheet";
 import apparelPreviewRoute from "@/pages/api/tools/apparel-order/preview";
 import homeAccessoryPreviewRoute from "@/pages/api/tools/home-accessory-order/preview";
@@ -50,8 +73,10 @@ jest.mock("@/lib/auth/requireAuth", () => ({
 
 const FormidableError = formidableErrors.default;
 const MB = 1024 * 1024;
+const UNREADABLE = "The upload couldn't be read. Send the file again.";
+const TOO_MANY_FIELDS = "The upload's form has more fields than an upload takes.";
 
-describe("uploadLimitRefusal", () => {
+describe("uploadRefusal", () => {
   const refusedBy = (code: number) => new FormidableError("formidable's own words", code, 413);
   const TOO_LARGE = [
     formidableErrors.biggerThanTotalMaxFileSize,
@@ -64,28 +89,70 @@ describe("uploadLimitRefusal", () => {
     ["IMAGE", "The upload is larger than the 10 MB limit."],
   ] as const)("says the %s preset's size limit for an upload over it", (preset, error) => {
     for (const code of TOO_LARGE) {
-      expect(uploadLimitRefusal(refusedBy(code), preset)).toEqual({ status: 413, error });
+      expect(uploadRefusal(refusedBy(code), preset)).toEqual({ status: 413, error });
     }
   });
 
   it("says how many files the preset takes for one too many", () => {
     const tooMany = refusedBy(formidableErrors.maxFilesExceeded);
-    expect(uploadLimitRefusal(tooMany, "PDF")).toEqual({
+    expect(uploadRefusal(tooMany, "PDF")).toEqual({
       status: 413,
       error: "Upload one file at a time.",
     });
-    expect(uploadLimitRefusal(tooMany, "DELIVERY_PROOF")).toEqual({
+    expect(uploadRefusal(tooMany, "DELIVERY_PROOF")).toEqual({
       status: 413,
       error: "Upload at most 2 files at a time.",
     });
   });
 
-  it("leaves every other error to the route", () => {
-    expect(uploadLimitRefusal(new Error("ENOSPC: no space left on device"), "PDF")).toBeNull();
-    const malformed = new FormidableError("bad body", formidableErrors.malformedMultipart, 400);
-    expect(uploadLimitRefusal(malformed, "PDF")).toBeNull();
-    expect(uploadLimitRefusal("a thrown string", "PDF")).toBeNull();
-    expect(uploadLimitRefusal(undefined, "PDF")).toBeNull();
+  // formidable 3.5.4 raises each of these on the caller's upload, with that
+  // httpCode (src/Formidable.js, src/parsers/Multipart.js, src/plugins/multipart.js).
+  it.each([
+    ["an empty file", formidableErrors.noEmptyFiles, 400, 400, "The file is empty."],
+    [
+      "a file under minFileSize",
+      formidableErrors.smallerThanMinFileSize,
+      400,
+      400,
+      "The file is empty.",
+    ],
+    ["a malformed multipart body", formidableErrors.malformedMultipart, 400, 400, UNREADABLE],
+    [
+      "a multipart body with no boundary",
+      formidableErrors.missingMultipartBoundary,
+      400,
+      400,
+      UNREADABLE,
+    ],
+    ["no content type", formidableErrors.missingContentType, 400, 400, UNREADABLE],
+    ["a body that isn't a form", formidableErrors.noParser, 415, 415, UNREADABLE],
+    ["too many form fields", formidableErrors.maxFieldsExceeded, 413, 413, TOO_MANY_FIELDS],
+    ["form fields too long", formidableErrors.maxFieldsSizeExceeded, 413, 413, TOO_MANY_FIELDS],
+  ])("answers %s with a %p in plain words", (_what, code, httpCode, status, error) => {
+    const refused = new FormidableError("options.formidable (8 bytes) inferior", code, httpCode);
+    expect(uploadRefusal(refused, "PDF")).toEqual({ status, error });
+  });
+
+  it("answers a refusal formidable adds later, coded below 500, with a 4xx too", () => {
+    const later = new FormidableError("options.somethingNew exceeded", 1099, 422);
+    expect(uploadRefusal(later, "PDF")).toEqual({ status: 422, error: UNREADABLE });
+  });
+
+  it("leaves every other error to the route, its own 500", () => {
+    expect(uploadRefusal(new Error("ENOSPC: no space left on device"), "PDF")).toBeNull();
+    // formidable codes it 409, but the directory is the server's, not the caller's upload.
+    const noDir = new FormidableError(
+      "cannot create directory",
+      formidableErrors.cannotCreateDir,
+      409,
+    );
+    expect(uploadRefusal(noDir, "PDF")).toBeNull();
+    const aborted = new FormidableError("Request aborted", formidableErrors.aborted, 500);
+    expect(uploadRefusal(aborted, "PDF")).toBeNull();
+    const encoding = new FormidableError("unknown", formidableErrors.unknownTransferEncoding, 501);
+    expect(uploadRefusal(encoding, "PDF")).toBeNull();
+    expect(uploadRefusal("a thrown string", "PDF")).toBeNull();
+    expect(uploadRefusal(undefined, "PDF")).toBeNull();
   });
 
   it("maps formidable's own refusal of a second file, from a real parse", async () => {
@@ -117,7 +184,7 @@ describe("uploadLimitRefusal", () => {
       );
     await refusedFileWritten;
     if (refusedPath) rmSync(refusedPath, { force: true });
-    expect(uploadLimitRefusal(err, "PDF")).toEqual({
+    expect(uploadRefusal(err, "PDF")).toEqual({
       status: 413,
       error: "Upload one file at a time.",
     });
@@ -135,8 +202,15 @@ interface Part {
   body: Buffer;
 }
 
-/** A multipart POST carrying `parts`, as the browser sends one. */
-function multipart(parts: Part[], query: Record<string, string> = {}): NextApiRequest {
+/**
+ * A multipart POST carrying `parts`, as the browser sends one; `cutOff` ends it
+ * inside the last part, as an upload interrupted on its way does.
+ */
+function multipart(
+  parts: Part[],
+  query: Record<string, string> = {},
+  cutOff = false,
+): NextApiRequest {
   const boundary = "holt-upload-test-boundary";
   const pieces: Buffer[] = [];
   for (const part of parts) {
@@ -149,7 +223,8 @@ function multipart(parts: Part[], query: Record<string, string> = {}): NextApiRe
       Buffer.from("\r\n"),
     );
   }
-  pieces.push(Buffer.from(`--${boundary}--\r\n`));
+  if (cutOff) pieces.pop();
+  else pieces.push(Buffer.from(`--${boundary}--\r\n`));
   const body = Buffer.concat(pieces);
   return Object.assign(Readable.from([body]), {
     method: "POST",
@@ -161,7 +236,7 @@ function multipart(parts: Part[], query: Record<string, string> = {}): NextApiRe
   }) as unknown as NextApiRequest;
 }
 
-async function send(route: Route, parts: Part[], query?: Record<string, string>) {
+async function send(route: Route, parts: Part[], query?: Record<string, string>, cutOff = false) {
   const res = {
     status: 0,
     body: undefined as unknown,
@@ -182,7 +257,7 @@ async function send(route: Route, parts: Part[], query?: Record<string, string>)
       return this;
     },
   };
-  await route(multipart(parts, query), recorder as unknown as NextApiResponse);
+  await route(multipart(parts, query, cutOff), recorder as unknown as NextApiResponse);
   return res;
 }
 
@@ -203,9 +278,17 @@ const ROUTES: {
   preset: "PDF" | "CSV_XLSX";
   file: Omit<Part, "body">;
   query?: Record<string, string>;
+  /** Form fields the route reads before it looks for the file. */
+  fields?: Part[];
 }[] = [
   { name: "admin/service/import-sheet", route: importSheetRoute, preset: "CSV_XLSX", file: SHEET },
-  { name: "tools/apparel-order/preview", route: apparelPreviewRoute, preset: "PDF", file: PDF },
+  {
+    name: "tools/apparel-order/preview",
+    route: apparelPreviewRoute,
+    preset: "PDF",
+    file: PDF,
+    fields: [{ name: "format", body: Buffer.from("rails") }],
+  },
   {
     name: "tools/home-accessory-order/preview, a PDF format",
     route: homeAccessoryPreviewRoute,
@@ -253,33 +336,47 @@ describe("upload routes refuse an upload past their preset's limits with a 413",
   );
 });
 
-const PARSED_BEFORE_THE_FILE_CHECK: { name: string; route: Route; refused: Omit<Part, "body"> }[] =
-  [
-    {
-      name: "admin/service/import-sheet",
-      route: importSheetRoute,
-      refused: { name: "file", filename: "cases.txt", type: "text/plain" },
-    },
-    {
-      name: "purchasing/import-zsupply",
-      route: importZSupplyRoute,
-      refused: { name: "file", filename: "invoice.txt", type: "text/plain" },
-    },
-    {
-      name: "purchasing/import-nuorder",
-      route: importNuOrderRoute,
-      refused: { name: "file", filename: "order.txt", type: "text/plain" },
-    },
-  ];
+// The parser refuses these by failing parse(), with a 4xx code; the routes'
+// catch answered them with its fixed 500 ("Parse failed", "Import failed").
+describe("upload routes answer an upload the parser refuses with a 4xx in plain words", () => {
+  it.each(ROUTES)("$name answers an empty file with 400", async ({ route, file, query }) => {
+    const res = await send(route, [{ ...file, body: Buffer.alloc(0) }], query);
+    expect(res).toEqual({ status: 400, body: { error: "The file is empty." } });
+  });
 
-describe.each(PARSED_BEFORE_THE_FILE_CHECK)("$name with no file", ({ route, refused }) => {
-  it("answers a form without a file with 400", async () => {
-    const res = await send(route, [{ name: "dryRun", body: Buffer.from("true") }]);
-    expect(res).toEqual({ status: 400, body: { error: "No file uploaded" } });
+  it.each(ROUTES)(
+    "$name answers an upload cut off on its way with 400",
+    async ({ route, file, query }) => {
+      const res = await send(route, [{ ...file, body: Buffer.from("%PDF-1.7 half") }], query, true);
+      expect(res).toEqual({ status: 400, body: { error: UNREADABLE } });
+    },
+  );
+});
+
+/** What a route says when the form carries no file its preset takes. */
+const TAKES = {
+  PDF: "Upload a .pdf file.",
+  CSV_XLSX: "Upload a .csv, .xlsx or .xls file.",
+};
+
+describe.each(ROUTES)("$name with no file it takes", ({ route, preset, query, fields = [] }) => {
+  it("answers a form without a file with 400 and the types it takes", async () => {
+    const res = await send(
+      route,
+      [...fields, { name: "dryRun", body: Buffer.from("true") }],
+      query,
+    );
+    expect(res).toEqual({ status: 400, body: { error: TAKES[preset] } });
   });
 
   it("answers a file of a type it does not take the same way: the filter drops it", async () => {
-    const res = await send(route, [{ ...refused, body: Buffer.from("not a spreadsheet") }]);
-    expect(res).toEqual({ status: 400, body: { error: "No file uploaded" } });
+    const notes = {
+      name: "file",
+      filename: "notes.txt",
+      type: "text/plain",
+      body: Buffer.from("x"),
+    };
+    const res = await send(route, [...fields, notes], query);
+    expect(res).toEqual({ status: 400, body: { error: TAKES[preset] } });
   });
 });

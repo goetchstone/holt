@@ -178,15 +178,21 @@ REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
 - Some of those 500s were refusals, and their messages went with them. Each
   is now decided before the work starts, or by a typed error, and answered
   with a 4xx:
-  - **An upload past its preset's limits is a 413 that says the limit.**
-    formidable refuses a file over the size limit, or one too many files, by
-    failing `parse()`; an upload route's catch asks
-    `uploadLimitRefusal(err, preset)` (`lib/secureUpload.ts`) first. A file of
-    a type the preset does not take is dropped by its filter, so the route
-    finds no file and answers `400 "No file uploaded"`. Seven routes ask so
-    far (the service sheet import, the two order-tool previews, the four
-    purchasing PDF routes); the other upload routes still answer a refused
-    upload with their 500, or with formidable's own text in a 400.
+  - **An upload the parser refuses is a 4xx that says what to fix.**
+    formidable refuses by failing `parse()` with an error coded 4xx; an upload
+    route's catch asks `uploadRefusal(err, preset)` (`lib/secureUpload.ts`)
+    first. A file over the size limit or one too many files is a 413 that says
+    the limit, an empty file a 400 "The file is empty.", too many form fields a
+    413, and a body it can't read as a form (cut off on its way, no boundary,
+    not multipart) a 4xx "The upload couldn't be read." formidable's
+    `cannotCreateDir` is coded 409 but is the server's directory, so it stays
+    a 500. A file of a type the preset does not take is dropped by its filter,
+    so the route finds no file and answers a 400 naming the types it takes
+    (`noFileMessage(preset)`: "Upload a .pdf file."), as the product picture's
+    route does. Seven routes ask so far (the service sheet import, the two
+    order-tool previews, the four purchasing PDF routes); the other upload
+    routes still answer a refused upload with their 500, or with formidable's
+    own text in a 400, and "No file uploaded".
   - **No consignment vendor** is a 404 from `consignmentVendorOr404`
     (`docs/domains/consignment.md`).
   - **The email-marketing customer sync without its key or audience** is a

@@ -12,7 +12,12 @@ import type { File as FormidableFile } from "formidable";
 import fs from "fs";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm, uploadLimitRefusal, type UploadPresetName } from "@/lib/secureUpload";
+import {
+  createSecureForm,
+  noFileMessage,
+  uploadRefusal,
+  type UploadPresetName,
+} from "@/lib/secureUpload";
 import { pickFormFields } from "@/lib/importFormFields";
 import { logError } from "@/lib/logger";
 import { findOrCreateVendor } from "@/lib/vendors/vendorByName";
@@ -43,7 +48,7 @@ export default requirePermission(
 
     try {
       const { file, fields } = await parseForm(req);
-      if (!file) return res.status(400).json({ error: "No file uploaded" });
+      if (!file) return res.status(400).json({ error: noFileMessage(UPLOAD) });
       const buffer = fs.readFileSync(file.filepath);
       const parsed = await parseNuOrderPDF(buffer);
 
@@ -249,7 +254,7 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (error: unknown) {
-      const refused = uploadLimitRefusal(error, UPLOAD);
+      const refused = uploadRefusal(error, UPLOAD);
       if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("NuORDER import error", error);
       return res.status(500).json({ error: "Import failed" });

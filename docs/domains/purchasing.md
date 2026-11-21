@@ -481,21 +481,26 @@ fields the same way.
 The four PDF routes (`preview-nuorder.ts`, `import-nuorder.ts`,
 `preview-zsupply.ts`, `import-zsupply.ts`) parse with
 `createSecureForm("PDF")` and refuse what the caller sent with a 4xx that
-says so:
+says so. The parser refuses by failing `parse()`, and the catch asks
+`uploadRefusal(err, "PDF")` (`lib/secureUpload.ts`) first:
 
-- A file over the PDF preset's size limit, or a second file: `413`, from
-  `uploadLimitRefusal(err, "PDF")` in `lib/secureUpload.ts` ("The upload is
-  larger than the 30 MB limit.", "Upload one file at a time."). These failed
-  `parse()` into the catch and read "Parse failed" or "Import failed", a 500.
-- No file: `400 { error: "No file uploaded" }`. A file of a type the preset
-  does not take lands here too, because the preset's filter drops it before it
-  is written. The two imports' `parseForm` threw this message into the catch,
-  where it became the same 500; it now returns the form with no file and the
-  route answers before any work. The previews already answered it this way.
+- A file over the PDF preset's size limit, or a second file: `413` ("The
+  upload is larger than the 30 MB limit.", "Upload one file at a time.").
+- An empty file: `400` "The file is empty."
+- A body the parser can't read as a form, such as one cut off on its way:
+  `400` "The upload couldn't be read. Send the file again."
+- No file: `400` "Upload a .pdf file." (`noFileMessage("PDF")`). A file of a
+  type the preset does not take lands here too, because the preset's filter
+  drops it before it is written. The two imports' `parseForm` threw "No file
+  uploaded" into the catch; it now returns the form with no file and the route
+  answers before any work.
 
-Every other failure stays a 500 with a fixed message, logged with `logError`.
-Tested in `__tests__/uploadLimitRefusal.test.ts`, which drives the routes with
-real multipart bodies.
+Until 2026-11-21 each of these but the previews' no-file 400 was a 500: the
+NuOrder routes answered "Parse failed" or "Import failed", and the Z Supply
+routes put the parser's own message (or the thrown "No file uploaded") in the
+body. Every other failure stays a 500 with a fixed message, logged with
+`logError`. Tested in `__tests__/uploadRefusal.test.ts`, which drives the
+routes with real multipart bodies.
 
 ## The vendor an import names (GAP-22, since 2026-11-02)
 
