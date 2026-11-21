@@ -1,4 +1,9 @@
 // /app/src/pages/api/sales/orders/[id]/return-link.ts
+//
+// POST -- staff mint a customer's return link for an order: an INITIATED Return
+// with a portalToken, opened at /portal/return/[token]. A line named for the
+// return must be one it may be for (returnLineProblem): the same check the
+// customer's own request makes, so the link and the request cannot disagree.
 
 import crypto from "node:crypto";
 import { NextApiRequest, NextApiResponse } from "next";
@@ -6,6 +11,7 @@ import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { generateReturnNumber } from "@/lib/returnService";
+import { isLineItemId, LINE_ITEM_ID_ERROR, returnLineProblem } from "@/lib/returns/returnLine";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -19,7 +25,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     return res.status(400).json({ error: "Invalid order ID" });
   }
 
-  const { lineItemId } = req.body;
+  const lineItemId: unknown = req.body?.lineItemId ?? null;
+  if (lineItemId !== null && !isLineItemId(lineItemId)) {
+    return res.status(400).json({ error: LINE_ITEM_ID_ERROR });
+  }
 
   try {
     const order = await prisma.salesOrder.findUnique({
@@ -29,6 +38,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
+    }
+
+    if (lineItemId !== null) {
+      const problem = await returnLineProblem(prisma, order.id, lineItemId);
+      if (problem) return res.status(400).json({ error: problem });
     }
 
     const portalToken = crypto.randomUUID();
@@ -43,7 +57,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           reason: "OTHER",
           salesOrderId: order.id,
           customerId: order.customerId,
-          lineItemId: lineItemId || null,
+          lineItemId,
           portalToken,
           portalRequestedAt: new Date(),
           createdBy: userName,

@@ -553,6 +553,8 @@ app/src/components/auth/*|docs/domains/staff-auth.md
 app/src/components/navigation/*|docs/domains/staff-auth.md
 app/src/components/admin/GettingStartedCard.tsx|docs/domains/staff-auth.md
 app/src/server/trpc/routers/account.ts|docs/domains/staff-auth.md
+# Who reads each uploaded file: staff-auth.md, "Uploaded files"
+app/src/pages/api/uploads/*|docs/domains/staff-auth.md
 
 # Practice copy, database backup and restore
 app/src/lib/databaseReplaced.ts|docs/domains/practice-copy.md
@@ -582,7 +584,6 @@ app/src/app/health/*|-|liveness probe page with no business logic
 app/src/pages/api/health.ts|-|liveness probe endpoint with no business logic
 app/src/pages/_app.tsx|-|Pages Router app wrapper kept for auth and REST routes, no domain
 app/src/pages/_document.tsx|-|Pages Router document shell, no domain
-app/src/pages/api/uploads/*|-|generic uploaded-file server shared by every domain that stores pictures
 app/src/components/ui/*|-|UI primitives (button, card, modal, tabs) used by every screen
 app/src/components/form/*|-|generic form controls and filter pickers used by every screen
 app/src/components/table/*|-|generic paginated table components used by every list screen
@@ -603,7 +604,7 @@ app/src/lib/opsAlert.ts|-|generic operational-alert raiser shared by every domai
 app/src/lib/rateLimit.ts|-|generic rate limiter shared by every public route
 app/src/lib/safePathJoin.ts|-|generic path-traversal guard for file access
 app/src/lib/privateTempFile.ts|-|generic private temp-file helper
-app/src/lib/secureUpload.ts|-|generic upload validation shared by every upload route
+app/src/lib/secureUpload.ts|-|generic upload storage: write validation, read access by subdir and file streaming, shared by every upload route
 app/src/lib/validateEnv.ts|-|boot-time environment validation, deployment plumbing
 app/src/lib/contentSecurityPolicy.ts|-|the Content-Security-Policy every page answers with, set per request by src/proxy.ts; deployment security plumbing
 app/src/lib/validation/*|-|generic request validation helpers shared by every route

@@ -59,7 +59,7 @@ const EXEMPT: Record<string, string> = {
   "src/pages/api/auth/reset-password.ts":
     "Pre-authentication; authorized by a single-use emailed token, not a session.",
   "src/pages/api/uploads/[...path].ts":
-    "File serving, not a domain resource. Private subdirs (imports, vendor PDFs, delivery-proof, proposals, and any subdir not explicitly public) require a session; product imagery and portal attachments are unauthenticated by design. A session is the correct gate here, not a permission (SEC-04).",
+    "File serving, not a domain resource. Each subdir takes the key of the screen that shows its files, from UPLOAD_READ_ACCESS in lib/secureUpload.ts, decided by resolvePermissionAccess (the function behind requirePermission); only images/ and line-drawings/ are public, an unlisted subdir is served to nobody, and every refusal is a 404 (SEC-04b).",
   // Public by design, each read and verified 2026-09-23 (SEC-13 tranche 1).
   "src/pages/api/automations/gmail-import.ts":
     "A deprecated alias that delegates to automations/source-import.ts, where the gate lives (admin.data).",
@@ -86,6 +86,8 @@ const EXEMPT: Record<string, string> = {
     "No-login ticket status page; the ticket's publicToken is the capability (404 otherwise).",
   "src/pages/api/tickets/public/[token]/attachment.ts":
     "Attachment upload from the public ticket page; the publicToken is the capability (404 otherwise).",
+  "src/pages/api/tickets/public/files/[token].ts":
+    "A customer's ticket file, authorized by a signed, expiring per-attachment token (lib/tickets/attachmentToken.ts), 404 otherwise; rate-limited.",
   "src/pages/api/bookings/[id]/ics.ts":
     "A customer's calendar file for their booking; authorized by the booking token (403 otherwise).",
   "src/pages/api/bookings/feed.ics.ts":

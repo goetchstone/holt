@@ -309,6 +309,59 @@ generations at most that often. Only a change that bumps nothing (a psql
 session) waits out the 30-second TTL. Tested across two module instances in
 `multiProcessCaches.integration.test.ts`.
 
+#### Uploaded files (SEC-04b, 2026-11-21)
+
+Files under `data/uploads` are served by `/api/uploads/[...path]` (and `/uploads/*`
+through the rewrite in `next.config.js`). Who may read each subdir is
+`UPLOAD_READ_ACCESS` in `lib/secureUpload.ts`, the one home for it; read it
+there rather than copying it here. The rule it follows: a subdir takes the key
+`PAGE_ACCESS` (`lib/auth/pagePermissions.ts`) maps the screen that shows its files
+to; a subdir no screen shows takes `admin.data`; and a subdir it does not list is
+served to nobody, signed in or not. Two subdirs are public: `images/` (CMS media
+and product pictures, which the storefront and emails load with no session) and
+`line-drawings/` (vendor catalog art), as they were before.
+
+Where the screen is gated on that key, granting a role the screen grants the
+files: Reconcile Photos and `inventory/` both take `inventory.count`. Two screens
+are not gated on their key yet. They still check a role list, and their
+`PAGE_ACCESS` entry carries `widensFrom`, which means the key is not applied. The
+manifest takes keys, not role lists, so their files follow the mapped key, and
+the files and the screen admit different roles:
+
+- **Ticket files** (`attachments/`, `service.read`). Only the ticket page shows
+  them, and it and `GET /api/tickets/[id]` admit SUPER_ADMIN, ADMIN and MANAGER.
+  Every default holder of `service.read` reads the files, so GENERAL_MANAGER,
+  DISPATCH, CUSTOMER_SERVICE, DESIGNER, WAREHOUSE and INSTALLER read files on
+  tickets they cannot open. A role edited to drop `service.read` whose enum role
+  is still on the list keeps the page and gets 404 on its files (helpdesk.md,
+  "Ticket attachments"). Before, ticket files were public.
+- **Proposal pictures** (`proposals/`, `sales.read`). The proposal pages and every
+  proposal API admit MANAGER and ADMIN (and SUPER_ADMIN, which passes any ADMIN
+  check). Every default holder of `sales.read`
+  reads the pictures, so GENERAL_MANAGER, DEPARTMENT_HEAD, DISPATCH,
+  CUSTOMER_SERVICE, DESIGNER, REGISTER, WAREHOUSE and INSTALLER read pictures of
+  proposals they cannot open. The names (`<proposalId>/<lineId>-<ms>.<ext>`) are
+  partly guessable. Before, any session read them.
+
+Both line up when those screens and their APIs move onto their keys, each a
+`widensFrom` decision in `pagePermissions.ts`; until then, granting or removing
+the key in Roles changes the files and not the screen.
+
+The route decides the key with `resolvePermissionAccess()`, the function behind
+`requirePermission`, so the staff row, deactivation, View as and the bootstrap
+safeguard all apply. Every refusal is a 404, so the route never confirms a file
+exists. It classifies the file a request resolves to, not its first raw segment:
+Next decodes each catch-all entry after splitting on `/`, so an encoded `%2F`
+could carry an absolute path to a private file inside a public-looking first
+segment. `__tests__/uploadsRouteAuth.test.ts` fails when a preset, or a
+hand-built path that names its subdir as a literal (joined under
+`"data", "uploads"` or `UPLOAD_ROOT`, or in a stored `/uploads/<subdir>/` URL,
+one self-test case per shape), writes a subdir the manifest does not list, or
+the manifest lists one nothing writes (rule 65). A subdir held in a variable is
+not seen. `uploadReadAccess.integration.test.ts` runs the roles against
+Postgres. Customers open their ticket files through signed one-hour links
+instead (helpdesk.md, "Ticket attachments").
+
 ### Not done yet (each is its own change)
 
 - The last role lists. Of `api/service/*`, only `house-calls/index.ts` and
