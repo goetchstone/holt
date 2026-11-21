@@ -53,7 +53,8 @@ names a line, and the staff return link. A line passes when it is on the return'
 order, still counted (not CANCELLED or REPLACED, `orderedQuantity` above zero: rules 31
 and 33, through `isCountedItemLine`), and goods: not a gift card (the item kind of the
 counted filter leaves it out) and not the order's delivery fee (as `POST /api/returns`
-refuses it). Anything else is a 400 that says which; a line id that is not a whole
+refuses it). Anything else is a 400: one message for a line not on the order, one
+naming the other reasons. A line id that is not a whole
 number above zero is a 400 before any lookup. The portal request used to write any line
 id it was sent, so a token holder could point their return at another customer's line.
 
