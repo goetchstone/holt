@@ -5,11 +5,14 @@
 // and that is declared in e2e/dynamicRoutes.ts. A new dynamic page with no
 // entry would never be opened, so this fails on it; it also fails on an entry
 // for a route that no longer exists, and on a skip with no reason. The same
-// holds for e2e/knownFailures.ts, the ratchet of pages found broken.
+// holds for e2e/knownFailures.ts, the ratchet of pages found broken. It also
+// checks the Pages Router walk finds the sign-in screens the suite opens signed
+// out: an empty walk would leave that part of the suite with no tests, and
+// green.
 
 import { DYNAMIC_ROUTES } from "../e2e/dynamicRoutes";
 import { KNOWN_FAILURES } from "../e2e/knownFailures";
-import { isDynamic, pageRoutes } from "../e2e/pageRoutes";
+import { isDynamic, pageRoutes, pagesRouterRoutes } from "../e2e/pageRoutes";
 import { REDIRECTS } from "../e2e/redirects";
 
 const routes = pageRoutes();
@@ -60,5 +63,16 @@ describe("e2e/redirects.ts names real pages, a target and a reason", () => {
       )
       .map(([route]) => route);
     expect(bad).toEqual([]);
+  });
+});
+
+describe("e2e/pageRoutes.ts reads the Pages Router screens", () => {
+  it("finds the sign-in screen, and no API route or Next's own _app and _document", () => {
+    const screens = pagesRouterRoutes();
+    expect(screens).toContain("/auth/login");
+    const stray = screens.filter(
+      (r) => r.startsWith("/api") || r.split("/").some((part) => part.startsWith("_")),
+    );
+    expect(stray).toEqual([]);
   });
 });

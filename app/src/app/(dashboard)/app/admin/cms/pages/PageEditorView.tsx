@@ -10,16 +10,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
+import { slugify } from "@/lib/slugify";
 import { BlockEditor } from "@/components/cms/admin/BlockEditor";
 import { parseBlocks, type ContentBlock } from "@/lib/cms/blocks";
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 export function PageEditorView({ pageId }: { pageId: number | null }) {
   const router = useRouter();

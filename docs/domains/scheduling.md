@@ -29,7 +29,12 @@ existing deployments keep working with zero config. Gated by the existing
   and any overlapping a busy interval (bookings + blocks). Pure, returns the same
   `Slot[]` as `generateSlots`. Tested in `__tests__/bookingAvailability.test.ts`.
 - `scheduling.ts` — shared primitives: `DAY_OF_WEEK_LABELS`, `isValidHHMM`,
-  `hhmmToMinutes`, `minutesToHHMM`, `slugify`. Tested.
+  `hhmmToMinutes`, `minutesToHHMM`. Tested.
+- Service slugs, and the organizer part of `bookingUid` in `event.ts`, come
+  from `slugify` in `lib/slugify.ts`, shared with the CMS editors
+  (`__tests__/slugify.test.ts`). It splits on runs of anything but `a-z0-9`
+  and joins with `-`; moved out of `scheduling.ts` on 2026-11-20, when CodeQL
+  flagged the old trailing-dash trim as polynomial (alert 68).
 - `serviceRequestBody.ts` — zod parsers for service / window / block create +
   service update. Tested.
 - `requestBody.ts` / `ics.ts` / `icsToken.ts` — the public booking body, the

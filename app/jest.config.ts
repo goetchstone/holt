@@ -9,7 +9,7 @@ const sharedTransform = {
       tsconfig: { moduleResolution: "node", module: "commonjs", jsx: "react-jsx" },
     },
   ],
-  // @rgrove/parse-xml@5 is ESM-only. Unlike uuid and superjson below it gets
+  // @rgrove/parse-xml@5 is ESM-only. Unlike superjson below it gets
   // no shim: the DMARC tests exist to prove the REAL parser rejects DTDs and
   // resolves no external entities, so the real code is compiled to CommonJS
   // for Jest instead (see ESM_TRANSFORMED below).
@@ -23,21 +23,38 @@ const sharedTransform = {
     "ts-jest",
     { tsconfig: { allowJs: true, module: "commonjs", moduleResolution: "node" } },
   ],
+  // sanitize-html (CommonJS) requires htmlparser2@12, which is ESM-only, as are
+  // the four parser packages under it and entities. Node loads them for
+  // sanitize-html in production (require of ESM); Jest cannot, so they are
+  // compiled here, and the CMS and help-center tests sanitize with the REAL
+  // parser. Until 2026-11-20 a blanket override pinned htmlparser2 to 9.1.0
+  // instead, below the ^12 sanitize-html asks for (rule 53).
+  "^.+/node_modules/(htmlparser2|domutils|domhandler|domelementtype|dom-serializer|entities)/.+\\.js$":
+    ["ts-jest", { tsconfig: { allowJs: true, module: "commonjs", moduleResolution: "node" } }],
 };
 
 // node_modules packages Jest must transform rather than load as-is.
-const ESM_TRANSFORMED = ["@rgrove/parse-xml", "marked"];
+const ESM_TRANSFORMED = [
+  "@rgrove/parse-xml",
+  "marked",
+  "htmlparser2",
+  "domutils",
+  "domhandler",
+  "domelementtype",
+  "dom-serializer",
+  "entities",
+];
 
 const sharedProject = {
   maxWorkers: 1,
   transform: sharedTransform,
-  transformIgnorePatterns: [`/node_modules/(?!(${ESM_TRANSFORMED.join("|")})/)`],
+  // A listed package is compiled wherever npm puts it, nested under an unlisted
+  // one included (sanitize-html/node_modules/htmlparser2 was, until 2026-11-20).
+  transformIgnorePatterns: [
+    `/node_modules/(?!(?:.+/node_modules/)?(?:${ESM_TRANSFORMED.join("|")})/)`,
+  ],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
-    // uuid@14 is ESM-only; Jest (running ts-jest → CommonJS) cannot
-    // parse its dist. Route the module to a thin CJS shim used only in
-    // tests. Production runs against the real uuid@14 via Next.js.
-    "^uuid$": "<rootDir>/__tests__/__mocks__/uuidShim.js",
     // superjson is ESM-only too; same CJS-shim approach. tRPC's transformer
     // only needs serialize/deserialize identity for in-process caller tests.
     "^superjson$": "<rootDir>/__tests__/__mocks__/superjsonShim.js",

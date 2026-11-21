@@ -7,9 +7,9 @@
 // is a single change here: add its schema, add it to the union, give it a
 // label and a factory default.
 //
-// Author-supplied HTML (richText, embed) is rendered as-is by the public
-// renderer; authors are trusted back-office staff. Sanitize at the render
-// boundary if untrusted authors are ever introduced.
+// Author-supplied HTML (richText, embed) is sanitized by the public renderer
+// before it is drawn (lib/cms/sanitize.ts); an embed's iframe may come only
+// from the providers in lib/cms/embedHosts.ts.
 
 import { z } from "zod";
 

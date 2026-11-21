@@ -27,6 +27,7 @@ app/src/lib/homeAccessoryBuyerDraftMapping.ts|docs/domains/buyer-drafts.md
 app/src/lib/historicalPoImport*|docs/domains/buyer-drafts.md
 
 # Import pipeline (legacy/adapter ingestion)
+app/src/lib/adapters/legacyPos/sameDayRewriteCleanup.ts|docs/domains/returns.md
 app/src/lib/adapters/legacyPos/*|docs/domains/import-pipeline.md
 app/src/pages/api/import/*|docs/domains/import-pipeline.md
 app/src/lib/audit.ts|docs/domains/audit.md
@@ -63,11 +64,11 @@ app/src/app/(dashboard)/app/reports/returns/*|docs/domains/returns.md
 app/src/app/(dashboard)/app/reports/unclassified-returns/*|docs/domains/returns.md
 app/src/pages/api/returns/*|docs/domains/returns.md
 app/src/lib/returnService.ts|docs/domains/returns.md
-app/src/lib/adapters/legacyPos/sameDayRewriteCleanup.ts|docs/domains/returns.md
 app/src/lib/salesOrderRevenue.ts|docs/domains/returns.md
 
 # Sales orders / quotes / pipeline (generic -- catches remaining sales/*)
 app/src/app/(dashboard)/app/sales/*|docs/domains/sales-orders.md
+app/src/pages/api/sales/interactions/*|docs/domains/interactions.md
 app/src/pages/api/sales/*|docs/domains/sales-orders.md
 app/src/lib/paymentService.ts|docs/domains/sales-orders.md
 app/src/lib/duplicateQuotes.ts|docs/domains/sales-orders.md
@@ -87,6 +88,9 @@ app/src/pages/api/purchasing/*|docs/domains/purchasing.md
 app/src/app/(dashboard)/app/purchasing/*|docs/domains/purchasing.md
 
 # Reporting (generic report libs + pages)
+app/src/app/(dashboard)/app/reports/commission/*|docs/domains/commission.md
+app/src/app/(dashboard)/app/reports/wealth-insights/*|docs/domains/customer-intelligence.md
+app/src/app/(dashboard)/app/reports/dormant-customers/*|docs/domains/customer-intelligence.md
 app/src/app/(dashboard)/app/reports/*|docs/domains/reporting.md
 app/src/pages/api/reports/*|docs/domains/reporting.md
 app/src/lib/reports/*|docs/domains/reporting.md
@@ -97,7 +101,6 @@ app/src/lib/buyPerformance*|docs/domains/reporting.md
 # Commission payouts + pay-period lock
 app/src/lib/commission*|docs/domains/commission.md
 app/src/lib/payPeriod*|docs/domains/commission.md
-app/src/app/(dashboard)/app/reports/commission/*|docs/domains/commission.md
 app/src/pages/api/admin/reports/commission*|docs/domains/commission.md
 
 # Service dispatch / delivery
@@ -127,8 +130,6 @@ app/src/lib/campaignDedup.ts|docs/domains/mailchimp.md
 
 # Customer intelligence (leveling, wealth, scoring -- non-Mailchimp pieces)
 app/src/lib/customerLeveling.ts|docs/domains/customer-intelligence.md
-app/src/app/(dashboard)/app/reports/wealth-insights/*|docs/domains/customer-intelligence.md
-app/src/app/(dashboard)/app/reports/dormant-customers/*|docs/domains/customer-intelligence.md
 
 # Client portal (token-gated, no-login) -- separate from the older portal.md surface
 app/src/app/portal/client/*|docs/domains/client-portal.md
@@ -145,13 +146,14 @@ app/src/lib/portalToken.ts|docs/domains/portal.md
 app/src/lib/cms/*|docs/domains/cms.md
 app/src/pages/api/cms/*|docs/domains/cms.md
 app/src/app/(dashboard)/app/admin/cms/*|docs/domains/cms.md
+app/src/app/(site)/book/*|docs/domains/scheduling.md
+app/src/app/(site)/tools/dmarc-*|docs/domains/dmarc-tools.md
 app/src/app/(site)/*|docs/domains/cms.md
 
 # Scheduling / bookings
 app/src/lib/booking/*|docs/domains/scheduling.md
 app/src/pages/api/bookings/*|docs/domains/scheduling.md
 app/src/pages/api/scheduling/*|docs/domains/scheduling.md
-app/src/app/(site)/book/*|docs/domains/scheduling.md
 app/src/app/(dashboard)/app/admin/scheduling/*|docs/domains/scheduling.md
 
 # Printing + labels (receipt/invoice HTML + ZPL TCP)
@@ -182,7 +184,6 @@ app/src/app/(dashboard)/app/time/*|docs/domains/time-tracking.md
 
 # Interactions / CRM logging
 app/src/pages/api/interactions/*|docs/domains/interactions.md
-app/src/pages/api/sales/interactions/*|docs/domains/interactions.md
 app/src/app/(dashboard)/app/interactions/*|docs/domains/interactions.md
 
 # Help center (GAP-30): the articles and what shows them
@@ -192,6 +193,7 @@ app/src/components/help/*|docs/domains/help.md
 app/src/pages/api/help/*|docs/domains/help.md
 
 # Admin tools (Query Builder, apparel-order import, home-accessory order)
+app/src/app/(dashboard)/app/tools/legacy-archive/*|docs/domains/legacy-archive.md
 app/src/app/(dashboard)/app/tools/*|docs/domains/tools.md
 app/src/app/(dashboard)/app/admin/tools/*|docs/domains/tools.md
 app/src/pages/api/tools/*|docs/domains/tools.md
@@ -201,7 +203,6 @@ app/src/lib/homeAccessory*|docs/domains/tools.md
 
 # Legacy archive (read-only pre-cutover data lookup)
 app/src/lib/legacyArchive.ts|docs/domains/legacy-archive.md
-app/src/app/(dashboard)/app/tools/legacy-archive/*|docs/domains/legacy-archive.md
 
 # Pricing catalog
 app/src/pages/api/pricing/*|docs/domains/pricing-catalog.md
@@ -223,7 +224,6 @@ app/src/pages/api/google/*|docs/domains/integrations.md
 
 # DMARC tools (public site utility)
 app/src/lib/dmarc/*|docs/domains/dmarc-tools.md
-app/src/app/(site)/tools/dmarc-*|docs/domains/dmarc-tools.md
 
 # Email queue / templates
 app/src/lib/email/*|docs/domains/email.md
@@ -270,6 +270,7 @@ app/src/lib/vendorLeadTime.ts|docs/domains/purchasing.md
 app/src/lib/vendorNumbering.ts|docs/domains/purchasing.md
 app/src/lib/vendorPatch.ts|docs/domains/purchasing.md
 app/src/lib/vendorPrefixService.ts|docs/domains/purchasing.md
+app/src/pages/api/vendors/import.ts|docs/domains/imports-configurable.md
 app/src/pages/api/vendors/*|docs/domains/purchasing.md
 app/src/pages/api/products/[id]/sources/*|docs/domains/purchasing.md
 app/src/pages/api/products/[id]/reorder-points.ts|docs/domains/purchasing.md
@@ -284,8 +285,11 @@ app/src/lib/pricing/*|docs/domains/pricing-catalog.md
 app/src/lib/customers/tradeTierAssignment.ts|docs/domains/pricing-catalog.md
 app/src/lib/productPairingValidation.ts|docs/domains/pricing-catalog.md
 app/src/pages/api/products/*|docs/domains/pricing-catalog.md
+app/src/pages/api/categories/import.ts|docs/domains/imports-configurable.md
 app/src/pages/api/categories/*|docs/domains/pricing-catalog.md
+app/src/pages/api/departments/import.ts|docs/domains/imports-configurable.md
 app/src/pages/api/departments/*|docs/domains/pricing-catalog.md
+app/src/pages/api/types/import.ts|docs/domains/imports-configurable.md
 app/src/pages/api/types/*|docs/domains/pricing-catalog.md
 app/src/pages/api/admin/bulk-categorize.ts|docs/domains/pricing-catalog.md
 app/src/pages/api/admin/uncategorized-products.ts|docs/domains/pricing-catalog.md
@@ -316,10 +320,6 @@ app/src/app/(dashboard)/app/admin/import/departments/*|docs/domains/imports-conf
 app/src/app/(dashboard)/app/admin/import/types/*|docs/domains/imports-configurable.md
 app/src/app/(dashboard)/app/admin/import/page.tsx|docs/domains/imports-configurable.md
 app/src/pages/api/admin/imports/*|docs/domains/imports-configurable.md
-app/src/pages/api/categories/import.ts|docs/domains/imports-configurable.md
-app/src/pages/api/departments/import.ts|docs/domains/imports-configurable.md
-app/src/pages/api/types/import.ts|docs/domains/imports-configurable.md
-app/src/pages/api/vendors/import.ts|docs/domains/imports-configurable.md
 app/src/components/layout/CsvImportForm.tsx|docs/domains/imports-configurable.md
 app/src/lib/importHelpers.ts|docs/domains/import-pipeline.md
 app/src/lib/adapters/*|docs/domains/source-adapters.md
@@ -435,6 +435,7 @@ app/src/components/commission/*|docs/domains/commission.md
 
 # Customers and customer intelligence
 app/src/lib/customers/*|docs/domains/customer-intelligence.md
+app/src/pages/api/customers/windfall-import.ts|docs/domains/integrations.md
 app/src/pages/api/customers/*|docs/domains/customer-intelligence.md
 app/src/pages/api/referral-sources/*|docs/domains/customer-intelligence.md
 app/src/app/(dashboard)/app/admin/setup/referral-sources/*|docs/domains/customer-intelligence.md
@@ -503,7 +504,6 @@ app/src/lib/secretCrypto.ts|docs/domains/integrations.md
 app/src/pages/api/axper/*|docs/domains/integrations.md
 app/src/pages/api/exports/windfall-*|docs/domains/integrations.md
 app/src/app/(dashboard)/app/admin/import/windfall/*|docs/domains/integrations.md
-app/src/pages/api/customers/windfall-import.ts|docs/domains/integrations.md
 app/src/pages/api/admin/settings/integrations.ts|docs/domains/integrations.md
 app/src/pages/api/admin/settings/integrations/*|docs/domains/integrations.md
 app/src/app/(dashboard)/app/admin/settings/integrations/*|docs/domains/integrations.md
@@ -605,6 +605,7 @@ app/src/lib/safePathJoin.ts|-|generic path-traversal guard for file access
 app/src/lib/privateTempFile.ts|-|generic private temp-file helper
 app/src/lib/secureUpload.ts|-|generic upload validation shared by every upload route
 app/src/lib/validateEnv.ts|-|boot-time environment validation, deployment plumbing
+app/src/lib/contentSecurityPolicy.ts|-|the Content-Security-Policy every page answers with, set per request by src/proxy.ts; deployment security plumbing
 app/src/lib/validation/*|-|generic request validation helpers shared by every route
 app/src/lib/cacheGeneration.ts|-|generic cache-invalidation helper
 app/src/lib/buildSearchFilter.ts|-|generic search-filter builder used by many list endpoints
@@ -613,6 +614,7 @@ app/src/lib/savedRecord.ts|-|generic add-or-edit form helper used by many screen
 app/src/lib/toastError.ts|-|generic error-toast helper used by many screens
 app/src/lib/csv.ts|-|generic CSV parsing helper
 app/src/lib/csvExport.ts|-|generic CSV writer helper
+app/src/lib/slugify.ts|-|generic URL slug helper
 app/src/lib/excelUtils.ts|-|generic spreadsheet helper
 app/src/lib/dateUtils.ts|-|generic date helpers
 app/src/lib/money.ts|-|generic money arithmetic helpers
