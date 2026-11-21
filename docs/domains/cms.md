@@ -38,7 +38,11 @@ Per `Organization` (single-org runtime = `DEFAULT_ORG_ID = 1`):
   discriminated union over block types: `hero`, `features` (card grid), `stats`
   (value band), `richText`, `image`, `gallery`, `cta`, `embed`. `parseBlocks(json)`
   validates + drops invalid input to `[]`. Image fields use `ImageUploadField`
-  (paste a URL or upload via `POST /api/cms/media`).
+  (paste a URL or upload via `POST /api/cms/media`). A pasted URL on another
+  site does not show: the pages' Content-Security-Policy allows images only
+  from this site (`img-src 'self' data: blob:`, `lib/contentSecurityPolicy.ts`),
+  as the policy before it did. Upload the image instead. Whether storefront
+  images may come from other hosts is an open owner question.
   `createBlock(type, id)` builds an empty block for the editor. Adding a block
   type = add its schema, add to the union, add a label, extend the factory, and
   add a renderer case + a fields case.
@@ -47,8 +51,15 @@ Per `Organization` (single-org runtime = `DEFAULT_ORG_ID = 1`):
 - `requestBody.ts` — pure zod validation for the admin API (rule 14); handlers
   stay thin. `parsePageInput` / `parsePostInput` / `parseMenuInput`.
 
-Author HTML (`richText`, `embed`) is rendered as-is — authors are trusted
-back-office staff. Sanitize at the render boundary if that ever changes.
+Author HTML (`richText`, `embed`) is sanitized where it is rendered
+(`lib/cms/sanitize.ts`, called from `BlockRenderer.tsx`): no scripts, event
+handlers or script URLs, and an iframe only from the embed providers in
+`lib/cms/embedHosts.ts`. That list is also the Content-Security-Policy's
+`frame-src` (`lib/contentSecurityPolicy.ts`), so a provider added there is both
+kept by the sanitizer and allowed to load. Until the two shared it (SEC-06,
+2026-11-21), the policy blocked every embed the sanitizer kept, and an embed
+block rendered empty. (This paragraph said the HTML was rendered as-is long
+after the sanitizer landed.)
 
 ### Section variants (background + eyebrow)
 

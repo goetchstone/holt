@@ -605,6 +605,7 @@ app/src/lib/safePathJoin.ts|-|generic path-traversal guard for file access
 app/src/lib/privateTempFile.ts|-|generic private temp-file helper
 app/src/lib/secureUpload.ts|-|generic upload validation shared by every upload route
 app/src/lib/validateEnv.ts|-|boot-time environment validation, deployment plumbing
+app/src/lib/contentSecurityPolicy.ts|-|the Content-Security-Policy every page answers with, set per request by src/proxy.ts; deployment security plumbing
 app/src/lib/validation/*|-|generic request validation helpers shared by every route
 app/src/lib/cacheGeneration.ts|-|generic cache-invalidation helper
 app/src/lib/buildSearchFilter.ts|-|generic search-filter builder used by many list endpoints
