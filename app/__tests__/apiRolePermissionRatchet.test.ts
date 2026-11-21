@@ -51,7 +51,11 @@ function roleArrayRoutes(): string[] {
 
 describe("the role-array backlog is a ratchet", () => {
   it("finds the routes it was written for, so the scan is not silently empty", () => {
-    expect(listed().length).toBeGreaterThan(50);
+    // Was > 50 while the backlog was long. The 2026-11 sweep left two lines, so
+    // the floor is now "the list still parses to something". A broken scan is
+    // still caught: while any line remains, the two checks below fail in
+    // opposite directions if the list and the source disagree.
+    expect(listed().length).toBeGreaterThan(0);
   });
 
   it("adds no route that is not already on the list", () => {
@@ -71,7 +75,10 @@ describe("the role-array backlog is a ratchet", () => {
     // The number that matters. 121 routes were on role arrays; 30 converted
     // with provably identical access; the operating-role model took it to 83;
     // later conversions to 79 (the run-status and stop routes went to
-    // warehouse.operate, like the run and stop-list routes beside them).
-    expect(roleArrayRoutes().length).toBeLessThanOrEqual(79);
+    // warehouse.operate, like the run and stop-list routes beside them). The
+    // 2026-11 role-list sweep converted 64 more, leaving the two house-call
+    // routes, which wait on the owner. Once those convert, delete the fixture
+    // and assert roleArrayRoutes() is empty.
+    expect(roleArrayRoutes().length).toBeLessThanOrEqual(2);
   });
 });

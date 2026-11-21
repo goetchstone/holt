@@ -44,6 +44,28 @@ The `DispatchStatus` enum (PO_PLACED, RECEIVED_IN_WAREHOUSE, READY_FOR_PICKUP, S
 
 ## Dispatch Dashboards
 
+**Access (2026-11 role-list sweep).** Every page under `/app/dispatch` (the
+board, Ready to Deliver, the planner, a run, a pick list, the driver screen) and
+the Warehouse dispatch queue (`/app/warehouse/dispatch`) open on Operate
+warehouse (`warehouse.operate`). So does every route under `/api/dispatch`:
+`assign-order`, `delivery-planner`, `orders-by-zone`, `pencil-in`,
+`ready-to-deliver` and `pick-lists/[id]/items` moved off a
+MANAGER/ADMIN/WAREHOUSE role list, and runs, stops, vehicles, pick lists and
+unassigned were already on it. A page opens exactly when its data loads. By
+default the Owner, Administrator, General Manager, Manager, Warehouse, Dispatch
+and Installer hold the key. General Manager, Dispatch and Installer gained the
+board, planner and Ready to Deliver. A custom or edited role follows its Roles
+grant, not the staff enum. View warehouse (`warehouse.read`) opens only the
+Warehouse menu item and hub; no dispatch read is on it. Tested by
+`dispatchRouteGates.integration.test.ts`.
+
+**Left open:** the dispatch queue's status buttons call
+`PUT /api/sales/orders/[id]/dispatch` (Write orders, `sales.write`), so
+Warehouse, Dispatch and Installer can open the queue but its status change
+answers 403. The run page's driver picker reads `GET /api/staff` (Manage staff,
+`staff.manage`) and swallows the refusal, so it lists no drivers for Manager,
+Warehouse, Dispatch or Installer.
+
 Three dispatch planning pages under `/dispatch/`:
 
 ### Ready to Deliver (`/dispatch/ready-to-deliver`)
@@ -214,10 +236,76 @@ Left open (ROADMAP GAP-11):
 - No checklist is applied automatically by case type, and the new-case form
   doesn't offer one.
 - Emails from a case: `ServiceEmail` is still unread and unwritten.
-- The case type, status and priority routes are gated to MANAGER and ADMIN by
-  role, reads included. Anyone else who works service cases gets an empty type
-  and priority list on the new-case form, and an empty status list on the case
-  page.
+- New case's type and priority lists and the case page's status list are still
+  empty for anyone without Manage staff (`staff.manage`: the Owner,
+  Administrators, General Managers, People Operations). The lists have answered
+  to View service since 2026-11-21 ("Who may use the service routes" below). But
+  both screens fetch them in one `Promise.all` with `GET /api/staff`, which takes
+  `staff.manage`, and its 403 empties the whole batch (`NewServiceCaseView.tsx`,
+  `CaseDetailView.tsx`). The Service queue's filters don't read `/api/staff`, so
+  they now fill. A staff-picker read on the service keys would close this.
+- New case sends no `statusId`, and `POST /api/service/cases` requires one, so
+  New case answers 400 whoever submits it.
+- `GET /api/service/installers` answers a bare list, but Admin > Service >
+  Installers and the dispatch board's installer picker read `.installers`, so
+  both show no installers.
+- The Service dispatch board asks `GET /api/service/dispatch` for `status=...`,
+  but the route filters on `tab` (default pending), so all three of the board's
+  tabs show pending appointments.
+
+## Who may use the service routes (2026-11-21)
+
+Every route under `pages/api/service/` is on a permission key except
+`house-calls/index.ts` and `house-calls/[id].ts`. Most were role lists, and four
+routes also checked the staff enum inline: opening a case, adding a case task,
+rescheduling an appointment, and any non-GET on the appointment list. Those
+inline checks did three things wrong. They refused the Owner, because
+SUPER_ADMIN matches ADMIN only inside `decideRoleAccess`. They ignored View as.
+And they let every custom role through as enum DESIGNER.
+
+- **Cases.** In `cases/index.ts`, GET (the Service queue) takes View service
+  (`service.read`) and POST (New case) takes Work service (`service.write`).
+  `cases/[id]/tasks.ts` takes Work service, like the case's other routes.
+  Register and Marketing hold neither key. They lose the API-only reads of the
+  queue and of a case's tasks that their role lists gave them; no screen of
+  theirs calls either route. General Manager, Dispatch and Customer Service gain
+  both routes. Before, they could open the Service queue, but its list refused
+  them.
+- **Appointments.** `dispatch/index.ts` and `dispatch/[id].ts` take Work
+  service. Rescheduling and assigning the installer (`dispatch/[id].ts` PUT)
+  also need Operate warehouse (`warehouse.operate`), answered through
+  `{ also }`. That is the key `dispatch/[id]/status.ts` requires. The change
+  adds the Owner, General Manager and Dispatch. A non-GET on the list answers
+  403 without the key and 405 with it.
+- **Setup.** These routes take Set up service (`service.setup`) or the key their
+  screen opens on: delivery zones (`delivery-zones/*`), installers
+  (`installers/[id].ts` and POST on `installers/index.ts`), case types, statuses
+  and priorities (POST on `settings/types.ts`, `statuses.ts` and `priorities.ts`,
+  and every method on their `[id]` routes), and email templates
+  (`email-templates/*`). The screen keys are Change settings (`admin.settings`)
+  for zones and installers, and Manage configuration (`admin.config`) for case
+  settings and templates. Set up service is marked sensitive, because a zone's
+  fee is charged on orders. It starts on the Owner, Administrators and Managers,
+  the audience of the old MANAGER/ADMIN lists. The screens keep their keys, so
+  Managers still make these writes by API only, as before. Moving the screens
+  onto the key, or unticking it for Managers, is the owner's call.
+- **Lookup reads.** GET on `settings/types.ts`, `statuses.ts` and
+  `priorities.ts` takes View service, Work service, Set up service or Manage
+  configuration: the keys of the screens that read them. So every View service
+  holder now reads them, where before only Managers and Administrators could.
+  GET on `installers/index.ts` also takes Operate warehouse, for the dispatch
+  board's installer picker. That list carries each installer's phone and email,
+  and the change adds General Manager, Dispatch, Warehouse and Installer.
+- **A store's own role** follows its grants. Its staff carry the enum DESIGNER,
+  which every case list let through.
+- **Unchanged, pending the owner.** The Service dispatch board
+  (`/app/service/dispatch`), both house-call pages and the two house-call routes
+  keep their role lists. `pagePermissions.ts` records the pages' proposed keys
+  as `widensFrom`. Until the board converts, General Manager and Dispatch can
+  reschedule by API only, and General Manager, Dispatch and Installer can read
+  the installer list by API only.
+
+Held by `serviceRouteKeys.integration.test.ts`.
 
 ## Key Files
 
@@ -232,7 +320,7 @@ Left open (ROADMAP GAP-11):
 - `lib/deliveryService.ts` -- delivery zone resolution, assignOrderToRun(), findOrCreatePlanningRun(), `generatePickList()` (a run's or an order's pick list, written from the pull list in `lib/fulfilment/pullList.ts`: active lines only, the order's own committed stock at the place it sits, what is already staged or at the pickup place left off, units at another store flagged), `pickListForClient()` (every pick-list response goes through it: a line's quantity is Decimal, a part roll, and is sent as a number)
 - `lib/paymentService.ts` -- `computeBalance()` used by dispatch board for balance due
 - `pages/api/dispatch/` -- dispatch API endpoints (orders-by-zone, ready-to-deliver, delivery-planner, pencil-in, runs, stops, vehicles, assign-order)
-- `pages/dispatch/` -- dispatch pages (board, ready-to-deliver, planner)
+- `app/(dashboard)/app/dispatch/` -- dispatch pages (board, ready-to-deliver, planner, run, pick list, driver), all on `warehouse.operate`
 - `pages/api/service/` -- service appointment API endpoints
 - `pages/api/service/house-calls/index.ts` -- books a house call and the order line that charges for it; the line's cost is the house-call product's cost through `productCost` (landed, else catalog: `docs/domains/sales-orders.md`, "A new line's cost")
 - `pages/api/service/purchase-order-lookup.ts` -- the "Link PO" search on a case task: PO number and vendor name only (no totals, cost or notes), gated on `service.write` like the task save it serves. The purchasing list (`purchasing.read`) stays with purchasing
@@ -254,6 +342,8 @@ Left open (ROADMAP GAP-11):
 ## Test Coverage
 
 Covered: `serviceDispatch.test.ts` (transitions, number generation)
+
+Covered: `serviceRouteKeys.integration.test.ts`. It checks who each converted route admits: the Owner on cases, tasks and rescheduling; Register and Marketing refused the case queue and tasks; the lookup lists on View service; rescheduling on Operate warehouse; setup refused to General Manager, Warehouse, Dispatch, Customer Service and Designer; the bookable-services catalog on Change settings; and a store's own role by its grants. `dispatchRouteGates.integration.test.ts` does the same for the six `/api/dispatch` routes on Operate warehouse.
 
 Covered: `fractionalStock.integration.test.ts` (a run's and an order's pick list carry the line's quantity -- the run builder wrote 1 on every line until 2026-10-15 -- and the pick-list API answers it as a number); `costUnreadPayloads.integration.test.ts` (pick-list create/read payloads carry no cost).
 
@@ -324,4 +414,4 @@ Cutover bridge for the team's Excel-based customer-service workflow. Until the G
 
 ---
 
-Last verified: 2026-10-21
+Last verified: 2026-11-21 (who opens the dispatch pages and may use the dispatch and service routes, and Left open); the rest 2026-10-21

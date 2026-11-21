@@ -157,4 +157,4 @@ REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
 - **Shared business logic** lives in `src/lib/` (never in API routes or components)
 - **Vendor-specific parsers** live in `src/lib/pricing/`
 - **React components** follow the pattern: `src/components/{domain}/{ComponentName}.tsx`
-- **Page layouts** in `src/components/layout/` (MainLayout is the standard wrapper)
+- **Page layouts**: back-office chrome comes from `src/app/(dashboard)/layout.tsx` (`AppShell` in `src/components/navigation/`); `src/components/layout/` holds `CardGrid` (hub pages), `ScannerLayout`, `MinimalLayout` and `CsvImportForm`

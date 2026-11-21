@@ -120,7 +120,7 @@ This runbook entry exists as a forward-pointer. When the work starts, this secti
 
 **Model**: `WindfallEnrichment` — 1:1 with `Customer`. Includes net worth, wealth tier, 20+ lifestyle/asset/philanthropy/political boolean signals, match confidence.
 
-**Visibility**: ADMIN + MARKETING only. NEVER MANAGER (per `docs/domains/staff-auth.md` "Wealth Data Visibility").
+**Visibility**: See wealth data (`customer.wealth`): Marketing by default, beside the Owner and Administrators. Not Managers by default (per `docs/domains/staff-auth.md` "Wealth Data Visibility").
 
 **Pricing**: paid service. Stop the import if Windfall's contract ends — historical rows stay valid but don't refresh.
 

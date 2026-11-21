@@ -4,7 +4,7 @@ Email campaign sync, attribution, lead ingestion, housekeeping. This split out f
 
 ## Daily orchestrator
 
-Single entry point: `POST /api/automations/mailchimp-sync` (runs 4 phases). Scheduled by "Mailchimp campaign results" at Admin → Automations, off to start (`docs/domains/automations.md`). By hand: Bearer `AUTO_IMPORT_API_KEY` or a session. `/api/mailchimp/backfill-customer-links` checks the key through the shared constant-time `authorizedByAutoImportKey` (`lib/automations/guardAutomation.ts`), not an inline compare.
+Single entry point: `POST /api/automations/mailchimp-sync` (runs 4 phases). Scheduled by "Mailchimp campaign results" at Admin → Automations, off to start (`docs/domains/automations.md`). By hand: Bearer `AUTO_IMPORT_API_KEY`, or a session holding Run scheduled jobs (`admin.automations`), through `guardAutomation`. `/api/mailchimp/backfill-customer-links` goes through the same `guardAutomation` since 2026-11-21; it used to check the key itself or an ADMIN/MANAGER/SUPER_ADMIN session role, so Managers lose it by API (its one screen, Mailchimp Sync, is Change settings).
 
 Phases:
 
@@ -95,32 +95,32 @@ After deploying any fix that touches revenue aggregation, run `POST /api/custome
 
 ## Leads board
 
-`/leads` (manager-facing). API returns:
+`/app/leads` (Work leads, `sales.lead`). `GET /api/leads` returns the fields below and says which it sent (`scoreVisible`, `wealthVisible`); the board shows them from those:
 
-| Field                                                        | Visibility                         |
-| ------------------------------------------------------------ | ---------------------------------- |
-| `leadTier` (🔥 HOT / 🙂 WARM / 🙃 COOL / 😐 NEW)             | All roles                          |
-| `leadScore` numeric                                          | ADMIN/MANAGER/MARKETING only       |
-| `wealthTier`                                                 | ADMIN/MARKETING only (NOT MANAGER) |
-| `recentEngagement` (last open/click + 30-day campaign count) | All roles                          |
-| `suggestedAction` hint per card                              | All roles                          |
+| Field                                                        | Visibility                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `leadTier` (🔥 HOT / 🙂 WARM / 🙃 COOL / 😐 NEW)             | All roles                                                    |
+| `leadScore` numeric                                          | View marketing (`marketing.read`)                            |
+| `wealthTier`                                                 | See wealth data (`customer.wealth`); not Managers by default |
+| `recentEngagement` (last open/click + 30-day campaign count) | All roles                                                    |
+| `suggestedAction` hint per card                              | All roles                                                    |
 
 The pipeline and My Clients build a score's input with `leadScoreInputFromCustomer`
 (`lib/leadScore.ts`), so both score a client the same way. My Clients shows the tier only.
 
-**Manager-only "Needs Attention" strip** at the top via `GET /api/leads/needs-attention` — counts for new-to-assign / going-stale / hot-no-contact.
+**"Needs Attention" strip** at the top via `GET /api/leads/needs-attention` (View marketing, `marketing.read`; it refused the Owner until 2026-11) — counts for new-to-assign / going-stale / hot-no-contact.
 
-**Pin toggle** on any card to exempt from auto-archive.
+**Pin toggle** (on a going-stale card, to exempt it from auto-archive), **Assign to** and **Delete lead** show to holders of Run marketing (`marketing.write`), which `DELETE /api/leads/[id]` requires.
 
 ## Manual sync endpoints (one-offs)
 
-| Endpoint                                    | Use case                                                                          |
-| ------------------------------------------- | --------------------------------------------------------------------------------- |
-| `/api/mailchimp/sync.ts`                    | Full pipeline (legacy, prefer the orchestrator)                                   |
-| `/api/mailchimp/sync-activity.ts`           | Just activity window                                                              |
-| `/api/mailchimp/sync-all-activity.ts`       | Wider activity backfill (slow)                                                    |
-| `/api/mailchimp/sync-metrics.ts`            | Just metrics window                                                               |
-| `/api/mailchimp/backfill-customer-links.ts` | Re-link `MailchimpActivity.customerId` for rows that didn't match on first ingest |
+| Endpoint                                    | Use case                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/mailchimp/sync.ts`                    | Full pipeline (legacy, prefer the orchestrator)                                                                                                   |
+| `/api/mailchimp/sync-activity.ts`           | Just activity window                                                                                                                              |
+| `/api/mailchimp/sync-all-activity.ts`       | Wider activity backfill (slow)                                                                                                                    |
+| `/api/mailchimp/sync-metrics.ts`            | Just metrics window                                                                                                                               |
+| `/api/mailchimp/backfill-customer-links.ts` | Re-link `MailchimpActivity.customerId` for rows that didn't match on first ingest (`guardAutomation`: the scheduler's key, or Run scheduled jobs) |
 
 **Without a usable key.** Each route checks `mailchimpDatacenter(MAILCHIMP_API_KEY)`
 (`lib/mailchimp/baseUrl.ts`) per request and stops when it is null, a key that is

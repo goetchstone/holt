@@ -62,12 +62,6 @@ const UNGATED_BY_DESIGN: Record<string, string> = {
     "No-login public ticket view/reply; the ticket's stable publicToken IS the authorization, rate-limited, internal notes filtered out",
   "tickets/public/[token]/attachment.ts":
     "Customer attaches a file to their own ticket; same publicToken capability as the status/reply endpoint, rate-limited",
-
-  // --- Automation/cron endpoints still on a manual role check (not yet guardAutomation) ---
-  "automations/customer-level-recalc.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the host's cron (scripts/auto-customer-level-recalc.sh) OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- stricter than the other automations, which accept any session",
-  "mailchimp/backfill-customer-links.ts":
-    "Bearer AUTO_IMPORT_API_KEY OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- same dual-auth mechanism as automations/customer-level-recalc.ts, triggered from the same admin mailchimp-sync UI though the route lives outside api/automations/*",
 };
 
 /** Files that are helpers/config, not routes. */

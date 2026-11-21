@@ -1918,8 +1918,8 @@ transactional and recorded (2026-11-11, see 57 and 58).
 - **Making or changing a tier moves money**, so a new tier, a new percent or turning one on also needs Apply
   discounts beside `catalog.pricing`, and each is audited (`TRADE_TIER_CHANGED`).
 - **Giving a tier is one writer, refused for a tier turned off, and audited** (`TRADE_TIER_ASSIGNED`) in the save's
-  transaction. The route stays on the MANAGER/ADMIN role array: no permission covers both what it sets, a standing
-  discount and a tax exemption.
+  transaction. The route has its own key, Set trade accounts and tax exemptions (`customer.trade`, 2026-11), since no
+  other permission covers both what it sets, a standing discount and a tax exemption; Managers hold it by default.
 - **A made-to-order product takes no tier.** Its retail is the hand price a configured or custom line was first
   sold at, and a copy of the order is priced at that price (36), so a tier would discount the same piece twice.
   This is about price provenance, not stock: a made-to-order item is still stock like any other (the owner's "an
