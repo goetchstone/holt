@@ -3,7 +3,12 @@
 // Set or reset a staff member's local sign-in password (the credentials auth
 // method). Ensures the StaffMember has a linked NextAuth User row so the
 // existing role-resolution path (StaffMember -> User.id) works on login.
-// ADMIN / SUPER_ADMIN only.
+//
+// Who may: setting someone's password lets the setter sign in as them, so the
+// role-assignment rule decides it (passwordRefusalFor in lib/auth/roleAssignment):
+// admins only, and a member in the owner tier only by an owner. The route's gate
+// is staff.manage, which also admits General Managers and People Operations;
+// the rule runs inside it, on the member's CURRENT role.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -11,6 +16,7 @@ import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { logError } from "@/lib/logger";
+import { callerStaffRole, passwordRefusalFor } from "@/lib/auth/roleAssignment";
 
 export default requirePermission(
   "staff.manage",
@@ -32,10 +38,28 @@ export default requirePermission(
     try {
       const staff = await prisma.staffMember.findUnique({
         where: { id: staffId },
-        select: { id: true, email: true, displayName: true, userId: true },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          userId: true,
+          role: true,
+          roleRef: { select: { key: true, name: true, grantsAllPermissions: true } },
+        },
       });
       if (!staff) {
         return res.status(404).json({ error: "Staff member not found" });
+      }
+      // The member's role: the linked Role row, else the built-in row for the
+      // legacy enum (a member never linked to a Role row still has one).
+      const memberRole = staff.roleRef ??
+        (await prisma.role.findUnique({
+          where: { key: staff.role },
+          select: { key: true, name: true, grantsAllPermissions: true },
+        })) ?? { key: staff.role, name: staff.role, grantsAllPermissions: false };
+      const refusal = passwordRefusalFor(await callerStaffRole(session), memberRole);
+      if (refusal) {
+        return res.status(403).json({ error: refusal });
       }
       if (!staff.email) {
         return res
