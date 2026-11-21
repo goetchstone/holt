@@ -17,7 +17,7 @@
 jest.mock("@/lib/auth/requirePage", () => ({ requirePage: jest.fn() }));
 jest.mock("@/lib/gettingStartedServer", () => ({ loadGettingStarted: jest.fn(async () => []) }));
 
-import { readdirSync, readFileSync, statSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { dirname, join, relative } from "path";
 import { isValidElement, type ReactNode } from "react";
 import CardGrid from "@/components/layout/CardGrid";
@@ -115,10 +115,12 @@ const APP_DIR = join(__dirname, "..", "src", "app");
 const DASHBOARD = join(APP_DIR, "(dashboard)");
 
 function pageFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return pageFiles(path);
-    return name === "page.tsx" ? [path] : [];
+  // Each entry's own type, from the one directory read: no stat of a path that
+  // is read afterwards (CodeQL js/file-system-race).
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return pageFiles(path);
+    return entry.isFile() && entry.name === "page.tsx" ? [path] : [];
   });
 }
 
