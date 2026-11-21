@@ -127,10 +127,19 @@ function nuOrderFixture(): NuOrderPO {
         sizes: [],
       },
     ],
+    warnings: [],
   };
 }
 
 describe("normalizeNuOrder", () => {
+  it("passes the parser's warnings through to the preview", () => {
+    const parsed = nuOrderFixture();
+    parsed.warnings = ["1 line is longer than 1000 characters and was cut off there."];
+    expect(normalizeNuOrder(parsed).warnings).toEqual([
+      "1 line is longer than 1000 characters and was cut off there.",
+    ]);
+  });
+
   it("flattens per-size breakdowns into one row per size with that size's qty", () => {
     const draft = normalizeNuOrder(nuOrderFixture());
     expect(draft.rows).toHaveLength(3);
@@ -283,8 +292,17 @@ describe("normalizeZSupply", () => {
           extendedAmount: 30,
         },
       ],
+      warnings: [],
     };
   }
+
+  it("passes the parser's warnings through to the preview", () => {
+    const parsed = fixture();
+    parsed.warnings = ["Style ZT251: the pack count is too large to be real."];
+    expect(normalizeZSupply(parsed).warnings).toEqual([
+      "Style ZT251: the pack count is too large to be real.",
+    ]);
+  });
 
   it("uses the OS fallback for sizeless rows with no format entry", () => {
     const rows = normalizeZSupply(fixture()).rows;

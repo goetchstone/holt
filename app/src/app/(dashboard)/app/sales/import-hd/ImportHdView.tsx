@@ -7,7 +7,9 @@
 // supplies). Posts the PDF (base64) to the shared /api/sales/import-hd-proposal
 // REST endpoint and shows the parsed proposal summary. HDProposal is imported as
 // a type only so its server-only parser (pdf-parse) stays out of the client
-// bundle.
+// bundle. The quote is written before this page sees the parse, so the parser's
+// warnings (a line cut short, an amount that read as 0) are shown at the top of
+// the result, above the quote they describe.
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -121,6 +123,17 @@ export function ImportHdView() {
             <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-800">
               Existing order <strong>{result.orderno}</strong> was updated with the latest proposal
               data. Previous line items were replaced.
+            </div>
+          )}
+
+          {proposal.warnings && proposal.warnings.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-800">
+              <p className="font-semibold mb-1">Parser warnings</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                {proposal.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
             </div>
           )}
 

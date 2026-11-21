@@ -7,14 +7,20 @@
 // /api/purchasing/import-* + /api/departments + /api/categories REST endpoints,
 // which stay REST. Chrome from the (dashboard) layout.
 //
-// Step 1: Select vendor format, upload PDF, see parsed preview.
-// Step 2: Select department and category, then confirm import.
+// Step 1: Select vendor format, upload PDF, see parsed preview, with the
+//         parser's warnings (lines it cut or could not read) above the items.
+//         When no item was read at all, the route's 400 carries the warnings,
+//         and they are listed under the upload instead.
+// Step 2: Select department and category, then confirm import. The import
+//         parses the file again, writes the PO as read, and returns the same
+//         warnings, shown again with the result.
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import { Upload, CheckCircle } from "lucide-react";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { getErrorWarnings } from "@/lib/toastError";
 
 interface ParsedItem {
   productName: string;
@@ -39,6 +45,8 @@ interface ParsedPO {
   totalUnits: number;
   totalPrice: number;
   items: ParsedItem[];
+  /** Lines the parser cut or could not read (lib/pricing/parseBoundary.ts). */
+  warnings?: string[];
 }
 
 interface DeptOption {
@@ -62,9 +70,29 @@ interface ImportResult {
   totalUnits: number;
   totalCost: number;
   replaced: boolean;
+  /** The same parse's warnings: the import writes the PO as read, then returns them. */
+  warnings?: string[];
 }
 
 type VendorFormat = "nuorder" | "zsupply";
+
+/** The parser's warnings, as the Apparel Order Import tool shows them. */
+function ParserWarnings({
+  warnings,
+  title = "Parser warnings",
+}: Readonly<{ warnings?: string[]; title?: string }>) {
+  if (!warnings || warnings.length === 0) return null;
+  return (
+    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-800">
+      <p className="font-semibold mb-1">{title}</p>
+      <ul className="list-disc list-inside space-y-0.5">
+        {warnings.map((w) => (
+          <li key={w}>{w}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 const VENDOR_FORMATS: { value: VendorFormat; label: string }[] = [
   { value: "nuorder", label: "NuORDER" },
@@ -84,6 +112,8 @@ export function ImportApparelView() {
   const [preview, setPreview] = useState<ParsedPO | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  // Why the last preview or import read no item at all (its 400 carries them).
+  const [failedWarnings, setFailedWarnings] = useState<string[]>([]);
 
   const [departments, setDepartments] = useState<DeptOption[]>([]);
   const [categories, setCategories] = useState<CatOption[]>([]);
@@ -118,6 +148,7 @@ export function ImportApparelView() {
     setParsing(true);
     setPreview(null);
     setResult(null);
+    setFailedWarnings([]);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -129,6 +160,7 @@ export function ImportApparelView() {
       });
       if (!res.ok) {
         const err = await res.json();
+        setFailedWarnings(getErrorWarnings(err));
         throw new Error(err.error || "Parse failed");
       }
       const data = await res.json();
@@ -143,6 +175,7 @@ export function ImportApparelView() {
   const handleImport = async () => {
     if (!file || !selectedDeptId || !selectedCatId) return;
     setImporting(true);
+    setFailedWarnings([]);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -156,6 +189,7 @@ export function ImportApparelView() {
       });
       if (!res.ok) {
         const err = await res.json();
+        setFailedWarnings(getErrorWarnings(err));
         throw new Error(err.error || "Import failed");
       }
       const data = await res.json();
@@ -173,6 +207,7 @@ export function ImportApparelView() {
     setFile(null);
     setPreview(null);
     setResult(null);
+    setFailedWarnings([]);
     setSelectedDeptId(null);
     setSelectedCatId(null);
     setVendorFormat("nuorder");
@@ -212,6 +247,7 @@ export function ImportApparelView() {
                 onChange={(e) => {
                   setFile(e.target.files?.[0] || null);
                   setResult(null);
+                  setFailedWarnings([]);
                 }}
               />
             </label>
@@ -221,6 +257,11 @@ export function ImportApparelView() {
           </div>
         </>
       )}
+
+      <ParserWarnings
+        title="No item could be read from that PDF. The parser says:"
+        warnings={failedWarnings}
+      />
 
       {/* Step 2: Preview + department/category selection */}
       {preview && !result && (
@@ -251,6 +292,8 @@ export function ImportApparelView() {
               </div>
             </div>
           </div>
+
+          <ParserWarnings warnings={preview.warnings} />
 
           {/* Item preview table */}
           <div className="overflow-x-auto">
@@ -383,6 +426,7 @@ export function ImportApparelView() {
               <dd>{result.variantsCreated}</dd>
             </dl>
           </div>
+          <ParserWarnings warnings={result.warnings} />
           <Button variant="outline" onClick={reset}>
             Import Another
           </Button>
