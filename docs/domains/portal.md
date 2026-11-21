@@ -63,7 +63,7 @@ Tracked as a master-plan checklist item (C8); the plan is not kept in the repo.
 
 ## Return request flow
 
-`app/portal/return/[token]/*` — customer fills out a return reason, attaches photo, submits. Creates a `Return` row in `INITIATED` status (per `docs/domains/returns.md`). Notifies the warehouse via the dispatch board.
+`app/portal/return/[token]/*` (`ReturnRequestView.tsx`) — the customer opens a link staff sent, picks a reason, adds notes and submits to `POST /api/portal/returns/request` (10 a minute per client). The request does not create the return: `POST /api/sales/orders/[id]/return-link` already wrote an `INITIATED` `Return` carrying the token (per `docs/domains/returns.md`). It updates that row's `reason` and `customerNotes`, and `lineItemId` when the body carries a number, and only while the return is `INITIATED` with `portalRequestedAt` set (404 for an unknown token, 409 otherwise). There is no photo and no notification. The body's `lineItemId` is not checked against the return's order (`pages/api/portal/returns/request.ts`). The form shows only while the return is `INITIATED` with no customer notes; after that the page says it was submitted. `app/portal/return/status/[token]` shows where the return stands. Both pages read `GET /api/portal/returns/[token]` (20 a minute per client).
 
 The customer cannot approve, inspect, or process the refund — those are staff-only state transitions handled in `/api/returns/[id]/*`.
 
