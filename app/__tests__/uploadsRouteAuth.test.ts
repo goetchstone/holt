@@ -354,10 +354,12 @@ function subdirsWrittenIn(text: string): string[] {
 }
 
 function sourceTexts(dir: string, out: string[] = []): string[] {
-  for (const name of fs.readdirSync(dir)) {
-    const p = path.join(dir, name);
-    if (fs.statSync(p).isDirectory()) sourceTexts(p, out);
-    else if (/\.tsx?$/.test(name)) out.push(fs.readFileSync(p, "utf8"));
+  // Each entry's own type, from the one directory read: no separate stat of the
+  // path before reading it (CodeQL js/file-system-race).
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) sourceTexts(p, out);
+    else if (entry.isFile() && /\.tsx?$/.test(entry.name)) out.push(fs.readFileSync(p, "utf8"));
   }
   return out;
 }
