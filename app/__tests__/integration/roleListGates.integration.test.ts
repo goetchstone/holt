@@ -40,7 +40,8 @@ import { appRouter } from "@/server/trpc/routers/_app";
 import type { TrpcContext } from "@/server/trpc/context";
 
 const MANAGER_ADMIN = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
-// reports.ts REPORT_ROLES: the list a session with no staff row used to pass.
+// The reports router's former REPORT_ROLES (keys since the 2026-11 sweep): the
+// list a session with no staff row used to pass.
 const WITH_DESIGNER = ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER", "MARKETING"];
 
 type Outcome = { allowed: boolean; role?: string };
@@ -195,8 +196,12 @@ describe.each(GATES)("%s", (_name, gate) => {
   });
 });
 
-describe("the real tRPC reports router", () => {
-  it("refuses REPORT_ROLES reports to a deactivated designer and to a session with no staff row", async () => {
+// The reports router left role lists for permission keys in the 2026-11 sweep.
+// Its former REPORT_ROLES list is the one a session with no staff row used to
+// pass, so the real router stays pinned here: its key gate must refuse the same
+// two callers the fixed role-list gate does.
+describe("the real tRPC reports router, on permission keys since the role-list sweep", () => {
+  it("refuses what were REPORT_ROLES reports to a deactivated designer and to a session with no staff row", async () => {
     await makeStaff("admin", "ADMIN");
     await makeStaff("dee", "DESIGNER", false);
     await makeUser("stranger");

@@ -1,18 +1,25 @@
 // /app/src/server/trpc/routers/reports.ts
 //
-// Reports domain router. Read-only queries gated to the roles that can see the
-// Reports nav (mirrors the Reports nav item in lib/auth/navPermissions.ts). Each procedure defers
-// to a lib/reports/* function so the data logic stays framework-agnostic and
-// shared with any legacy REST shim during the migration.
+// Reports domain router. Read-only queries, each gated on the permission key
+// of the report page that calls it (lib/auth/pagePermissions.ts), so a page
+// and its data cannot disagree about who may see them: "View reports" for the
+// everyday reports, "View management reports" and "View financial reports" for
+// the store-wide ones, "See customer lists" and "See wealth data" for the
+// customer lists. Each procedure defers to a lib/reports/* function so the
+// data logic stays framework-agnostic and shared with any legacy REST shim
+// during the migration.
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { roleProcedure, permissionProcedure } from "../trpc";
+import { permissionProcedure } from "../trpc";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
+import { canViewWealth, WITH_WEALTH } from "@/lib/auth/wealthVisibility";
 import {
   canSeeAllSalespeople,
+  salesBySalespersonSeesEveryone,
   salespersonForCaller,
   WITH_ALL_SALESPEOPLE,
+  WITH_SALES_BY_SALESPERSON_EVERYONE,
 } from "@/lib/reports/salespersonScope";
 import { router } from "../trpc";
 import { getFactSalesDay } from "@/lib/reports/factSalesDay";
@@ -97,20 +104,6 @@ import {
   BuyersPositionsNotFound,
 } from "@/lib/reports/buyersReport";
 import { TRPCError } from "@trpc/server";
-
-const REPORT_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER", "MARKETING"];
-// These expose per-order financials — ADMIN only (narrowed 2026-05-05).
-const ADMIN_ONLY = ["ADMIN"];
-// Customer-intelligence reports: management view, not designer-facing.
-const MANAGER_ADMIN = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
-// Pipeline opportunity (list + drilldown): mirrors the legacy
-// requireAuthWithRole(["MANAGER", "ADMIN"]) gate on both Pages endpoints.
-const PIPELINE_ROLES = ["MANAGER", "ADMIN"];
-// Opportunities hub: counts visible to managers; drilldown (with wealth) is
-// MARKETING/ADMIN only.
-const OPP_TILE_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "MARKETING"];
-const OPP_DRILL_ROLES = ["SUPER_ADMIN", "ADMIN", "MARKETING"];
-const WEALTH_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "MARKETING"]);
 
 const staleQuotesInput = z
   .object({
@@ -290,8 +283,8 @@ const detailedSalesItemsInput = z
   .nullish();
 
 // Sales Explorer: two-period, four-dimension (store/dept/category/vendor)
-// pivot with product-level drilldown. Same MANAGER_ADMIN gate as Comparative
-// Sales / Gross Margin; its cost and margin need "View cost" too.
+// pivot with product-level drilldown. "View management reports", like
+// Comparative Sales / Gross Margin; its cost and margin need "View cost" too.
 const salesExplorerCellsInput = z.object({
   p1Start: z.string(),
   p1End: z.string(),
@@ -340,8 +333,6 @@ async function salespersonFor(
 
 const serviceInput = z.object({ goalDays: z.number().optional() }).nullish();
 
-// Customer directory: ADMIN + MARKETING (contact list + spend).
-const ADMIN_MARKETING = ["SUPER_ADMIN", "ADMIN", "MARKETING"];
 const customersInput = z
   .object({
     search: z.string().nullish(),
@@ -426,46 +417,54 @@ const payPeriodConfirmationsInput = z
   .nullish();
 
 export const reportsRouter = router({
-  factSalesDay: roleProcedure(REPORT_ROLES).query(() => getFactSalesDay(prisma)),
-  salesDaily: roleProcedure(REPORT_ROLES)
+  // "View reports", the key of the Daily Sales Summary page (which reads the
+  // lib itself; nothing calls this procedure).
+  factSalesDay: permissionProcedure("reporting.read").query(() => getFactSalesDay(prisma)),
+  // "View reports", the key of the Daily Sales Report page.
+  salesDaily: permissionProcedure("reporting.read")
     .input(salesDailyInput)
     .query(({ input }) => getSalesDaily(prisma, input ?? {})),
-  // Department names for the sales-daily filter dropdown.
-  departments: roleProcedure(REPORT_ROLES).query(() =>
-    prisma.department.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  // Department names for the filter dropdowns on Daily Sales ("View reports")
+  // and Top & Bottom Sellers ("View management reports"): either page's key.
+  departments: permissionProcedure({ anyOf: ["reporting.read", "reporting.management"] }).query(
+    () =>
+      prisma.department.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ),
-  balanceAging: roleProcedure(ADMIN_ONLY)
+  // "View financial reports": per-order balances (narrowed to ADMIN on
+  // 2026-05-05). The Balance Due Aging page reads the lib itself.
+  balanceAging: permissionProcedure("reporting.financial")
     .input(balanceAgingInput)
     .query(({ input }) => getBalanceAging(prisma, input ?? {})),
-  staleQuotes: roleProcedure(ADMIN_ONLY)
+  staleQuotes: permissionProcedure("reporting.financial")
     .input(staleQuotesInput)
     .query(({ input }) => getStaleQuotes(prisma, input ?? {})),
-  dormantCustomers: roleProcedure(MANAGER_ADMIN)
+  // Customer lists with contact details and spend: "View management reports".
+  dormantCustomers: permissionProcedure("reporting.management")
     .input(dormantCustomersInput)
     .query(({ input }) => getDormantCustomers(prisma, input ?? {})),
-  crossSell: roleProcedure(MANAGER_ADMIN)
+  crossSell: permissionProcedure("reporting.management")
     .input(crossSellInput)
     .query(({ input }) => getCrossSell(prisma, input ?? {})),
   // "View reports", the key of the Tax Summary page.
   taxSummary: permissionProcedure("reporting.read")
     .input(taxSummaryInput)
     .query(({ input }) => getTaxSummary(prisma, input ?? {})),
-  comparativeSales: roleProcedure(MANAGER_ADMIN)
+  comparativeSales: permissionProcedure("reporting.management")
     .input(comparativeSalesInput)
     .query(({ input }) => getComparativeSales(prisma, input)),
-  // Gross margin (revenue - cost) by department or vendor. Management-level
-  // (MANAGER_ADMIN), same gate as comparative sales; cost and margin only with
+  // Gross margin (revenue - cost) by department or vendor. "View management
+  // reports", the same gate as comparative sales; cost and margin only with
   // "View cost" (revenue and units, ordered by revenue, without it).
-  grossMargin: roleProcedure(MANAGER_ADMIN, WITH_COST)
+  grossMargin: permissionProcedure("reporting.management", WITH_COST)
     .input(grossMarginInput)
     .query(async ({ input, ctx }) =>
       grossMarginForCaller(await getGrossMargin(prisma, input), canViewCost({ holds: ctx.holds })),
     ),
   // Inventory health (on-hand valuation + dead stock) by department or vendor.
-  // Management-level (MANAGER_ADMIN); cost value, dead-stock cost, dead % and
+  // "View management reports"; cost value, dead-stock cost, dead % and
   // uncosted units only with "View cost" (units and retail value, ordered by
   // retail value, without it).
-  inventoryHealth: roleProcedure(MANAGER_ADMIN, WITH_COST)
+  inventoryHealth: permissionProcedure("reporting.management", WITH_COST)
     .input(inventoryHealthInput)
     .query(async ({ input, ctx }) =>
       inventoryHealthForCaller(
@@ -482,7 +481,7 @@ export const reportsRouter = router({
     return { rows, summary: summarizeFollowUps(rows, contacts) };
   }),
 
-  agedStock: roleProcedure(MANAGER_ADMIN, WITH_COST)
+  agedStock: permissionProcedure("reporting.management", WITH_COST)
     .input(agedStockInput)
     .query(async ({ input, ctx }) =>
       agedStockForCaller(
@@ -492,7 +491,7 @@ export const reportsRouter = router({
     ),
   // Inventory value as of a past day (GAP-17): quantities from the journal at
   // today's cost. The same gate as Inventory Health; cost only with "View cost".
-  inventoryValue: roleProcedure(MANAGER_ADMIN, WITH_COST)
+  inventoryValue: permissionProcedure("reporting.management", WITH_COST)
     .input(inventoryValueInput)
     .query(async ({ input, ctx }) => {
       try {
@@ -525,18 +524,18 @@ export const reportsRouter = router({
       }
     }),
   // PO sell-through: pick real POs by number, see how much of what they
-  // delivered has sold since each line's receive date. Management-level
-  // (MANAGER_ADMIN); cost and margin only with "View cost" (frames carry only
+  // delivered has sold since each line's receive date. "View management
+  // reports"; cost and margin only with "View cost" (frames carry only
   // FRAME_PUBLIC_FIELDS and the realized retail ratio without it).
-  poSellThru: roleProcedure(MANAGER_ADMIN, WITH_COST)
+  poSellThru: permissionProcedure("reporting.management", WITH_COST)
     .input(z.object({ poNumbers: z.array(z.string().min(1)).min(1).max(50) }))
     .query(async ({ input, ctx }) =>
       poSellThruForCaller(await getPoSellThru(prisma, input), canViewCost({ holds: ctx.holds })),
     ),
-  // Top & bottom sellers by units/revenue/margin. Management-level
-  // (MANAGER_ADMIN); cost, margin and the margin ranking only with "View cost"
-  // (a margin ranking is answered by revenue without it, and `metric` says so).
-  topSellers: roleProcedure(MANAGER_ADMIN, WITH_COST)
+  // Top & bottom sellers by units/revenue/margin. "View management reports";
+  // cost, margin and the margin ranking only with "View cost" (a margin
+  // ranking is answered by revenue without it, and `metric` says so).
+  topSellers: permissionProcedure("reporting.management", WITH_COST)
     .input(topSellersInput)
     .query(async ({ input, ctx }) => {
       const showCost = canViewCost({ holds: ctx.holds });
@@ -548,21 +547,22 @@ export const reportsRouter = router({
         showCost,
       );
     }),
-  // Returns analysis (return rate + top returned products). MANAGER_ADMIN.
-  returnsAnalysis: roleProcedure(MANAGER_ADMIN)
+  // Returns analysis (return rate + top returned products). "View management
+  // reports".
+  returnsAnalysis: permissionProcedure("reporting.management")
     .input(returnsInput)
     .query(({ input }) => getReturnsAnalysis(prisma, input)),
   // Unclassified Returns (B3 exception report): return-shaped lines booked
   // on the default-restock assumption because no Return record classifies
   // them. Financial exception list — same gate as Gross Margin / Returns
-  // Analysis (MANAGER_ADMIN, which auto-grants SUPER_ADMIN).
-  unclassifiedReturns: roleProcedure(MANAGER_ADMIN)
+  // Analysis ("View management reports").
+  unclassifiedReturns: permissionProcedure("reporting.management")
     .input(unclassifiedReturnsInput)
     .query(({ input }) => getUnclassifiedReturns(prisma, input)),
   // Unmapped Payments: tender strings with no POS_PAYMENTS GL mapping, so
   // generateSalesJournal drops them from the journal with only a warning.
-  // Same MANAGER_ADMIN gate as the other financial exception lists.
-  unmappedPayments: roleProcedure(MANAGER_ADMIN)
+  // The same gate as the other exception lists ("View management reports").
+  unmappedPayments: permissionProcedure("reporting.management")
     .input(unmappedPaymentsInput)
     .query(({ input }) =>
       getUnmappedPayments(prisma, {
@@ -592,32 +592,36 @@ export const reportsRouter = router({
       const salesperson = await salespersonFor(ctx, input?.salesperson);
       return getSalespersonDetail(prisma, { salesperson, year: input?.year });
     }),
-  // Sales by salesperson / department / customer. The report lib resolves the
-  // role-scoped salesperson filter from the session role + userId — privileged
-  // roles see all and may filter, everyone else is locked to their own record.
-  // "View reports", the page's key, and "View cost" answered beside it: cost
-  // and margin only for a holder (SEC-14). Which salespeople the caller may
-  // see is still decided from the token role (F3).
-  salesBySalesperson: permissionProcedure("reporting.read", WITH_COST)
+  // Sales by salesperson / department / customer. "View reports", the page's
+  // key, with two answers beside it from the same staff read: "View cost" (cost
+  // and margin only for a holder, SEC-14), and whether the caller may see every
+  // salesperson ("See every salesperson's numbers" or "See customer lists",
+  // salesBySalespersonSeesEveryone). Such a caller sees everyone and may
+  // filter; anyone else is locked to their own record, whatever ids they send.
+  salesBySalesperson: permissionProcedure("reporting.read", {
+    also: [...WITH_COST.also!, ...WITH_SALES_BY_SALESPERSON_EVERYONE.also!],
+  })
     .input(salesBySalespersonInput)
     .query(async ({ input, ctx }) =>
       salesByGroupForCaller(
         await getSalesBySalesperson(prisma, {
           ...(input ?? {}),
-          auth: { role: ctx.tokenRole ?? undefined, userId: ctx.userId ?? undefined },
+          auth: { seesEveryone: salesBySalespersonSeesEveryone(ctx), userId: ctx.userId },
         }),
         canViewCost({ holds: ctx.holds }),
       ),
     ),
-  // Drilldown for a single sales-by-salesperson group cell. Same role model as
-  // the summary above; groupKey is required.
-  salesBySalespersonItems: permissionProcedure("reporting.read", WITH_COST)
+  // Drilldown for a single sales-by-salesperson group cell. The same gate and
+  // the same scope as the summary above (rule 42); groupKey is required.
+  salesBySalespersonItems: permissionProcedure("reporting.read", {
+    also: [...WITH_COST.also!, ...WITH_SALES_BY_SALESPERSON_EVERYONE.also!],
+  })
     .input(salesBySalespersonItemsInput)
     .query(async ({ input, ctx }) =>
       salesItemsForCaller(
         await getSalesBySalespersonItems(prisma, {
           ...input,
-          auth: { role: ctx.tokenRole ?? undefined, userId: ctx.userId ?? undefined },
+          auth: { seesEveryone: salesBySalespersonSeesEveryone(ctx), userId: ctx.userId },
         }),
         canViewCost({ holds: ctx.holds }),
       ),
@@ -635,10 +639,11 @@ export const reportsRouter = router({
   // Sales Explorer: two-period comparative pivot by Store / Department /
   // Category / Vendor with variance + margin at every node, plus a
   // Store-Traffic panel (Axper door counts) when pivoting by Store.
-  // MANAGER_ADMIN, same gate as Comparative Sales / Gross Margin; cost and
-  // margin only with "View cost". See lib/reports/salesExplorerQuery.ts for the invariant-bearing
-  // aggregation and lib/reports/salesExplorerPivot.ts for the pure tree build.
-  salesExplorer: roleProcedure(MANAGER_ADMIN, WITH_COST)
+  // "View management reports", the same gate as Comparative Sales / Gross
+  // Margin; cost and margin only with "View cost". See
+  // lib/reports/salesExplorerQuery.ts for the invariant-bearing aggregation and
+  // lib/reports/salesExplorerPivot.ts for the pure tree build.
+  salesExplorer: permissionProcedure("reporting.management", WITH_COST)
     .input(salesExplorerCellsInput)
     .query(async ({ input, ctx }) => {
       const pivot: SalesExplorerPivot = input.pivot ?? "department";
@@ -746,7 +751,7 @@ export const reportsRouter = router({
   // node's store/department/category/vendor filters are re-derived
   // server-side from (pivot, nodeId) via the same pure resolveNodeFilters the
   // client uses — the server never trusts a client-supplied filter object.
-  salesExplorerItems: roleProcedure(MANAGER_ADMIN)
+  salesExplorerItems: permissionProcedure("reporting.management")
     .input(salesExplorerItemsInput)
     .query(({ input }) => {
       const filters = resolveNodeFilters(input.pivot, input.nodeId);
@@ -771,13 +776,17 @@ export const reportsRouter = router({
         canViewCost({ holds: ctx.holds }),
       );
     }),
-  service: roleProcedure(MANAGER_ADMIN)
+  // Service KPIs: "View management reports".
+  service: permissionProcedure("reporting.management")
     .input(serviceInput)
     .query(({ input }) => getServiceReport(prisma, input ?? {})),
-  customers: roleProcedure(ADMIN_MARKETING)
+  // Customer Report (every customer's contact details and spend): "See
+  // customer lists".
+  customers: permissionProcedure("marketing.lists")
     .input(customersInput)
     .query(({ input }) => getCustomersReport(prisma, input ?? {})),
-  traffic: roleProcedure(MANAGER_ADMIN)
+  // Store Traffic: "View management reports" (its CSV route is Export data).
+  traffic: permissionProcedure("reporting.management")
     .input(
       z.object({
         dateFrom: z.string(),
@@ -795,7 +804,9 @@ export const reportsRouter = router({
         throw err;
       }
     }),
-  wealthInsights: roleProcedure(ADMIN_MARKETING)
+  // Wealth Insights: wealth is the whole answer, so "See wealth data" is the
+  // gate itself (lib/auth/wealthVisibility.ts).
+  wealthInsights: permissionProcedure("customer.wealth")
     .input(
       z
         .object({
@@ -832,15 +843,22 @@ export const reportsRouter = router({
         throw err;
       }
     }),
-  opportunityTiles: roleProcedure(OPP_TILE_ROLES).query(() => getOpportunityTiles(prisma)),
-  opportunityDrill: roleProcedure(OPP_DRILL_ROLES)
+  // Opportunities: "See customer lists", the page's key, for the tile counts
+  // and the lists alike. "See wealth data" is answered beside it: without it
+  // the tiles built from wealth data are left out of the counts and refused as
+  // lists, and no row carries a wealth tier (lib/opportunityTiles.ts,
+  // tileOpenTo).
+  opportunityTiles: permissionProcedure("marketing.lists", WITH_WEALTH).query(({ ctx }) =>
+    getOpportunityTiles(prisma, { canSeeWealth: canViewWealth({ holds: ctx.holds }) }),
+  ),
+  opportunityDrill: permissionProcedure("marketing.lists", WITH_WEALTH)
     .input(z.object({ tileId: z.string(), dedup: z.boolean().optional() }))
     .query(async ({ input, ctx }) => {
       try {
         return await getOpportunityDrill(prisma, {
           tileId: input.tileId,
           dedup: input.dedup,
-          canSeeWealth: WEALTH_ROLES.has(ctx.tokenRole ?? ""),
+          canSeeWealth: canViewWealth({ holds: ctx.holds }),
         });
       } catch (err) {
         if (err instanceof OpportunityTileNotFound) {
@@ -849,22 +867,22 @@ export const reportsRouter = router({
         throw err;
       }
     }),
-  // Pipeline opportunity: open quotes + conversion by salesperson. MANAGER/ADMIN
-  // (mirrors the legacy requireAuthWithRole gate). The reassign action stays a
-  // REST POST.
-  pipelineOpportunity: roleProcedure(PIPELINE_ROLES)
+  // Pipeline opportunity: open quotes + conversion by salesperson. "View
+  // management reports", the page's key. The reassign action stays a REST POST
+  // (sales.reassign).
+  pipelineOpportunity: permissionProcedure("reporting.management")
     .input(pipelineOpportunityInput)
     .query(({ input }) => getPipelineOpportunity(prisma, input ?? {})),
   // Per-salesperson quote drilldown for the report above. Same gate; salesperson
   // is required.
-  pipelineDetail: roleProcedure(PIPELINE_ROLES)
+  pipelineDetail: permissionProcedure("reporting.management")
     .input(pipelineDetailInput)
     .query(({ input }) => getPipelineDetail(prisma, input)),
-  // Buyers Report: on-hand + on-order + sold-in-range merchant pivot.
-  // MANAGER/ADMIN (mirrors the legacy requireAuthWithRole gate); sold cost and
-  // margin only with "View cost". The CSV export stays a client-side blob, built
-  // from this response, so it carries no cost either; no REST shim needed.
-  buyersSummary: roleProcedure(PIPELINE_ROLES, WITH_COST)
+  // Buyers Report: on-hand + on-order + sold-in-range merchant pivot. "View
+  // management reports", the page's key; sold cost and margin only with "View
+  // cost". The CSV export stays a client-side blob, built from this response,
+  // so it carries no cost either; no REST shim needed.
+  buyersSummary: permissionProcedure("reporting.management", WITH_COST)
     .input(buyersSummaryInput)
     .query(async ({ input, ctx }) => {
       try {
@@ -881,7 +899,7 @@ export const reportsRouter = router({
     }),
   // Per-product location breakdown for the Buyers Report leaf drilldown. Same
   // gate; productId is required.
-  buyersPositions: roleProcedure(PIPELINE_ROLES)
+  buyersPositions: permissionProcedure("reporting.management")
     .input(buyersPositionsInput)
     .query(async ({ input }) => {
       try {
