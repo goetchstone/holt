@@ -57,7 +57,7 @@ describe("permission catalog", () => {
     expect(getPermission("nope")).toBeUndefined();
   });
 
-  it("marks the capabilities that move money or grant power as sensitive", () => {
+  it("marks the capabilities that move money, grant power, or reveal money, wealth or customer lists as sensitive", () => {
     // Not enforcement — these are identical to enforce. It drives the warning
     // in the admin UI and makes a bad custom role obvious in review.
     for (const key of [
@@ -68,9 +68,23 @@ describe("permission catalog", () => {
       "staff.manage",
       "admin.data",
       "accounting.close",
+      // The role-list sweep's keys (2026-11-21), all but customer.address.
+      "sales.proposal",
+      "customer.trade",
+      "customer.wealth",
+      "payment.return-refund",
+      "accounting.invoice",
+      "accounting.chart.manage",
+      "service.setup",
+      "reporting.management",
+      "reporting.financial",
+      "marketing.lists",
     ]) {
-      expect(getPermission(key)?.sensitive).toBe(true);
+      expect({ key, sensitive: getPermission(key)?.sensitive }).toEqual({ key, sensitive: true });
     }
+    // Editing an address moves no money and reveals no wealth or customer list.
+    expect(getPermission("customer.address")).toBeDefined();
+    expect(getPermission("customer.address")?.sensitive).toBeFalsy();
   });
 });
 
@@ -215,5 +229,61 @@ describe("built-in roles", () => {
     expect(keys.filter(migrationRule).sort()).toEqual(holders.sort());
 
     expect(PERMISSIONS.find((p) => p.key === "catalog.cost")?.sensitive).toBeFalsy();
+  });
+
+  // The role-list sweep (2026-11-21). Each key replaced hardcoded lists of staff
+  // enum roles and starts on for exactly the operating roles those lists let
+  // through, plus ADMIN (derived) and SUPER_ADMIN (wildcard), so nothing
+  // changes until the owner ticks or unticks it. Migration 20261121120000
+  // grants the same sets to edited built-ins (roleListKeysMigration
+  // integration test).
+  const roleListKeys: ReadonlyArray<[string, string[]]> = [
+    ["sales.proposal", ["MANAGER"]],
+    ["customer.trade", ["MANAGER"]],
+    ["customer.address", ["MANAGER", "DESIGNER", "WAREHOUSE", "MARKETING"]],
+    ["customer.wealth", ["MARKETING"]],
+    ["payment.return-refund", ["MANAGER", "REGISTER", "WAREHOUSE"]],
+    ["accounting.invoice", ["MANAGER"]],
+    ["accounting.chart.manage", ["MANAGER"]],
+    ["service.setup", ["MANAGER"]],
+    ["reporting.management", ["MANAGER"]],
+    ["reporting.financial", []],
+    ["marketing.lists", ["MARKETING"]],
+  ];
+  const holdersOf = (key: string) =>
+    BUILT_IN_ROLES.map((r) => r.key)
+      .filter((r) => permissionsForBuiltInRole(r).includes(key))
+      .sort();
+
+  it.each(roleListKeys)("give %s to exactly the roles its role lists admitted", (key, roles) => {
+    expect(isPermissionKey(key)).toBe(true);
+    expect(holdersOf(key)).toEqual(["ADMIN", "SUPER_ADMIN", ...roles].sort());
+  });
+
+  it("give General Manager none of the role-list keys, since none of the lists admitted it", () => {
+    // Whether a General Manager should hold them is the owner's call, not a default.
+    const generalManager = permissionsForBuiltInRole("GENERAL_MANAGER");
+    expect(roleListKeys.map(([key]) => key).filter((k) => generalManager.includes(k))).toEqual([]);
+  });
+
+  it("give Post journals to Manager, so Managers keep posting the daily journal", () => {
+    // journal-entries/[id] was a MANAGER/ADMIN role list; posting an entry,
+    // marking it exported and deleting a draft are accounting.post now.
+    expect(holdersOf("accounting.post")).toEqual(
+      ["ADMIN", "GENERAL_MANAGER", "MANAGER", "SUPER_ADMIN"].sort(),
+    );
+  });
+
+  it("let Register and Warehouse refund returns without refunding any other payment", () => {
+    for (const role of ["REGISTER", "WAREHOUSE"]) {
+      expect({
+        role,
+        returns: permissionsForBuiltInRole(role).includes("payment.return-refund"),
+      }).toEqual({ role, returns: true });
+      expect({ role, any: permissionsForBuiltInRole(role).includes("payment.refund") }).toEqual({
+        role,
+        any: false,
+      });
+    }
   });
 });

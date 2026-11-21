@@ -114,6 +114,9 @@ presets:
           - sales.write
           - customer.read
           - customer.write
+          # "Edit customer addresses": designers add the delivery address
+          # when they write a quote. Leave it out and the apply revokes it.
+          - customer.address
           - catalog.read
           - inventory.read
           - purchasing.read
