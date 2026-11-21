@@ -65,7 +65,7 @@ Real-DB integration: `__tests__/integration/leadHousekeeping.integration.test.ts
 
 ## Campaign Attribution report
 
-`/reports/mailchimp` (admin/marketing only). Pure engine: `lib/campaignAttribution.ts` (20 unit tests).
+`/reports/mailchimp`, on View reports (`reporting.read`), page, card and `/api/mailchimp/campaigns` alike, so every role with a Reports menu opens it (the Owner, Administrator, General Manager, Manager, Department Head, Buyer, HR, Designer and Marketing); it was an Administrator and Marketing card until 2026-11-21. Pure engine: `lib/campaignAttribution.ts` (20 unit tests).
 
 Ranks campaigns by attributed revenue within a 30-day window from open/click. Two key knobs on `AttributionOptions`:
 
@@ -166,4 +166,4 @@ kept, not wiped: a resync upserts campaign rows in place
 
 ---
 
-Last verified: 2026-05-20
+Last verified: 2026-11-21 (the Campaign Attribution report's key, against `PAGE_ACCESS` and `/api/mailchimp/campaigns`); the rest 2026-05-20
