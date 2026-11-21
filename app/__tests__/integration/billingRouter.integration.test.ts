@@ -22,7 +22,6 @@ function ctxFor(userId: string, email: string): TrpcContext {
   return {
     userId,
     userEmail: email,
-    tokenRole: null,
     impersonate: null,
     headers: new Headers(),
   };

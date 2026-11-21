@@ -57,13 +57,12 @@ import MonthlyPerformancePage from "@/app/(dashboard)/app/reports/monthly-perfor
 const RANGE = { startDate: "2026-09-01", endDate: "2026-09-30" };
 const WEALTH_TILES = OPPORTUNITY_TILES.filter((t) => t.usesWealthData).map((t) => t.id);
 
-/** The reports router as a signed-in caller. The token's role decides nothing
- *  here, so every caller sends DESIGNER. */
+/** The reports router as a signed-in caller. The context carries no role: every
+ *  gate reads the caller's staff row. */
 function reportsAs(userId: string) {
   const ctx: TrpcContext = {
     userId,
     userEmail: `${userId}@example.com`,
-    tokenRole: "DESIGNER",
     impersonate: null,
     headers: new Headers(),
   };

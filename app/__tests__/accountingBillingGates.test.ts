@@ -236,7 +236,6 @@ describe("billing customers directly", () => {
     createCallerFactory(billingRouter)({
       userId: `user-${role}`,
       userEmail: null,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     });
@@ -244,7 +243,6 @@ describe("billing customers directly", () => {
     createCallerFactory(clientPortalRouter)({
       userId: `user-${role}`,
       userEmail: null,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     });
@@ -345,7 +343,6 @@ describe("a store's own role is decided by the keys it holds", () => {
     const caller = createCallerFactory(billingRouter)({
       userId: "user-store-role",
       userEmail: null,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     });

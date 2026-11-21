@@ -107,7 +107,6 @@ function ctxFor(userId: string, impersonate: string | null = null): TrpcContext 
   return {
     userId,
     userEmail: `${userId}@example.com`,
-    tokenRole: null,
     impersonate,
     headers: new Headers(),
   };

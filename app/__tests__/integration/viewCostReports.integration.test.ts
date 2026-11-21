@@ -40,11 +40,10 @@ import exportRoute from "@/pages/api/reports/sales-by-salesperson/export";
 
 const RANGE = { startDate: "2026-09-01", endDate: "2026-09-30" };
 
-function reportsAs(userId: string, tokenRole: string) {
+function reportsAs(userId: string) {
   const ctx: TrpcContext = {
     userId,
     userEmail: `${userId}@example.com`,
-    tokenRole,
     impersonate: null,
     headers: new Headers(),
   };
@@ -186,7 +185,7 @@ afterAll(async () => {
 
 describe("Sales by Salesperson follows View cost", () => {
   it("a holder gets cost, margin and margin %", async () => {
-    const data = await reportsAs("mia", "MANAGER").salesBySalesperson(RANGE);
+    const data = await reportsAs("mia").salesBySalesperson(RANGE);
     expect(data.costVisible).toBe(true);
     expect(data.rows[0]).toMatchObject({ retail: 1500, cost: 600, margin: 900, itemCount: 2 });
     // The total counts line items, not rows (it had read as the number of salespeople).
@@ -194,12 +193,12 @@ describe("Sales by Salesperson follows View cost", () => {
   });
 
   it("a role without View cost gets the same rows without cost or margin, not a refusal", async () => {
-    const data = await reportsAs("ana", "DESIGNER").salesBySalesperson(RANGE);
+    const data = await reportsAs("ana").salesBySalesperson(RANGE);
     expect(data.costVisible).toBe(false);
     expect(data.rows[0]).toMatchObject({ retail: 1500, itemCount: 2 });
     expect(costKeys(data)).toEqual([]);
 
-    const items = await reportsAs("ana", "DESIGNER").salesBySalespersonItems({
+    const items = await reportsAs("ana").salesBySalespersonItems({
       ...RANGE,
       groupKey: data.rows[0].groupKey,
     });
@@ -209,7 +208,7 @@ describe("Sales by Salesperson follows View cost", () => {
   });
 
   it("is on the page's key now: a role without View reports is refused", async () => {
-    await expect(reportsAs("reg", "REGISTER").salesBySalesperson(RANGE)).rejects.toMatchObject({
+    await expect(reportsAs("reg").salesBySalesperson(RANGE)).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
   });
@@ -231,14 +230,14 @@ describe("the Designer Dashboard's average margin follows View cost", () => {
   it("a holder gets it; a role without View cost gets null and the rest of the dashboard", async () => {
     // A fixed asOf: the dashboard counts the year to date of that day.
     const asOf = "2026-09-30";
-    const holder = await reportsAs("mia", "MANAGER").designerDashboard({
+    const holder = await reportsAs("mia").designerDashboard({
       salesperson: "ana",
       asOf,
     });
     expect(holder.costVisible).toBe(true);
     expect(holder.sales.avgMargin).toBeCloseTo(0.6);
 
-    const blind = await reportsAs("ana", "DESIGNER").designerDashboard({ asOf });
+    const blind = await reportsAs("ana").designerDashboard({ asOf });
     expect(blind.costVisible).toBe(false);
     expect(blind.sales.avgMargin).toBeNull();
     expect(blind.sales.orderCount).toBe(1);

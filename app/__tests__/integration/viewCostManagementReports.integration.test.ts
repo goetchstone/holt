@@ -40,7 +40,6 @@ function reportsAs(userId: string, impersonate: string | null = null) {
   const ctx: TrpcContext = {
     userId,
     userEmail: `${userId}@example.com`,
-    tokenRole: null,
     impersonate,
     headers: new Headers(),
   };

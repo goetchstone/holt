@@ -80,11 +80,10 @@ async function call(
   return out;
 }
 
-function reportsAs(userId: string, tokenRole: string) {
+function reportsAs(userId: string) {
   const ctx: TrpcContext = {
     userId,
     userEmail: `${userId}@example.com`,
-    tokenRole,
     impersonate: null,
     headers: new Headers(),
   };
@@ -160,25 +159,25 @@ describe("the built-in grants", () => {
 
 describe("the pay-period tRPC procedures", () => {
   it("refuse a built-in Administrator", async () => {
-    expect(await refused(reportsAs("admin", "ADMIN").payPeriodSales({}))).toBe(true);
-    expect(await refused(reportsAs("admin", "ADMIN").payPeriodConfirmations({}))).toBe(true);
+    expect(await refused(reportsAs("admin").payPeriodSales({}))).toBe(true);
+    expect(await refused(reportsAs("admin").payPeriodConfirmations({}))).toBe(true);
   });
 
   it("refuse a role of the store's own that lacks the key, whatever its other grants", async () => {
     await makeCustomStaff("pat", ["reporting.read", "admin.settings", "staff.commission"]);
-    expect(await refused(reportsAs("pat", "DESIGNER").payPeriodSales({}))).toBe(true);
-    expect(await refused(reportsAs("pat", "DESIGNER").payPeriodConfirmations({}))).toBe(true);
+    expect(await refused(reportsAs("pat").payPeriodSales({}))).toBe(true);
+    expect(await refused(reportsAs("pat").payPeriodConfirmations({}))).toBe(true);
   });
 
   it("admit a role of the store's own that holds the key", async () => {
     await makeCustomStaff("hal", [KEY]);
-    expect(await refused(reportsAs("hal", "DESIGNER").payPeriodSales({}))).toBe(false);
-    expect(await refused(reportsAs("hal", "DESIGNER").payPeriodConfirmations({}))).toBe(false);
+    expect(await refused(reportsAs("hal").payPeriodSales({}))).toBe(false);
+    expect(await refused(reportsAs("hal").payPeriodConfirmations({}))).toBe(false);
   });
 
   it("admit the Owner", async () => {
-    expect(await refused(reportsAs("owner", "SUPER_ADMIN").payPeriodSales({}))).toBe(false);
-    expect(await refused(reportsAs("owner", "SUPER_ADMIN").payPeriodConfirmations({}))).toBe(false);
+    expect(await refused(reportsAs("owner").payPeriodSales({}))).toBe(false);
+    expect(await refused(reportsAs("owner").payPeriodConfirmations({}))).toBe(false);
   });
 });
 

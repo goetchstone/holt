@@ -468,7 +468,6 @@ describe("one open checkout per order or invoice (real DB)", () => {
     const caller = createCallerFactory(appRouter)({
       userId: user.id,
       userEmail: user.email,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     });

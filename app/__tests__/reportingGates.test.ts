@@ -164,7 +164,6 @@ function reportsFor(userId: string): Reports {
   return callReports({
     userId,
     userEmail: null,
-    tokenRole: null,
     impersonate: null,
     headers: new Headers(),
   });
