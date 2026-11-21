@@ -97,8 +97,11 @@ const QTY_ITEM = /^(\d{1,4})([A-Za-z][A-Za-z0-9\-/.]*)$/;
 const NUMERIC_ITEM_HEADER = /^\d{12,}$/;
 
 // A loose "does this line end in money?" test, used only to detect that a line
-// starts a new item (the exact split is done by iterating UPC lengths).
-const MONEY_TAIL = /\d{11,14}[\d,]+\.\d{2}(?:\d*[A-Za-z]+)?\$[\d,]+\.\d{2}$/;
+// starts a new item (the exact split is done by iterating UPC lengths). It may
+// start only at the first digit of a run: any match that starts inside a run
+// also matches from the run's start, and trying every digit made a 1000-digit
+// line cost about 4 ms, 0.2 s over the fuzz test's 50 such lines (Node 24).
+const MONEY_TAIL = /(?<!\d)\d{11,14}[\d,]+\.\d{2}(?:\d*[A-Za-z]+)?\$[\d,]+\.\d{2}$/;
 
 // UPC + unit price + [optional UQ + UOM] + $line total, all concatenated.
 // Graf & Lantz's dialect omits the UQ/UOM columns ("...84.00$84.00"); other
@@ -281,9 +284,13 @@ function tryConcatenatedItem(line: string): MarketTimeItem | null {
   // Try each UPC length; the greedy single match grabs too many digits (a
   // 14-digit UPC leaving a 1-digit-short price), so the qty x price == total
   // check, plus "the prefix reads qty + that same UPC", is what settles it.
+  // (?<!\d) changes no match: a match that starts after a digit also matches
+  // one digit earlier, so it is never the leftmost. It stops the engine trying
+  // every digit of a long run, which cost about 2 ms per 1000-digit line for
+  // the three lengths together (Node 24).
   for (let len = 14; len >= 12; len--) {
     const money = new RegExp(
-      String.raw`(\d{${len}})([\d,]+\.\d{2})(?:\d*[A-Za-z]+)?\$([\d,]+\.\d{2})$`,
+      String.raw`(?<!\d)(\d{${len}})([\d,]+\.\d{2})(?:\d*[A-Za-z]+)?\$([\d,]+\.\d{2})$`,
     );
     const m = money.exec(line);
     if (!m || m.index === 0) continue;
