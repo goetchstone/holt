@@ -86,6 +86,8 @@ const EXEMPT: Record<string, string> = {
     "No-login ticket status page; the ticket's publicToken is the capability (404 otherwise).",
   "src/pages/api/tickets/public/[token]/attachment.ts":
     "Attachment upload from the public ticket page; the publicToken is the capability (404 otherwise).",
+  "src/pages/api/tickets/public/files/[token].ts":
+    "A customer's ticket file, authorized by a signed, expiring per-attachment token (lib/tickets/attachmentToken.ts), 404 otherwise; rate-limited.",
   "src/pages/api/bookings/[id]/ics.ts":
     "A customer's calendar file for their booking; authorized by the booking token (403 otherwise).",
   "src/pages/api/bookings/feed.ics.ts":

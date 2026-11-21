@@ -1,7 +1,9 @@
 // /app/src/pages/api/tickets/public/[token].ts
 //
 // No-login public ticket view, keyed by the ticket's stable publicToken.
-//   GET  -- status + the public (non-internal) message thread.
+//   GET  -- status + the public (non-internal) message thread, and the ticket's
+//           files, each as a fresh one-hour link (lib/tickets/attachmentToken.ts).
+//           The raw /uploads/attachments path never leaves here: it is staff-only.
 //   POST -- the customer adds a reply; a reply on a WAITING/RESOLVED ticket
 //           reopens it so it returns to the staff queue.
 // Internal notes never leave the building here -- the query filters them out.
@@ -10,6 +12,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
 import { parseTicketMessageInput } from "@/lib/tickets/requestBody";
+import { publicTicketAttachmentUrl } from "@/lib/tickets/attachmentToken";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
@@ -32,7 +35,7 @@ async function handleGet(token: string, res: NextApiResponse) {
       },
       attachments: {
         orderBy: { created: "asc" },
-        select: { id: true, filename: true, url: true, uploadedBy: true, created: true },
+        select: { id: true, filename: true, uploadedBy: true, created: true },
       },
     },
   });
@@ -56,7 +59,10 @@ async function handleGet(token: string, res: NextApiResponse) {
       submitterName: ticket.submitterName,
       created: ticket.created,
       messages,
-      attachments: ticket.attachments,
+      attachments: ticket.attachments.map((a) => ({
+        ...a,
+        url: publicTicketAttachmentUrl(a.id),
+      })),
     },
   });
 }

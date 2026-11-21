@@ -7,11 +7,21 @@
  * secret, verified with no algorithm pin and no audience, and order links lived
  * 7 days: a token signed with the raw session secret verified (both families),
  * an order link was still valid at 49 hours, and a configured TTL was ignored.
+ *
+ * SEC-04b adds a third family, the customer's link to one ticket attachment
+ * (lib/tickets/attachmentToken.ts): one file, for one hour.
  */
 import jwt from "jsonwebtoken";
 import { hkdfSync } from "crypto";
+import { signCapabilityToken } from "@/lib/capabilityToken";
 import { generatePortalToken, verifyPortalToken } from "@/lib/portalToken";
 import { generateClientPortalToken, verifyClientPortalToken } from "@/lib/clientPortalToken";
+import {
+  TICKET_ATTACHMENT_LINK_TTL_SECONDS,
+  generateTicketAttachmentToken,
+  publicTicketAttachmentUrl,
+  verifyTicketAttachmentToken,
+} from "@/lib/tickets/attachmentToken";
 
 const SECRET = "test-secret-for-capability-tokens";
 
@@ -114,5 +124,61 @@ describe("family isolation", () => {
 
   it("the client-portal token round-trips", () => {
     expect(verifyClientPortalToken(generateClientPortalToken(42))).toEqual({ customerId: 42 });
+  });
+
+  it("a ticket-file token opens neither portal, and neither portal's token opens a file", () => {
+    const file = generateTicketAttachmentToken(42);
+    expect(verifyPortalToken(file)).toBeNull();
+    expect(verifyClientPortalToken(file)).toBeNull();
+    expect(verifyTicketAttachmentToken(generatePortalToken(42, 42))).toBeNull();
+    expect(verifyTicketAttachmentToken(generateClientPortalToken(42))).toBeNull();
+  });
+});
+
+describe("ticket attachment link", () => {
+  it("round-trips its attachment id", () => {
+    expect(verifyTicketAttachmentToken(generateTicketAttachmentToken(9))).toEqual({
+      attachmentId: 9,
+    });
+  });
+
+  it("is a same-origin link to the files route", () => {
+    const url = publicTicketAttachmentUrl(9);
+    expect(url).toMatch(/^\/api\/tickets\/public\/files\/[\w-]+\.[\w-]+\.[\w-]+$/);
+    const token = url.slice("/api/tickets/public/files/".length);
+    expect(verifyTicketAttachmentToken(token)).toEqual({ attachmentId: 9 });
+  });
+
+  it("rejects a correctly signed token whose claim is not a whole id", () => {
+    const audience = "holt-ticket-attachment";
+    for (const attachmentId of ["9", 9.5, null, undefined]) {
+      expect(verifyTicketAttachmentToken(signCapabilityToken({ attachmentId }, audience, 60))).toBe(
+        null,
+      );
+    }
+  });
+
+  it("rejects a token signed with the raw session secret", () => {
+    const legacy = jwt.sign({ attachmentId: 9 }, SECRET, {
+      audience: "holt-ticket-attachment",
+      issuer: "holt",
+      expiresIn: "1h",
+    });
+    expect(verifyTicketAttachmentToken(legacy)).toBeNull();
+  });
+
+  describe("lifetime", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it("lives one hour: valid at 59 minutes, expired at 61", () => {
+      expect(TICKET_ATTACHMENT_LINK_TTL_SECONDS).toBe(3600);
+      jest.setSystemTime(new Date("2026-11-21T00:00:00Z"));
+      const token = generateTicketAttachmentToken(9);
+      jest.setSystemTime(new Date("2026-11-21T00:59:00Z"));
+      expect(verifyTicketAttachmentToken(token)).not.toBeNull();
+      jest.setSystemTime(new Date("2026-11-21T01:01:00Z"));
+      expect(verifyTicketAttachmentToken(token)).toBeNull();
+    });
   });
 });

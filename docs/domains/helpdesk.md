@@ -64,8 +64,10 @@ Tests: `__tests__/ticketContract.test.ts`, `ticketNumbering.test.ts`,
 | `/api/tickets/[id]` | GET | staff | Full ticket incl. internal notes |
 | `/api/tickets/[id]` | PATCH | staff | Triage: status (transition-validated) / priority / assignee / subject; manages `resolvedAt` |
 | `/api/tickets/[id]/messages` | POST | staff | Add a public reply or internal note; author resolved from session → StaffMember |
-| `/api/tickets/public/[token]` | GET | public | Status + public thread (internal notes filtered) |
+| `/api/tickets/public/[token]` | GET | public | Status + public thread (internal notes filtered); each attachment's `url` is a fresh one-hour file link, never the stored path |
 | `/api/tickets/public/[token]` | POST | public (rate-limited) | Customer reply; reopens a WAITING/RESOLVED ticket to OPEN |
+| `/api/tickets/public/[token]/attachment` | POST | public (rate-limited 5/min) | Customer adds a file; answers with the file's one-hour link |
+| `/api/tickets/public/files/[token]` | GET | signed per-file token (rate-limited 30/min) | Streams one attachment to the customer; 404 for an expired, forged or foreign token, a deleted row, a file outside `attachments/`, or the module off |
 
 Handlers stay thin (CLAUDE.md rule 14): validation lives in `requestBody.ts`,
 transition rules in `ticketContract.ts`. Search uses `buildSearchFilter`
@@ -95,6 +97,8 @@ Nav: `Helpdesk` in `lib/auth/navPermissions.ts` (`NAV_ITEMS`,
 - [ ] Internal notes never appear on `/api/tickets/public/[token]`.
 - [ ] Status PATCH rejects an illegal transition (e.g. CLOSED → IN_PROGRESS).
 - [ ] Customer reply reopens a RESOLVED/WAITING ticket.
+- [ ] A file on `/support/<token>` opens through its `/api/tickets/public/files/…`
+      link; the raw `/uploads/attachments/…` URL is 404 in a private window.
 - [ ] With `helpdesk` off: nav hidden, `/app/helpdesk` redirects, `/support` 404s.
 
 ## Not ported (deliberate)
@@ -110,7 +114,34 @@ message), uploaded from the staff detail page or the public status page —
 the `publicToken` is the public authorization, same capability as replies
 (rate-limited 5/min). Uploads go through `createSecureForm("TICKET_ATTACHMENT")`
 (images + PDF only, 10MB, random names under `data/uploads/attachments/`,
-no SVG) and serve via `/api/uploads/[...path]`. Both GET projections include
-the list; the public side shows filename + uploader name only. Note: served
-URLs are unauthenticated capability-by-random-name, consistent with every
-other upload in the repo — don't attach secrets.
+no SVG). `TicketAttachment.url` stores `/uploads/attachments/<name>`.
+
+**Who reads them (SEC-04b, 2026-11-21).** The raw URL is never public:
+
+- **Staff** open the stored URL from the ticket page (`TicketDetailView`). The
+  uploads route serves `attachments/` on "View service" (`service.read`), from
+  `UPLOAD_READ_ACCESS` in `lib/secureUpload.ts` (staff-auth.md, "Uploaded
+  files"). The helpdesk roles hold it by default. One gap: a role edited to drop
+  `service.read` whose enum role is still in the helpdesk role lists
+  (`tickets/[id].ts`, `helpdesk/[id]/page.tsx`) opens the ticket but gets 404 on
+  its files, until those gates move to `service.read`.
+- **Customers** get a one-hour link per file. `GET /api/tickets/public/[token]`
+  mints one for each attachment on every load of the status page
+  (`publicTicketAttachmentUrl` in `lib/tickets/attachmentToken.ts`), and the
+  public upload answers with one too. The link is
+  `/api/tickets/public/files/<jwt>`: a capability token of its own family
+  (`holt-ticket-attachment`, signed by `lib/capabilityToken.ts`), so neither
+  portal's token opens a file and a file token opens neither portal. The route
+  serves only a file in `attachments/`, whatever the row's URL says; an image
+  shows inline and a PDF downloads under its stored `<ms>-<hex>` name, with
+  `Cache-Control: private`. A page left open past the hour shows "This file link
+  has expired or is not valid. Reload your request page for a fresh one." when a
+  file is clicked. `TicketStatusView` needed no change: it already renders
+  `href={a.url}`.
+
+Tests: `__tests__/capabilityToken.test.ts` and
+`__tests__/fuzz/capabilityTokens.fuzz.test.ts` (the token family);
+`__tests__/integration/ticketAttachmentLinks.integration.test.ts` (the public
+JSON carries no `/uploads/`, each link opens its own bytes, and a tampered,
+expired, client-portal or deleted-row token, a row pointing at `imports/`, the
+module off and the raw URL without a session all answer 404).

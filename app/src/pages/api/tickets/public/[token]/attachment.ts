@@ -4,12 +4,15 @@
 // status page. The publicToken IS the authorization (same capability the
 // status/reply endpoint uses). Rate-limited; same hardened upload preset
 // as the staff side. uploadedBy records the ticket's submitter name.
+// The answer links the file through its one-hour customer link, never the raw
+// /uploads path, which is staff-only (lib/tickets/attachmentToken.ts).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import path from "path";
 import { rateLimit } from "@/lib/rateLimit";
 import { prisma } from "@/lib/prisma";
 import { createSecureForm, assertUploadedFileInRoot } from "@/lib/secureUpload";
+import { publicTicketAttachmentUrl } from "@/lib/tickets/attachmentToken";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
@@ -61,7 +64,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         attachment: {
           id: attachment.id,
           filename: attachment.filename,
-          url: attachment.url,
+          url: publicTicketAttachmentUrl(attachment.id),
         },
       });
     } catch (saveErr: unknown) {
