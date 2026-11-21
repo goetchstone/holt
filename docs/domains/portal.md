@@ -1,6 +1,6 @@
 # Customer Portal
 
-Token-gated, no-login customer-facing surfaces. Customers receive a link via email or text and can view their order balance, pay via Stripe, or submit a return request — all without logging in. The link expires after 7 days.
+Token-gated, no-login customer-facing surfaces. Customers receive a link via email or text and can view their order balance, pay via Stripe, or submit a return request — all without logging in. An order link expires after the store's link lifetime (48 hours unless Settings sets `AppSettings.portalTokenTtlHours`, 1 to 168); a return link is the Return's own `portalToken` and does not expire ("Return request flow" below).
 
 ## Scope
 
@@ -13,21 +13,21 @@ Token-gated, no-login customer-facing surfaces. Customers receive a link via ema
 
 ## Token format
 
-`lib/portalToken.ts` — JWT signed with `NEXTAUTH_SECRET`:
+`lib/portalToken.ts` — a JWT signed through `lib/capabilityToken.ts`, with a key derived from `NEXTAUTH_SECRET` for this family alone (HKDF, audience `holt-portal`):
 
 ```ts
-{ orderId: number, customerId: number, exp: <7 days> }
+{ orderId: number, customerId: number, exp: <48 hours, or the store's lifetime> }
 ```
 
 - **Generation**: `generatePortalToken(orderId, customerId)` returns a signed JWT
 - **Verification**: `verifyPortalToken(token)` returns the payload OR `null` (never throws — caller must null-check)
-- **Expiry**: 7 days hard-coded. If you need to extend a stale link, regenerate; don't lengthen.
+- **Expiry**: `DEFAULT_PORTAL_TOKEN_TTL_HOURS` (48) unless `AppSettings.portalTokenTtlHours` sets another (`lib/portalLink.ts`). If you need to extend a stale link, regenerate; don't lengthen.
 
 The token payload is **NOT a session** — it's a per-order scope. A token for order 123 cannot read order 124 even if the customer owns both. Each order link is independent.
 
 ## Auth boundary
 
-Every portal endpoint MUST:
+Every order-portal endpoint MUST (the return routes are the exception: their capability is the Return's `portalToken`, a row lookup, "Return request flow" below):
 
 1. Call `verifyPortalToken(token)` and reject (`401`) on null return
 2. Cross-check the payload's `orderId` matches the requested order
@@ -63,7 +63,14 @@ Tracked as a master-plan checklist item (C8); the plan is not kept in the repo.
 
 ## Return request flow
 
-`app/portal/return/[token]/*` — customer fills out a return reason, attaches photo, submits. Creates a `Return` row in `INITIATED` status (per `docs/domains/returns.md`). Notifies the warehouse via the dispatch board.
+Staff mint the link: `POST /api/sales/orders/[id]/return-link` (`sales.write`) creates the `Return` in `INITIATED` with a random `portalToken` (a UUID on the row, not a JWT, so it does not expire) and `portalRequestedAt`, and answers with `/portal/return/<portalToken>`. The customer's page (`app/portal/return/[token]/*`) reads `GET /api/portal/returns/[token]` and posts a reason and notes to `POST /api/portal/returns/request`. It attaches no photo and notifies nobody; the return waits in the staff returns list (`docs/domains/returns.md`). `app/portal/return/status/[token]/*` shows its progress from the same GET.
+
+The request route is public, so it trusts nothing in the body (fixed 2026-11-21):
+
+- **The body is checked first** (`parsePortalReturnRequest` in `lib/returns/portalReturn.ts`). The reason must be a `ReturnReason`; an unknown one is a 400 naming the reasons (it reached the enum column and was a 500). Notes must be text, and a `lineItemId` a whole number above zero.
+- **A named line must be one the return may be for** (`returnLineProblem` in `lib/returns/returnLine.ts`): on the return's own order, still counted (not cancelled or replaced, quantity above zero: rules 31 and 33, through `isCountedItemLine`), and goods (not a gift card or the order's delivery fee). Anything else is a 400 that says which. It used to write any line id it was sent, so a token holder could point their return at another customer's line, and a return is valued from its line when it is paid out (`lib/returns/bookReturn.ts`). The staff return-link endpoint checks a line it is given with the same function. The page itself never sends a line.
+- **The answer is what the pages read**, `PortalReturn` (`lib/returns/portalReturnContract.ts`: return number, status, reason, product name, quantity, created, customer notes), the same projection as the GET, which both pages import. It used to be the whole `Return` row: the order and customer ids, the line, the token and every staff field.
+- Unchanged: 404 for an unknown token, 409 once the return has left `INITIATED` or when the link was never activated, rate-limited 10/min.
 
 The customer cannot approve, inspect, or process the refund — those are staff-only state transitions handled in `/api/returns/[id]/*`.
 
@@ -89,14 +96,14 @@ Used by:
 
 | Surface | Coverage |
 |---|---|
-| `portalToken.ts` (generate + verify round-trip + tamper rejection) | Unit tests TBD — **gap** |
+| `portalToken.ts` (generate + verify round-trip + tamper rejection) | `__tests__/capabilityToken.test.ts`, `__tests__/fuzz/capabilityTokens.fuzz.test.ts` |
 | Stripe pay flow | None — should add tripwire for verifyToken + rateLimit being called in sequence |
-| Return request | None |
+| Return request | `__tests__/portalReturnRequest.test.ts` (the body and the projection); `__tests__/integration/portalReturnRequest.integration.test.ts` (the line rule on both routes, the reason, the projection, the refusals) |
 
 ## Known gaps
 
 - No "you have an open balance" reminder cron — would help collections
-- Token revocation is implicit (expire-only); no way to invalidate a leaked token before its 7-day TTL
+- Token revocation is implicit (expire-only); no way to invalidate a leaked order link before it expires
 
 ---
 Last verified: 2026-05-20

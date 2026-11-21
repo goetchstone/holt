@@ -214,7 +214,11 @@ the register's sale (`create-from-cart`, body `deliveryFee`) and the order scree
   is asked to include delivery and freight.
 - **Not goods.** The line takes no stock and isn't picked or handed over. The generic
   line route (`line-items/[lineItemId].ts`) and a new return
-  (`POST /api/returns`) refuse it through `deliveryFeeLineEditProblem()`. Refunding a
+  (`POST /api/returns`) refuse it through `deliveryFeeLineEditProblem()`. A customer
+  return link (`POST /api/sales/orders/[id]/return-link`) and the customer's own
+  return request refuse it through `returnLineProblem()` (`lib/returns/returnLine.ts`,
+  returns.md "The return's line"), which also refuses a line from another order, a
+  cancelled or replaced line, a zero quantity and a gift card. Refunding a
   delivery fee after the order is handed over is not built (ROADMAP GAP-09).
 
 **The printed receipt and invoice (2026-10-30).** `GET /api/print/order/[id]`
