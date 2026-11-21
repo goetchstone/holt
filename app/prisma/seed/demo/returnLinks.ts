@@ -7,17 +7,18 @@
 // a return to show, with the request form still open
 // (docs/testing/page-sweep.md).
 //
-// The order is the most recent delivered one, out at least three days, with
-// nothing returned from it. The link names the order's first line that is
-// goods (COUNTED_ITEM_LINE: not cancelled, replaced or a gift card), as staff
-// would when sending it for one piece. Like the endpoint, no product snapshot
-// is written.
+// The order is the most recently delivered delivery order (not a floor sale)
+// that has been out at least three days with nothing returned from it. The
+// link names the order's first line that is goods (COUNTED_ITEM_LINE: not
+// cancelled, replaced or a gift card), as staff would when sending it for one
+// piece. Like the endpoint, no product snapshot is written.
 //
-// The token is deterministic and draws no RNG, like the seeded tickets' tokens
-// (operations.ts), so anyone can read it from this public repository and open
-// that one invented return on a public demo. Never copy the shape outside the
-// seed: a real link's token is a random UUID. The return number comes from the
-// wall clock, as the endpoint's does.
+// The token is the order number behind a fixed prefix and draws no RNG, so
+// anyone can work it out from this public repository and open that one
+// invented return on a public demo, as with the seeded tickets' tokens
+// (operations.ts). Never copy the shape outside the seed: a real link's token
+// is a random UUID. The return number comes from the wall clock, as the
+// endpoint's does.
 
 import type { PrismaClient } from "@prisma/client";
 import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
