@@ -12,9 +12,9 @@
 //
 // That error is a 404 saying what to set, answered by one shared check before a
 // route starts work (consignmentVendorOr404, rule 42). Four imports threw it
-// from inside their transaction instead, so it reached the caller only as a
-// 500's body, and once 500 bodies stopped carrying error text (rule 11) it read
-// "Import failed". The routes against a real database:
+// from inside their transaction instead, so it reached the caller only as the
+// body of a 500, the status of a fault, which a 500 may no longer carry (rule
+// 11). The routes against a real database:
 // __tests__/integration/consignmentVendorRefusal.integration.test.ts.
 
 import type { NextApiResponse } from "next";
@@ -99,14 +99,21 @@ describe("a missing configuration is an error, never a new vendor", () => {
   });
 });
 
-/** Stands in for the client: the vendors flagged isConsignment, and what was asked. */
+/**
+ * Stands in for the client: the vendors flagged isConsignment, and what was
+ * asked. As a database does, it answers rows in the order they are stored
+ * (`ids`) unless the query asks for an order by id.
+ */
 function flagged(ids: number[]) {
   const asked: unknown[] = [];
   const client = {
     vendor: {
-      findMany: async (args: unknown) => {
+      findMany: async (args: { orderBy?: { id?: "asc" | "desc" } }) => {
         asked.push(args);
-        return ids.map((id) => ({ id }));
+        const rows = ids.map((id) => ({ id }));
+        const order = args.orderBy?.id;
+        if (order) rows.sort((a, b) => (order === "asc" ? a.id - b.id : b.id - a.id));
+        return rows;
       },
     },
   };
@@ -137,7 +144,8 @@ describe("consignmentVendorOr404", () => {
   });
 
   it("returns the consigning vendor, lowest id first, and answers nothing", async () => {
-    const { client, asked } = flagged([4, 9]);
+    // Stored with the higher id first, so only an order the query asks for gives 4.
+    const { client, asked } = flagged([9, 4]);
     const { res, sent } = recorder();
     expect(await consignmentVendorOr404(client, res)).toBe(4);
     expect(sent).toEqual({ status: 0, body: undefined });
@@ -146,9 +154,12 @@ describe("consignmentVendorOr404", () => {
 });
 
 /**
- * Callers that take the single consigning vendor and carry on without one, each
- * with why. Every other caller asks consignmentVendorOr404, so a deployment that
- * does not consign is told so before any work starts (rule 42).
+ * Files that call getPrimaryConsignmentVendorId themselves and carry on without
+ * a vendor, each with why. Every other route takes the vendor through
+ * consignmentVendorOr404, so a deployment that does not consign is told so before
+ * any work starts (rule 42). This sees only that call: a route that takes the
+ * single vendor another way, such as getConsignmentVendorIds(...)[0] or a
+ * vendor.findFirst on isConsignment, passes it.
  */
 const CARRIES_ON_WITHOUT_ONE: Record<string, string> = {
   "src/pages/api/consignment/return-items.ts":
@@ -158,7 +169,7 @@ const CARRIES_ON_WITHOUT_ONE: Record<string, string> = {
 describe("one check for a deployment with no consignment vendor", () => {
   const files = walk(SRC).map((f) => relative(APP, f));
 
-  it("every caller but the listed ones refuses through the shared check", () => {
+  it("every file calling getPrimaryConsignmentVendorId but the listed ones uses the check", () => {
     const direct = files.filter(
       (rel) =>
         rel !== "src/lib/consignmentVendor.ts" &&

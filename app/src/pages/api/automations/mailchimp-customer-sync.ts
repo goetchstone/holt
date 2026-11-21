@@ -6,7 +6,7 @@
 //
 // Triggered by:
 //   - scripts/auto-mailchimp-customer-sync.sh (external cron, daily)
-//   - "Sync new customers" button on /admin/automations/mailchimp-sync
+//   - "Push new customers" button on /app/admin/automations/mailchimp-sync
 //
 // Auth: Bearer AUTO_IMPORT_API_KEY (cron) or authenticated session (UI).
 
