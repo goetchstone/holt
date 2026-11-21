@@ -263,6 +263,61 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
   });
 });
 
+describe("parseNuOrderPrintoutItems — an amount it cannot read", () => {
+  const big = `${"9".repeat(400)}.00`;
+
+  /** The EILEEN block with its wholesale, retail and line total swapped in. */
+  function block(wholesale: string, retail: string, lineTotal: string): PositionedItem[] {
+    return [
+      pi("Relaxed Button-Up Shirt", 57, 687),
+      ...styleAnchor("EILEEN", wholesale, retail, 675),
+      ...letterSizeHeader(654),
+      pi("PRBG", 183, 639),
+      pi("1", 333, 636),
+      pi("1", 351, 636),
+      pi("1", 369, 636),
+      pi("1", 387, 636),
+      pi("4", 425, 636),
+      pi(`USD ${lineTotal}`, 480, 636),
+    ];
+  }
+
+  // Until 2026-11-21 a 400-digit price and line total both read as Infinity, and
+  // Infinity x 4 - Infinity is NaN, which no "> 0.01" check refuses: the item
+  // was kept at an Infinity cost.
+  it("refuses a block whose wholesale price overflows, and says so", () => {
+    const parsed = parseNuOrderPrintoutItems([
+      [...pageHeader(), ...block(big, "274.00", big), ...orderSummary("4", big)],
+    ]);
+    expect(parsed.items).toEqual([]);
+    expect(parsed.warnings).toContain(
+      "Style EILEEN: the wholesale price is not a number — add this item manually.",
+    );
+    // The Grand Total does not read either, so it is reported missing, not Infinity.
+    expect(parsed.totalPrice).toBe(0);
+    expect(parsed.warnings.some((w) => /Grand Total not found/.test(w))).toBe(true);
+  });
+
+  it("refuses a block whose line total overflows, as one with no line total", () => {
+    const parsed = parseNuOrderPrintoutItems([
+      [...pageHeader(), ...block("128.00", "274.00", big), ...orderSummary("4", "512.00")],
+    ]);
+    expect(parsed.items).toEqual([]);
+    expect(parsed.warnings.some((w) => /EILEEN/.test(w) && /no line total found/.test(w))).toBe(
+      true,
+    );
+  });
+
+  it("reads an overflowing retail price as none, and keeps the item", () => {
+    const parsed = parseNuOrderPrintoutItems([
+      [...pageHeader(), ...block("128.00", big, "512.00"), ...orderSummary("4", "512.00")],
+    ]);
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.items).toHaveLength(1);
+    expect(parsed.items[0].msrp).toBe(0);
+  });
+});
+
 describe("parseNuOrderPrintoutItems — cancelled styles", () => {
   it("excludes the Cancelled Styles section from items but summarizes it", () => {
     const page = [
