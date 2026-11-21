@@ -10,8 +10,11 @@
 // registry payload in api/admin/settings exists to remove.
 //
 // Gated on staff.manage, which the catalog describes as "Create staff and assign
-// roles — grants power to others". Editing roles IS that capability; there is no
-// weaker permission that could sensibly hold it.
+// roles — grants power to others": the list feeds the Staff screen's role
+// picker. Creating a role also takes what assigning one takes (roleEditRefusalFor
+// in lib/auth/roleAssignment): admins only, and the owner tier's keys only by an
+// owner. Until 2026-11-20 staff.manage alone let a General Manager or People
+// Operations create a role holding any key.
 //
 // Validation-then-write, in the house shape (see api/admin/settings/index.ts):
 // every check runs and returns its own message before Prisma is touched, so a
@@ -31,6 +34,11 @@ import {
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { bumpCacheGenerations } from "@/lib/cacheGeneration";
 import {
+  callerStaffRole,
+  ownerOnlyKeysChanged,
+  roleEditRefusalFor,
+} from "@/lib/auth/roleAssignment";
+import {
   ROLE_SELECT,
   buildCatalogPayload,
   parseOptionalDescription,
@@ -44,7 +52,9 @@ import {
 
 export default requirePermission("staff.manage", async (req, res, session) => {
   if (req.method === "GET") return handleGet(res);
-  if (req.method === "POST") return handlePost(req, res, auditActor(session));
+  if (req.method === "POST") {
+    return handlePost(req, res, auditActor(session), await callerStaffRole(session));
+  }
   res.setHeader("Allow", "GET, POST");
   return res.status(405).json({ error: "Method not allowed" });
 });
@@ -111,7 +121,15 @@ async function resolveSeedPermissions(
   return { ok: true, value: parsed.value };
 }
 
-async function handlePost(req: NextApiRequest, res: NextApiResponse, actor: string) {
+async function handlePost(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  actor: string,
+  callerRole: string | null,
+) {
+  const notAdmin = roleEditRefusalFor(callerRole, []);
+  if (notAdmin) return res.status(403).json({ error: notAdmin });
+
   const body = (req.body ?? {}) as Record<string, unknown>;
 
   const key = validateRoleKey(body.key);
@@ -128,6 +146,11 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, actor: stri
 
   const permissions = await resolveSeedPermissions(body);
   if (!permissions.ok) return res.status(permissions.status).json({ error: permissions.error });
+
+  // A new role holding an owner-only key (cloned from the Owner, or listed) is
+  // the owner tier being granted.
+  const ownerOnly = roleEditRefusalFor(callerRole, ownerOnlyKeysChanged([], permissions.value));
+  if (ownerOnly) return res.status(403).json({ error: ownerOnly });
 
   const clash = await prisma.role.findUnique({
     where: { key: key.value },

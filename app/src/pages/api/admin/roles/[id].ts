@@ -18,6 +18,11 @@
 //   - key, isSystem and grantsAllPermissions are not editable on any role. The
 //     first two are identity the seeder reconciles against; the third is the
 //     mechanism the permission check short-circuits on.
+//   - only an admin edits or deletes a role, and only an owner grants, revokes
+//     or deletes the owner tier's keys (roleEditRefusalFor): editing a role's
+//     grants is the same power as assigning roles. The gate is staff.manage,
+//     which General Managers and People Operations hold, so until 2026-11-20
+//     they could add any key to their own role here.
 //   - and the one that matters most: neither PUT nor DELETE may leave zero
 //     active, user-linked staff holding staff.manage. That is the last
 //     administrator removing their own ability to administer, and it is exactly
@@ -39,6 +44,11 @@ import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { bumpCacheGenerations } from "@/lib/cacheGeneration";
+import {
+  callerStaffRole,
+  ownerOnlyKeysChanged,
+  roleEditRefusalFor,
+} from "@/lib/auth/roleAssignment";
 import type { RoleGrantRow } from "@/lib/auth/permissionResolver";
 import {
   LOCKOUT_PERMISSION,
@@ -73,8 +83,12 @@ export default requirePermission("staff.manage", async (req, res, session) => {
     return res.status(400).json({ error: "Invalid role id" });
   }
   if (req.method === "GET") return handleGet(id, res);
-  if (req.method === "PUT") return handlePut(id, req, res, auditActor(session));
-  if (req.method === "DELETE") return handleDelete(id, req, res, auditActor(session));
+  if (req.method === "PUT") {
+    return handlePut(id, req, res, auditActor(session), await callerStaffRole(session));
+  }
+  if (req.method === "DELETE") {
+    return handleDelete(id, req, res, auditActor(session), await callerStaffRole(session));
+  }
   res.setHeader("Allow", "GET, PUT, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 });
@@ -179,7 +193,16 @@ function rejectImmutableChanges(
   return null;
 }
 
-async function handlePut(id: number, req: NextApiRequest, res: NextApiResponse, actor: string) {
+async function handlePut(
+  id: number,
+  req: NextApiRequest,
+  res: NextApiResponse,
+  actor: string,
+  callerRole: string | null,
+) {
+  const notAdmin = roleEditRefusalFor(callerRole, []);
+  if (notAdmin) return res.status(403).json({ error: notAdmin });
+
   const body = (req.body ?? {}) as Record<string, unknown>;
 
   const existing = await prisma.role.findUnique({
@@ -238,6 +261,13 @@ async function handlePut(id: number, req: NextApiRequest, res: NextApiResponse, 
       const current = (
         await tx.rolePermission.findMany({ where: { roleId: id }, select: { permission: true } })
       ).map((p) => p.permission);
+      if (nextPermissions !== undefined) {
+        const ownerOnly = roleEditRefusalFor(
+          callerRole,
+          ownerOnlyKeysChanged(current, nextPermissions),
+        );
+        if (ownerOnly) throw new RefusedError(403, ownerOnly);
+      }
       const changed =
         nextPermissions !== undefined &&
         (current.length !== nextPermissions.length ||
@@ -325,7 +355,16 @@ function parseReassignTarget(raw: unknown): { ok: true; value: number | null } |
   return { ok: true, value: parsed };
 }
 
-async function handleDelete(id: number, req: NextApiRequest, res: NextApiResponse, actor: string) {
+async function handleDelete(
+  id: number,
+  req: NextApiRequest,
+  res: NextApiResponse,
+  actor: string,
+  callerRole: string | null,
+) {
+  const notAdmin = roleEditRefusalFor(callerRole, []);
+  if (notAdmin) return res.status(403).json({ error: notAdmin });
+
   const target = parseReassignTarget(req.query.reassignToRoleId);
   if ("error" in target) return res.status(400).json({ error: target.error });
 
@@ -334,9 +373,24 @@ async function handleDelete(id: number, req: NextApiRequest, res: NextApiRespons
     await prisma.$transaction(async (tx) => {
       const role = await tx.role.findUnique({
         where: { id },
-        select: { name: true, isSystem: true, _count: { select: { staff: true } } },
+        select: {
+          name: true,
+          isSystem: true,
+          _count: { select: { staff: true } },
+          permissions: { select: { permission: true } },
+        },
       });
       if (!role) throw new RefusedError(404, "Role not found");
+
+      // Deleting a role revokes everything it grants, the owner tier's keys too.
+      const ownerOnly = roleEditRefusalFor(
+        callerRole,
+        ownerOnlyKeysChanged(
+          role.permissions.map((p) => p.permission),
+          [],
+        ),
+      );
+      if (ownerOnly) throw new RefusedError(403, ownerOnly);
 
       if (role.isSystem) {
         throw new RefusedError(

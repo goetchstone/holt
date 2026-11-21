@@ -284,7 +284,11 @@ describe("POST /api/admin/roles", () => {
   });
 
   it("cloning the wildcard Owner materialises the catalog, not its zero rows", async () => {
-    await signInAsAdmin();
+    // As the Owner: the copy carries the owner-only keys, which only an owner
+    // grants (ownerTierEscalation.integration.test.ts has the admin's refusal).
+    await makeStaff({ userId: "owner-fixture", enumRole: "SUPER_ADMIN", roleKey: "SUPER_ADMIN" });
+    signInAs("owner-fixture");
+    invalidateRoleGrantCache();
     const owner = await prisma.role.findUniqueOrThrow({ where: { key: "SUPER_ADMIN" } });
     expect(await grantsOf(owner.id)).toEqual([]);
 
@@ -538,14 +542,15 @@ describe("PUT /api/admin/roles/[id]", () => {
 describe("self-lockout guard", () => {
   /**
    * A deployment whose ONLY route to staff.manage is one custom role, held by
-   * one active signed-in person — the actor. Their StaffRole enum is MANAGER so
-   * the bootstrap safeguard stays shut (it counts the enum, not the link), but
-   * MANAGER does not hold staff.manage, so removing the custom role's grant
-   * really does take the last one away.
+   * one active signed-in person — the actor. Their StaffRole enum is ADMIN: only
+   * an admin edits roles (roleEditRefusalFor, USE-02's rule), and the enum keeps
+   * the bootstrap safeguard shut (it counts the enum, not the link). Their
+   * grants come from the linked custom role alone, so removing its grant really
+   * does take the last staff.manage away.
    */
   async function soleAdminDeployment() {
     const soleRole = await makeRole("SOLE_ADMIN", [LOCKOUT_PERMISSION, "sales.read"]);
-    await makeStaff({ userId: "sole", enumRole: "MANAGER", roleKey: "SOLE_ADMIN" });
+    await makeStaff({ userId: "sole", enumRole: "ADMIN", roleKey: "SOLE_ADMIN" });
     signInAs("sole");
     invalidateRoleGrantCache();
     return soleRole;
