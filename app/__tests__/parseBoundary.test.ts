@@ -1,6 +1,14 @@
-// The shared parse boundary of the vendor order parsers: a cut or unreadable line
-// is reported on the order, never silent.
-import { MAX_LINE_LENGTH, splitLines, parseMoney, finiteInt } from "@/lib/pricing/parseBoundary";
+// The shared parse boundary of the lib/pricing parsers: a cut or unreadable line
+// is reported on the order, never silent, and no number read is ever Infinity.
+import {
+  MAX_LINE_LENGTH,
+  splitLines,
+  parseMoney,
+  finiteFloat,
+  finiteInt,
+  finiteOrNull,
+  finiteSum,
+} from "@/lib/pricing/parseBoundary";
 import { parseSuperCatOrderText } from "@/lib/pricing/superCatOrderParser";
 import { parseKKOrderText } from "@/lib/pricing/kkOrderParser";
 
@@ -30,6 +38,16 @@ describe("splitLines", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/^1 line has a number of 300 or more digits/);
   });
+
+  it("says the long number may have been read as 0 or left out, true of every caller", () => {
+    // Past 308 digits a number is read as 0 (an order) or left out (a price book);
+    // a 300-308 digit one still reads, so the warning cannot say it was read as 0.
+    const warnings: string[] = [];
+    splitLines("9".repeat(400), warnings);
+    expect(warnings[0]).toContain(
+      "cannot be a real amount, so it may have been read as 0 or left out",
+    );
+  });
 });
 
 describe("number readers", () => {
@@ -38,6 +56,31 @@ describe("number readers", () => {
     expect(parseMoney("1,234.50")).toBe(1234.5);
     expect(finiteInt("9".repeat(400))).toBe(0);
     expect(finiteInt("42")).toBe(42);
+  });
+
+  it.each([
+    ["a 400-digit run", "9".repeat(400)],
+    ["1e999", "1e999"],
+    ["Infinity", "Infinity"],
+    ["-Infinity", "-Infinity"],
+    ["abc", "abc"],
+    ["a blank", ""],
+  ])("finiteOrNull reads %s as null, where 'not stated' is never 0", (_label, raw) => {
+    expect(finiteOrNull(raw)).toBeNull();
+  });
+
+  it("finiteOrNull reads a real number as itself, and finiteFloat reads null as 0", () => {
+    expect(finiteOrNull("12.50")).toBe(12.5);
+    expect(finiteFloat("12.50")).toBe(12.5);
+    expect(finiteFloat("1e999")).toBe(0);
+  });
+
+  it("finiteSum adds finite amounts, and reads a sum that overflows as 0", () => {
+    const biggest = Number("9".repeat(308)); // still finite on its own
+    expect(Number.isFinite(biggest)).toBe(true);
+    expect(finiteSum([15, 20.5])).toBe(35.5);
+    expect(finiteSum([])).toBe(0);
+    expect(finiteSum([biggest, biggest])).toBe(0);
   });
 });
 

@@ -1,23 +1,47 @@
 // /app/src/lib/pricing/parseBoundary.ts
 //
-// The shared parse boundary of the vendor order parsers (rule 42): the one number
-// reader and the one line splitter they use. A run of digits long enough to
-// overflow reads as Infinity, and `Math.abs(qty * price - total) > 0.01` is false
-// for Infinity - Infinity (NaN), so a parser's line-math check would wave an
-// infinite price through into a PO. A non-finite reading is 0 here, and the line
-// is accepted as it reads: a $0 line does not trip the parsers' own line-math
-// check (0 x qty = 0). What tells the user is `splitLines`, which puts a warning
-// on the order when a line holds a run of 300 or more digits. Pure.
+// The shared parse boundary of the lib/pricing parsers (rule 42): the one set of
+// number readers and the one line splitter they use. A run of digits long enough
+// to overflow reads as Infinity, and `Math.abs(qty * price - total) > 0.01` is
+// false for Infinity - Infinity (NaN), so a parser's line-math check would wave an
+// infinite price through into a PO. No reader here returns a non-finite number.
+// What a non-finite value becomes depends on what the field means:
+//
+// - An order parser reads it as 0 and keeps the line (parseMoney, finiteFloat,
+//   finiteInt). A $0 line does not trip the parser's own line-math check
+//   (0 x qty = 0), so what tells the user is `splitLines`, which puts a warning on
+//   the order when a line holds a run of 300 or more digits. A parser that can
+//   name the cell it could not read leaves that line out instead, with a warning
+//   naming it (Simblist CSV, the nuORDER printout).
+// - A price book leaves the cell out, as it does "N/A": `finiteOrNull` gives null,
+//   and `pricingUtils.parseCurrency` gives NaN, its "no price in this cell".
+//
+// A 308-digit number still reads as finite and overflows once doubled or added,
+// so a total of read amounts goes through `finiteSum`. Pure.
 
 /** `parseFloat` of `raw` with thousands commas removed; 0 unless finite. */
 export function parseMoney(raw: string): number {
   return finiteFloat(raw.replaceAll(",", ""));
 }
 
+/**
+ * `parseFloat` of an already-clean numeric token; null unless finite. For a field
+ * where "not stated" is null, never 0.
+ */
+export function finiteOrNull(raw: string): number | null {
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** `parseFloat` of an already-clean numeric token; 0 unless finite. */
 export function finiteFloat(raw: string): number {
-  const n = Number.parseFloat(raw);
-  return Number.isFinite(n) ? n : 0;
+  return finiteOrNull(raw) ?? 0;
+}
+
+/** The sum of `values`, each finite; 0 when the sum itself overflows. */
+export function finiteSum(values: readonly number[]): number {
+  const total = values.reduce((sum, v) => sum + v, 0);
+  return Number.isFinite(total) ? total : 0;
 }
 
 /**
@@ -28,7 +52,7 @@ export function finiteFloat(raw: string): number {
  */
 export const MAX_LINE_LENGTH = 1000;
 
-/** A digit run this long overflows to Infinity (a double tops out near 1e308). */
+/** A digit run this long cannot be a real amount (a double tops out near 1.8e308). */
 const OVERLONG_NUMBER = /\d{300}/;
 
 /**
@@ -52,9 +76,12 @@ export function splitLines(text: string, warnings: string[]): string[] {
     );
   }
   if (overlong > 0) {
+    // "May": a run past 308 digits overflows and is read as 0 or left out, but a
+    // 300-308 digit one still reads, as an absurd amount the items will show.
     warnings.push(
       `${overlong} line${overlong === 1 ? " has" : "s have"} a number of 300 or more digits, ` +
-        "which was read as 0. Check the PDF against the items.",
+        "which cannot be a real amount, so it may have been read as 0 or left out. " +
+        "Check the PDF against the items.",
     );
   }
   return lines;
