@@ -319,10 +319,12 @@ const MIME_TYPES: Record<string, string> = {
   ".ppm": "image/x-portable-pixmap",
 };
 // `.svg` is deliberately absent. An SVG served as an inline `svg+xml` document
-// from our own origin — under a CSP that still allows 'unsafe-inline' — is a stored-XSS
-// vector one preset edit away. SVGs (and any unknown type) fall through to
-// application/octet-stream + Content-Disposition: attachment below, so a browser
-// downloads them instead of executing their script.
+// from our own origin is a stored-XSS vector one preset edit away. The CSP no
+// longer lets an inline script run (/uploads/* gets the proxy's nonce policy,
+// src/proxy.ts; /api/uploads/* the static API policy in next.config.js), and
+// keeping SVG out stays as a second layer: SVGs (and any unknown type) fall
+// through to application/octet-stream + Content-Disposition: attachment below,
+// so a browser downloads them instead of rendering them.
 
 /** A name safe to put inside a quoted header parameter as it stands. */
 const SAFE_DOWNLOAD_NAME = /^[\w.-]+$/;

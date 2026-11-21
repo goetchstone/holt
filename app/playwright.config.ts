@@ -1,8 +1,9 @@
 // /app/playwright.config.ts
 //
 // The browser smoke suite (e2e/). Opens every App Router page in a real
-// browser, once as the seeded Owner and once as the seeded Administrator,
-// against a running, seeded app. Run with
+// browser, once as the seeded Owner and once as the seeded Administrator, and
+// the Pages Router sign-in screens once, signed out, against a running, seeded
+// app, checking each page's Content-Security-Policy as it goes. Run with
 // `npm run test:pages`; BASE_URL defaults to http://localhost:3000.
 
 import { defineConfig, devices } from "@playwright/test";
