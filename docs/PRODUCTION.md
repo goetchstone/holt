@@ -69,12 +69,20 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
      expiring soon — alongside the rest of the nine-condition gate below.
   Without this, sessions + Stripe + passwords travel in plaintext.
 - ☑ HSTS, X-Frame-Options DENY, X-Content-Type-Options, Referrer-Policy, a
-  baseline CSP, and `__Secure-` session cookies are all set in code — they
-  activate the moment TLS is in front. HSTS is sent by the app
+  Content-Security-Policy, and `__Secure-` session cookies are all set in
+  code — they activate the moment TLS is in front. HSTS is sent by the app
   (`app/next.config.js`), not nginx, so it stays a single source of truth;
-  nginx's 443 block deliberately does not add its own copy. (CSP still
-  allows `unsafe-inline` for scripts/styles; tightening to nonces is
-  tracked, not a blocker.)
+  nginx's 443 block deliberately does not add its own copy, and nginx sets
+  no CSP either.
+- ☑ The CSP runs scripts by nonce. Every page carries a per-request policy
+  from `app/src/proxy.ts` (`app/src/lib/contentSecurityPolicy.ts`): in
+  production a script runs only with that request's nonce, or when a nonced
+  script loaded it, and there is no `unsafe-inline` or `unsafe-eval` for
+  scripts (`next dev` adds `unsafe-eval`, which React needs there). Styles
+  keep `unsafe-inline`: the screens set inline styles throughout, and a style
+  nonce would make browsers ignore it. `/api/*` carries a static policy from
+  `app/next.config.js`, with neither unsafe keyword for scripts. Why, and what
+  it costs: `docs/DECISIONS.md` entry 62.
 
 ## 3. Database, migrations, backups
 

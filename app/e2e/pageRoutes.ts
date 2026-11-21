@@ -1,15 +1,19 @@
 // /app/e2e/pageRoutes.ts
 //
-// Every App Router page in the app, read from the file tree: a route is the
-// path of a `page.tsx` under src/app with route groups like `(dashboard)`
-// removed. Shared by the browser smoke suite (pages.spec.ts), which opens each
-// one, and by __tests__/e2eDynamicRoutes.test.ts, which checks the manifest of
-// dynamic routes against it (rule 65).
+// Every page in the app, read from the file tree (rule 65), so a new screen is
+// opened without anyone listing it. An App Router route is the path of a
+// `page.tsx` under src/app with route groups like `(dashboard)` removed. A
+// Pages Router screen is a `.tsx` under src/pages outside `api/`, other than
+// Next's `_app` and `_document`: today the three /auth/* sign-in screens.
+// Shared by the browser smoke suite (pages.spec.ts), which opens each one, and
+// by __tests__/e2eDynamicRoutes.test.ts, which checks the manifest of dynamic
+// routes against it.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 const APP_DIR = join(__dirname, "..", "src", "app");
+const PAGES_DIR = join(__dirname, "..", "src", "pages");
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -45,4 +49,27 @@ export function moduleOf(route: string): string | null {
 /** A route with a `[param]` segment needs a value before it can be opened. */
 export function isDynamic(route: string): boolean {
   return route.includes("[");
+}
+
+function walkPagesRouter(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) {
+      return full === join(PAGES_DIR, "api") ? [] : walkPagesRouter(full);
+    }
+    return name.endsWith(".tsx") && !name.startsWith("_") ? [full] : [];
+  });
+}
+
+/** Every Pages Router screen, e.g. `/auth/login`, sorted. */
+export function pagesRouterRoutes(): string[] {
+  return walkPagesRouter(PAGES_DIR)
+    .map((file) => {
+      const path = relative(PAGES_DIR, file)
+        .split(sep)
+        .join("/")
+        .replace(/\.tsx$/, "");
+      return `/${path.replace(/(^|\/)index$/, "")}`;
+    })
+    .sort();
 }
