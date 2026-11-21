@@ -13,8 +13,9 @@
 // permissionProcedure, requirePermission). A procedure is called with an input
 // it cannot accept, so its resolver never runs: input is checked after the
 // gate, and a caller the gate admits gets BAD_REQUEST where one it refuses gets
-// FORBIDDEN. A page that refuses redirects home. A REST route's handler is
-// swapped for a stub answering 299.
+// FORBIDDEN. A page that refuses redirects home; each comes through
+// helpers/pageWithoutClientViews.ts, so its client view is a stub that never
+// loads. A REST route's handler is swapped for a stub answering 299.
 //
 // Each expected list is the old role list's audience (a list naming ADMIN also
 // admitted SUPER_ADMIN), with any difference stated beside it.
@@ -69,40 +70,17 @@ import { createCallerFactory } from "@/server/trpc/trpc";
 import { reportsRouter } from "@/server/trpc/routers/reports";
 import salesExport from "@/pages/api/reports/sales-by-salesperson/export";
 import monthlyPercentages from "@/pages/api/reports/monthly-percentages";
-import AgedStockPage from "@/app/(dashboard)/app/reports/aged-stock/page";
-import BalanceAgingPage from "@/app/(dashboard)/app/reports/balance-aging/page";
-import BuyersPage from "@/app/(dashboard)/app/reports/buyers/page";
-import ComparativeSalesPage from "@/app/(dashboard)/app/reports/comparative-sales/page";
-import ConsignmentReportPage from "@/app/(dashboard)/app/reports/consignment-report/page";
-import CrossSellPage from "@/app/(dashboard)/app/reports/cross-sell/page";
-import CustomersPage from "@/app/(dashboard)/app/reports/customers/page";
-import DormantCustomersPage from "@/app/(dashboard)/app/reports/dormant-customers/page";
-import GrossMarginPage from "@/app/(dashboard)/app/reports/gross-margin/page";
-import InventoryHealthPage from "@/app/(dashboard)/app/reports/inventory-health/page";
-import InventoryValuePage from "@/app/(dashboard)/app/reports/inventory-value/page";
-import OpportunitiesPage from "@/app/(dashboard)/app/reports/opportunities/page";
-import PipelineOpportunityPage from "@/app/(dashboard)/app/reports/pipeline-opportunity/page";
-import PoGapsPage from "@/app/(dashboard)/app/reports/po-gaps/page";
-import PoSellThruPage from "@/app/(dashboard)/app/reports/po-sell-thru/page";
-import ReturnsPage from "@/app/(dashboard)/app/reports/returns/page";
-import SalesExplorerPage from "@/app/(dashboard)/app/reports/sales-explorer/page";
-import ServicePage from "@/app/(dashboard)/app/reports/service/page";
-import StaleQuotesPage from "@/app/(dashboard)/app/reports/stale-quotes/page";
-import TopSellersPage from "@/app/(dashboard)/app/reports/top-sellers/page";
-import TrafficPage from "@/app/(dashboard)/app/reports/traffic/page";
-import UnclassifiedReturnsPage from "@/app/(dashboard)/app/reports/unclassified-returns/page";
-import UnmappedPaymentsPage from "@/app/(dashboard)/app/reports/unmapped-payments/page";
-import WealthInsightsPage from "@/app/(dashboard)/app/reports/wealth-insights/page";
-import DesignerDashboardPage from "@/app/(dashboard)/app/reports/designer-dashboard/page";
-import MonthlyPerformancePage from "@/app/(dashboard)/app/reports/monthly-performance/page";
-import SalespersonDetailPage from "@/app/(dashboard)/app/reports/salesperson-detail/page";
-import SalesBySalespersonPage from "@/app/(dashboard)/app/reports/sales-by-salesperson/page";
+import { pageWithoutClientViews } from "./helpers/pageWithoutClientViews";
 
 type Route = (req: NextApiRequest, res: NextApiResponse) => unknown;
 const callReports = createCallerFactory(reportsRouter);
 type Reports = ReturnType<typeof callReports>;
 type Call = (reports: Reports) => Promise<unknown>;
 type Page = () => Promise<unknown>;
+
+/** The report page at /app/reports/<slug>, its client view a stub. */
+const reportPage = (slug: string) =>
+  pageWithoutClientViews(`@/app/(dashboard)/app/reports/${slug}/page`);
 
 const ROLES = BUILT_IN_ROLES.map((r) => r.key);
 const only = (...roles: string[]) => [...roles].sort();
@@ -309,56 +287,54 @@ describe("the reports procedures", () => {
 });
 
 describe("the report pages", () => {
-  const pages: Array<[string, string[], Page]> = [
-    ["aged-stock", MANAGER_ADMIN, AgedStockPage],
-    ["buyers", MANAGER_ADMIN, BuyersPage],
-    ["comparative-sales", MANAGER_ADMIN, ComparativeSalesPage],
-    ["cross-sell", MANAGER_ADMIN, CrossSellPage],
-    ["dormant-customers", MANAGER_ADMIN, DormantCustomersPage],
-    ["gross-margin", MANAGER_ADMIN, GrossMarginPage],
-    ["inventory-health", MANAGER_ADMIN, InventoryHealthPage],
-    ["inventory-value", MANAGER_ADMIN, InventoryValuePage],
-    ["pipeline-opportunity", MANAGER_ADMIN, PipelineOpportunityPage],
-    ["po-sell-thru", MANAGER_ADMIN, PoSellThruPage],
-    ["returns", MANAGER_ADMIN, ReturnsPage],
-    ["sales-explorer", MANAGER_ADMIN, SalesExplorerPage],
-    ["service", MANAGER_ADMIN, ServicePage],
-    ["top-sellers", MANAGER_ADMIN, TopSellersPage],
-    ["traffic", MANAGER_ADMIN, TrafficPage],
-    ["unclassified-returns", MANAGER_ADMIN, UnclassifiedReturnsPage],
-    ["unmapped-payments", MANAGER_ADMIN, UnmappedPaymentsPage],
-    ["balance-aging", ADMIN_ONLY, BalanceAgingPage],
-    ["consignment-report", ADMIN_ONLY, ConsignmentReportPage],
-    ["po-gaps", ADMIN_ONLY, PoGapsPage],
-    ["stale-quotes", ADMIN_ONLY, StaleQuotesPage],
-    ["customers", ADMIN_MARKETING, CustomersPage],
-    ["opportunities", ADMIN_MARKETING, OpportunitiesPage],
-    ["wealth-insights", ADMIN_MARKETING, WealthInsightsPage],
+  const pages: Array<[string, string[]]> = [
+    ["aged-stock", MANAGER_ADMIN],
+    ["buyers", MANAGER_ADMIN],
+    ["comparative-sales", MANAGER_ADMIN],
+    ["cross-sell", MANAGER_ADMIN],
+    ["dormant-customers", MANAGER_ADMIN],
+    ["gross-margin", MANAGER_ADMIN],
+    ["inventory-health", MANAGER_ADMIN],
+    ["inventory-value", MANAGER_ADMIN],
+    ["pipeline-opportunity", MANAGER_ADMIN],
+    ["po-sell-thru", MANAGER_ADMIN],
+    ["returns", MANAGER_ADMIN],
+    ["sales-explorer", MANAGER_ADMIN],
+    ["service", MANAGER_ADMIN],
+    ["top-sellers", MANAGER_ADMIN],
+    ["traffic", MANAGER_ADMIN],
+    ["unclassified-returns", MANAGER_ADMIN],
+    ["unmapped-payments", MANAGER_ADMIN],
+    ["balance-aging", ADMIN_ONLY],
+    ["consignment-report", ADMIN_ONLY],
+    ["po-gaps", ADMIN_ONLY],
+    ["stale-quotes", ADMIN_ONLY],
+    ["customers", ADMIN_MARKETING],
+    ["opportunities", ADMIN_MARKETING],
+    ["wealth-insights", ADMIN_MARKETING],
     // Already on View reports; their scope is below.
-    ["designer-dashboard", VIEW_REPORTS, DesignerDashboardPage],
-    ["monthly-performance", VIEW_REPORTS, MonthlyPerformancePage],
-    ["salesperson-detail", VIEW_REPORTS, SalespersonDetailPage],
-    ["sales-by-salesperson", VIEW_REPORTS, SalesBySalespersonPage],
+    ["designer-dashboard", VIEW_REPORTS],
+    ["monthly-performance", VIEW_REPORTS],
+    ["salesperson-detail", VIEW_REPORTS],
+    ["sales-by-salesperson", VIEW_REPORTS],
   ];
 
-  it.each(pages)("/app/reports/%s admits its old audience", async (_, expected, page) => {
-    expect(await admittedByPage(page)).toEqual(only(...expected));
+  it.each(pages)("/app/reports/%s admits its old audience", async (slug, expected) => {
+    expect(await admittedByPage(await reportPage(slug))).toEqual(only(...expected));
   });
 });
 
 describe("who picks any salesperson", () => {
   it("Sales by Salesperson: the old PRIVILEGED_ROLES, Marketing included", async () => {
-    expect(await pickersOf(SalesBySalespersonPage)).toEqual(only(...MANAGER_ADMIN, "MARKETING"));
+    expect(await pickersOf(await reportPage("sales-by-salesperson"))).toEqual(
+      only(...MANAGER_ADMIN, "MARKETING"),
+    );
   });
 
-  it.each([
-    ["designer-dashboard", DesignerDashboardPage],
-    ["monthly-performance", MonthlyPerformancePage],
-    ["salesperson-detail", SalespersonDetailPage],
-  ] as Array<[string, Page]>)(
+  it.each(["designer-dashboard", "monthly-performance", "salesperson-detail"])(
     "%s: the old isManager roles; Marketing does not gain it",
-    async (_, page) => {
-      expect(await pickersOf(page)).toEqual(only(...MANAGER_ADMIN));
+    async (slug) => {
+      expect(await pickersOf(await reportPage(slug))).toEqual(only(...MANAGER_ADMIN));
     },
   );
 });
@@ -386,23 +362,23 @@ describe("a store's own role is decided by the keys it holds, not the staff enum
     expect(await outcomeOf((r) => r.departments(), user)).not.toBe("FORBIDDEN");
     expect(await outcomeOf((r) => r.staleQuotes(INVALID), user)).toBe("FORBIDDEN");
     expect(await outcomeOf((r) => r.customers(INVALID), user)).toBe("FORBIDDEN");
-    expect(await pageOpens(GrossMarginPage)).toBe(true);
-    expect(await pageOpens(StaleQuotesPage)).toBe(false);
+    expect(await pageOpens(await reportPage("gross-margin"))).toBe(true);
+    expect(await pageOpens(await reportPage("stale-quotes"))).toBe(false);
   });
 
   it("the staff enum MANAGER on a role without the key opens nothing it used to", async () => {
     signInOnStoreRole("MANAGER", "reporting.read");
     const user = "user-store-role";
     expect(await outcomeOf((r) => r.unmappedPayments(INVALID), user)).toBe("FORBIDDEN");
-    expect(await pageOpens(GrossMarginPage)).toBe(false);
-    expect(await picksAnyone(SalesBySalespersonPage)).toBe(false);
-    expect(await picksAnyone(MonthlyPerformancePage)).toBe(false);
+    expect(await pageOpens(await reportPage("gross-margin"))).toBe(false);
+    expect(await picksAnyone(await reportPage("sales-by-salesperson"))).toBe(false);
+    expect(await picksAnyone(await reportPage("monthly-performance"))).toBe(false);
   });
 
   it("See customer lists picks anyone on Sales by Salesperson only", async () => {
     signInOnStoreRole("DESIGNER", "reporting.read", "marketing.lists");
-    expect(await picksAnyone(SalesBySalespersonPage)).toBe(true);
-    expect(await picksAnyone(MonthlyPerformancePage)).toBe(false);
+    expect(await picksAnyone(await reportPage("sales-by-salesperson"))).toBe(true);
+    expect(await picksAnyone(await reportPage("monthly-performance"))).toBe(false);
   });
 });
 

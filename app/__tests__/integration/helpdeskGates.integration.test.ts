@@ -7,7 +7,8 @@
 // role lists (attachments added DESIGNER), so a Customer Service rep, whose job
 // is tickets, saw the Helpdesk link and the queue page and was refused every
 // ticket. Real routes, real gates, real database; only the session readers and
-// redirect are mocked.
+// redirect are mocked, and the ticket page's client view, which
+// helpers/pageWithoutClientViews.ts stubs so it never loads.
 
 jest.mock("next-auth", () => ({
   __esModule: true,
@@ -35,7 +36,12 @@ import ticketsRoute from "@/pages/api/tickets/index";
 import ticketRoute from "@/pages/api/tickets/[id]";
 import messagesRoute from "@/pages/api/tickets/[id]/messages";
 import attachmentsRoute from "@/pages/api/tickets/[id]/attachments";
-import TicketPage from "@/app/(dashboard)/app/helpdesk/[id]/page";
+import { pageWithoutClientViews, type ServerPage } from "../helpers/pageWithoutClientViews";
+
+let TicketPage: ServerPage;
+beforeAll(async () => {
+  TicketPage = await pageWithoutClientViews("@/app/(dashboard)/app/helpdesk/[id]/page");
+});
 
 const sessionMock = getServerSession as jest.Mock;
 

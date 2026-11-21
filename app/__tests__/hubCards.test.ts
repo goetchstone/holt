@@ -13,6 +13,8 @@
 //      override, and every override is current, a real key, and explained;
 //   3. every hub page, run for real with requirePage stood in: it asks for each
 //      key its cards need, and shows a card exactly when those keys are held.
+//      The pages come through helpers/pageWithoutClientViews.ts, so the
+//      CardGrid they render is a stub and the client component never loads.
 
 jest.mock("@/lib/auth/requirePage", () => ({ requirePage: jest.fn() }));
 jest.mock("@/lib/gettingStartedServer", () => ({ loadGettingStarted: jest.fn(async () => []) }));
@@ -20,7 +22,7 @@ jest.mock("@/lib/gettingStartedServer", () => ({ loadGettingStarted: jest.fn(asy
 import { readdirSync, readFileSync } from "fs";
 import { dirname, join, relative } from "path";
 import { isValidElement, type ReactNode } from "react";
-import CardGrid from "@/components/layout/CardGrid";
+import { pageWithoutClientViews } from "./helpers/pageWithoutClientViews";
 import { requirePage } from "@/lib/auth/requirePage";
 import { PAGE_ACCESS } from "@/lib/auth/pagePermissions";
 import { isPermissionKey } from "@/lib/auth/permissionCatalog";
@@ -191,6 +193,10 @@ describe("every hub card opens a page that decides who sees it", () => {
 
 type Item = { href: string };
 
+/** CardGrid as a hub page loaded through the helper renders it: the stub. */
+const cardGrid = () =>
+  jest.requireMock<{ default: unknown }>("@/components/layout/CardGrid").default;
+
 /** The cards handed to CardGrid, wherever it sits in what the page rendered. */
 function cardGridItems(node: ReactNode): Item[] | null {
   if (Array.isArray(node)) {
@@ -201,7 +207,7 @@ function cardGridItems(node: ReactNode): Item[] | null {
     return null;
   }
   if (!isValidElement<{ items?: Item[]; children?: ReactNode }>(node)) return null;
-  if (node.type === CardGrid) return node.props.items ?? [];
+  if (node.type === cardGrid()) return node.props.items ?? [];
   return cardGridItems(node.props.children);
 }
 
@@ -215,7 +221,7 @@ async function render(file: string, held: (key: string) => boolean) {
       return { userId: "u1", role: "X", holds };
     },
   );
-  const Page = require(file).default as () => Promise<ReactNode>;
+  const Page = await pageWithoutClientViews(file);
   const items = cardGridItems(await Page());
   expect(calls).toHaveLength(1);
   return { options: calls[0], hrefs: (items ?? []).map((item) => item.href) };

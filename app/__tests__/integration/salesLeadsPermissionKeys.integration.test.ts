@@ -15,8 +15,8 @@
 // beside their other tests (quoteHolds, cancelOrder, returnMoney, taxExemption).
 //
 // Real routes, pages and database; the session readers are the only mocks, and
-// the pages' client views are stubbed: only the props a page hands them are
-// under test.
+// the pages' client views are stubbed (helpers/pageWithoutClientViews.ts): only
+// the props a page hands them are under test.
 
 jest.mock("next-auth", () => ({
   __esModule: true,
@@ -29,16 +29,6 @@ jest.mock("next/navigation", () => ({
   redirect: jest.fn((to: string) => {
     throw new Error(`REDIRECT ${to}`);
   }),
-}));
-jest.mock("@/app/(dashboard)/app/leads/LeadsView", () => ({ LeadsView: () => null }));
-jest.mock("@/app/(dashboard)/app/sales/till/[id]/TillDetailView", () => ({
-  TillDetailView: () => null,
-}));
-jest.mock("@/app/(dashboard)/app/sales/orders/[id]/OrderDetailView", () => ({
-  OrderDetailView: () => null,
-}));
-jest.mock("@/app/(dashboard)/app/sales/customers/CustomersListView", () => ({
-  CustomersListView: () => null,
 }));
 
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -61,10 +51,18 @@ import tillCloseRoute from "@/pages/api/tills/[id]/close";
 import tillReconcileRoute from "@/pages/api/tills/[id]/reconcile";
 import timeEntriesRoute from "@/pages/api/time-entries/index";
 import backfillRoute from "@/pages/api/mailchimp/backfill-customer-links";
-import LeadsPage from "@/app/(dashboard)/app/leads/page";
-import TillDetailPage from "@/app/(dashboard)/app/sales/till/[id]/page";
-import OrderDetailPage from "@/app/(dashboard)/app/sales/orders/[id]/page";
-import CustomersListPage from "@/app/(dashboard)/app/sales/customers/page";
+import { pageWithoutClientViews, type ServerPage } from "../helpers/pageWithoutClientViews";
+
+let LeadsPage: ServerPage;
+let TillDetailPage: ServerPage;
+let OrderDetailPage: ServerPage;
+let CustomersListPage: ServerPage;
+beforeAll(async () => {
+  LeadsPage = await pageWithoutClientViews("@/app/(dashboard)/app/leads/page");
+  TillDetailPage = await pageWithoutClientViews("@/app/(dashboard)/app/sales/till/[id]/page");
+  OrderDetailPage = await pageWithoutClientViews("@/app/(dashboard)/app/sales/orders/[id]/page");
+  CustomersListPage = await pageWithoutClientViews("@/app/(dashboard)/app/sales/customers/page");
+});
 
 type Route = (req: NextApiRequest, res: NextApiResponse) => unknown;
 type Body = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any

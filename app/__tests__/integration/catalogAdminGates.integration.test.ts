@@ -15,7 +15,8 @@
 //   product pairings: API-only access to screens they cannot open.
 //
 // Real routes, real gates, real database; only the session readers and
-// redirect are mocked.
+// redirect are mocked, and the pages' client views, which
+// helpers/pageWithoutClientViews.ts stubs so they never load.
 
 jest.mock("next-auth", () => ({
   __esModule: true,
@@ -50,8 +51,18 @@ import pairingsRoute from "@/pages/api/admin/product-pairings/index";
 import pairingRoute from "@/pages/api/admin/product-pairings/[id]";
 import bookingsRoute from "@/pages/api/bookings/index";
 import templateRoute from "@/pages/api/templates/[id]";
-import ImportOrderPage from "@/app/(dashboard)/app/purchasing/import-order/page";
-import ImportApparelPage from "@/app/(dashboard)/app/purchasing/import-apparel/page";
+import { pageWithoutClientViews, type ServerPage } from "../helpers/pageWithoutClientViews";
+
+let ImportOrderPage: ServerPage;
+let ImportApparelPage: ServerPage;
+beforeAll(async () => {
+  ImportOrderPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/purchasing/import-order/page",
+  );
+  ImportApparelPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/purchasing/import-apparel/page",
+  );
+});
 
 const sessionMock = getServerSession as jest.Mock;
 

@@ -15,7 +15,8 @@
 // as a custom role holding one key, and must admit exactly that key's holders.
 //
 // Real routes, pages and gates on the real database; the session readers and
-// redirect are the only mocks.
+// redirect are the only mocks, besides the pages' client views, which
+// helpers/pageWithoutClientViews.ts stubs so they never load.
 
 jest.mock("next-auth", () => ({
   __esModule: true,
@@ -44,12 +45,32 @@ import linkReceiptRoute from "@/pages/api/consignment/bulk-link-receipt";
 import assignLocationRoute from "@/pages/api/consignment/bulk-assign-location";
 import itemRoute from "@/pages/api/consignment/items/[id]";
 import markSoldRoute from "@/pages/api/consignment/items/mark-sold";
-import CreditsOwedPage from "@/app/(dashboard)/app/inventory/consignment/credits-owed/page";
-import POManagementPage from "@/app/(dashboard)/app/inventory/consignment/po-management/page";
-import ReceivingGapsPage from "@/app/(dashboard)/app/inventory/consignment/receiving-gaps/page";
-import InventoryFreezePage from "@/app/(dashboard)/app/inventory/freeze/page";
-import NeedsOrderingPage from "@/app/(dashboard)/app/purchasing/needs-ordering/page";
-import ReceivingListPage from "@/app/(dashboard)/app/purchasing/receiving/page";
+import { pageWithoutClientViews, type ServerPage } from "../helpers/pageWithoutClientViews";
+
+let CreditsOwedPage: ServerPage;
+let POManagementPage: ServerPage;
+let ReceivingGapsPage: ServerPage;
+let InventoryFreezePage: ServerPage;
+let NeedsOrderingPage: ServerPage;
+let ReceivingListPage: ServerPage;
+beforeAll(async () => {
+  CreditsOwedPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/inventory/consignment/credits-owed/page",
+  );
+  POManagementPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/inventory/consignment/po-management/page",
+  );
+  ReceivingGapsPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/inventory/consignment/receiving-gaps/page",
+  );
+  InventoryFreezePage = await pageWithoutClientViews("@/app/(dashboard)/app/inventory/freeze/page");
+  NeedsOrderingPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/purchasing/needs-ordering/page",
+  );
+  ReceivingListPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/purchasing/receiving/page",
+  );
+});
 
 type Route = (req: NextApiRequest, res: NextApiResponse) => Promise<unknown>;
 type Page = () => Promise<unknown>;

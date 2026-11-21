@@ -21,7 +21,8 @@
 // Each block proves the key decides, not the staff enum: the custom roles here
 // carry an enum the old lists would have read the other way. Real router, real
 // routes, real pages, real gates, real database; the session readers
-// (next-auth, next/headers) and redirect are the only mocks.
+// (next-auth, next/headers) and redirect are the only mocks, besides the pages'
+// client views, which helpers/pageWithoutClientViews.ts stubs so they never load.
 
 jest.mock("next-auth", () => ({
   __esModule: true,
@@ -50,9 +51,20 @@ import { createCallerFactory } from "@/server/trpc/trpc";
 import type { TrpcContext } from "@/server/trpc/context";
 import salesExportRoute from "@/pages/api/reports/sales-by-salesperson/export";
 import monthlyPercentagesRoute from "@/pages/api/reports/monthly-percentages";
-import StaleQuotesPage from "@/app/(dashboard)/app/reports/stale-quotes/page";
-import SalesBySalespersonPage from "@/app/(dashboard)/app/reports/sales-by-salesperson/page";
-import MonthlyPerformancePage from "@/app/(dashboard)/app/reports/monthly-performance/page";
+import { pageWithoutClientViews, type ServerPage } from "../helpers/pageWithoutClientViews";
+
+let StaleQuotesPage: ServerPage;
+let SalesBySalespersonPage: ServerPage;
+let MonthlyPerformancePage: ServerPage;
+beforeAll(async () => {
+  StaleQuotesPage = await pageWithoutClientViews("@/app/(dashboard)/app/reports/stale-quotes/page");
+  SalesBySalespersonPage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/reports/sales-by-salesperson/page",
+  );
+  MonthlyPerformancePage = await pageWithoutClientViews(
+    "@/app/(dashboard)/app/reports/monthly-performance/page",
+  );
+});
 
 const RANGE = { startDate: "2026-09-01", endDate: "2026-09-30" };
 const WEALTH_TILES = OPPORTUNITY_TILES.filter((t) => t.usesWealthData).map((t) => t.id);
