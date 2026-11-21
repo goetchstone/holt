@@ -1,7 +1,7 @@
 // /app/src/pages/api/consignment/import/consignment-items.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
+import { consignmentVendorOr404 } from "@/lib/consignmentVendor";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { safeString, safeFloat, safeDate } from "@/lib/importHelpers";
 import { calculateRugPricing, mapConsignmentStatusRow } from "@/lib/consignment";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/pricing/retailWriter";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 /** Changing an existing product's retail needs this as well (DECISIONS 58). */
@@ -34,20 +35,16 @@ export default requirePermission(
     const mayChangePrice = access.holds[PRICING];
 
     try {
-      const result = await prisma.$transaction(async (tx) => {
-        // The consigning vendor, by flag. These routes used to UPSERT a
-        // hardcoded consignor by name when they could not find one -- which is
-        // exactly how a catalog ends up with several spellings of one supplier
-        // as separate vendors. A missing configuration is now an error,
-        // not a new row.
-        const consignmentVendorId = await getPrimaryConsignmentVendorId(tx);
-        if (!consignmentVendorId) {
-          throw new Error(
-            "No consignment vendor configured. Set isConsignment on the vendor before importing.",
-          );
-        }
-        const vendor = { id: consignmentVendorId };
+      // The consigning vendor, by flag, before any work. These routes used to
+      // UPSERT a hardcoded consignor by name when they could not find one --
+      // which is exactly how a catalog ends up with several spellings of one
+      // supplier as separate vendors. A missing configuration is a 404 now,
+      // not a new row (lib/consignmentVendor.ts).
+      const consignmentVendorId = await consignmentVendorOr404(prisma, res);
+      if (consignmentVendorId === null) return;
+      const vendor = { id: consignmentVendorId };
 
+      const result = await prisma.$transaction(async (tx) => {
         const dept = await tx.department.upsert({
           where: { name: "Rugs" },
           update: {},
@@ -176,8 +173,8 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      logError("Consignment items import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
   { also: [PRICING] },

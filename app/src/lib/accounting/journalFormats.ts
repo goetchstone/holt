@@ -40,7 +40,13 @@ export interface JournalFormat {
   toRows(entries: ReadonlyArray<JournalEntryInput>): JournalRow[];
 }
 
-/** ISO date. Journal dates are stored at UTC midnight, so read UTC parts. */
+/**
+ * ISO date from the UTC parts: a sales journal's own day, which is stored at UTC
+ * midnight. An AR journal's date is the instant it posted, which this reads as
+ * its UTC day, not the store's; the per-entry export dates both by the store's
+ * day (journalDayKey in lib/quickbooksExport.ts), and this export does not yet
+ * (accounting.md, "Export to QuickBooks Desktop").
+ */
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }

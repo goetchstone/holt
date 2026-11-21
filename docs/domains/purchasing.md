@@ -34,6 +34,8 @@ Daily imports:
 
 **Native receiving into stock** (since 2026-10-17, `lib/inventory/receiving.ts`): Damaged and Wrong Item go to the store's quarantine place (`lib/purchasing/receiptConditions.ts`, the list the Receive PO screen offers); a line raised for an open order -- its own line, or a PO raised for the whole order -- arrives committed to the order up to what it still needs, the rest free; quantities parse as fractions. See `docs/domains/inventory.md` "Document flows".
 
+**Tags printed all at once after a receipt** (the Receive PO screen, `ReceivePOView.tsx`): the receipt's `printItems` carry each line's quantity received, and the screen asks the batch print for `receivedTagCopies(quantity)` (`lib/labels/tagCopies.ts`): a whole number is a count, one tag per piece, at most ten per line; a fractional quantity is a length (a part roll), one item, one tag. The lines go in requests of at most 50, the batch route's limit (`printReceivedTags`, `lib/labels/receivedTagPrint.ts`); until 2026-11-21 they went in one, so a receipt of more than 50 tagged lines printed none. A line left with pieces to tag is named in a notice saying how many are still to print from the product's page, which stays on the screen until the receiver dismisses it (`TagsOwedNotice.tsx`; until 2026-11-21 it was a toast that closed after three seconds). From #127 until 2026-11-21 the screen asked for the quantity itself, so a line of more than ten, or a part roll, printed no tags at all. See `docs/domains/printing.md` "How many tags all at once prints" and "How all at once sends them", and the owner questions there (whole-number lengths, and printing past ten).
+
 **An item whose category keeps no stock is received as a record only** (GAP-21,
 since 2026-11-02; owner's choice). A service, fee or supplies line on a PO
 counts toward its line when received, so the PO closes, but nothing goes into
@@ -493,6 +495,32 @@ body, since they are then the only account of why (an item past a cut line, ever
 out); the page lists them under the upload (`__tests__/orderUploadNoLines.test.ts`).
 `preview-zsupply.ts` has no such refusal and returns its warnings with the empty preview.
 
+## Upload refusals (since 2026-11-21)
+
+The four PDF routes (`preview-nuorder.ts`, `import-nuorder.ts`,
+`preview-zsupply.ts`, `import-zsupply.ts`) parse with
+`createSecureForm("PDF")` and refuse what the caller sent with a 4xx that
+says so. The parser refuses by failing `parse()`, and the catch asks
+`uploadRefusal(err, "PDF")` (`lib/secureUpload.ts`) first:
+
+- A file over the PDF preset's size limit, or a second file: `413` ("The
+  upload is larger than the 30 MB limit.", "Upload one file at a time.").
+- An empty file: `400` "The file is empty."
+- A body the parser can't read as a form, such as one cut off on its way:
+  `400` "The upload couldn't be read. Send the file again."
+- No file: `400` "Upload a .pdf file." (`noFileMessage("PDF")`). A file of a
+  type the preset does not take lands here too, because the preset's filter
+  drops it before it is written. The two imports' `parseForm` threw "No file
+  uploaded" into the catch; it now returns the form with no file and the route
+  answers before any work.
+
+Until 2026-11-21 each of these but the previews' no-file 400 was a 500: the
+NuOrder routes answered "Parse failed" or "Import failed", and the Z Supply
+routes put the parser's own message (or the thrown "No file uploaded") in the
+body. Every other failure stays a 500 with a fixed message, logged with
+`logError`. Tested in `__tests__/uploadRefusal.test.ts`, which drives the
+routes with real multipart bodies.
+
 ## The vendor an import names (GAP-22, since 2026-11-02)
 
 The PO file imports find their vendor by the name the file carries through
@@ -589,4 +617,4 @@ The the POS "Daily Quote Temp Purchase Orders" report (formerly named "Prior_Day
 The owner-facing decision for "is this temp PO actionable yet?" is the `status = CONFIRMED` filter that already applies to most operational surfaces. No code changes needed beyond the runner fix itself.
 
 ---
-Last verified: 2026-10-30 (stock POs by hand, landed cost and receipt corrections; sections before them 2026-05-21); "Parser warnings on the apparel PO import" 2026-11-21 against source
+Last verified: 2026-10-30 (stock POs by hand, landed cost and receipt corrections; sections before them 2026-05-21); "Parser warnings on the apparel PO import" and tags printed after a receipt 2026-11-21 against source
