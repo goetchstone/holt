@@ -15,6 +15,13 @@ Power-user surfaces under `/tools/*` and `/admin/tools/*`. Mostly ADMIN-only or 
 | Import shortcuts            | `/tools/import/*`                       | ADMIN          | Manual triggers for individual the POS import runners                                                     |
 | Apparel Order Import        | `/app/tools/apparel-order`              | **ADMIN only** | Parse a vendor apparel order (PDF/CSV) into a draft Purchase Order + items in Buyer Drafts                |
 | Home Accessory Order Import | `/app/tools/home-accessory-order`       | **ADMIN only** | Parse a home-accessory vendor order file and create Buyer Drafts PO(s) + items directly (no CSV download) |
+| Diagnostic Lookup Tool      | `/app/admin/diagnostics/lookup-test`    | `admin.settings` page; MANAGER/ADMIN route | Look a barcode or product number up (`POST /api/diagnostics/lookup-test`)                  |
+
+**Diagnostic Lookup Tool errors** (checked against source 2026-11-21): the route answers its result
+object with `error` set: `404` when nothing matched, and `500` "An unexpected database error
+occurred." when the lookup threw, with the error logged (`logError`). Until 2026-11-21 that 500
+carried the database's own message, which the screen showed, and nothing was logged, so the
+response was the only record (rule 11; `__tests__/diagnosticsLookupTest.test.ts`).
 
 The designer-facing tools (Configurator, Create Project) are role-gated separately and are NOT the focus of this runbook — they're covered by their respective domain runbooks (`pricing-catalog.md` for Configurator, `staff-auth.md` for permissions).
 

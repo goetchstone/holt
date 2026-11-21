@@ -132,14 +132,33 @@ REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
   now catch a typed error instead: voiding a payment that isn't pending, and
   an admin position edit to a place that can't hold stock.
 - A route writing its own 500 follows the same rule.
-  `__tests__/api500Bodies.test.ts` parses every route with the TypeScript
-  parser and refuses a 500 body (`.status(S).json/send/end(...)` where S can be
-  500, so `known ? 409 : 500` counts) that reaches an error's message or stack,
-  `getErrorMessage(...)` or the caught error itself, directly or through the
-  names it is built from, followed to their declarations and assignments in
-  the same file. `apiResponse.test.ts` holds `handleError` to it. Until
-  2026-11-21 the tripwire read only the body's own text, and 29 routes put
-  `err.message` into a 500 through a variable it couldn't see.
+  `__tests__/api500Bodies.test.ts` parses every route under `src/pages/api`
+  with the TypeScript parser and refuses a 500 body
+  (`.status(S).json/send/end(...)` where S can be 500, so `known ? 409 : 500`
+  counts) that reaches an error's message or stack, `getErrorMessage(...)` or
+  the caught error itself, directly or through the names it is built from.
+  Names are followed to their declarations and every write to them in the same
+  file: an assignment to the name or to a property under it
+  (`results.error = ...`), `x.push(...)` and its kin, and
+  `Object.assign(x, ...)`. The caught error is a catch clause's, or the one a
+  promise hands its rejection handler (`.catch((e) => ...)`). Fixtures pin each
+  shape. `apiResponse.test.ts` holds `handleError` to it. Until 2026-11-21 the
+  tripwire read only the body's own text, and 29 routes put `err.message` into
+  a 500 through a variable it couldn't see; the version that followed only
+  assignments to the name itself missed `diagnostics/lookup-test.ts`, which
+  wrote the database's message into its result object and logged nothing.
+- **What the tripwire cannot see**, each with a site in the tree today, not yet
+  changed:
+  - A value built in another module. The automation trigger routes
+    (`automations/customer-level-recalc.ts`, `automations/lead-housekeeping.ts`,
+    `automations/mailchimp-sync.ts`) answer a failed run with a 500 and the run
+    itself, whose `errors` are the phases' own messages (`lib/automations/`).
+  - Internals that are not an error's. `admin/database/restore.ts` answers
+    psql's stderr as `details` in its two 500s, and the first of them logs
+    nothing.
+  - Also: the error of a callback that is not a promise's
+    (`form.parse(req, (err) => ...)`), a status an error carries
+    (`res.status(err.status)`), and a body handed to a function that sends it.
 - Some of those 500s were refusals, and their messages went with them. Each
   is now decided before the work starts, or by a typed error, and answered
   with a 4xx:
