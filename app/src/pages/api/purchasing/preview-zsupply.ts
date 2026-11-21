@@ -45,6 +45,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           ? [{ size: item.size, quantity: item.quantity }]
           : [{ size: "OS", quantity: item.quantity }],
       })),
+      // Lines the parser cut or could not read; the page shows them above the items.
+      warnings: parsed.warnings,
     };
 
     return res.status(200).json(normalized);

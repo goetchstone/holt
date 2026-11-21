@@ -474,6 +474,19 @@ named `constructor` shadow the object's members (CodeQL
 js/remote-property-injection, 2026-10-15). A new import route lists its
 fields the same way.
 
+## Parser warnings on the apparel PO import (2026-11-21)
+
+`/app/purchasing/import-apparel` (`ImportApparelView.tsx`) previews a NuORDER or Z Supply
+PDF through `preview-nuorder.ts` and `preview-zsupply.ts`, which now return the parser's
+`warnings`, and lists them above the items: a line cut at 1000 characters, an amount that
+overflowed and read as 0, a Z Supply item left out because its pack count or price overflowed
+(`lib/pricing/parseBoundary.ts`; pricing-catalog.md, "Adding a New Vendor" step 6).
+
+`import-nuorder.ts` and `import-zsupply.ts` parse the file again and write the PO in the same
+request, as read: an amount that overflowed is written at $0, and an item left out is not
+written. They return the same warnings with the result, and the page shows them again under it.
+Whether a warning should refuse the import is the owner's open question.
+
 ## The vendor an import names (GAP-22, since 2026-11-02)
 
 The PO file imports find their vendor by the name the file carries through

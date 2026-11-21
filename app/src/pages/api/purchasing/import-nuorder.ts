@@ -4,6 +4,11 @@
 // per-size breakdowns, creates or matches Products and ProductVariants,
 // and generates a PurchaseOrder. Re-importing the same order number
 // overwrites the existing PO (supports revised orders).
+//
+// It parses and writes in one request, so the PO is written as read and the
+// parser's warnings (a line cut short, an amount that overflowed and read as 0)
+// come back with the result; the preview showed the same warnings before the
+// import. Whether warnings should refuse the import is the owner's open question.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
@@ -245,7 +250,7 @@ export default requirePermission(
         };
       }, TX_TIMEOUT.LONG);
 
-      return res.status(200).json(result);
+      return res.status(200).json({ ...result, warnings: parsed.warnings });
     } catch (error: unknown) {
       logError("NuORDER import error", error);
       return res.status(500).json({ error: "Import failed" });

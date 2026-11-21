@@ -4,6 +4,12 @@
 // creates or matches Products and ProductVariants, and generates a
 // PurchaseOrder. Re-importing the same invoice number overwrites
 // the existing PO.
+//
+// It parses and writes in one request, so the PO is written as read and the
+// parser's warnings (a line cut short, an amount that overflowed and read as 0,
+// an item left out) come back with the result; the preview showed the same
+// warnings before the import. Whether warnings should refuse the import is the
+// owner's open question.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
@@ -248,7 +254,7 @@ export default requirePermission(
         };
       }, TX_TIMEOUT.LONG);
 
-      return res.status(200).json(result);
+      return res.status(200).json({ ...result, warnings: parsed.warnings });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       logError("Z Supply import error", error);

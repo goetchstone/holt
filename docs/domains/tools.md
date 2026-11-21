@@ -32,6 +32,13 @@ per size/part-number) → pick the destination PO's vendor/department/category/s
 single transaction (`pages/api/tools/apparel-order/commit.ts`). From there the buyer curates and
 exports exactly like any other draft via the existing Buyer Drafts workbench.
 
+**Parser warnings**: every PDF format's normalizer passes its parser's `warnings` into the draft,
+and the preview lists them above the rows with a toast. Since 2026-11-21 that includes nuORDER and
+Z Supply (`normalizeNuOrder`, `normalizeZSupply`), which before then had no warnings to pass: a
+line cut at 1000 characters, an amount that overflowed and read as 0, a Z Supply item left out
+because its pack count or price overflowed (`lib/pricing/parseBoundary.ts`; pricing-catalog.md,
+"Adding a New Vendor" step 6). The printout and Frank & Eileen formats already passed theirs.
+
 **No catalog matching**: the predecessor's version ran a second pass matching parsed rows against existing
 the POS `Product` rows (NEW vs UPDATE, style/color candidate suggestions) because its output was a
 CSV headed straight into the POS. Holt's Buyer Drafts domain has no such step — every row becomes a

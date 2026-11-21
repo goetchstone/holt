@@ -7,8 +7,11 @@
 // /api/purchasing/import-* + /api/departments + /api/categories REST endpoints,
 // which stay REST. Chrome from the (dashboard) layout.
 //
-// Step 1: Select vendor format, upload PDF, see parsed preview.
-// Step 2: Select department and category, then confirm import.
+// Step 1: Select vendor format, upload PDF, see parsed preview, with the
+//         parser's warnings (lines it cut or could not read) above the items.
+// Step 2: Select department and category, then confirm import. The import
+//         parses the file again, writes the PO as read, and returns the same
+//         warnings, shown again with the result.
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +42,8 @@ interface ParsedPO {
   totalUnits: number;
   totalPrice: number;
   items: ParsedItem[];
+  /** Lines the parser cut or could not read (lib/pricing/parseBoundary.ts). */
+  warnings?: string[];
 }
 
 interface DeptOption {
@@ -62,9 +67,26 @@ interface ImportResult {
   totalUnits: number;
   totalCost: number;
   replaced: boolean;
+  /** The same parse's warnings: the import writes the PO as read, then returns them. */
+  warnings?: string[];
 }
 
 type VendorFormat = "nuorder" | "zsupply";
+
+/** The parser's warnings, as the Apparel Order Import tool shows them. */
+function ParserWarnings({ warnings }: Readonly<{ warnings?: string[] }>) {
+  if (!warnings || warnings.length === 0) return null;
+  return (
+    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 text-sm text-yellow-800">
+      <p className="font-semibold mb-1">Parser warnings</p>
+      <ul className="list-disc list-inside space-y-0.5">
+        {warnings.map((w) => (
+          <li key={w}>{w}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 const VENDOR_FORMATS: { value: VendorFormat; label: string }[] = [
   { value: "nuorder", label: "NuORDER" },
@@ -252,6 +274,8 @@ export function ImportApparelView() {
             </div>
           </div>
 
+          <ParserWarnings warnings={preview.warnings} />
+
           {/* Item preview table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -383,6 +407,7 @@ export function ImportApparelView() {
               <dd>{result.variantsCreated}</dd>
             </dl>
           </div>
+          <ParserWarnings warnings={result.warnings} />
           <Button variant="outline" onClick={reset}>
             Import Another
           </Button>

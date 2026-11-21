@@ -139,7 +139,7 @@ export function ApparelOrderView() {
         setVendorName(format?.catalogVendorName || d.vendorName || "");
       }
       if (d.warnings && d.warnings.length > 0) {
-        toast.warn(`${d.warnings.length} line(s) need a look — see warnings below the table.`);
+        toast.warn(`${d.warnings.length} line(s) need a look — see the warnings above the table.`);
       }
     },
     [format],
