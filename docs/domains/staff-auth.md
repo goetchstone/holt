@@ -231,6 +231,30 @@ generations at most that often. Only a change that bumps nothing (a psql
 session) waits out the 30-second TTL. Tested across two module instances in
 `multiProcessCaches.integration.test.ts`.
 
+#### Uploaded files (SEC-04b, 2026-11-21)
+
+Files under `data/uploads` are served by `/api/uploads/[...path]` (and `/uploads/*`
+through the rewrite in `next.config.js`). Who may read each subdir is
+`UPLOAD_READ_ACCESS` in `lib/secureUpload.ts`, the one home for it; read it
+there rather than copying it here. The rule it follows: a subdir takes the key of
+the screen that shows its files, so granting a role the screen grants the files;
+a subdir no screen shows takes `admin.data`; and a subdir it does not list is
+served to nobody, signed in or not. Two subdirs are public: `images/` (CMS media
+and product pictures, which the storefront and emails load with no session) and
+`line-drawings/` (vendor catalog art), as they were before.
+
+The route decides the key with `resolvePermissionAccess()`, the function behind
+`requirePermission`, so the staff row, deactivation, View as and the bootstrap
+safeguard all apply. Every refusal is a 404, so the route never confirms a file
+exists. It classifies the file a request resolves to, not its first raw segment:
+Next decodes each catch-all entry after splitting on `/`, so an encoded `%2F`
+could carry an absolute path to a private file inside a public-looking first
+segment. `__tests__/uploadsRouteAuth.test.ts` fails when a preset or a hand-built
+path writes a subdir the manifest does not list, or the manifest lists one
+nothing writes (rule 65); `uploadReadAccess.integration.test.ts` runs the roles
+against Postgres. Customers open their ticket files through signed one-hour
+links instead (helpdesk.md, "Ticket attachments").
+
 ### Not done yet (each is its own change)
 
 - Sweeping the last 121 routes onto `requirePermission`. Only some are blocked

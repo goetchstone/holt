@@ -603,7 +603,7 @@ app/src/lib/opsAlert.ts|-|generic operational-alert raiser shared by every domai
 app/src/lib/rateLimit.ts|-|generic rate limiter shared by every public route
 app/src/lib/safePathJoin.ts|-|generic path-traversal guard for file access
 app/src/lib/privateTempFile.ts|-|generic private temp-file helper
-app/src/lib/secureUpload.ts|-|generic upload validation shared by every upload route
+app/src/lib/secureUpload.ts|-|generic upload storage: write validation, read access by subdir and file streaming, shared by every upload route
 app/src/lib/validateEnv.ts|-|boot-time environment validation, deployment plumbing
 app/src/lib/validation/*|-|generic request validation helpers shared by every route
 app/src/lib/cacheGeneration.ts|-|generic cache-invalidation helper
