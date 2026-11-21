@@ -27,11 +27,30 @@ module.exports = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
           },
+          // No Content-Security-Policy here. Pages get a per-request nonce
+          // policy from src/proxy.ts (lib/contentSecurityPolicy.ts); a copy in
+          // this block would land in the same response header map as the
+          // proxy's, and which one won would depend on order and letter case.
+        ],
+      },
+      {
+        // The API's policy: /api/* is not a page and the proxy skips it (see
+        // src/proxy.ts), so it gets a static policy with no unsafe keyword for
+        // scripts. NextAuth's own pages under /api/auth use only an inline
+        // <style>; object-src stays at default-src 'self' because a purchase
+        // order's PDF opens inline from /api. The literal lives here and is not
+        // imported from src/: the runtime image copies next.config.js without
+        // src/ (Dockerfile).
+        //
+        // `:path+`, not `:path*`: the proxy runs on a bare /api (a not-found
+        // page), and `*` would match it here too, giving it both policies.
+        source: "/api/:path+",
+        headers: [
           {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "script-src 'self'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",
