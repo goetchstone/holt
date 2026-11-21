@@ -132,9 +132,14 @@ REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
   now catch a typed error instead: voiding a payment that isn't pending, and
   an admin position edit to a place that can't hold stock.
 - A route writing its own 500 follows the same rule.
-  `__tests__/api500Bodies.test.ts` refuses `.message`, `getErrorMessage(` and
-  `stack` inside a `.status(500).json(...)` body, and `apiResponse.test.ts`
-  holds `handleError` to it.
+  `__tests__/api500Bodies.test.ts` parses every route with the TypeScript
+  parser and refuses a 500 body (`.status(S).json/send/end(...)` where S can be
+  500, so `known ? 409 : 500` counts) that reaches an error's message or stack,
+  `getErrorMessage(...)` or the caught error itself, directly or through the
+  names it is built from, followed to their declarations and assignments in
+  the same file. `apiResponse.test.ts` holds `handleError` to it. Until
+  2026-11-21 the tripwire read only the body's own text, and 29 routes put
+  `err.message` into a 500 through a variable it couldn't see.
 
 ## Database Schema Domains
 

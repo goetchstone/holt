@@ -16,6 +16,7 @@ import {
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 /** Changing an existing product's retail needs this as well (DECISIONS 58). */
@@ -268,8 +269,8 @@ export default requirePermission(
         ...kept,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      logError("Consignment manifest import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
   { also: [PRICING] },

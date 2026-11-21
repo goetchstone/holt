@@ -250,9 +250,8 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
       logError("Z Supply import error", error);
-      return res.status(500).json({ error: msg || "Import failed" });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

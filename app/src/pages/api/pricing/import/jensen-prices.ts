@@ -247,12 +247,8 @@ export default requirePermission(
         ...result,
       });
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logError("Jensen import error", msg);
-      return res.status(500).json({
-        error: "Import failed",
-        details: msg,
-      });
+      logError("Jensen import error", error);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

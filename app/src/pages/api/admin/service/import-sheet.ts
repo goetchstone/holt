@@ -96,8 +96,7 @@ export default requirePermission(
       return res.status(200).json(result);
     } catch (err) {
       logError("service-case-sheet-import failed", err);
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      return res.status(500).json({ error: msg });
+      return res.status(500).json({ error: "The service sheet import failed." });
     } finally {
       // Best-effort cleanup of the uploaded temp file.
       if (filePath) {

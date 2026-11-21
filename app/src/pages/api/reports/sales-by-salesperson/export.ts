@@ -204,8 +204,7 @@ async function handler(
     return res.status(200).send(csv);
   } catch (err) {
     logError("sales-by-salesperson/export failed", err);
-    const message = err instanceof Error ? err.message : "Export failed";
-    return res.status(500).json({ error: message });
+    return res.status(500).json({ error: "Export failed" });
   }
 }
 

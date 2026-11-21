@@ -6,6 +6,7 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { safeString, safeFloat, safeDate } from "@/lib/importHelpers";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 interface PaymentRow {
@@ -120,8 +121,8 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      logError("Consignment payment lines import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

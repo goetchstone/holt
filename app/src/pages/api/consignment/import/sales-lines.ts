@@ -7,6 +7,7 @@ import { safeString, safeFloat } from "@/lib/importHelpers";
 import { calculateRugPricing } from "@/lib/consignment";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 export default requirePermission(
@@ -126,8 +127,8 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      logError("Consignment sales lines import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

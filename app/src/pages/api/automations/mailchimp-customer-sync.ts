@@ -43,8 +43,7 @@ async function run(req: NextApiRequest, res: NextApiResponse, session: Session |
     return res.status(200).json(result);
   } catch (err: unknown) {
     logError("Mailchimp customer sync failed", err);
-    const message = err instanceof Error ? err.message : "unknown error";
-    return res.status(500).json({ error: message });
+    return res.status(500).json({ error: "Mailchimp customer sync failed" });
   }
 }
 

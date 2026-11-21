@@ -92,8 +92,7 @@ export default requirePermission(
       return res.status(200).json(draft);
     } catch (err) {
       logError("Apparel order preview parse failed", err);
-      const message = err instanceof Error ? err.message : "Parse failed";
-      return res.status(500).json({ error: message });
+      return res.status(500).json({ error: "Parse failed" });
     }
   },
 );

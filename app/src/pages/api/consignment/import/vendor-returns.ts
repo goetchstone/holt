@@ -9,6 +9,7 @@ import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { prisma } from "@/lib/prisma";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 export default requirePermission(
   "inventory.adjust",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
@@ -92,8 +93,8 @@ export default requirePermission(
         alreadyReturned,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return res.status(500).json({ error: message });
+      logError("Consignment vendor return import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

@@ -12,6 +12,7 @@ import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { toVendorNumber } from "@/lib/vendorNumbering";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 export default requirePermission(
@@ -186,8 +187,8 @@ export default requirePermission(
 
       return res.status(200).json({ dryRun, ...results });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return res.status(500).json({ error: message });
+      logError("Consignment backfill from POS failed", err);
+      return res.status(500).json({ error: "Backfill failed" });
     }
   },
 );

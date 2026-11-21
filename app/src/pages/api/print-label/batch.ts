@@ -125,9 +125,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       results,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal server error";
     logError("Batch print error", err);
-    return res.status(500).json({ error: message });
+    return res.status(500).json({ error: "Batch print failed" });
   }
 }
 

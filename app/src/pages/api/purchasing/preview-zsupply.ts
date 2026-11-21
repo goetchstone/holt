@@ -49,9 +49,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     return res.status(200).json(normalized);
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
     logError("Z Supply preview error", error);
-    return res.status(500).json({ error: msg || "Parse failed" });
+    return res.status(500).json({ error: "Parse failed" });
   }
 }
 
