@@ -73,3 +73,70 @@ describe("parseSimblistCsvText", () => {
     expect(bad.warnings.some((w) => w.includes("does not equal the line total"))).toBe(true);
   });
 });
+
+describe("parseSimblistCsvText: a cell it cannot read", () => {
+  /** An order whose Order Total is `orderTotal`, with the given item rows. */
+  const csv = (orderTotal: string, ...items: string[]) =>
+    [
+      "RepGroup,Manufacturer,PO #,Order Total",
+      `Simblist,X Co,PON1,${orderTotal}`,
+      "Item Number,Name,Quantity,Unit Price,UPC,Total Price,List Price",
+      ...items,
+    ].join("\n");
+  const GOOD_LINE = "ZF08,Widget,2,36.00,124,$72.00,";
+
+  // Until 2026-11-21 an unreadable price read as 0, and 0 x qty = 0 passed the
+  // line check: the item was imported at $0, and nothing named it.
+  it.each([
+    ["a 400-digit run", "9".repeat(400)],
+    ["Infinity", "Infinity"],
+    ["1e999", "1e999"],
+  ])("leaves out a line whose prices are %s, and names it", (_label, bad) => {
+    // The order total equals the readable line, so no order-level warning fires.
+    const order = parseSimblistCsvText(csv("72.00", `ZF07,Mix,2,${bad},123,${bad},`, GOOD_LINE));
+    expect(order.items.map((i) => i.itemNumber)).toEqual(["ZF08"]);
+    expect(order.warnings).toHaveLength(1);
+    expect(order.warnings[0]).toMatch(/^Item ZF07: the Unit Price ".*" is not a number/);
+    expect(order.warnings[0]).toContain("add it by hand");
+  });
+
+  it("names the line with a blank Order Total too, where nothing else would warn", () => {
+    const order = parseSimblistCsvText(csv("", `ZF07,Mix,2,${"9".repeat(400)},123,Infinity,`));
+    expect(order.items).toEqual([]);
+    expect(order.warnings).toHaveLength(1);
+    expect(order.warnings[0]).toMatch(/^Item ZF07: /);
+    // The cell is quoted cut short, not 400 characters long.
+    expect(order.warnings[0]).toContain(`"${"9".repeat(20)}…"`);
+  });
+
+  it("warns that an unreadable Order Total was not checked against the lines", () => {
+    const order = parseSimblistCsvText(csv("1e999", GOOD_LINE));
+    expect(order.items).toHaveLength(1);
+    expect(order.printedTotal).toBe(0);
+    expect(order.warnings).toEqual([
+      'The Order Total "1e999" is not a number, so the line totals were not checked against it.',
+    ]);
+  });
+
+  it("leaves out a Quantity that is not a whole number (1e999 used to read as 1)", () => {
+    const order = parseSimblistCsvText(
+      csv("", "ZF09,Mix,1e999,36.00,125,$36.00,", "ZF10,Mix,1.5,36.00,126,$54.00,"),
+    );
+    expect(order.items).toEqual([]);
+    expect(order.warnings).toHaveLength(2);
+    expect(order.warnings[0]).toMatch(/^Item ZF09: the Quantity "1e999" is not a number/);
+    expect(order.warnings[1]).toMatch(/^Item ZF10: the Quantity "1\.5" is not a number/);
+  });
+
+  it("reads an unreadable List Price as null, not 0", () => {
+    const order = parseSimblistCsvText(csv("", "ZF08,Widget,2,36.00,124,$72.00,1e999"));
+    expect(order.items[0].listPrice).toBeNull();
+    expect(order.warnings).toEqual([]);
+  });
+
+  it("still imports a line with blank prices at $0, with no warning (owner, 2026-11-21)", () => {
+    const order = parseSimblistCsvText(csv("", "ZF11,Sample,2,,127,,"));
+    expect(order.items).toMatchObject([{ itemNumber: "ZF11", qty: 2, unitPrice: 0, lineTotal: 0 }]);
+    expect(order.warnings).toEqual([]);
+  });
+});
