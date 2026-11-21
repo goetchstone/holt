@@ -177,7 +177,12 @@ deployment built, so a **migration** grants it to those. It has to be a
 migration, not a seed step: a seed step runs on every deploy and would grant
 the key again after the owner unticks it. Also add it to the roles in
 `config/example.yaml`: a `kind: roles` preset replaces a role's grants, so a key
-it leaves out is revoked when the preset is applied.
+it leaves out is revoked when the preset is applied. `__tests__/config/presets.test.ts`
+holds the example to this: its built-in roles may leave out only the keys the
+test lists as deliberate revocations (the Designer's View reports and View
+cost), and its own roles must hold every key a migration granted every role a
+store built (`reporting.traffic`, `customer.address`). The example Designer had
+silently dropped Work leads, and Floor Lead lacked Edit customer addresses.
 
 The second key added this way, `inventory.locations.manage` ("Set up stores and
 stock locations", SEC-15), shows the other half of "nothing changes on day one".
