@@ -265,7 +265,7 @@ describe("handleReconcile", () => {
     expect(warnings.some((w) => w.includes("Cash"))).toBe(true);
   });
 
-  it("returns 500 when persistence throws", async () => {
+  it("returns 500 when persistence throws, saying what failed and not why (rule 11)", async () => {
     const req = makeReq();
     const res = makeRes();
     const client = makeMockPrisma({
@@ -279,10 +279,10 @@ describe("handleReconcile", () => {
     });
     await handleReconcile(req, res, fakeSession, client);
     expect(res.statusCode).toBe(500);
-    expect(res.body).toEqual({ error: "DB write failed" });
+    expect(res.body).toEqual({ error: "Reconciliation failed" });
   });
 
-  it("falls back to a generic message when caught error is not an Error", async () => {
+  it("answers the same 500 when what was thrown is not an Error", async () => {
     const req = makeReq();
     const res = makeRes();
     const client = makeMockPrisma({

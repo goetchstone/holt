@@ -162,8 +162,7 @@ export default requirePermission(
       });
     } catch (err: unknown) {
       logError("Windfall import failed", err);
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

@@ -131,10 +131,72 @@ REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
   helper sent `err.message`. Two routes relied on that to show a refusal and
   now catch a typed error instead: voiding a payment that isn't pending, and
   an admin position edit to a place that can't hold stock.
+- **tRPC follows the same rule** (`server/trpc/trpc.ts`, since 2026-11-21).
+  A procedure refuses by throwing a `TRPCError` with a code and a message for
+  the caller, and that message reaches the screen as thrown: `BAD_REQUEST`,
+  `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, and an `INTERNAL_SERVER_ERROR` given a
+  message of its own. Anything else a procedure throws, @trpc/server 11 wraps
+  as `INTERNAL_SERVER_ERROR` whose message is the throw's own; the error
+  formatter answers that one with the same `"Internal server error"`
+  (`INTERNAL_ERROR_MESSAGE`, `lib/apiResponse.ts`), and the HTTP route's
+  `onError` (`app/api/trpc/[trpc]/route.ts`) logs the original with
+  `logError`. Until then a Prisma error inside a procedure reached the screen
+  as its own text (the invoice composer shows `err.message`). A refusal still
+  thrown as a plain `Error` reads as the fixed message too: Stripe not being
+  configured, on the invoice's payment link, as the REST checkout routes
+  already answered it. `__tests__/trpcErrorBodies.test.ts` drives the route
+  with production's `NODE_ENV`; in development tRPC also adds the error's
+  stack to the body.
 - A route writing its own 500 follows the same rule.
-  `__tests__/api500Bodies.test.ts` refuses `.message`, `getErrorMessage(` and
-  `stack` inside a `.status(500).json(...)` body, and `apiResponse.test.ts`
-  holds `handleError` to it.
+  `__tests__/api500Bodies.test.ts` parses every route under `src/pages/api`
+  with the TypeScript parser and refuses a 500 body
+  (`.status(S).json/send/end(...)` where S can be 500, so `known ? 409 : 500`
+  counts) that reaches an error's message or stack, `getErrorMessage(...)` or
+  the caught error itself, directly or through the names it is built from.
+  Names are followed to their declarations and every write to them in the same
+  file: an assignment to the name or to a property under it
+  (`results.error = ...`), `x.push(...)` and its kin, and
+  `Object.assign(x, ...)`. The caught error is a catch clause's, or the one a
+  promise hands its rejection handler (`.catch((e) => ...)`). Fixtures pin each
+  shape. `apiResponse.test.ts` holds `handleError` to it. Until 2026-11-21 the
+  tripwire read only the body's own text, and 29 routes put `err.message` into
+  a 500 through a variable it couldn't see; the version that followed only
+  assignments to the name itself missed `diagnostics/lookup-test.ts`, which
+  wrote the database's message into its result object and logged nothing.
+- **What the tripwire cannot see**, each with a site in the tree today, not yet
+  changed:
+  - A value built in another module. The automation trigger routes
+    (`automations/customer-level-recalc.ts`, `automations/lead-housekeeping.ts`,
+    `automations/mailchimp-sync.ts`) answer a failed run with a 500 and the run
+    itself, whose `errors` are the phases' own messages (`lib/automations/`).
+  - Internals that are not an error's. `admin/database/restore.ts` answers
+    psql's stderr as `details` in its two 500s, and the first of them logs
+    nothing.
+  - Also: the error of a callback that is not a promise's
+    (`form.parse(req, (err) => ...)`), a status an error carries
+    (`res.status(err.status)`), and a body handed to a function that sends it.
+- Some of those 500s were refusals, and their messages went with them. Each
+  is now decided before the work starts, or by a typed error, and answered
+  with a 4xx:
+  - **An upload the parser refuses is a 4xx that says what to fix.**
+    formidable refuses by failing `parse()` with an error coded 4xx; an upload
+    route's catch asks `uploadRefusal(err, preset)` (`lib/secureUpload.ts`)
+    first. A file over the size limit or one too many files is a 413 that says
+    the limit, an empty file a 400 "The file is empty.", too many form fields a
+    413, and a body it can't read as a form (cut off on its way, no boundary,
+    not multipart) a 4xx "The upload couldn't be read." formidable's
+    `cannotCreateDir` is coded 409 but is the server's directory, so it stays
+    a 500. A file of a type the preset does not take is dropped by its filter,
+    so the route finds no file and answers a 400 naming the types it takes
+    (`noFileMessage(preset)`: "Upload a .pdf file."), as the product picture's
+    route does. Seven routes ask so far (the service sheet import, the two
+    order-tool previews, the four purchasing PDF routes); the other upload
+    routes still answer a refused upload with their 500, or with formidable's
+    own text in a 400, and "No file uploaded".
+  - **No consignment vendor** is a 404 from `consignmentVendorOr404`
+    (`docs/domains/consignment.md`).
+  - **The email-marketing customer sync without its key or audience** is a
+    400 from a typed error (`docs/domains/mailchimp.md`, "Audience sync").
 
 ## Database Schema Domains
 

@@ -233,7 +233,10 @@ Gaps acknowledged: no real-DB tests for the manual products-import path (the ups
 - Not every route under `pages/api/automations/` is an import.
   `expire-quote-holds` (hourly) puts back on sale the stock of quotes whose holds
   have ended (`docs/domains/sales-orders.md`, "Quote holds";
-  `docs/OPERATIONS.md`, "Expire Quote Holds").
+  `docs/OPERATIONS.md`, "Expire Quote Holds"). `mailchimp-customer-sync` pushes
+  new customers to the email audience; a deployment without its key or audience
+  gets a `400` that says which to set, not a 500 (`docs/domains/mailchimp.md`,
+  "Audience sync").
 
 ---
 Last verified: 2026-05-21
