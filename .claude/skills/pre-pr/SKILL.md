@@ -45,6 +45,19 @@ runner/adapter must include a `grep -rn` snippet proving the touched
 surface is disjoint from runtime call paths, or a list of dependents
 confirmed tested. PR description says "Trace: …" with the evidence.
 
+A route whose accepted input or limits change counts as shared
+infrastructure here, wherever it lives. Its dependents are the screens and
+scripts that call it, not only the server functions behind it:
+
+```bash
+git grep -n '<route path>' -- app/src app/scripts
+```
+
+The trace in #127 listed `validateTagCopies`' server callers and missed the
+receiving screen, which posts each line's quantity to
+`/api/print-label/batch`. Receiving more than 10 of one product then printed
+none of its tags (the fix is in #140).
+
 ## 5. Domain runbook updated or `docs-not-needed:` marker (rule 19, 36)
 
 Substantial changes under `src/{pages,app,lib,components,server}/` update
@@ -60,6 +73,27 @@ infrastructure with no runbook takes `pattern|-|reason`.
 If fixing a copy-paste-style bug shape, document the sweep in the PR body:
 "Found bug shape in N files; fixed M mechanically in this PR; spawned tasks
 for the remaining N-M" (rule 50).
+
+If adding or tightening a guard, gate or limit (principle 3, rule 42), the PR
+body names the set's defining property, the command that enumerated it, and
+every member the command listed, each marked covered here, not this power
+(with the reason), or tracked. Pasting the output is not enough; an
+unclassified member is the gap.
+
+- **A permission or tier:** everything that confers the power, on both
+  transports, including what still gates by role name:
+
+  ```bash
+  git grep -lE '"<key>"|requireAuthWithRole|roleProcedure' -- app/src/pages/api app/src/server/trpc
+  ```
+
+- **"Every route is gated":** every entry point, meaning every file under
+  `app/src/pages/api` and every procedure on `appRouter`, with
+  `protectedProcedure` and `publicProcedure` included.
+
+USE-02 guarded the 2 routes that write the role column. The same `git grep`
+for `"staff.manage"` at `fe7df738^` lists 7 files, among them the 3 that #136
+closed.
 
 ## 7. Deferred work captured in spawned tasks or ROADMAP.md (rule 50)
 

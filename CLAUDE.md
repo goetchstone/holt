@@ -120,6 +120,13 @@ you forgot. Enumerate the set mechanically — callers, mutation paths, models,
 routes — put the invariant in one shared function, and add a check that fails
 when the enumeration and reality disagree.
 
+Define the set by what makes a member matter, then search for it. A directory
+or a column is where you search, not what decides membership. "The routes
+under `pages/api`" missed the tRPC procedures beside them (#129); "the paths
+that write the role column" missed setting a member's password and editing a
+role's grants, which confer the same power (#136). Name the property first,
+enumerate from it, and classify every member the search lists.
+
 **How it hides:** the reported path gets fixed and the duplicate-shaped path
 does not, so the symptom returns days later through a different route and reads
 as a new bug. No test catches it, because the uncovered site is the one nobody
