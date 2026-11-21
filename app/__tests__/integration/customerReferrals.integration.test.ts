@@ -318,7 +318,9 @@ describe("editing a customer", () => {
     const referrer = await customer({ firstName: "Grace", lastName: "Hopper" });
     const c = await customer({ referralSourceId: s.id, referredByCustomerId: referrer.id });
     const res = makeRes();
-    await customerHandlers.GET(request("GET", { id: String(c.id) }), res, owner);
+    // What the GET gate's `also` answers for the Owner, who holds every key.
+    const ownerHolds = { holds: { "customer.wealth": true, "marketing.read": true } };
+    await customerHandlers.GET(request("GET", { id: String(c.id) }), res, owner, ownerHolds);
     expect(res.body.referralSource).toMatchObject({ name: "Instagram" });
     expect(res.body.referredBy).toEqual({
       id: referrer.id,

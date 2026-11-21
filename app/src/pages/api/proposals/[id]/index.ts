@@ -3,15 +3,18 @@
 // GET: Full proposal with line items and images.
 // PUT: Update proposal header (status, text, customer).
 // DELETE: Delete a draft proposal.
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import { proposalLineForClient } from "@/lib/proposalQty";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.proposal",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const id = Number.parseInt(req.query.id as string, 10);
     if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid proposal ID" });

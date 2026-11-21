@@ -2,16 +2,19 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { addressInUseProblem } from "@/lib/purchasing/dropShip";
 
-// Address management touches PII and the delivery flow -- restrict to
-// staff roles that legitimately need to edit customer data. Designers
-// build quotes (create/edit addresses), managers fix records, warehouse
-// ships to them. Register/Installer have no business modifying addresses.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING"],
+// Address management touches PII and the delivery flow, so it is its own key,
+// "Edit customer addresses" (customer.address), apart from Edit customers.
+// Designers build quotes (create/edit addresses), managers fix records,
+// warehouse ships to them; Register and Installer do not hold it by default.
+// Its default holders are the role list it replaced (DESIGNER, MANAGER, ADMIN,
+// WAREHOUSE, MARKETING), and migration 20261121120000 granted it to every
+// custom role, whose staff passed that list as the enum DESIGNER.
+export default requirePermission(
+  "customer.address",
   async (req: NextApiRequest, res: NextApiResponse) => {
     const customerId = Number.parseInt(req.query.id as string);
 

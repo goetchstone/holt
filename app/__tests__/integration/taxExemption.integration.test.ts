@@ -291,7 +291,7 @@ describe("staff set a customer's exemption, and every sale records it", () => {
     ).toBeNull();
   });
 
-  it("only a manager or admin may change it", async () => {
+  it("only a holder of Set trade accounts and tax exemptions may change it", async () => {
     const resale = await prisma.taxExemptReason.create({ data: { name: "Resale" } });
     const customer = await prisma.customer.create({
       data: { firstName: "Dana", lastName: "Reed" },
@@ -309,6 +309,31 @@ describe("staff set a customer's exemption, and every sale records it", () => {
     expect(
       (await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } })).taxExemptReasonId,
     ).toBeNull();
+
+    // Edit customers is not enough: the key is customer.trade, which a store's own
+    // role can be granted.
+    await makeCustomRoleStaff("cam", ["customer.write"]);
+    signInAs("cam");
+    const editor = await call(
+      tradeRoute,
+      "PUT",
+      { id: String(customer.id) },
+      { taxExemptReasonId: resale.id },
+    );
+    expect(editor.statusCode).toBe(403);
+
+    await makeCustomRoleStaff("tia", ["customer.trade"]);
+    signInAs("tia");
+    const holder = await call(
+      tradeRoute,
+      "PUT",
+      { id: String(customer.id) },
+      { taxExemptReasonId: resale.id },
+    );
+    expect(holder.statusCode).toBe(200);
+    expect(
+      (await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } })).taxExemptReasonId,
+    ).toBe(resale.id);
   });
 
   it("the customer screen's picker lists reasons for anyone who can view customers; adding one stays an admin setting", async () => {

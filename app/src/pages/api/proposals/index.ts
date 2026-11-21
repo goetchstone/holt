@@ -2,17 +2,20 @@
 //
 // GET: List proposals with pagination, status filter, search.
 // POST: Create a new draft proposal with generated BP-YYMMDD-NNN number.
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayStamp } from "@/lib/reports/businessDay";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import type { Prisma } from "@prisma/client";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.proposal",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method === "GET") return handleGet(req, res);
     if (req.method === "POST") return handlePost(req, res, session.user?.email ?? null);
