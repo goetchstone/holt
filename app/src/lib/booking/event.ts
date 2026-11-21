@@ -5,6 +5,7 @@
 // the event content stays identical across both). Pure -- no I/O.
 
 import type { IcsEventInput } from "@/lib/booking/ics";
+import { slugify } from "@/lib/slugify";
 
 // The booking fields the calendar export needs. Keeping this narrow (vs. the
 // full Prisma Booking type) lets callers pass a select-ed subset.
@@ -28,10 +29,7 @@ export interface BookingEventContext {
 // Stable, globally-unique UID per booking so calendars dedupe re-imports of the
 // same event instead of creating duplicates.
 export function bookingUid(id: number, organizerName: string): string {
-  const domain = organizerName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const domain = slugify(organizerName);
   return `booking-${id}@${domain || "holt"}`;
 }
 

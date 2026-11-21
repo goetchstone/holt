@@ -2,7 +2,7 @@
 //
 // Small client-side helpers shared by the files-and-forms Tools pages
 // (Home Accessory Order Import today; any future files-based tool
-// tomorrow): currency display, filename slugs, browser file downloads
+// tomorrow): currency display, browser file downloads
 // (xlsx + csv), and safe server-error reads.
 //
 // Ported from furniture-configurator's src/lib/toolFileUtils.ts. FC's tools
@@ -29,15 +29,6 @@ export function formatUsd(n: number): string {
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(n);
-}
-
-export function fileSlug(s: string): string {
-  return (
-    s
-      .replaceAll(/[^a-z0-9]+/gi, "-")
-      .replaceAll(/^-+|-+$/g, "")
-      .toLowerCase() || "order"
-  );
 }
 
 export function downloadCsv(filename: string, csv: string) {
