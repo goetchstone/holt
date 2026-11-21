@@ -10,7 +10,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseServiceUpdateInput } from "@/lib/booking/serviceRequestBody";
-import { slugify } from "@/lib/booking/scheduling";
+import { slugify } from "@/lib/slugify";
 import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
 import { logError } from "@/lib/logger";
