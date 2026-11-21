@@ -131,6 +131,22 @@ REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
   helper sent `err.message`. Two routes relied on that to show a refusal and
   now catch a typed error instead: voiding a payment that isn't pending, and
   an admin position edit to a place that can't hold stock.
+- **tRPC follows the same rule** (`server/trpc/trpc.ts`, since 2026-11-21).
+  A procedure refuses by throwing a `TRPCError` with a code and a message for
+  the caller, and that message reaches the screen as thrown: `BAD_REQUEST`,
+  `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, and an `INTERNAL_SERVER_ERROR` given a
+  message of its own. Anything else a procedure throws, @trpc/server 11 wraps
+  as `INTERNAL_SERVER_ERROR` whose message is the throw's own; the error
+  formatter answers that one with the same `"Internal server error"`
+  (`INTERNAL_ERROR_MESSAGE`, `lib/apiResponse.ts`), and the HTTP route's
+  `onError` (`app/api/trpc/[trpc]/route.ts`) logs the original with
+  `logError`. Until then a Prisma error inside a procedure reached the screen
+  as its own text (the invoice composer shows `err.message`). A refusal still
+  thrown as a plain `Error` reads as the fixed message too: Stripe not being
+  configured, on the invoice's payment link, as the REST checkout routes
+  already answered it. `__tests__/trpcErrorBodies.test.ts` drives the route
+  with production's `NODE_ENV`; in development tRPC also adds the error's
+  stack to the body.
 - A route writing its own 500 follows the same rule.
   `__tests__/api500Bodies.test.ts` parses every route under `src/pages/api`
   with the TypeScript parser and refuses a 500 body
