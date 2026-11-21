@@ -629,6 +629,14 @@ away from the store-wide default.
      line total too large to count in cents as a $0 unit cost; Z Supply leaves
      out, with a warning naming the style, an item whose pack count or price
      overflows once multiplied out to sizes.
+   - **A line ordered at 0 is left out, with a warning** (rule 31). The parsers
+     that check `qty x price == total` (Aesthetic Movement, Beatriz Ball,
+     BrandWise, MarketTime, the nuORDER printout, Simblist CSV, SuperCat) require
+     a quantity above 0 first, because 0 x price == 0 confirms any $0 total.
+     Until 2026-11-21, MarketTime's money-line split (`splitUpcPriceTotal`) took
+     a block headed `0x1F` whose 400-digit price read as 0 (fuzz seed 443275222,
+     found in CI), and the nuORDER printout took a style ordered at 0 with a
+     $0.00 total; both now leave the line out and say so.
    - **A parser that can name the cell leaves the line out, with a warning naming
      it, and applies the same 300-digit rule to the cell.** Simblist CSV does so
      for a Quantity that is not a whole number of up to nine digits ("2.0",

@@ -430,6 +430,13 @@ class PrintoutScanner {
       this.warnings.push(`${label}: ${binned} — add this item manually.`);
       return;
     }
+    // A style ordered at 0 is a cancelled line, not an item (rule 31), and
+    // 0 x price == $0.00 would let it through the check below. The Cancelled
+    // Styles section keeps its own rows for its summary.
+    if (binned.qty <= 0 && !this.inCancelled) {
+      this.warnings.push(`${label}: quantity 0 — left out.`);
+      return;
+    }
     let extension: number | null = null;
     for (const tok of block.gridTokens) {
       extension = trailingMoney(tok.str) ?? extension;

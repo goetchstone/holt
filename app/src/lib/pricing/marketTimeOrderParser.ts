@@ -132,6 +132,9 @@ interface PriceParts {
  * rather than picking the plausible-looking one.
  */
 export function splitUpcPriceTotal(line: string, qty: number): PriceParts | null {
+  // A quantity of 0 settles nothing: every reading with a $0 total satisfies
+  // 0 x price == total, so the first length tried would win.
+  if (!(qty > 0)) return null;
   const match = UPC_PRICE_TOTAL.exec(line);
   if (!match) return null;
 
@@ -342,25 +345,43 @@ function isNewItemStart(line: string): boolean {
   return QTY_ITEM.test(line) || NUMERIC_ITEM_HEADER.test(line) || MONEY_TAIL.test(line);
 }
 
+/** A line inside an open qty+item block: its money line closes the block, a
+ *  name line extends it, and the start of another item abandons it, with a
+ *  warning. True when the line was used up. */
+function readPendingItemLine(
+  line: string,
+  scan: Scan,
+  order: MarketTimeOrder,
+  warnings: string[],
+): boolean {
+  const parts = splitUpcPriceTotal(line, scan.pendingQty as number);
+  if (parts) {
+    flush(scan, parts, order);
+    return true;
+  }
+  if (!isNewItemStart(line)) {
+    scan.nameLines.push(line);
+    return true;
+  }
+  // A quantity of 0 is a cancelled line, left out with its block (rule 31);
+  // its money line ends the block like any other.
+  const zeroQty = !((scan.pendingQty as number) > 0);
+  warnings.push(
+    zeroQty
+      ? `Item ${scan.pendingItem}: quantity ${scan.pendingQty} -- skipped.`
+      : `Item ${scan.pendingItem}: no price line was found before the next item -- skipped.`,
+  );
+  scan.pendingItem = null;
+  scan.nameLines = [];
+  return zeroQty && MONEY_TAIL.test(line);
+}
+
 /** One line of an item block. The scan is mid-item once a qty+item line has
  *  been seen; the block ends at its money line. */
 function readItemLine(line: string, scan: Scan, order: MarketTimeOrder, warnings: string[]): void {
   // Mid-item: the money line closes the block.
   if (scan.pendingItem !== null) {
-    const parts = splitUpcPriceTotal(line, scan.pendingQty as number);
-    if (parts) {
-      flush(scan, parts, order);
-      return;
-    }
-    if (!isNewItemStart(line)) {
-      scan.nameLines.push(line);
-      return;
-    }
-    warnings.push(
-      `Item ${scan.pendingItem}: no price line was found before the next item -- skipped.`,
-    );
-    scan.pendingItem = null;
-    scan.nameLines = [];
+    if (readPendingItemLine(line, scan, order, warnings)) return;
   } else if (scan.pendingRaw !== null) {
     // A held numeric header: its money line reveals qty + item.
     const resolved = resolveDeferredNumeric(scan.pendingRaw, line);

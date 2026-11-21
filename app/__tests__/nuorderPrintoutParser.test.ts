@@ -252,6 +252,23 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
     expect(parsed.warnings.some((w) => /does not equal the printed line total/.test(w))).toBe(true);
   });
 
+  it("leaves out a style ordered at 0, which 0 x price == $0.00 would otherwise accept (rule 31)", () => {
+    const page = [
+      ...pageHeader(),
+      pi("Relaxed Button-Up Shirt", 57, 687),
+      ...styleAnchor("EILEEN", "128.00", "274.00", 675),
+      ...letterSizeHeader(654),
+      pi("PRBG", 183, 639),
+      pi("0", 351, 636),
+      pi("0", 425, 636),
+      pi("USD 0.00", 480, 636),
+      ...orderSummary("0", "0.00"),
+    ];
+    const parsed = parseNuOrderPrintoutItems([page]);
+    expect(parsed.items).toHaveLength(0);
+    expect(parsed.warnings).toContain("Style EILEEN (PRBG): quantity 0 — left out.");
+  });
+
   it("warns when the parsed items do not add up to the printed Grand Total", () => {
     const parsed = parseNuOrderPrintoutItems([
       [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "560.00")],
