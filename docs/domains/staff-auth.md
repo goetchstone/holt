@@ -513,7 +513,7 @@ and the B2B proposal pages on `sales.proposal`. Three keep a role list, with
 owner has not confirmed: the Service dispatch board and the two house-call
 pages.
 
-The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens.
+The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens. Their scripts run only because `pages/_document.tsx` passes the request's nonce to `<Head>` and `<NextScript>`: every page carries a nonce Content-Security-Policy (`src/proxy.ts`, `docs/DECISIONS.md` entry 62), Next stamps the Pages Router's scripts from those props alone, and without them every script on the sign-in screens is blocked and nobody can sign in. The browser page sweep opens the three screens signed out (`e2e/pages.spec.ts`).
 
 ## A session whose user is gone (2026-10-17)
 

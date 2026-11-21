@@ -1941,6 +1941,58 @@ Rejected:
 
 → `docs/domains/pricing-catalog.md` "Trade tier pricing"
 
+## 62. Scripts run by per-request nonce; styles stay inline-allowed; the proxy only mints the nonce (2026-11-21)
+
+**Decided:** SEC-06. The policy every page sent since the first commit had `'unsafe-inline' 'unsafe-eval'` in
+`script-src`, so an injected inline script or event handler still ran. Now:
+
+- **Every page gets a fresh nonce.** `app/src/proxy.ts` mints one per request and sends the policy built by
+  `lib/contentSecurityPolicy.ts` on the response and on the request. Next reads the nonce back from the request's
+  policy and stamps its own scripts: the App Router by itself, the Pages Router sign-in screens only through the
+  `nonce` that `pages/_document.tsx` passes to `<Head>` and `<NextScript>`. `'strict-dynamic'` admits the chunks
+  the nonced runtime loads. Production has no `unsafe` keyword for scripts; `next dev` adds `'unsafe-eval'`,
+  which React needs there.
+- **Styles keep `'unsafe-inline'`, and `style-src` takes no nonce.** The screens use inline `style` props, the
+  theme and print `<style>` blocks, and react-toastify injects a `<style>`; a browser that sees a nonce in
+  `style-src` ignores `'unsafe-inline'`.
+- **The proxy does nothing else.** No authentication: that stays in `requirePage` and the route guards. Its
+  matcher skips `/api/`, which gets a static policy from `next.config.js`, also with no `unsafe` keyword for
+  scripts. The two sets do not overlap, so no response carries two policies.
+- **Embeds the sanitizer keeps are allowed to load.** `frame-src` names the providers in `lib/cms/embedHosts.ts`,
+  the list `lib/cms/sanitize.ts` keeps iframes from. The old policy blocked them all through `default-src`.
+
+Rejected:
+
+- **A style nonce, as in Next's guide.** It turns `'unsafe-inline'` off and unstyles the app.
+- **Subresource Integrity instead of nonces.** Experimental in Next, and App Router only, so the sign-in screens
+  would have no cover.
+- **Running the proxy on `/api`.** Next buffers in memory the body of every request a proxy handles and keeps only
+  the first 10MB (`proxyClientMaxBodySize`); nginx admits 300MB uploads.
+- **Shipping it as `Content-Security-Policy-Report-Only` first.** Chromium reports a Report-Only violation as a
+  console info message, not an error (the design's Chromium probe, 2026-11-21), so the page sweep, which fails on
+  console errors, would not see one.
+
+**Cost accepted:**
+
+- The static `500.html` Next builds ahead of time (served when a sign-in screen's `getServerSideProps` throws)
+  has no nonce, so its scripts are blocked: its text still shows, and its console shows errors.
+- Partial prerendering and cache components cannot be turned on without revisiting this: a page built ahead of
+  time cannot carry a per-request nonce.
+- A third-party script added later must carry the nonce (`next/script` with
+  `nonce={(await headers()).get("x-nonce")}`); under `'strict-dynamic'` a host allowlist is ignored.
+- Zod's JIT probe (`new Function("")`, zod 4 `core/util.js` `allowsEval`) now throws in the browser when a
+  `z.object()` is built and zod falls back, harmlessly. It raises a `securitypolicyviolation` event and no console
+  error, so before adding a report endpoint or a violation listener, set `z.config({ jitless: true })` before any
+  schema module loads, or it will report noise.
+
+**Enforced by:** `__tests__/contentSecurityPolicy.test.ts` (no unsafe keyword for scripts in production, a nonce
+Next reads back, no nonce in `style-src`, every embed provider in `frame-src`), and the browser page sweep
+(`e2e/pages.spec.ts`): every page must answer with exactly one nonce policy, the sign-in screens are opened signed
+out, and `/api/health` must carry the static policy with no nonce. A script the policy blocks is a console error,
+which fails the sweep.
+
+→ `docs/PRODUCTION.md` §2, `docs/domains/cms.md`, `app/src/proxy.ts`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

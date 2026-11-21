@@ -18,7 +18,20 @@ Each run fails on:
   redirect;
 - an uncaught client error or a `console.error`;
 - a call to the app's own API (fetch or XHR) answering 400 or more;
-- the error-boundary or not-found screen.
+- the error-boundary or not-found screen;
+- a page whose Content-Security-Policy is missing, sent twice, or lets a script
+  run without this request's nonce (no `'nonce-…'` or `'strict-dynamic'` in
+  `script-src`, or an `unsafe-inline` or `unsafe-eval` there; `src/proxy.ts`,
+  `docs/DECISIONS.md` entry 62). A script the policy blocks is a
+  `console.error`, so a page whose scripts lost their nonce fails too.
+
+Besides the two accounts' runs, it opens the Pages Router sign-in screens
+(`/auth/login`, `/auth/forgot-password`, `/auth/reset-password`, read from
+`src/pages`) signed out, once, under the same checks. Their scripts carry the
+nonce only through `pages/_document.tsx`, and a mistake there stops anyone
+signing in. And it checks that `/api/health` answers with the static API policy
+from `next.config.js` (no nonce, no `unsafe` keyword for scripts), which also
+shows the proxy did not run on `/api`.
 
 Unit and integration tests never render a page, and `scripts/smoke.sh` fetches
 one. Six PRs, #118 to #124 bar #121, shipped screens that nothing had opened.
@@ -48,13 +61,14 @@ deployment's settings, so use it only on a throwaway database, as CI does.
 
 Point it at a production build (`npm run build && npm start`, or a local
 instance), not `npm run dev`: development mode logs React warnings as console
-errors and compiles each page on first visit.
+errors, compiles each page on first visit, and adds `unsafe-eval` to the
+policy, which the policy check fails.
 
 ## What decides what is opened
 
 | File | Role |
 |---|---|
-| `e2e/pageRoutes.ts` | Every page route, read from the `page.tsx` tree, and the module a page requires |
+| `e2e/pageRoutes.ts` | Every page route, read from the `page.tsx` tree, and the module a page requires; the Pages Router screens, read from `src/pages` |
 | `e2e/dynamicRoutes.ts` | For each `[param]` route, how to find a seeded row to open it with, or why it is skipped |
 | `e2e/knownFailures.ts` | Pages found broken and not yet fixed, per account (a ratchet) |
 | `e2e/redirects.ts` | Pages that redirect on purpose, and where to |
@@ -70,7 +84,10 @@ errors and compiles each page on first visit.
 
 `__tests__/e2eDynamicRoutes.test.ts` (unit, rule 65) fails when a dynamic route
 has no entry, an entry names a route that is gone, a skip has no reason, or a
-known failure or redirect names no real page or gives no reason.
+known failure or redirect names no real page or gives no reason. It also fails
+when the Pages Router walk stops finding `/auth/login`, or picks up an API route
+or `_app`/`_document`: an empty walk would leave the signed-out tests with
+nothing to open, and green.
 
 ## Skipped today, and why
 
