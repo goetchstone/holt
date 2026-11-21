@@ -1,60 +1,60 @@
 // /app/src/pages/api/uploads/[...path].ts
 //
-// Serves user-uploaded files (inventory photos, line drawings, ticket
-// attachments, and — for signed-in staff — imports, vendor price PDFs,
-// delivery-proof signatures, proposals) from the /data/uploads volume. Files
-// live outside public/ to avoid Next.js scanning the Docker volume on startup
-// (which fails on Docker hosts that remap user namespaces on mounted volumes).
+// Serves uploaded files from the /data/uploads volume. Files live outside
+// public/ to avoid Next.js scanning the Docker volume on startup (which fails on
+// Docker hosts that remap user namespaces on mounted volumes). A rewrite in
+// next.config.js sends /uploads/* here, so the /uploads/... URLs stored in the
+// database resolve.
 //
-// A rewrite in next.config.js sends /uploads/* here so existing imageUrl values
-// stored in the database continue to resolve.
+// Who may read what is UPLOAD_READ_ACCESS in lib/secureUpload.ts, one entry per
+// subdir (SEC-04b): the storefront's imagery is public, every other subdir takes
+// the key of the screen that shows its files, and a subdir nobody classified is
+// served to nobody. The key is decided by resolvePermissionAccess, the same
+// function behind requirePermission, so a role's grants, deactivation and View
+// as all count. Every refusal is a 404, never 401 or 403: the route must not
+// confirm that a file exists to someone who may not read it.
 //
-// Access: this used to serve the ENTIRE upload root to anyone, protected only by
-// a 48-bit random filename. Now only the product/CMS imagery the storefront
-// renders — and the ticket attachments the customer portal links to by their
-// unguessable name — is served unauthenticated. Everything else requires a
-// session, and the default for an unrecognised subdir is private.
+// The request is classified by the file it RESOLVES to, not by its first raw
+// segment. Next decodes each catch-all entry after splitting on "/", so
+// /uploads/images/%2F<root>%2F<private subdir>%2F<name> arrives as a public first
+// segment carrying an absolute path, which safePathJoin re-roots inside the root.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import path from "path";
-import fs from "fs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]";
 import { safePathJoin, PathTraversalError } from "@/lib/safePathJoin";
+import { sendUploadedFile, uploadReadAccessFor, UPLOAD_ROOT } from "@/lib/secureUpload";
+import {
+  logBootstrapBypass,
+  logPermissionDenial,
+  resolvePermissionAccess,
+  type PermissionRequirement,
+} from "@/lib/auth/permissionResolver";
 
-const UPLOADS_ROOT = path.join(process.cwd(), "data", "uploads");
+function notFound(res: NextApiResponse) {
+  return res.status(404).json({ error: "File not found" });
+}
 
-const MIME_TYPES: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".tiff": "image/tiff",
-  ".tif": "image/tiff",
-  ".ppm": "image/x-portable-pixmap",
-};
-// `.svg` is deliberately absent. An SVG served as an inline `svg+xml` document
-// from our own origin is a stored-XSS vector one preset edit away. The CSP no
-// longer lets an inline script run (/uploads/* gets the proxy's nonce policy,
-// src/proxy.ts; /api/uploads/* the static API policy in next.config.js), and
-// keeping SVG out stays as a second layer: SVGs (and any unknown type) fall
-// through to application/octet-stream + Content-Disposition: attachment below,
-// so a browser downloads them instead of rendering them.
-
-// Subdirs served to unauthenticated viewers by design: product/CMS imagery the
-// storefront renders, and ticket attachments the customer portal links to by
-// their unguessable filename (the portal authenticates the TICKET, not each
-// file URL; gating attachments on a staff session would 404 a customer's own
-// files — a token-authed portal file route is the proper fix and is tracked
-// separately). Everything else — imports, vendor PDFs, delivery-proof,
-// proposals, and any subdir not listed — requires a session. Default private: a
-// new upload kind is gated until it is explicitly opted in here.
-const PUBLIC_UPLOAD_SUBDIRS = new Set(["images", "inventory", "line-drawings", "attachments"]);
-
-/** Whether the first path segment is a subdir served without authentication. */
-export function isPublicUpload(segments: readonly string[]): boolean {
-  return segments.length > 0 && PUBLIC_UPLOAD_SUBDIRS.has(segments[0]);
+/** Does the signed-in caller hold `permission`? Decided as requirePermission decides it. */
+async function mayRead(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  permission: PermissionRequirement,
+): Promise<boolean> {
+  const session = await getServerSession(req, res, authOptions);
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  if (!userId) return false;
+  const result = await resolvePermissionAccess({
+    userId,
+    permission,
+    impersonate: req.cookies?.["holt-impersonate"] || null,
+  });
+  if (!result.allowed) {
+    logPermissionDenial(userId, permission, result);
+    return false;
+  }
+  if (result.bootstrapBypass) logBootstrapBypass(userId, permission, result);
+  return true;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -68,23 +68,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Missing file path" });
   }
 
-  const isPublic = isPublicUpload(segments);
-
-  // Private subdir: require a signed-in session. Answer an unauthenticated
-  // request with 404, not 403 — the endpoint must not confirm that a given file
-  // exists to someone who may not read it.
-  if (!isPublic) {
-    const session = await getServerSession(req, res, authOptions);
-    if (!session) {
-      return res.status(404).json({ error: "File not found" });
-    }
-  }
-
   // safePathJoin handles "..", "/..", NUL bytes, absolute-path re-root, and
-  // verifies the resolved path stays under UPLOADS_ROOT.
+  // verifies the resolved path stays under UPLOAD_ROOT.
   let filePath: string;
   try {
-    filePath = safePathJoin(UPLOADS_ROOT, ...segments);
+    filePath = safePathJoin(UPLOAD_ROOT, ...segments);
   } catch (err) {
     if (err instanceof PathTraversalError) {
       return res.status(400).json({ error: "Invalid path" });
@@ -92,31 +80,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     throw err;
   }
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: "File not found" });
-  }
+  const access = uploadReadAccessFor(filePath);
+  if (!access) return notFound(res);
+  if (!access.public && !(await mayRead(req, res, access.permission))) return notFound(res);
 
-  const stat = fs.statSync(filePath);
-  if (!stat.isFile()) {
-    return res.status(404).json({ error: "File not found" });
-  }
-
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType = MIME_TYPES[ext] || "application/octet-stream";
-
-  res.setHeader("Content-Type", contentType);
-  res.setHeader("Content-Length", stat.size);
-  if (contentType === "application/octet-stream") {
-    // Unknown or SVG: never render inline from our origin — force a download.
-    res.setHeader("Content-Disposition", "attachment");
-  }
-  // Private files must not be cached by shared proxies; public imagery keeps its
-  // long immutable cache.
-  res.setHeader(
-    "Cache-Control",
-    isPublic ? "public, max-age=86400, immutable" : "private, no-store, max-age=0",
-  );
-
-  const stream = fs.createReadStream(filePath);
-  stream.pipe(res);
+  return sendUploadedFile(res, filePath, { cache: access.public ? "public" : "private" });
 }

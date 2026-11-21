@@ -40,6 +40,8 @@ const CLIENT_CODE = [
   "src/pages/auth",
   "src/lib/pricing/importVendorConfigs.ts",
   "src/lib/automations/catalog.ts",
+  // Builds the ticket-file link the customer's browser follows from /support.
+  "src/lib/tickets/attachmentToken.ts",
 ];
 
 // ---------------------------------------------------------------------------

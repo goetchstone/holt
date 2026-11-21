@@ -2,10 +2,11 @@
 //
 // Property-based fuzzing of the unauthenticated capability checks: the booking
 // calendar HMAC (lib/booking/icsToken.ts, read off ?token= on a public route)
-// and the order / client portal JWTs (lib/capabilityToken.ts). The token is the
-// only credential these links carry, so the verifiers must (a) never throw on
-// whatever a stranger types into the URL and (b) accept nothing but the exact
-// token minted for that id and that family.
+// and the order portal, client portal and ticket-file JWTs
+// (lib/capabilityToken.ts). The token is the only credential these links carry,
+// so the verifiers must (a) never throw on whatever a stranger types into the
+// URL and (b) accept nothing but the exact token minted for that id and that
+// family.
 //
 // Found a real bug on its first run: verifyBookingToken compared UTF-16 string
 // lengths, then handed UTF-8 Buffers to timingSafeEqual, so any 32-character
@@ -14,8 +15,13 @@
 
 import fc from "fast-check";
 import { signBookingId, verifyBookingToken } from "@/lib/booking/icsToken";
+import { signCapabilityToken } from "@/lib/capabilityToken";
 import { generatePortalToken, verifyPortalToken } from "@/lib/portalToken";
 import { generateClientPortalToken, verifyClientPortalToken } from "@/lib/clientPortalToken";
+import {
+  generateTicketAttachmentToken,
+  verifyTicketAttachmentToken,
+} from "@/lib/tickets/attachmentToken";
 import { anyString, nastyString } from "./support";
 
 const ORIGINAL_SECRET = process.env.NEXTAUTH_SECRET;
@@ -100,7 +106,26 @@ describe("portal capability tokens (lib/capabilityToken.ts)", () => {
       fc.property(fc.oneof(tokenLike, jwtShaped), (token) => {
         expect(verifyPortalToken(token)).toBeNull();
         expect(verifyClientPortalToken(token)).toBeNull();
+        expect(verifyTicketAttachmentToken(token)).toBeNull();
       }),
+    );
+  });
+
+  it("a ticket-file token round-trips its id and rejects every single-character change", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 2 ** 31 - 1 }),
+        fc.nat(),
+        fc.constantFrom(..."ABCabc012-_.~=é"),
+        (attachmentId, pos, ch) => {
+          const token = generateTicketAttachmentToken(attachmentId);
+          expect(verifyTicketAttachmentToken(token)).toEqual({ attachmentId });
+          const i = pos % token.length;
+          fc.pre(token[i] !== ch);
+          const mutated = token.slice(0, i) + ch + token.slice(i + 1);
+          expect(verifyTicketAttachmentToken(mutated)).toBeNull();
+        },
+      ),
     );
   });
 
@@ -124,12 +149,43 @@ describe("portal capability tokens (lib/capabilityToken.ts)", () => {
     );
   });
 
-  it("never accepts one family's token as the other's", () => {
+  it("never accepts one family's token as another's", () => {
     const id = fc.integer({ min: 1, max: 2 ** 31 - 1 });
     fc.assert(
       fc.property(id, id, (orderId, customerId) => {
-        expect(verifyClientPortalToken(generatePortalToken(orderId, customerId))).toBeNull();
-        expect(verifyPortalToken(generateClientPortalToken(customerId))).toBeNull();
+        const order = generatePortalToken(orderId, customerId);
+        const client = generateClientPortalToken(customerId);
+        const file = generateTicketAttachmentToken(orderId);
+        expect(verifyClientPortalToken(order)).toBeNull();
+        expect(verifyPortalToken(client)).toBeNull();
+        expect(verifyTicketAttachmentToken(order)).toBeNull();
+        expect(verifyTicketAttachmentToken(client)).toBeNull();
+        expect(verifyPortalToken(file)).toBeNull();
+        expect(verifyClientPortalToken(file)).toBeNull();
+      }),
+    );
+  });
+
+  it("refuses a ticket-file claim signed for a portal, and a portal claim signed for files", () => {
+    // The six checks above refuse on claim shape: the file family's claims
+    // overlap neither portal's. These carry exactly the claims each verifier
+    // wants, signed for the wrong family, so only the family's own key refuses
+    // them. The last line is the control that the file family's audience is
+    // the one these tokens name.
+    const id = fc.integer({ min: 1, max: 2 ** 31 - 1 });
+    const FILE = "holt-ticket-attachment";
+    fc.assert(
+      fc.property(id, id, (attachmentId, customerId) => {
+        for (const portal of ["holt-portal", "holt-client-portal"]) {
+          const claim = signCapabilityToken({ attachmentId }, portal, 60);
+          expect(verifyTicketAttachmentToken(claim)).toBeNull();
+        }
+        const order = signCapabilityToken({ orderId: attachmentId, customerId }, FILE, 60);
+        expect(verifyPortalToken(order)).toBeNull();
+        expect(verifyClientPortalToken(signCapabilityToken({ customerId }, FILE, 60))).toBeNull();
+        expect(
+          verifyTicketAttachmentToken(signCapabilityToken({ attachmentId }, FILE, 60)),
+        ).toEqual({ attachmentId });
       }),
     );
   });
