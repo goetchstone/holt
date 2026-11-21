@@ -3,17 +3,19 @@
 // GET  /api/admin/product-pairings -- list with resolved names
 // POST /api/admin/product-pairings -- create
 //
-// ADMIN / MARKETING only. Pairings power the Missing Pieces tile on the
-// Opportunities hub; MANAGERs consume the tile but don't edit rules.
+// "Manage configuration" (admin.config), the key of the Product Pairings setup
+// page, its only caller: pairing rules are store configuration. Pairings power
+// the Missing Pieces tile on the Opportunities page, whose readers don't edit
+// the rules.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { validateProductPairingInput } from "@/lib/productPairingValidation";
 
-export default requireAuthWithRole(
-  ["ADMIN", "MARKETING"],
+export default requirePermission(
+  "admin.config",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method === "GET") {
       try {

@@ -146,7 +146,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/help": { permission: "staff.self" },
   "/app/help/[slug]": { permission: "staff.self" },
   "/app/helpdesk": { permission: "service.read" },
-  "/app/helpdesk/[id]": { permission: "service.read", widensFrom: "ADMIN,MANAGER" },
+  "/app/helpdesk/[id]": { permission: "service.read" },
   "/app/interactions": { permission: "customer.read" },
   "/app/interactions/[id]": { permission: "customer.read" },
   "/app/inventory": { permission: "inventory.read" },
@@ -197,14 +197,8 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/payment/cancel": { permission: "payment.take" },
   "/app/payment/success": { permission: "payment.take" },
   "/app/purchasing": { permission: "purchasing.read" },
-  "/app/purchasing/import-apparel": {
-    permission: "purchasing.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/purchasing/import-order": {
-    permission: "purchasing.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
+  "/app/purchasing/import-apparel": { permission: "purchasing.receive" },
+  "/app/purchasing/import-order": { permission: "purchasing.receive" },
   "/app/purchasing/needs-ordering": {
     permission: "purchasing.read",
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",

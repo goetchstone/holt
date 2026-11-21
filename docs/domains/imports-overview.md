@@ -233,7 +233,12 @@ Gaps acknowledged: no real-DB tests for the manual products-import path (the ups
 - Not every route under `pages/api/automations/` is an import.
   `expire-quote-holds` (hourly) puts back on sale the stock of quotes whose holds
   have ended (`docs/domains/sales-orders.md`, "Quote holds";
-  `docs/OPERATIONS.md`, "Expire Quote Holds").
+  `docs/OPERATIONS.md`, "Expire Quote Holds"). `customer-level-recalc` (weekly)
+  recalculates customer levels and lifetime spend
+  (`docs/domains/customer-intelligence.md`). Since 2026-11-21 it goes through
+  `guardAutomation` like the rest, so a person running it by hand needs "Run
+  scheduled jobs" (`admin.automations`); it used to take a Manager's session too, and
+  Managers now recalculate from the Customers list.
 
 ---
 Last verified: 2026-05-21

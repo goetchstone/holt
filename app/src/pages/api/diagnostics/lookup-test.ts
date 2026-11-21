@@ -1,8 +1,13 @@
 // /app/src/pages/api/diagnostics/lookup-test.ts
+//
+// The Diagnostic Lookup Tool's UPC / product-number lookup, returning the raw
+// Product row. On the key of its page (/app/admin/diagnostics/lookup-test), its
+// only caller: "Change settings" (admin.settings). The scan and POS screens
+// look products up through /api/products/find-by-identifier (catalog.read).
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorMessage } from "@/lib/toastError";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -70,4 +75,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("admin.settings", handler);

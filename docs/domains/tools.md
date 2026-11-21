@@ -124,7 +124,16 @@ Flow:
 
 The 500-id cap prevents an accidental "categorize the entire catalog" from running. If you genuinely need to bulk-categorize 10K products, slice into 20 batches.
 
-Single-item shortcut: the Detailed Sales drilldown's edit modal has a "Create new product" tab using the same `TaxonomyPicker` — creates `Product` + optional `Upc` + relinks the line item in one action via `POST /api/products/quick-create`. Useful for fixing one-off uncategorized line items mid-report.
+Single-item shortcut: the Detailed Sales drilldown's edit modal has a "Create new product" tab using the same `TaxonomyPicker`. It creates the `Product` and an optional `Upc` through `POST /api/products/quick-create` ("Edit catalog", `catalog.write`), then relinks the line item through the order line route (`PUT` with `action: "relink"`, `sales.write`). Useful for fixing one-off uncategorized line items mid-report. The report opens on "View reports", so a reader without those two keys sees the tab and gets a 403 from the call they lack.
+
+## Diagnostics
+
+Two screens on the System Tools hub (`/app/admin/tools`), both on "Change settings" (`admin.settings`):
+
+- **Diagnostic Lookup Tool** (`/app/admin/diagnostics/lookup-test`) looks a UPC or product number up and shows the raw `Product` row, through `POST /api/diagnostics/lookup-test` on the page's key. The scan and POS screens find products through `/api/products/find-by-identifier` (`catalog.read`) instead.
+- **Relink Order Line Items** (`/app/admin/diagnostics/relink-line-items`) counts order lines with no product (`GET`) and runs the whole-table relink (`POST`, `backfillLineItemProductLinks` in `lib/orderLineItemLinker.ts`) through `/api/admin/relink-line-items`. The route takes "Change settings" or "Edit catalog" (`catalog.write`, the key the product imports run the same backfill on), because Detailed Sales' Relink Line Items button calls it too.
+
+Both routes were MANAGER/ADMIN role lists until 2026-11-21. A Manager could call the lookup by API without being able to open its page, and that ended; Buyers, Data Entry, Department Heads and General Managers gained the relink through Edit catalog. Tested by `__tests__/integration/catalogAdminGates.integration.test.ts`.
 
 ## Merge Customers
 

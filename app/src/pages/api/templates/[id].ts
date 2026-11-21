@@ -1,8 +1,12 @@
 // /app/src/pages/api/templates/[id].ts
+//
+// One label (tag) template: GET, PUT, DELETE. "Change settings"
+// (admin.settings), the key of /api/labels and /api/templates beside it, so
+// the label-template routes answer to one key.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { photoDotsProblem } from "@/lib/labels/photo";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -42,4 +46,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).json({ message: "Method not allowed" });
 }
 
-export default requireAuthWithRole(["ADMIN"], handler);
+export default requirePermission("admin.settings", handler);
