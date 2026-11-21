@@ -5,7 +5,8 @@ Property-based fuzz tests live in `app/__tests__/fuzz/*.fuzz.test.ts` and use
 `**/__tests__/**/*.test.ts` glob collects them, so they run in `npm test` and in
 CI on every PR. Each property runs 100 times per run with a fresh random seed (the
 fast-check defaults), so every CI run tries inputs no earlier run tried. Run
-serially, the whole directory takes about 3 s.
+serially, the whole directory takes about 7 s; the timing properties of
+`vendorOrderParsers` are most of it.
 
 A property counts only if it can fail for a real reason (CLAUDE.md principle 4).
 Every property here was shown to fail against a deliberately broken copy of its
@@ -26,11 +27,14 @@ first and money correctness second.
 | `safePathJoin` | `lib/safePathJoin.ts` | URL path segments under `/api/uploads`. The result stays under the root or the call throws `PathTraversalError`, and ordinary names are never refused. |
 | `cmsSanitize` | `lib/cms/sanitize.ts` | CMS HTML rendered on the public site. The output is re-parsed and checked against the tag, attribute, URL-scheme and iframe-host allowlists. |
 | `cartPricing` | `lib/pos/cartPricing.ts` | The server prices every POS order with this. Every total must equal the sum of its parts to the cent, and no discount may make a line negative. |
-| `vendorOrderParsers` | nine parsers in `lib/pricing/` | Vendor PDF and CSV text mutated line by line. Tests no throw, finite numbers only, qty x price = total, and a 50k-character line in under 500 ms. |
+| `vendorOrderParsers` | the order parsers in `lib/pricing/`: Aesthetic Movement, Beatriz Ball, BrandWise, Frank & Eileen, K&K, MarketTime, SuperCat, Wendover, nuORDER, Z Supply and Hunter Douglas through their `parse*Text` seams; Simblist CSV; the nuORDER printout | Vendor PDF and CSV text mutated line by line, with numerals swapped for 400- and 308-digit runs, `Infinity`, `-Infinity` and `1e999`. Tests that the unmutated seed yields an item (so no property passes vacuously), no throw, finite numbers only, a warning on the order whenever a line holds a 300-digit number, qty x price = total where the parser checks it, and that a 50k-character line and a block of 50 lines of 1000 characters each parse in under 500 ms. The long text goes first half the time, where a regex over the whole text meets it before the seed's own match ends the scan. Simblist's property is model-based: it imports exactly the rows whose Quantity, Unit Price and Total Price all read, and names every other row in a warning. The printout's generator mutates positioned text items, and every item it keeps must satisfy its refuse-to-guess rule. |
 
 Shared generators and checks are in `app/__tests__/fuzz/support.ts`:
 `anyString`, `nastyString` (a dictionary of known-bad tokens),
-`jsonObjectWithProtoKeys`, `withoutPrototypePollution` and `timeMs`.
+`jsonObjectWithProtoKeys`, `withoutPrototypePollution` and `timeMs`, and for
+vendor documents `hostileNumeral`, `hostileAmount`, `mutate` and `documentFor`
+(line ops on a seed; the numeral and amount ops aim only at lines that hold
+something to replace) with the oracles `numbersIn` and `moneyLines`.
 
 ### Known failures
 

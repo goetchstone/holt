@@ -542,8 +542,15 @@ Behavior:
 - Creates or overwrites a SalesOrder with orderno `HD-{quoteNumber}` (supports customer revisions via re-import)
 - Freight costs summed into an `HD-FREIGHT` line item
 - Installation costs summed into a `LABOR-HD` line item
+- Reads its lines and numbers through `parseBoundary.ts` from the seam
+  `parseHDProposalText` (step 6 of "Adding a New Vendor" below): a line is cut to
+  1000 characters, an amount that overflows reads as 0, a freight or install total
+  that overflows is 0, and each is a warning on `proposal.warnings`. The route
+  writes the quote as read and returns the warnings with it; the import page lists
+  them above the quote (2026-11-21). Whether a warning should refuse the import is
+  the owner's open question.
 
-Import page at `/sales/import-hd`, nav card on the Sales hub.
+Import page at `/app/sales/import-hd`, nav card on the Sales hub.
 
 ## Any vendor's book, and the demo's mock vendors
 
@@ -597,22 +604,51 @@ away from the store-wide default.
 3. Create or reuse an import endpoint in `pages/api/pricing/import/`
 4. Add vendor name aliases to `resolveVendorKey()` and `productEntryMapping.ts`
 5. Create a vendor runbook in `docs/domains/vendors/{vendor}.md`
-6. If the parser uses `pdf-parse`, ensure it is NOT imported from client-side code
-   **Order-text parsers** (Aesthetic Movement, Beatriz Ball, BrandWise, Frank &
-   Eileen, K&K, MarketTime, Simblist CSV, SuperCat, Wendover) read numbers and lines
-   only through `lib/pricing/parseBoundary.ts` (rule 42): `parseMoney`,
-   `finiteFloat` and `finiteInt` read a non-finite value (a 400-digit run overflows
-   to `Infinity`, which slips past `Math.abs(qty * price - total) > 0.01`) as 0. The
-   line is then accepted as read, at $0, with no line-math warning of its own.
-   `splitLines(text, warnings)` cuts a line to 1000 characters so the
-   quadratic-backtracking regexes see a bounded string, and pushes onto the order's
-   `warnings` when it cut any line or met a number of 300+ digits, so neither is
-   silent. Simblist CSV does not use `splitLines`, so a long CSV cell is read as 0
-   with no warning. Never call `Number.parseFloat`/`parseInt` on upload text in
-   these parsers. `__tests__/fuzz/vendorOrderParsers.fuzz.test.ts` proves both (its
-   `KNOWN_FAILURES` is empty). The older price-book and PDF parsers (Ekornes,
-   Kingsley Bate, nuORDER, Z Supply, ...) are not fuzzed and still call `parseInt`
-   directly; adopting the boundary there is unswept.
+6. If the parser uses `pdf-parse`, ensure it is NOT imported from client-side code.
+   Read upload text only through `lib/pricing/parseBoundary.ts` (rule 42), from a
+   synchronous `parse*Text(text)` seam that the PDF or buffer entry calls, so the
+   fuzz tests can drive it; never call `Number.parseFloat`/`parseInt` on upload
+   text. A number too large for a double (about 1.8e308: every run of 310 digits,
+   and some of 309) reads as `Infinity`, which slips past
+   `Math.abs(qty * price - total) > 0.01`. What a value that does not read becomes
+   depends on what the field means:
+
+   - **Order parsers read it as 0 and keep the line** (`parseMoney`, `finiteFloat`,
+     `finiteInt`): Aesthetic Movement, Beatriz Ball, BrandWise, Frank & Eileen, K&K,
+     MarketTime, SuperCat, Wendover, and since 2026-11-21 nuORDER, Z Supply and
+     Hunter Douglas. A $0 line trips no line-math check of its own (0 x qty = 0), so
+     what tells the buyer is `splitLines(text, warnings)`, the first thing each seam
+     calls: it cuts a line to 1000 characters so the quadratic-backtracking regexes
+     see a bounded string, and puts a warning on the order when it cut a line or
+     met a number of 300+ digits. A 308-digit number still reads, and overflows
+     once doubled or added, so a total of read amounts goes through `finiteSum`
+     (0 when the sum overflows); Wendover reads a line total too large to count in
+     cents as a $0 unit cost; Z Supply leaves out, with a warning naming the
+     style, an item whose pack count or price overflows once multiplied out to
+     sizes.
+   - **A parser that can name the cell leaves the line out, with a warning naming
+     it.** Simblist CSV does so for a Quantity that is not a whole number of up to
+     nine digits and for a Unit or Total Price that is not a finite number ("Infinity", "1e999", a
+     400-digit run; until 2026-11-21 these imported at $0 and nothing named them).
+     A BLANK price still reads as $0, as it always has; whether it should be left
+     out too is the owner's open question. Simblist reads cells, not lines, so it
+     never calls `splitLines`. The nuORDER printout drops a block whose wholesale
+     price does not read, and does not match a line total or Grand Total too long
+     to be real, so those fall into its "no line total" and "Grand Total not
+     found" refusals.
+   - **Price books leave the cell out, as they do "N/A":** `finiteOrNull` gives
+     null, and `pricingUtils.parseCurrency` gives NaN, its "no price in this
+     cell". Until 2026-11-21 an overflow there read as `Infinity`, which passed
+     every caller's `isNaN` check and `cost > 0` filter.
+
+   `__tests__/fuzz/vendorOrderParsers.fuzz.test.ts` fuzzes every order parser
+   through its seam (`docs/testing/fuzzing.md`); its `KNOWN_FAILURES` is empty.
+   **Unswept, planned as a second PR:** the price-book parsers (Ekornes, Kingsley
+   Bate, Brown Jordan, Jensen Leisure, Summer Classics, Gat Creek, CR Laine, the
+   dual-grade extractor, SE, `pdfTableExtractor`, Wesley Hall, `wholesale/columnGrid`)
+   still call `parseInt` / `parseFloat` directly besides `parseCurrency`, have no
+   text seams and no line cut, and are not fuzzed; nor does a test yet list every
+   file under `lib/pricing` as fuzzed or not a parser.
 7. Key every lookup built from upload or request text (tier codes, collection
    names, program types) with a `Map`, never `{}`: a plain object drops a key
    named `__proto__`, and reads `constructor` / `toString` back as functions,
@@ -621,7 +657,12 @@ away from the store-wide default.
    Regexes over uploaded text use bounded runs (`{1,200}`, not `+`) where a
    run is followed by a literal, as `extractCushionOptions()` does: an
    unbounded run is quadratic on a long line with no match (CodeQL
-   js/polynomial-redos; 2026-10-15)
+   js/polynomial-redos; 2026-10-15). A character class that also matches `\n`
+   (`[A-Za-z\s]`) is not bounded by the 1000-character line cut, so bound it
+   too (nuORDER's footer). An unanchored money pattern can be pinned to the
+   first digit of a run with `(?<!\d)` where that changes no match: a match
+   that starts after a digit also matches one digit earlier (MarketTime's
+   money tails, 2026-11-21)
 
 ## Verification Checklist
 
@@ -633,6 +674,9 @@ away from the store-wide default.
 - [ ] Vendor added to `productEntryMapping.ts` for POS matching
 - [ ] Vendor runbook created or updated
 - [ ] Lookups keyed by upload text are `Map`s (step 7)
+- [ ] An order parser has a pure seam (a line-based `parse*Text` starts with
+      `splitLines`) and a case in `__tests__/fuzz/vendorOrderParsers.fuzz.test.ts`
+      (step 6)
 
 ## Test Coverage
 
@@ -642,4 +686,4 @@ Gap: no source-text tripwire ensuring that any new `pdf-parse`-using file isn't 
 
 ---
 
-Last verified: 2026-05-20; "Retail is changed in one place", "Scheduled sale prices" and the unique-constraint correction 2026-11-14 against source.
+Last verified: 2026-05-20; "Retail is changed in one place", "Scheduled sale prices" and the unique-constraint correction 2026-11-14 against source; "HD Proposal import path" and "Adding a New Vendor" steps 6-7 2026-11-21 against source.
