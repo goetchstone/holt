@@ -434,6 +434,7 @@ A role holding Impersonate (`admin.impersonate`) or Change settings (`admin.sett
 - Impersonation affects: nav items, card filtering, page access (server redirects), and API role checks
 - Viewing as another role only ever narrows. Permission gates and keys answered beside a gate (`{ also }`, e.g. View cost) count a key only when both the real role and the viewed role hold it (`decidePermissionAccess` in `roleDecision.ts`), as the nav does on the real-role side (the nav reads the viewed role's built-in grants, not edited ones: F14a). Before 2026-10-02 gates decided on the viewed role's keys alone, so an admin whose role the owner had edited to drop a key got it back by viewing as a role that held it (F12a). Role-list gates also require the real role to pass the list (narrow-only since 2026-11-21; before, the viewed role alone decided).
 - Impersonation never escalates by rank either (`resolveEffectiveRole` in `roleDecision.ts`), and the endpoint's allow-list names neither ADMIN nor SUPER_ADMIN, so there is no way to view the commission-tiers report by impersonating up
+- The endpoint refuses (400, saying why) a target every gate would ignore: one ranked above the caller's own role, or any target for a role that may not View as (`viewAsIgnored` in `permissionResolver.ts`, ranked as a permission gate ranks: the linked Role, from the grant table). The client cannot rank, so before 2026-11-21 a store role holding Change settings (rank 0 by default) could set MANAGER and read "Viewing as MANAGER" over screens every gate still decided as its own role. `impersonateTarget.test.ts` pins it.
 - Known gap, older than 2026-11: while viewing as a role that holds neither key, `POST /api/admin/impersonate` is refused, because `requirePermission` honours the cookie. Stopping still works, since the banner also clears the cookie in the browser, but no "Stopped viewing" audit row is written.
 - The cookie value is client-set, so `grantContext` (`permissionResolver.ts`) treats it strictly as a role KEY: own-key lookups and a `Map`, never a plain-object index. Before 2026-10-15 a cookie of `constructor` or `__proto__` resolved to an `Object.prototype` member, the decision threw, and every gated request from that admin was a 500 until the cookie cleared (CodeQL #23; `permissionResolver.test.ts` "the View-as cookie is a role KEY"). Such a value now behaves as an undefined role: baseline grants only.
 
@@ -779,7 +780,7 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `server/trpc/trpc.ts` -- `roleProcedure` / `permissionProcedure`
 - `__tests__/trpcProcedureAuthorization.test.ts` -- the tRPC manifest (see "tRPC procedure manifest")
 - `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role; who may View as is `mayImpersonate` over the session's keys
-- `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie, gated on `IMPERSONATE`
+- `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie, gated on `IMPERSONATE`; refuses a target the gates would ignore (`viewAsIgnored`)
 - `pages/api/admin/roles/` -- Roles GUI's REST contract, gated on `staff.manage`
 - `lib/upboard.ts` -- up-board rotation logic
 - `app/(dashboard)/app/admin/setup/roles/` -- build and edit roles (page gate: Manage configuration, `admin.config`)

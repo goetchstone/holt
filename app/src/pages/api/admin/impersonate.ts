@@ -2,10 +2,14 @@
 //
 // POST /api/admin/impersonate — set or clear the impersonation (View as)
 // cookie. The cookie narrows every gate to what that role would be let do, and
-// never past what the caller's own role may do (lib/auth/roleDecision.ts).
+// never past what the caller's own role may do (lib/auth/roleDecision.ts). A
+// role ranked above the caller's own is refused rather than set: every gate
+// would ignore it, while the banner and the menu, which cannot rank, would
+// claim it (viewAsIgnored).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { viewAsIgnored } from "@/lib/auth/permissionResolver";
 import { auditActor, auditLog } from "@/lib/audit";
 import { logger } from "@/lib/logger";
 
@@ -65,6 +69,15 @@ export default requirePermission(
       return res
         .status(400)
         .json({ error: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}` });
+    }
+    const ignored = await viewAsIgnored({ userId, target: role });
+    if (ignored) {
+      return res.status(400).json({
+        error:
+          ignored === "ranks-above"
+            ? `You can't view the app as ${role}: it ranks above your own role, so the app would ignore it and go on showing your own access.`
+            : `You can't view the app as ${role}: your role may not view the app as another role.`,
+      });
     }
 
     // 4-hour expiry — auto-clears if forgotten

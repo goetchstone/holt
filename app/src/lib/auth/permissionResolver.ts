@@ -45,6 +45,7 @@ import {
   decideRoleAccess,
   describeRequirement,
   mayImpersonate,
+  resolveEffectiveRole,
   type PermissionDecision,
   type PermissionRequirement,
   type RoleDecision,
@@ -300,6 +301,40 @@ function realRoleMayImpersonate(
   const linkedKey = staff.roleId != null ? table.keyById[staff.roleId] : undefined;
   const held = grantsForRoleKey(table, linkedKey ?? staff.role);
   return mayImpersonate((key) => held.includes(key));
+}
+
+/**
+ * Would the gates ignore View as `target` for `userId`, and why? Null when they
+ * would apply it.
+ *
+ * resolveEffectiveRole ignores the cookie for a role that may not View as
+ * ("may-not-view-as": no active staff row, or no key of IMPERSONATE, which only
+ * the bootstrap safeguard lets reach the endpoint) and for a target ranked above
+ * the caller's own ("ranks-above"), so every gate keeps deciding as the caller.
+ * The client cannot rank: useEffectiveRole shows the "Viewing as" banner and
+ * narrows the menu from the session's keys alone. The View as endpoint asks
+ * here first and refuses a target the gates would ignore, so the banner never
+ * claims a view the gates do not apply. Answered as a permission gate resolves
+ * the cookie (the linked Role, else the enum, ranked from the grant table); the
+ * few remaining role lists rank the staff enum on the built-in ranks, the same
+ * answer for every built-in role.
+ */
+export async function viewAsIgnored(input: {
+  userId: string;
+  target: string;
+  prisma?: PrismaClient;
+}): Promise<"may-not-view-as" | "ranks-above" | null> {
+  const client = input.prisma ?? defaultPrisma;
+  const staff = await client.staffMember.findFirst({
+    where: { userId: input.userId, isActive: true },
+    select: { role: true, roleId: true },
+  });
+  if (!staff) return "may-not-view-as";
+  const table = await getRoleGrantTable(client);
+  if (!realRoleMayImpersonate(staff, table)) return "may-not-view-as";
+  const ctx = grantContext(staff, input.target, table);
+  const applied = resolveEffectiveRole(ctx.realRoleKey, input.target, true, ctx.ranks);
+  return applied === input.target ? null : "ranks-above";
 }
 
 /**
