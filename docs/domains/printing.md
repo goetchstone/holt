@@ -52,6 +52,7 @@ Place and box labels choose their template and printer with `routeContextLabel(c
 - **Law tag.** What it has to say depends on where the store is, so the wording is the store's template (rule 61), and `Product.lawTagText` is the product's own part. It's refused without that text. Holt doesn't know the law in a store's state: the demo's template is a sample.
 - **Sold tag.** `POST /api/sales/orders/[id]/sold-tag`, from a line on the order page. Only for a line of an ORDER or FULFILLED order that's still on it with a quantity (rules 31, 33). It prints no price or cost. `customerLastName` is there for a tag on a showroom floor.
 - **One at a time or all at once.** While receiving, one at a time gives each line a "Print tag" button that prints one tag per press, before the receipt saves, so each comes out as its piece is matched. All at once is the checkbox and the batch after saving. The choice is `StaffMember.tagPrintMode`, remembered per person (`account.setTagPrintMode`), and it's one at a time until they choose (owner, 2026-10-29). The handheld's Receive screen has a Tag button on each line.
+- **How many tags all at once prints.** One per piece received, a part piece counting as one (a quantity can be a length, a part roll, and receiving never truncates one), and at most `MAX_TAG_COPIES` per line: `receivedTagCopies` in `lib/labels/tagCopies.ts`, as the batch route clamped them before #127. When that leaves pieces without a tag, the screen names each such line and how many are still to print, from the product's page (`receivedTagsShortNote`). From #127 until 2026-11-21 the screen asked for the quantity received itself, which the bound refuses, so a line of more than ten, or a part roll, printed none of its tags. Whether to print one per piece in several prints of at most ten is an open owner question.
 - **Which printer.** Given a store, only that store's printers. `resolveRoute` used to take the first printer loaded with the size, anywhere, so a tag could come out in another building. It now refuses and names what's missing, as `routeContextLabel` does. Receiving passes its store.
 
 ## API surfaces
@@ -72,7 +73,7 @@ ADMIN-only for printer-config CRUD.
 
 ### Batch caps
 
-**Copies per tag** are bounded in one place: `MAX_TAG_COPIES` (10) and the pure check `tagCopiesProblem`, both in `lib/labels/tagCopies.ts`, enforced by `validateTagCopies` in `lib/labelPrinter.ts`, which `printProductTag` runs before `zpl.repeat(copies)` and both label routes run up front (rule 42). A value that is not a whole number from 1 to 10 (non-integer, NaN, string, 0, negative, too big) is rejected, never clamped: `print-label` answers 400 with the message, and the batch marks that item failed with the same message. Test: `__tests__/labelCopies.test.ts`.
+**Copies per tag** are bounded in one place: `MAX_TAG_COPIES` (10) and the pure check `tagCopiesProblem`, both in `lib/labels/tagCopies.ts`, enforced by `validateTagCopies` in `lib/labelPrinter.ts`, which `printProductTag` runs before `zpl.repeat(copies)` and both label routes run up front (rule 42). A value that is not a whole number from 1 to 10 (non-integer, NaN, string, 0, negative, too big) is rejected, never clamped: `print-label` answers 400 with the message, and the batch marks that item failed with the same message. Receiving chooses its copies before it asks (`receivedTagCopies`, above), so the bound stays a refusal everywhere. Test: `__tests__/labelCopies.test.ts`.
 
 The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per call); the item limit lives in `lib/labels/batchPrintShared.ts`, which the route and the screens share, and the copies limit is `MAX_TAG_COPIES` above. Beyond that, a screen slices the work into multiple batch calls (`inBatches`), as the Sales screen's "Print all" does; at 10 requests a minute, a run of more than 500 tags is stopped by the rate limit and the screen says how many printed before it. The cap prevents accidentally queuing the entire catalog when a filter glitches.
 
@@ -135,7 +136,8 @@ Add a printer: store its IP and save. There is no ping test in the admin UI (che
 |---|---|
 | `labelPrinter.ts` retry logic | Unit tests TBD — **gap**, would mock the `net.Socket` |
 | Template rendering | `labelRender.test.ts`: each context's fields, ZPL escaping |
-| Batch endpoint caps | None for the caps; `kind` in `scheduledSales.integration.test.ts`; `inBatches` in `scheduledSalesScreen.test.ts` |
+| Batch endpoint caps | Copies: fourteen refused in `tags.integration.test.ts`; none for the item cap; `kind` in `scheduledSales.integration.test.ts`; `inBatches` in `scheduledSalesScreen.test.ts` |
+| Receiving's tag copies | `labelCopies.test.ts` (`receivedTagCopies`, with a property over every quantity a receipt holds, and `receivedTagsShortNote`); `tags.integration.test.ts` (`receivedTagCopies(14)` prints ten) |
 | Sale tag during a scheduled sale | `scheduledSales.integration.test.ts` (sale price, regular as was, `saleEnds`; PRODUCT tag at the sale price) and `scheduledSales.test.ts` (`saleTagFields`) |
 | Receipt total cross-check | None — should be a real-DB integration |
 | Print payload: line notes, pictures, disclaimers | `invoiceTools.integration.test.ts` (the route); the picture order in `invoiceToolsShared.test.ts` |
@@ -148,4 +150,4 @@ Add a printer: store its IP and save. There is no ping test in the admin UI (che
 - ZPL preview (render-to-PNG locally before sending) would help template authoring
 
 ---
-Last verified: 2026-05-20; tags during a scheduled sale, batch `kind` and tags to change 2026-11-14 against source.
+Last verified: 2026-05-20; tags during a scheduled sale, batch `kind` and tags to change 2026-11-14; receiving's tag copies 2026-11-21 against source.

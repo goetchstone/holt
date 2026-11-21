@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
+import { receivedTagCopies, receivedTagsShortNote } from "@/lib/labels/tagCopies";
 import type { TagPrintMode } from "@/lib/labels/tagPrintMode";
 import { RECEIPT_CONDITIONS } from "@/lib/purchasing/receiptConditions";
 import { getErrorMessage } from "@/lib/toastError";
@@ -190,23 +191,34 @@ export function ReceivePOView({ id }: { id: string }) {
 
       // Auto-route print: each product routes to the correct template and printer
       // based on its category's label template and the printer's loaded tag size.
+      // A line asks for one tag per piece, at most MAX_TAG_COPIES (receivedTagCopies);
+      // the receiver is told which lines that left with pieces still to tag.
       if (printItems?.length > 0) {
         try {
-          const printPayload = printItems.map((pi: { productId: number; quantity: number }) => ({
+          const tags = (printItems as { productId: number; quantity: number }[]).map((pi) => ({
             productId: pi.productId,
-            copies: pi.quantity,
+            ...receivedTagCopies(pi.quantity),
           }));
           const printRes = await axios.post("/api/print-label/batch", {
-            items: printPayload,
+            items: tags.map(({ productId, copies }) => ({ productId, copies })),
             storeLocationId: selectedStoreId,
           });
-          const failed = printRes.data.results?.filter((r: { success: boolean }) => !r.success);
-          if (failed?.length > 0) {
-            const errors = failed.map((f: { productId: number; error: string }) => f.error);
-            toast.error(`Some tags failed: ${errors.join("; ")}`);
+          const results: { success: boolean; error?: string }[] = printRes.data.results ?? [];
+          const failed = results.filter((r) => !r.success);
+          if (failed.length > 0) {
+            toast.error(`Some tags failed: ${failed.map((f) => f.error).join("; ")}`);
           } else {
             toast.success("Tags sent to printer");
           }
+          const short = receivedTagsShortNote(
+            tags
+              .filter((_, i) => results[i]?.success)
+              .map((t) => {
+                const line = po.lineItems.find((li) => li.productId === t.productId);
+                return { ...t, name: line?.productName || line?.partNo || "A product" };
+              }),
+          );
+          if (short) toast.warning(short);
         } catch (err) {
           toast.error(getErrorMessage(err, "Items received, but the tags did not print."));
         }
