@@ -127,6 +127,7 @@ function nuOrderFixture(): NuOrderPO {
         sizes: [],
       },
     ],
+    warnings: [],
   };
 }
 
@@ -283,6 +284,7 @@ describe("normalizeZSupply", () => {
           extendedAmount: 30,
         },
       ],
+      warnings: [],
     };
   }
 

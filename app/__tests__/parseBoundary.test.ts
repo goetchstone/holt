@@ -11,6 +11,9 @@ import {
 } from "@/lib/pricing/parseBoundary";
 import { parseSuperCatOrderText } from "@/lib/pricing/superCatOrderParser";
 import { parseKKOrderText } from "@/lib/pricing/kkOrderParser";
+import { parseNuOrderText } from "@/lib/pricing/nuorderParser";
+import { parseZSupplyText } from "@/lib/pricing/zSupplyParser";
+import { parseHDProposalText } from "@/lib/pricing/hdProposalParser";
 
 describe("splitLines", () => {
   it("returns normal lines untouched and warns of nothing", () => {
@@ -94,5 +97,64 @@ describe("parsers surface the warning on their order", () => {
   it("K&K: long line warns", () => {
     const r = parseKKOrderText(`Order Number: 1\n${"z".repeat(MAX_LINE_LENGTH + 1)}`);
     expect(r.warnings.some((w) => /longer than 1000 characters/.test(w))).toBe(true);
+  });
+
+  it.each([
+    ["nuORDER", parseNuOrderText],
+    ["Z Supply", parseZSupplyText],
+    ["Hunter Douglas", parseHDProposalText],
+  ])("%s: a long line warns, ordinary text does not", (_name, parse) => {
+    expect(parse("Order #: 1\nTerms: Net 30").warnings).toEqual([]);
+    const long = parse(`Order #: 1\n${"z".repeat(MAX_LINE_LENGTH + 1)}`);
+    expect(long.warnings.some((w) => /longer than 1000 characters/.test(w))).toBe(true);
+  });
+
+  const big = `${"9".repeat(400)}.00`;
+
+  it("nuORDER: a 400-digit price and total read as 0, never Infinity, and are reported", () => {
+    const po = parseNuOrderText(
+      ["Style #: ET100BLK", `$${big} 3 $${big}`, `Total Price: $${big}`].join("\n"),
+    );
+    expect(po.items).toMatchObject([{ styleNumber: "ET100BLK", unitPrice: 0, totalPrice: 0 }]);
+    expect(po.totalPrice).toBe(0);
+    expect(po.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
+  });
+
+  it("Hunter Douglas: a 400-digit amount reads as 0, never Infinity, and is reported", () => {
+    const proposal = parseHDProposalText(
+      [
+        "Hunter Douglas Duette Honeycomb Shades",
+        `1${big}${big}${big}`,
+        `Freight Charges : ${big}`,
+        `Installation Charges : ${big}`,
+      ].join("\n"),
+    );
+    expect(proposal.items).toMatchObject([
+      { msrp: 0, each: 0, extended: 0, freight: 0, install: 0 },
+    ]);
+    expect([proposal.totalFreight, proposal.totalInstall]).toEqual([0, 0]);
+    expect(proposal.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
+  });
+
+  it("Hunter Douglas: freight charges that each read, but overflow when added, total 0", () => {
+    const huge = `${"9".repeat(308)}.00`;
+    const proposal = parseHDProposalText(
+      [`Freight Charges : ${huge}`, `Freight Charges : ${huge}`].join("\n"),
+    );
+    expect(proposal.totalFreight).toBe(0);
+  });
+
+  it("Z Supply: a pack count that overflows once multiplied leaves the item out, named", () => {
+    // 308 digits still read as a number; a pack of 2 of a size doubles it past 1.8e308.
+    const invoice = parseZSupplyText(
+      [
+        "ZT100001BLKEasy Rib Tank Black",
+        "A    B    C    D    E    F   XS    S    M    L   XL",
+        `${"9".repeat(308)}  48.00     48.00`,
+      ].join("\n"),
+    );
+    expect(invoice.items).toEqual([]);
+    expect(invoice.warnings.some((w) => w.startsWith("Style ZT100001"))).toBe(true);
+    expect([invoice.totalUnits, invoice.totalPrice].every(Number.isFinite)).toBe(true);
   });
 });

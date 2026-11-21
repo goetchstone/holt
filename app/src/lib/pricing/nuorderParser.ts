@@ -3,8 +3,14 @@
 // Server-only parser for NuORDER wholesale order PDFs. Extracts order
 // metadata and line items with per-size breakdowns from the text output
 // of pdf-parse. Used for apparel vendor PO imports.
+//
+// parseNuOrderText is the pure seam the PDF entry calls and the fuzz tests
+// drive. Lines and numbers are read through parseBoundary.ts (rule 42): a line
+// is cut to MAX_LINE_LENGTH, an amount that overflows reads as 0, and either is
+// reported on `warnings`.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, parseMoney, splitLines } from "./parseBoundary";
 
 export interface NuOrderSize {
   size: string;
@@ -37,13 +43,8 @@ export interface NuOrderPO {
   totalUnits: number;
   totalPrice: number;
   items: NuOrderLineItem[];
-}
-
-function parseNumber(s: string): number {
-  if (!s) return 0;
-  const cleaned = s.replace(/[,$\s]/g, "");
-  const n = Number.parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
+  /** What the parse cut or could not read, in words the buyer can act on. */
+  warnings: string[];
 }
 
 function parseSizes(line: string): NuOrderSize[] {
@@ -52,25 +53,27 @@ function parseSizes(line: string): NuOrderSize[] {
   const regex = /([A-Z0-9/]+):\s*(\d+)/gi;
   let match;
   while ((match = regex.exec(line)) !== null) {
-    sizes.push({ size: match[1], quantity: Number.parseInt(match[2], 10) });
+    sizes.push({ size: match[1], quantity: finiteInt(match[2]) });
   }
   return sizes;
 }
 
 export async function parseNuOrderPDF(buffer: Buffer): Promise<NuOrderPO> {
-  const data = await parsePdf(buffer);
-  const text: string = data.text;
-  const lines: string[] = text
-    .split("\n")
-    .map((l: string) => l.trim())
-    .filter(Boolean);
+  return parseNuOrderText((await parsePdf(buffer)).text);
+}
+
+export function parseNuOrderText(raw: string): NuOrderPO {
+  const warnings: string[] = [];
+  const text = splitLines(raw, warnings).join("\n");
 
   // Extract vendor name from the first few lines (usually the brand name)
   // NuORDER puts the brand name prominently -- look for it near the top
   let vendorName = "";
   // The vendor name typically appears after the sales rep info and before Bill to
   // We'll try to extract it from the footer: "Favorite Daughter * New York..."
-  const footerMatch = text.match(/^([A-Za-z\s]+)\s*\*\s*[A-Za-z\s]+\d{5}/m);
+  // Bounded runs: [A-Za-z\s] crosses "\n", so the per-line cut does not bound an
+  // unbounded run here. Unbounded, 50 lines of 1000 spaces took 21 s (Node 24).
+  const footerMatch = text.match(/^([A-Za-z\s]{1,80}?)\s{0,8}\*\s{0,8}[A-Za-z\s]{1,80}\d{5}/m);
   if (footerMatch) {
     vendorName = footerMatch[1].trim();
   }
@@ -124,9 +127,9 @@ export async function parseNuOrderPDF(buffer: Buffer): Promise<NuOrderPO> {
   let totalUnits = 0;
   let totalPrice = 0;
   const totalUnitsMatch = text.match(/Total\s*Units:\s*(\d+)/i);
-  if (totalUnitsMatch) totalUnits = Number.parseInt(totalUnitsMatch[1], 10);
+  if (totalUnitsMatch) totalUnits = finiteInt(totalUnitsMatch[1]);
   const totalPriceMatch = text.match(/Total\s*Price:\s*\$([\d,.]+)/i);
-  if (totalPriceMatch) totalPrice = parseNumber(totalPriceMatch[1]);
+  if (totalPriceMatch) totalPrice = parseMoney(totalPriceMatch[1]);
 
   // Parse line items
   // Each item block follows this pattern in the text:
@@ -174,7 +177,7 @@ export async function parseNuOrderPDF(buffer: Buffer): Promise<NuOrderPO> {
     // All field extraction uses forwardBlock to avoid picking up previous item data
     let msrp = 0;
     const msrpMatch = forwardBlock.match(/MSRP:\s*\$([\d,.]+)/i);
-    if (msrpMatch) msrp = parseNumber(msrpMatch[1]);
+    if (msrpMatch) msrp = parseMoney(msrpMatch[1]);
 
     let season = "";
     const seasonMatch = forwardBlock.match(/Season:\s*(.+)/i);
@@ -194,9 +197,9 @@ export async function parseNuOrderPDF(buffer: Buffer): Promise<NuOrderPO> {
     let itemTotalPrice = 0;
     const priceLineMatch = forwardBlock.match(/\$([\d,.]+)\s*(\d+)\s*\$([\d,.]+)/);
     if (priceLineMatch) {
-      unitPrice = parseNumber(priceLineMatch[1]);
-      itemTotalUnits = Number.parseInt(priceLineMatch[2], 10);
-      itemTotalPrice = parseNumber(priceLineMatch[3]);
+      unitPrice = parseMoney(priceLineMatch[1]);
+      itemTotalUnits = finiteInt(priceLineMatch[2]);
+      itemTotalPrice = parseMoney(priceLineMatch[3]);
     }
 
     // Sizes -- may be on the same line as "Sizes:" or the next line
@@ -233,5 +236,6 @@ export async function parseNuOrderPDF(buffer: Buffer): Promise<NuOrderPO> {
     totalUnits,
     totalPrice,
     items,
+    warnings,
   };
 }
