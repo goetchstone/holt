@@ -5,7 +5,10 @@
 // (rule 14). The route around it is in tags.integration.test.ts and
 // scheduledSales.integration.test.ts.
 
+import { Readable } from "node:stream";
+import type { IncomingMessage } from "node:http";
 import fc from "fast-check";
+import { parseBody } from "next/dist/server/api-utils/node/parse-body";
 import { PRINT_BATCH_MAX_ITEMS } from "@/lib/labels/batchPrintShared";
 import { readBatchPrintRequest, type BatchPrintEntry } from "@/lib/labels/batchPrintRequest";
 
@@ -19,14 +22,38 @@ function entriesOf(body: unknown): BatchPrintEntry[] {
   return read.entries;
 }
 
+/**
+ * req.body as Next's own API body parser (16.4) makes it, the parser the route
+ * runs behind: `raw` sent with `contentType`, or with none.
+ */
+function nextBody(raw: string, contentType?: string): Promise<unknown> {
+  const req = Object.assign(Readable.from(raw ? [Buffer.from(raw)] : []), {
+    headers: contentType ? { "content-type": contentType } : {},
+  });
+  return parseBody(req as unknown as IncomingMessage, "1mb");
+}
+
 describe("readBatchPrintRequest: the request", () => {
   it.each([
-    ["no body (Next gives null)", null],
+    ["a JSON body of null", null],
     ["a string body", "items"],
     ["no items", {}],
     ["empty items", { items: [] }],
     ["items that aren't an array", { items: { productId: 1 } }],
   ])("refuses %s: items are required", (_what, body) => {
+    expect(readBatchPrintRequest(body)).toEqual(ITEMS_REQUIRED);
+  });
+
+  // A POST with no body never reaches the route as null: Next's parser gives ""
+  // without a content type and {} for an empty JSON body, which the route
+  // answered 400 before it had this reader. Only the JSON literal null is null.
+  it.each([
+    ["no body and no content type", "", undefined, ""],
+    ["an empty JSON body", "", "application/json", {}],
+    ["the JSON literal null", "null", "application/json", null],
+  ])("Next reads %s as %p, and the reader refuses it", async (_what, raw, type, parsed) => {
+    const body = await nextBody(raw, type);
+    expect(body).toEqual(parsed);
     expect(readBatchPrintRequest(body)).toEqual(ITEMS_REQUIRED);
   });
 

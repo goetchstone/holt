@@ -852,8 +852,9 @@ describe("printing from receiving in a batch", () => {
     expect(none.body).toMatchObject({ results: [{ success: true }] });
   });
 
-  it("answers a POST with no body 400, and a null item fails on its own", async () => {
-    // Next gives req.body as null when nothing was sent; destructuring it was a 500.
+  it("answers a JSON body of null 400, and a null item fails on its own", async () => {
+    // req.body is null only for the JSON literal null (a POST with no body parses
+    // to "" or {}, which was already a 400); destructuring it was a 500.
     const empty = await post(batchHandler, null);
     expect(empty.statusCode).toBe(400);
     expect(empty.body).toEqual({ error: "items array is required" });

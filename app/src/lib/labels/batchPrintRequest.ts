@@ -73,8 +73,9 @@ function readItem(value: unknown): BatchPrintEntry {
 
 /**
  * The batch request, or the 400 the route answers with. Never throws: a body
- * that isn't an object reads as {} (Next gives null when none was sent), and so
- * does an item that isn't one.
+ * that isn't an object reads as {}, and so does an item that isn't one. Next
+ * parses a POST with no body to "" or {}; only a JSON body of null is null,
+ * which destructuring turned into the route's 500 until 2026-11-21.
  */
 export function readBatchPrintRequest(body: unknown): BatchPrintRequest {
   const request = asRecord(body);
