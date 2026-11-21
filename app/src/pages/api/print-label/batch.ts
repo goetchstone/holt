@@ -9,15 +9,21 @@
 // tag for each item as the single print does (printProductTag): a sale tag by the
 // store's SALE template, so a scheduled sale's tags print in one go (GAP-06 part
 // B). Without one, mode 1 picks the price tag by category, as before.
+// What the body asks for, and the 400s, are read by readBatchPrintRequest
+// (lib/labels/batchPrintRequest.ts); this looks up the store and prints.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { printLabel, printProductTag, resolveRoute, validateTagCopies } from "@/lib/labelPrinter";
-import { isProductTagKind, type ProductTagKind } from "@/lib/labels/productTag";
+import { printLabel, printProductTag, resolveRoute } from "@/lib/labelPrinter";
+import {
+  readBatchPrintRequest,
+  type BatchPrintEntry,
+  type BatchPrintResult,
+} from "@/lib/labels/batchPrintRequest";
+import type { ProductTagKind } from "@/lib/labels/productTag";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
-import { PRINT_BATCH_MAX_ITEMS as MAX_BATCH_SIZE } from "@/lib/labels/batchPrintShared";
 
 /** Print one item's tags by the mode it asks for; says which printer and template when it chose them. */
 async function printOne(args: {
@@ -43,80 +49,51 @@ async function printOne(args: {
   return { printer: route.printerName, template: route.templateName };
 }
 
+/** One item's answer: a failure read from the request as it is, or the job printed. */
+async function printEntry(
+  entry: BatchPrintEntry,
+  kind: ProductTagKind | null,
+  storeName: string | undefined,
+): Promise<BatchPrintResult> {
+  if ("result" in entry) return entry.result;
+  const { job } = entry;
+  try {
+    return {
+      productId: job.productId,
+      success: true,
+      ...(await printOne({ ...job, kind, storeName })),
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Print failed";
+    return { productId: job.productId, success: false, error: msg };
+  }
+}
+
 export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { items } = req.body;
+    const request = readBatchPrintRequest(req.body);
+    if ("error" in request) return res.status(400).json({ error: request.error });
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: "items array is required" });
-    }
-
-    if (items.length > MAX_BATCH_SIZE) {
-      return res
-        .status(400)
-        .json({ error: `Batch size exceeds maximum of ${MAX_BATCH_SIZE} items` });
-    }
-
-    const { kind } = req.body;
-    if (kind !== undefined && kind !== null && !isProductTagKind(kind)) {
-      return res.status(400).json({ error: "kind must be PRODUCT, SALE or LAW." });
-    }
-
-    const store = req.body.storeLocationId
-      ? await prisma.storeLocation.findUnique({
-          where: { id: Number(req.body.storeLocationId) },
-          select: { name: true },
-        })
-      : null;
-    if (req.body.storeLocationId && !store) {
+    const { storeLocationId } = request;
+    const store =
+      storeLocationId === null
+        ? null
+        : await prisma.storeLocation.findUnique({
+            where: { id: storeLocationId },
+            select: { name: true },
+          });
+    if (storeLocationId !== null && !store) {
       return res.status(400).json({ error: "That store doesn't exist." });
     }
 
-    const results: {
-      productId: number;
-      success: boolean;
-      printer?: string;
-      template?: string;
-      error?: string;
-    }[] = [];
-
-    for (const item of items) {
-      const { productId, templateId, printerId, copies = 1 } = item;
-
-      if (!productId) {
-        results.push({ productId, success: false, error: "productId is required" });
-        continue;
-      }
-
-      let validCopies: number;
-      try {
-        validCopies = validateTagCopies(copies);
-      } catch (err: unknown) {
-        results.push({ productId, success: false, error: (err as Error).message });
-        continue;
-      }
-
-      try {
-        results.push({
-          productId,
-          success: true,
-          ...(await printOne({
-            productId,
-            templateId,
-            printerId,
-            kind,
-            storeName: store?.name,
-            copies: validCopies,
-          })),
-        });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Print failed";
-        results.push({ productId, success: false, error: msg });
-      }
+    // One item at a time, in order.
+    const results: BatchPrintResult[] = [];
+    for (const entry of request.entries) {
+      results.push(await printEntry(entry, request.kind, store?.name));
     }
 
     const successCount = results.filter((r) => r.success).length;
@@ -125,9 +102,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       results,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal server error";
     logError("Batch print error", err);
-    return res.status(500).json({ error: message });
+    return res.status(500).json({ error: "Batch print failed" });
   }
 }
 

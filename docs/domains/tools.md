@@ -15,6 +15,13 @@ Power-user surfaces under `/tools/*` and `/admin/tools/*`. Mostly ADMIN-only or 
 | Import shortcuts            | `/tools/import/*`                       | ADMIN          | Manual triggers for individual the POS import runners                                                     |
 | Apparel Order Import        | `/app/tools/apparel-order`              | **ADMIN only** | Parse a vendor apparel order (PDF/CSV) into a draft Purchase Order + items in Buyer Drafts                |
 | Home Accessory Order Import | `/app/tools/home-accessory-order`       | **ADMIN only** | Parse a home-accessory vendor order file and create Buyer Drafts PO(s) + items directly (no CSV download) |
+| Diagnostic Lookup Tool      | `/app/admin/diagnostics/lookup-test`    | `admin.settings` page; MANAGER/ADMIN route | Look a barcode or product number up (`POST /api/diagnostics/lookup-test`)                  |
+
+**Diagnostic Lookup Tool errors** (checked against source 2026-11-21): the route answers its result
+object with `error` set: `404` when nothing matched, and `500` "An unexpected database error
+occurred." when the lookup threw, with the error logged (`logError`). Until 2026-11-21 that 500
+carried the database's own message, which the screen showed, and nothing was logged, so the
+response was the only record (rule 11; `__tests__/diagnosticsLookupTest.test.ts`).
 
 The designer-facing tools (Configurator, Create Project) are role-gated separately and are NOT the focus of this runbook — they're covered by their respective domain runbooks (`pricing-catalog.md` for Configurator, `staff-auth.md` for permissions).
 
@@ -31,6 +38,14 @@ per size/part-number) → pick the destination PO's vendor/department/category/s
 "Create Draft PO + Items" creates one `BuyerDraftPurchaseOrder` + one `BuyerDraftItem` per row in a
 single transaction (`pages/api/tools/apparel-order/commit.ts`). From there the buyer curates and
 exports exactly like any other draft via the existing Buyer Drafts workbench.
+
+**Upload refusals** (since 2026-11-21): the PDF preview (`pages/api/tools/apparel-order/preview.ts`)
+answers what the parser refuses with a 4xx from `uploadRefusal()` in `lib/secureUpload.ts`: a file
+over the PDF preset's size limit, or a second file, `413` and the limit; an empty file, `400` "The
+file is empty."; a body it can't read as a form (cut off on its way), `400`. No file, or one of a
+type the preset drops, is `400` "Upload a .pdf file." (`noFileMessage()`). Until then the parser's
+refusals failed into a 500 whose body was the parser's own message. The home-accessory preview
+below does the same with the preset its format picks.
 
 **No catalog matching**: the predecessor's version ran a second pass matching parsed rows against existing
 the POS `Product` rows (NEW vs UPDATE, style/color candidate suggestions) because its output was a
@@ -170,11 +185,15 @@ Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and ada
 
 **Flow**: upload a home-accessory vendor order file (K&K Interiors, Wendover Art Group, MarketTime/Graf & Lantz, BrandWise/Zodax, Aesthetic Movement, SuperCatSolutions, Simblist Group CSV, or Beatriz Ball) → `POST /api/tools/home-accessory-order/preview` parses it (vendor parsers already live at `lib/pricing/*OrderParser.ts`) → the buyer reviews a one-card-per-item preview (classify department/category per item, optionally split a "Set of N" line into its priced pieces, optionally apply a markup to fill Selling + MSRP) → `POST /api/tools/home-accessory-order/commit` creates the rows.
 
+**Upload refusals** (since 2026-11-21): the preview parses with the preset its format picks (`?format=`: a CSV format takes `CSV_XLSX`, the rest `PDF`) and asks `uploadRefusal(err, thatPreset)` first in its catch, so a file over that preset's size limit, or a second file, is a `413` that says the limit (50 MB or 30 MB), an empty file a `400` "The file is empty.", and a body it can't read as a form a `400`. Until then each was a 500 whose body was the parser's own message. No file, or one of a type the preset drops, is `400` naming the types it takes: "Upload a .pdf file." or "Upload a .csv, .xlsx or .xls file." (`noFileMessage(thatPreset)`).
+
 **Output mapping** (the adaptation): the composed rows group by their effective order reference — one `BuyerDraftPurchaseOrder` per distinct reference, so a vendor bundle carrying several orders (a K&K PDF can hold two) creates several draft POs in one commit ("multi-PO bundles"). Every composed row becomes exactly one `BuyerDraftItem` regardless of PO assignment; a row the buyer takes "off PO" (already ordered elsewhere) still gets created, just with `draftPoId: null`. Field mapping and the full rationale live in `lib/homeAccessoryBuyerDraftMapping.ts`. `BuyerDraftItem.source` is stamped `HOME_ACCESSORY_ORDER_IMPORT` (migration `20260722134701_home_accessory_order_source`, additive `ALTER TYPE ... ADD VALUE`).
 
 **Dropped relative to the predecessor** (see `lib/homeAccessoryRows.ts` header comment): the POS catalog-match / "adopt the catalog's existing split" flow has no holt analog — buyer drafts are pre-catalog negotiation records, not reconciled against `Product` rows at import time (a buyer who wants to link a draft to an existing catalog Product already has the barcode-lookup quick-add flow, `lib/buyerDraftFromProduct.ts`, for that). The Oversell field is also dropped — no `BuyerDraftItem` column for it.
 
 **Files**: `lib/homeAccessoryOrders.ts` (vendor registry + normalizers + split-cost math), `lib/homeAccessoryRows.ts` (row composition + split-set grouping), `lib/homeAccessoryBuyerDraftMapping.ts` (the buyer-drafts field mapping), `pages/api/tools/home-accessory-order/{preview,commit}.ts`, `app/(dashboard)/app/tools/home-accessory-order/{page.tsx,HomeAccessoryOrderView.tsx}`.
+
+**Shared helpers**: `lib/toolFileUtils.ts` holds the files-and-forms tools' client helpers (`formatUsd`, `downloadCsv`, `downloadXlsx`, `readServerError`). Its `fileSlug` had no callers and was removed on 2026-11-20; it carried the trailing-dash trim CodeQL flagged as polynomial in `slugify` (alert 68).
 
 ## Verification checklist (before touching tools code)
 

@@ -9,6 +9,7 @@
 // component), so this never ships to the browser bundle.
 
 import sanitizeHtml from "sanitize-html";
+import { CMS_EMBED_HOSTNAMES } from "./embedHosts";
 
 const OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: [
@@ -65,16 +66,8 @@ const OPTIONS: sanitizeHtml.IOptions = {
   allowedSchemes: ["http", "https", "mailto", "tel"],
   allowedSchemesByTag: { img: ["http", "https", "data"] },
   // Embeds (the embed block) are restricted to known-safe providers; any other
-  // iframe src is dropped.
-  allowedIframeHostnames: [
-    "www.youtube.com",
-    "youtube.com",
-    "www.youtube-nocookie.com",
-    "player.vimeo.com",
-    "www.google.com",
-    "maps.google.com",
-    "www.loom.com",
-  ],
+  // iframe src is dropped. The same list is the CSP's frame-src (embedHosts.ts).
+  allowedIframeHostnames: [...CMS_EMBED_HOSTNAMES],
   transformTags: {
     a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer" }),
   },

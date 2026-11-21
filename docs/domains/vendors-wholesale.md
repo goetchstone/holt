@@ -145,6 +145,12 @@ each grade's material itself, in the column header: `COM`, `COL`,
 - **One code, one material.** The tiers are keyed by code alone, so a code
   declared as both fabric and leather is refused twice: by the parser, and by
   the import schema's `superRefine`.
+- **Tier order.** `upsertDimensionTiers` writes the book's grades, adds the
+  rest of the dimension's full range (COM or COL and the extrapolated grades),
+  then rewrites `sortOrder` across every tier of the dimension, so all of them
+  end in `sortGrades` order, `sortOrder` 0 to N-1. The first pass iterates the
+  grade list the import builds itself from the validated book, by `entries()`:
+  CodeQL alert 67 read the old index loop as a user-controlled `.length`.
 - **What else the layout reads:**
   - `COM Yardage`, `Grade Riser`, and dimensions in inches;
   - one `Option: <Group> / <Name>` column per option. A cell holds Std, N/C, a

@@ -12,24 +12,30 @@ import type { File as FormidableFile } from "formidable";
 import fs from "fs";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm } from "@/lib/secureUpload";
+import {
+  createSecureForm,
+  noFileMessage,
+  uploadRefusal,
+  type UploadPresetName,
+} from "@/lib/secureUpload";
 import { pickFormFields } from "@/lib/importFormFields";
 import { logError } from "@/lib/logger";
 import { findOrCreateVendor } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: false } };
 
 const FIELD_NAMES = ["departmentId", "categoryId", "itemCategories"] as const;
+const UPLOAD: UploadPresetName = "PDF";
 
+/** The parsed form. No file when none was sent, or the preset dropped its type. */
 async function parseForm(req: NextApiRequest): Promise<{
-  file: FormidableFile;
+  file: FormidableFile | undefined;
   fields: Record<(typeof FIELD_NAMES)[number], string>;
 }> {
   return new Promise((resolve, reject) => {
-    const form = createSecureForm("PDF");
+    const form = createSecureForm(UPLOAD);
     form.parse(req, (err, rawFields, files) => {
       if (err) return reject(err);
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
-      if (!file) return reject(new Error("No file uploaded"));
       resolve({ file, fields: pickFormFields(rawFields, FIELD_NAMES) });
     });
   });
@@ -42,6 +48,7 @@ export default requirePermission(
 
     try {
       const { file, fields } = await parseForm(req);
+      if (!file) return res.status(400).json({ error: noFileMessage(UPLOAD) });
       const buffer = fs.readFileSync(file.filepath);
       const parsed = await parseZSupplyPDF(buffer);
 
@@ -250,9 +257,10 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const refused = uploadRefusal(error, UPLOAD);
+      if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("Z Supply import error", error);
-      return res.status(500).json({ error: msg || "Import failed" });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

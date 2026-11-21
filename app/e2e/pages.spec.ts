@@ -15,15 +15,23 @@
 // from e2e/dynamicRoutes.ts. A page whose module is off on this deployment is
 // skipped and says so (CI switches every module on). A page in
 // e2e/knownFailures.ts is expected to fail until its fix lands.
+//
+// Every page must also answer with one Content-Security-Policy that runs
+// scripts by nonce, with no unsafe keyword (src/proxy.ts). A script the policy
+// blocks is a console error, so a page whose scripts lost their nonce fails
+// here too. The Pages Router sign-in screens (/auth/*) are opened signed out,
+// once: Next stamps their scripts only through pages/_document.tsx, and a
+// mistake there blocks every script on them, which stops anyone signing in.
+// One more test checks /api keeps its static policy and the proxy stays off it.
 
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Response as PageResponse } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { isFeatureEnabled } from "../src/lib/featureCatalog";
 import { DYNAMIC_ROUTES } from "./dynamicRoutes";
 import { KNOWN_FAILURES } from "./knownFailures";
-import { isDynamic, moduleOf, pageRoutes } from "./pageRoutes";
+import { isDynamic, moduleOf, pageRoutes, pagesRouterRoutes } from "./pageRoutes";
 import { REDIRECTS } from "./redirects";
 import { FEATURES_FILE, type SignInName } from "./signIn";
 
@@ -65,6 +73,26 @@ function features(): Record<string, boolean> {
   return JSON.parse(readFileSync(FEATURES_FILE, "utf8")) as Record<string, boolean>;
 }
 
+/** A policy's script-src sources. */
+function scriptSources(policy: string): string[] {
+  const directive = policy
+    .split(";")
+    .map((d) => d.trim().split(/\s+/))
+    .find(([name]) => name === "script-src");
+  return directive?.slice(1) ?? [];
+}
+
+/** The page answered with one policy, and it runs scripts by nonce with no unsafe keyword. */
+async function expectNoncePolicy(response: PageResponse | null): Promise<void> {
+  const policies = (await response?.headerValues("content-security-policy")) ?? [];
+  expect(policies, "one Content-Security-Policy header").toHaveLength(1);
+  const script = scriptSources(policies[0]);
+  expect(script.join(" "), "script-src runs by nonce").toMatch(/'nonce-[A-Za-z0-9+/_-]+={0,2}'/);
+  expect(script, "script-src").toContain("'strict-dynamic'");
+  expect(script, "script-src").not.toContain("'unsafe-inline'");
+  expect(script, "script-src").not.toContain("'unsafe-eval'");
+}
+
 /** The sign-in page, where requirePage sends a visitor it does not admit. */
 const SIGN_IN = /^\/auth\/login(\/|$)/;
 
@@ -101,6 +129,7 @@ for (const route of pageRoutes()) {
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
 
     expect(response?.status(), "HTTP status").toBeLessThan(400);
+    await expectNoncePolicy(response);
     const landed = decodeURIComponent(new URL(page.url()).pathname);
     expect(landed, "redirected to sign-in").not.toMatch(SIGN_IN);
     // Where this page should land: itself, or where e2e/redirects.ts says.
@@ -118,3 +147,47 @@ for (const route of pageRoutes()) {
     expect(problems).toEqual([]);
   });
 }
+
+test.describe("Pages Router, signed out", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  for (const route of pagesRouterRoutes()) {
+    test(route, async ({ page, baseURL }, testInfo) => {
+      test.skip(
+        testInfo.project.name === "admin",
+        "signed out, every project sees the same screen; the owner project opens it",
+      );
+      const problems = watch(page, new URL(baseURL!).origin);
+      const response = await page.goto(route, { waitUntil: "load" });
+      await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+
+      expect(response?.status(), "HTTP status").toBeLessThan(400);
+      await expectNoncePolicy(response);
+      expect(decodeURIComponent(new URL(page.url()).pathname), "redirected").toBe(route);
+      const body = await page.locator("body").innerText();
+      for (const text of ERROR_SCREENS) expect(body, "error screen").not.toContain(text);
+      expect(problems).toEqual([]);
+    });
+  }
+});
+
+test("/api answers with its static policy, not a page's", async ({ request }, testInfo) => {
+  test.skip(
+    testInfo.project.name === "admin",
+    "the same for every project; the owner project checks it",
+  );
+  const response = await request.get("/api/health");
+  const policies = response
+    .headersArray()
+    .filter((h) => h.name.toLowerCase() === "content-security-policy")
+    .map((h) => h.value);
+  expect(policies, "one Content-Security-Policy header").toHaveLength(1);
+  const script = scriptSources(policies[0]);
+  expect(script, "script-src").toContain("'self'");
+  expect(
+    script.filter((s) => s.startsWith("'nonce-")),
+    "a nonce: the proxy ran on /api",
+  ).toEqual([]);
+  expect(script, "script-src").not.toContain("'unsafe-inline'");
+  expect(script, "script-src").not.toContain("'unsafe-eval'");
+});

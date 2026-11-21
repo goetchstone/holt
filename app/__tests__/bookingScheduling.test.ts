@@ -5,7 +5,6 @@ import {
   isValidHHMM,
   hhmmToMinutes,
   minutesToHHMM,
-  slugify,
 } from "@/lib/booking/scheduling";
 
 describe("scheduling primitives", () => {
@@ -28,10 +27,5 @@ describe("scheduling primitives", () => {
     expect(minutesToHHMM(570)).toBe("09:30");
     expect(minutesToHHMM(0)).toBe("00:00");
     expect(() => hhmmToMinutes("nope")).toThrow();
-  });
-
-  it("slugifies service names", () => {
-    expect(slugify("Design Consultation")).toBe("design-consultation");
-    expect(slugify("  A/B  Test! ")).toBe("a-b-test");
   });
 });

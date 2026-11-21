@@ -286,7 +286,29 @@ by the owner:
 - Custom-role holders get only DESIGNER on enum-gated routes until PERM-01 moves
   the pages onto permissions. That is the owner's chosen trade-off.
 
+**The same rule decides two other doors to the same power** (2026-11-20). Both
+sat behind `staff.manage` alone, which People Operations and the General
+Manager hold:
+
+- **Setting a password** (`POST /api/admin/staff/[id]/set-password`). With
+  local sign-in on, whoever sets a password can sign in as that person, so it
+  is assigning their role: `passwordRefusalFor` admits an ADMIN or SUPER_ADMIN,
+  and a member in the owner tier only to a SUPER_ADMIN. It judges the member's
+  current role (the linked Role row, else the built-in row for their enum).
+- **Changing what a role can do** (`POST /api/admin/roles`, `PUT` and `DELETE
+  /api/admin/roles/[id]`). Editing a role's grants reaches everyone who holds
+  it, the editor included: `roleEditRefusalFor` admits an ADMIN or SUPER_ADMIN,
+  and only a SUPER_ADMIN may grant or revoke an `OWNER_ONLY_PERMISSIONS` key,
+  create a role holding one (cloning the Owner included), or delete a role that
+  holds one. Keeping an owner-granted key while changing other grants is not
+  moving it. The check runs inside the write's transaction, against the grants
+  it re-reads there. Reading roles (`GET`) stays on `staff.manage`: the Staff
+  screen's role picker needs the list.
+- The Roles screen does not yet mark owner-only keys, so an ADMIN who ticks one
+  sees the server's refusal, which names it.
+
 → `__tests__/integration/staffRoleAssignment.integration.test.ts`,
+`__tests__/integration/ownerTierEscalation.integration.test.ts`,
 `__tests__/roleAssignment.test.ts`
 
 ## The `isDesigner` flag — report inclusion, not auth (added 2026-05-29)
@@ -385,7 +407,7 @@ staff whose enum is MANAGER but whose role is another lose it.
 
 Every App Router page calls `await requirePage()` (`lib/auth/requirePage.ts`) in its server component. Most gate on a capability via `requirePage(undefined, { permission })`: 176 page files did on 2026-10-29. The rest pass a POSITIONAL role list, `requirePage(["MANAGER", "ADMIN"])`. Which key each page answers to is the page access manifest `PAGE_ACCESS` in `lib/auth/pagePermissions.ts`, one entry per page; `__tests__/pagePermissions.test.ts` fails on a page with no entry, or one whose entry disagrees with the guard the page calls. (This paragraph said "four pages" until 2026-10-29, long after the manifest moved most of them.) Settings → Payment Types (`admin/setup/payment-types`) answers to `admin.settings`, the key its API `/api/tenders` writes with. The purchase-order list and detail pages left their role list (MANAGER/ADMIN/WAREHOUSE) for `purchasing.read` on 2026-10-30 (GAP-01), the key their routes were already on, so a Buyer can open the POs they write. The same day, Receive moved from `purchasing.write` to `purchasing.receive`, the key its receive route uses (`docs/domains/purchasing.md`). `requirePage` resolves through the same `decideRoleAccess`/`resolvePermissionAccess` helpers as the API guards. The bootstrap safeguard skips role enforcement until at least one active signed-in privileged user (SUPER_ADMIN/ADMIN/MANAGER) exists.
 
-The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens.
+The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens. Their scripts run only because `pages/_document.tsx` passes the request's nonce to `<Head>` and `<NextScript>`: every page carries a nonce Content-Security-Policy (`src/proxy.ts`, `docs/DECISIONS.md` entry 62), Next stamps the Pages Router's scripts from those props alone, and without them every script on the sign-in screens is blocked and nobody can sign in. The browser page sweep opens the three screens signed out (`e2e/pages.spec.ts`).
 
 ## A session whose user is gone (2026-10-17)
 
@@ -637,7 +659,7 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `__tests__/trpcProcedureAuthorization.test.ts` -- the tRPC manifest (see "tRPC procedure manifest")
 - `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role
 - `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie
-- `pages/api/admin/roles/` -- Roles GUI's REST contract, gated on `staff.manage`
+- `pages/api/admin/roles/` -- Roles GUI's REST contract, gated on `staff.manage`; its writes also take `roleEditRefusalFor` (admins only; owner-only keys by an owner)
 - `lib/upboard.ts` -- up-board rotation logic
 - `app/(dashboard)/app/admin/setup/roles/` -- build and edit roles (page gate: ADMIN)
 

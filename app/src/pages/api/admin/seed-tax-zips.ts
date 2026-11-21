@@ -56,9 +56,8 @@ export default requirePermission(
         skipped,
       });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to seed zip codes";
       logError("Seed tax zips error", error);
-      return res.status(500).json({ error: message });
+      return res.status(500).json({ error: "Failed to seed zip codes" });
     }
   },
 );
