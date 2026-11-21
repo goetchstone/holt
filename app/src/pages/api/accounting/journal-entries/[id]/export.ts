@@ -1,4 +1,8 @@
 // /app/src/pages/api/accounting/journal-entries/[id]/export.ts
+//
+// One journal entry as a file for the accounting package: tab-delimited by
+// default (its General Journal import), or CSV with ?format=csv. The rows are
+// built by journalEntryFileRows in lib/quickbooksExport.ts, pure and tested.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -8,18 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { logError } from "@/lib/logger";
-
-function formatDate(d: Date): string {
-  const mm = (d.getMonth() + 1).toString().padStart(2, "0");
-  const dd = d.getDate().toString().padStart(2, "0");
-  const yyyy = d.getFullYear().toString();
-  return `${mm}/${dd}/${yyyy}`;
-}
-
-function formatAmount(n: number): string {
-  if (n === 0) return "";
-  return n.toFixed(2);
-}
+import { formatJournalDate, journalEntryFileRows, tabDelimited } from "@/lib/quickbooksExport";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -50,40 +43,36 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (!entry) return res.status(404).json({ error: "Journal entry not found" });
 
-    const dateStr = formatDate(entry.journalDate);
-    const dateParts = dateStr.replace(/\//g, "");
+    const rows = journalEntryFileRows({
+      journalNumber: entry.journalNumber,
+      journalDate: entry.journalDate,
+      lines: entry.lines.map((l) => ({
+        accountCode: l.glAccount.code,
+        accountName: l.glAccount.name,
+        memo: l.memo,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+      })),
+    });
+    const fileDate = formatJournalDate(entry.journalDate).replace(/\//g, "");
 
     if (format === "csv") {
-      const header = ["Journ #", "Date", "Memo", "Accnt #", "Debit", "Credit"];
-      const rows = entry.lines.map((l) => {
-        const debit = formatAmount(Number(l.debit));
-        const credit = formatAmount(Number(l.credit));
-        return [entry.journalNumber, dateStr, l.memo, l.glAccount.code, debit, credit];
-      });
-
       // CRLF rows; a newline inside a quoted memo is kept as it is.
-      const body = crlfCsv([header, ...rows]);
+      const body = crlfCsv(rows);
 
       await auditLog("DATA_EXPORTED", auditActor(session), {
         summary: `Journal entry ${id} exported`,
       });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="GenJrnl${dateParts}.csv"`);
+      res.setHeader("Content-Disposition", `attachment; filename="GenJrnl${fileDate}.csv"`);
       return res.status(200).send(body);
     }
 
     // Default: tab-delimited (matches the accounting package's GenJrnl import format)
-    const header = "Journ #\tDate\tMemo\tAccnt #\tDebit\tCredit";
-    const rows = entry.lines.map((l) => {
-      const debit = formatAmount(Number(l.debit));
-      const credit = formatAmount(Number(l.credit));
-      return `${entry.journalNumber}\t${dateStr}\t${l.memo}\t${l.glAccount.code}\t${debit}\t${credit}`;
-    });
-
-    const body = [header, ...rows].join("\r\n") + "\r\n";
+    const body = tabDelimited(rows);
 
     res.setHeader("Content-Type", "text/tab-separated-values; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="GenJrnl${dateParts}.txt"`);
+    res.setHeader("Content-Disposition", `attachment; filename="GenJrnl${fileDate}.txt"`);
     return res.status(200).send(body);
   } catch (err) {
     logError("GET /accounting/journal-entries/[id]/export error", err);

@@ -6,8 +6,10 @@
 // every other value byte-identical. See csvExportManifest.test.ts for the
 // coverage of producers.
 
+import Papa from "papaparse";
 import { neutraliseFormulaCell, neutraliseRow, rowsToCsv } from "../src/lib/csv";
 import { csvCell, csvRow } from "../src/lib/csvExport";
+import { journalEntryFileRows } from "../src/lib/quickbooksExport";
 
 const PAYLOADS = [
   '=HYPERLINK("http://x","y")',
@@ -101,5 +103,48 @@ describe("crlfCsv (journal-entry export)", () => {
   it("neutralises a formula cell and leaves a plain negative amount alone", () => {
     const { crlfCsv } = jest.requireActual("@/lib/csvExport");
     expect(crlfCsv([["=SUM(A1:A2)", "-12.50", -3]])).toBe("'=SUM(A1:A2),-12.50,-3\r\n");
+  });
+
+  // Bytes alone don't say a file imports. This reads the export back with a real
+  // CSV parser: every cell returns as written, except that text starting with a
+  // trigger gains exactly one leading ' (never an amount, number, code or date).
+  it("reads back cell for cell, as the journal-entry export writes it", () => {
+    const { crlfCsv } = jest.requireActual("@/lib/csvExport");
+    const memos = [
+      'Say "hi"',
+      "Cash, card",
+      "two\r\nlines",
+      "one\nline",
+      "-Refund",
+      "=SUM(A1:A2)",
+      "-12.50",
+    ];
+    const rows: string[][] = journalEntryFileRows({
+      journalNumber: "SJ20260501",
+      journalDate: new Date("2026-05-01T00:00:00.000Z"),
+      lines: memos.map((memo) => ({
+        accountCode: "1-1006",
+        accountName: "Cash",
+        memo,
+        debit: 1000,
+        credit: 0,
+      })),
+    });
+    const back = Papa.parse<string[]>(crlfCsv(rows), { newline: "\r\n", skipEmptyLines: true });
+
+    expect(back.errors).toEqual([]);
+    expect(back.data.map((cells) => cells[2])).toEqual([
+      "Memo",
+      'Say "hi"',
+      "Cash, card",
+      "two\r\nlines",
+      "one\nline",
+      "'-Refund",
+      "'=SUM(A1:A2)",
+      "-12.50",
+    ]);
+    const notMemo = (cells: string[]) => [cells[0], cells[1], cells[3], cells[4], cells[5]];
+    expect(back.data.map(notMemo)).toEqual(rows.map(notMemo));
+    expect(back.data[1]).toEqual(["SJ20260501", rows[1][1], 'Say "hi"', "1-1006", "1000.00", ""]);
   });
 });

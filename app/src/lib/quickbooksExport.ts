@@ -76,3 +76,40 @@ export function journalEntriesToRows(
   }
   return rows;
 }
+
+/** The per-entry export's columns, in both its formats. */
+const ENTRY_FILE_HEADERS = ["Journ #", "Date", "Memo", "Accnt #", "Debit", "Credit"];
+
+/**
+ * One journal entry as the per-entry export writes it
+ * (pages/api/accounting/journal-entries/[id]/export.ts): the header, then a row
+ * per line. Its date is formatJournalDate's, from the UTC parts the journal's
+ * day is stored in; the route read local parts until 2026-11-21, so on a server
+ * west of UTC every line, and the file name, came out a day early.
+ */
+export function journalEntryFileRows(entry: JournalEntryInput): string[][] {
+  const date = formatJournalDate(entry.journalDate);
+  return [
+    [...ENTRY_FILE_HEADERS],
+    ...entry.lines.map((line) => [
+      entry.journalNumber,
+      date,
+      line.memo,
+      line.accountCode,
+      formatJournalAmount(line.debit),
+      formatJournalAmount(line.credit),
+    ]),
+  ];
+}
+
+/**
+ * Rows as tab-delimited text with CRLF line ends: the per-entry export's default,
+ * the format the accounting package imports. The format has no quoting, so a tab
+ * inside a cell would split it and a CR or LF would end the row; each run of them
+ * becomes one space. A memo is written raw otherwise: no formula prefix, which
+ * would be imported into the books as part of the memo (accounting.md).
+ */
+export function tabDelimited(rows: readonly (readonly string[])[]): string {
+  const cell = (text: string) => text.replace(/[\t\r\n]+/g, " ");
+  return rows.map((cells) => cells.map(cell).join("\t")).join("\r\n") + "\r\n";
+}
