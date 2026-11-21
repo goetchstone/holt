@@ -176,6 +176,8 @@ Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and ada
 
 **Files**: `lib/homeAccessoryOrders.ts` (vendor registry + normalizers + split-cost math), `lib/homeAccessoryRows.ts` (row composition + split-set grouping), `lib/homeAccessoryBuyerDraftMapping.ts` (the buyer-drafts field mapping), `pages/api/tools/home-accessory-order/{preview,commit}.ts`, `app/(dashboard)/app/tools/home-accessory-order/{page.tsx,HomeAccessoryOrderView.tsx}`.
 
+**Shared helpers**: `lib/toolFileUtils.ts` holds the files-and-forms tools' client helpers (`formatUsd`, `downloadCsv`, `downloadXlsx`, `readServerError`). Its `fileSlug` had no callers and was removed on 2026-11-20; it carried the trailing-dash trim CodeQL flagged as polynomial in `slugify` (alert 68).
+
 ## Verification checklist (before touching tools code)
 
 - [ ] Query Builder: any new ENTITY added to the config has its columns AND joins explicitly allowlisted, and states who counts in its totals. `__tests__/queryBuilderConfig.test.ts` checks every name against the schema

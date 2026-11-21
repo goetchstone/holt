@@ -613,6 +613,7 @@ app/src/lib/savedRecord.ts|-|generic add-or-edit form helper used by many screen
 app/src/lib/toastError.ts|-|generic error-toast helper used by many screens
 app/src/lib/csv.ts|-|generic CSV parsing helper
 app/src/lib/csvExport.ts|-|generic CSV writer helper
+app/src/lib/slugify.ts|-|generic URL slug helper
 app/src/lib/excelUtils.ts|-|generic spreadsheet helper
 app/src/lib/dateUtils.ts|-|generic date helpers
 app/src/lib/money.ts|-|generic money arithmetic helpers
