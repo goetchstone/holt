@@ -1,7 +1,7 @@
 // /app/src/pages/api/accounting/gl-accounts/[id].ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -103,4 +103,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+// Editing and removing a GL account is chart-of-accounts setup: the Chart of
+// Accounts screen's key, or "Set up the chart of accounts", which Managers hold
+// (they made these writes by API under the old MANAGER/ADMIN list). Reading one
+// takes the list's read keys (index.ts).
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    return requirePermission(
+      { anyOf: ["admin.config", "accounting.chart.manage", "accounting.read"] },
+      handler,
+    )(req, res);
+  }
+  return requirePermission({ anyOf: ["admin.config", "accounting.chart.manage"] }, handler)(
+    req,
+    res,
+  );
+}

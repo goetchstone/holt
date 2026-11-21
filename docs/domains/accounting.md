@@ -93,6 +93,29 @@ seen — plus the configured labels matching nothing, which is usually the other
 half of the same rename. It reports and does not guess: inferring a GL account
 from a tender string is how money lands in the wrong account.
 
+### Who may change the chart (2026-11-21)
+
+The Chart of Accounts screen (`/app/admin/setup/accounting`) opens on Manage
+configuration (`admin.config`). Its five APIs (`api/accounting/gl-accounts`,
+`gl-accounts/[id]`, `account-groups`, `account-groups/[id]` and
+`system-gl-mappings`) were on a MANAGER/ADMIN role list, which let Managers
+change the chart by API although the screen refused them. They now gate per
+method:
+
+- **Writes** (add, edit and delete accounts and groups; point a mapping at an
+  account) take Manage configuration or "Set up the chart of accounts"
+  (`accounting.chart.manage`). That key is on for Manager, so the Owner,
+  Administrator and Manager keep exactly what the list gave them. Whether the
+  screen moves to the key, or the writes drop it, is the owner's call.
+- **Reads** also take View accounting (`accounting.read`), which adds General
+  Manager. The account-group list also takes Edit catalog (`catalog.write`): it
+  fills the Account Group picker on the category editor, which catalog editors
+  open, as `/api/tax/groups` fills the Tax Group picker beside it. The GL-account
+  list's other reader is the tax district editor on the Tax screen
+  (`admin.config`).
+
+`__tests__/accountingBillingGates.test.ts` pins who gets through each method.
+
 ### `TaxDistrict`
 
 Has its own `glAccountId` field. `2-2120` for the home-state district in the seeded chart of accounts. New districts get
@@ -185,7 +208,7 @@ Distinct from the JE pipeline above. The JE flows MONEY into the GL; the ledger 
 - Source-of-truth back-references: `salesOrderId`, `paymentId`, `invoiceId` (all nullable). Reports drill back through these to the originating event.
 - Pure helpers: `computeRunningBalance(entries)` re-derives the balance from a chronologically ordered list (exercised by the ledger tests and the books-reconcile integration test, not by the drift cron); `validateAgainstSource(ledger, source)` compares ledger-derived balance to `paymentService.computeBalance` summed across the customer's orders, with `LEDGER_TOLERANCE = 0.005` (half-cent). Both pure helpers tested in `__tests__/customerLedger.test.ts`.
 
-Phase rollout: 0.5.1 (schema) shipped 2026-05-07. 0.5.2 (helper + tests) shipped same day. 0.5.3 (backfill from existing Payment + SalesOrder data) shipped 2026-05-08 via `POST /api/admin/customer-ledger/backfill` — still needs to be triggered on prod manually. 0.5.4 (forward-flow wiring) shipped 2026-05-12. 0.5.5 (daily AR-drift cron) shipped 2026-05-12 — `POST /api/automations/customer-ar-drift-check` walks customers with payment/ledger activity in the last 26 hours, recomputes their source-of-truth balance via `computeSourceBalance`, compares to stored `openArBalance` via `validateAgainstSource` (LEDGER_TOLERANCE 0.005). Scheduled by "Customer balance check" at Admin → Automations, 4 AM by default.sh` flags the disagreement. 0.5.6 (admin dashboard) shipped 2026-05-13. **0.5.7 (hand-pick customer validation) shipped 2026-05-13** — same endpoint now accepts `?customerIds=1,2,3` to validate explicit customers regardless of recent activity. Admin page has a mode toggle between "By recent activity" and "Specific customer IDs." Use the hand-pick mode for the pre-cutover validation pass (mix of long-time regulars, customers with deposits, refund chains, gift-card buyers — compare each to the POS's reported balance). With 0.5.7 the Phase 0.5 stack is complete; cutover-readiness now depends on running the validation pass and resolving any unexplained drift.
+Phase rollout: 0.5.1 (schema) shipped 2026-05-07. 0.5.2 (helper + tests) shipped same day. 0.5.3 (backfill from existing Payment + SalesOrder data) shipped 2026-05-08 via `POST /api/admin/customer-ledger/backfill` — still needs to be triggered on prod manually. It and `GET /api/admin/customer-ledger/customer-ids` take Change settings (`admin.settings`), the key of their one screen, `/app/admin/tools/customer-ledger-backfill`; they were on Post journals until Managers were given that key (2026-11-21, below). 0.5.4 (forward-flow wiring) shipped 2026-05-12. 0.5.5 (daily AR-drift cron) shipped 2026-05-12 — `POST /api/automations/customer-ar-drift-check` walks customers with payment/ledger activity in the last 26 hours, recomputes their source-of-truth balance via `computeSourceBalance`, compares to stored `openArBalance` via `validateAgainstSource` (LEDGER_TOLERANCE 0.005). Scheduled by "Customer balance check" at Admin → Automations, 4 AM by default.sh` flags the disagreement. 0.5.6 (admin dashboard) shipped 2026-05-13. **0.5.7 (hand-pick customer validation) shipped 2026-05-13** — same endpoint now accepts `?customerIds=1,2,3` to validate explicit customers regardless of recent activity. Admin page has a mode toggle between "By recent activity" and "Specific customer IDs." Use the hand-pick mode for the pre-cutover validation pass (mix of long-time regulars, customers with deposits, refund chains, gift-card buyers — compare each to the POS's reported balance). With 0.5.7 the Phase 0.5 stack is complete; cutover-readiness now depends on running the validation pass and resolving any unexplained drift.
 
 ### State machine
 
@@ -201,9 +224,11 @@ DRAFT  ──▶  POSTED  ──▶  EXPORTED
   - The DB constraint `JournalEntry_balanced_check` does **not** cover this: it compares the header's `totalDebits`/`totalCredits` columns, so a header disagreeing with its own lines satisfies it. Both guards are needed.
 - **EXPORTED**: written out to QB. Once exported, the underlying `SalesOrder` and `Payment` rows for that date should be locked (period-lock enforcement is B4/C5 in the SOR plan).
 
+**Who moves an entry (2026-11-21).** `GET /api/accounting/journal-entries/[id]` (open one) takes View accounting (`accounting.read`), the key of the Journal Entries screen and of its list, generate, reconcile and per-entry export routes. `PUT` (post, mark exported) and `DELETE` (a draft) take Post journals (`accounting.post`). These replaced a MANAGER/ADMIN role list, so Manager was given Post journals to keep posting the daily journal; General Manager, who held both keys but was refused by the list, gains all three. The other routes that took Post journals moved to their screens' key, Change settings, so the grant opens nothing else to Managers: the date-range export (below) and the customer-ledger backfill (above). A transition the rules refuse still answers PUT with a generic 500, not the 4xx the route's comment promises (rule 11): `JournalTransitionError` is imported but never mapped.
+
 ## Journal-entry generation flow
 
-Entry point: `generateSalesJournal(date, createdBy?, storeLocation?)` in `lib/journalEntry.ts` — positional arguments, and there is no `journalNumber` override. Called from `/api/accounting/journal-entries/generate.ts` (POST, gated by `requireAuthWithRole(["MANAGER", "ADMIN"])`) when an admin clicks "Generate JE for date X." `index.ts` is the GET list route and does not generate.
+Entry point: `generateSalesJournal(date, createdBy?, storeLocation?)` in `lib/journalEntry.ts` — positional arguments, and there is no `journalNumber` override. Called from `/api/accounting/journal-entries/generate.ts` (POST, gated on View accounting, `requirePermission("accounting.read")`) when an admin clicks "Generate JE for date X." `index.ts` is the GET list route and does not generate.
 
 ### Pipeline
 
@@ -703,7 +728,7 @@ Closes Phase 0 control C1. Daily check that the JE generated for a day matches t
 | Pure compute helper  | `app/src/lib/dailyReconciliation.ts` — `computeDailyReconciliation({date, client})` |
 | Cron endpoint        | `app/src/pages/api/automations/daily-reconciliation.ts` (POST, Bearer or NextAuth)  |
 | Scheduled by         | "Daily reconciliation" at Admin → Automations (`docs/domains/automations.md`)       |
-| Admin UI             | `/app/admin/automations/daily-reconciliation` (MANAGER/ADMIN via `requirePage`)     |
+| Admin UI             | `/app/admin/automations/daily-reconciliation` (Change settings via `requirePage`)   |
 | Recent-logs endpoint | `app/src/pages/api/admin/automations/daily-reconciliation/recent.ts`                |
 | Audit log            | `DailyReconciliationLog` table (one row per day per run)                            |
 
@@ -727,7 +752,7 @@ Each reconciliation pass writes a NEW `DailyReconciliationLog` row. A re-run of 
 ### Auth model
 
 - **Bearer-token auth** via `AUTO_IMPORT_API_KEY` env var (same key the source-import cron uses) — for unattended cron runs.
-- **NextAuth session auth** — for manual admin-UI triggers. **No role gate on the endpoint**: `isAuthorized` accepts any session carrying a `user.email`. The admin page is MANAGER/ADMIN via `requirePage`, and the JE generate endpoint is gated by `requireAuthWithRole(["MANAGER", "ADMIN"])`, but this endpoint is not.
+- **NextAuth session auth** — for manual admin-UI triggers. The endpoint is wrapped in `guardAutomation` (`lib/automations/guardAutomation.ts`), so a session must hold "Run scheduled jobs" (`admin.automations`); the Bearer key is the only other way in. The admin page opens on Change settings (`admin.settings`) via `requirePage`, and the JE generate endpoint on View accounting (`accounting.read`).
 
 ### Why this matters
 
@@ -761,6 +786,7 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
 | `__tests__/integration/generateSalesJournal.integration.test.ts`      | A (Postgres)                               | `generateSalesJournal` end-to-end — 14 scenarios: happy-path balanced JE, B1 cancelled-line filter against real rows, B3 sale-in-reverse signed amounts (unclassified default), B3 mixed-sign per-order, B3 large-dollar precision, **B3 classified `WRITTEN_OFF` Return debits the shrinkage GL** (added 2026-07-24), **B3 classified `RESTOCKED` Return books identically to the default** (added 2026-07-24), idempotency, refusal on POSTED, empty day, **`Payment.isRefund` sign normalization — native refund credits cash, imported refund isn't double-negated, isRefund:false unchanged, same-day sale+native-refund+imported-refund nets correctly and still balances** (added 2026-08-01, fix/refund-sign-in-journal). Added 2026-04-30 (PR #189, pre-squash repo numbering — historical reference only). |
 | `__tests__/unclassifiedReturns.test.ts`                               | A (pure)                                   | `buildUnclassifiedReturnsRows` + `explainUnclassified` — row selection (includes no-Return-record and not-yet-classified lines, excludes classified restock/writeoff), multi-line-per-order product matching, missing-customer/store fallbacks, sort + totals. Reuses `matchReturnForLine`/`resolveReturnBookingPath` from `lib/journalEntry.ts` so the report can never disagree with what the JE actually booked. Added 2026-07-24 (B3).                                                                                                                                                                                                                                                                                                                                                                           |
 | `__tests__/integration/paymentDeleteImmutability.integration.test.ts` | A (Postgres)                               | B6 trigger behavior end-to-end — 9 scenarios: PENDING/FAILED/NULL deletes succeed, COMPLETED/REFUNDED/VOIDED deletes blocked, exception message shape, transaction rollback on sibling delete, deleteMany atomicity. Replaces the deleted source-text tripwire. PR-pending, 2026-04-30.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `__tests__/accountingBillingGates.test.ts`                            | B (real gates, mocked SQL, placeholder)    | Who gets through each chart-of-accounts, journal-entry, export, backfill, invoice and payment-link route and billing procedure, per built-in role and for a store role holding one key. |
 | `__tests__/reports.cancelledLineFilter.test.ts`                       | B-                                         | Source-text tripwires: every aggregation site filters CANCELLED lines (reports + accounting).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `__tests__/quoteArchive.test.ts`                                      | A                                          | Server-side archive validation (touches the financial path indirectly via `SalesOrder.status` transitions).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
@@ -805,7 +831,10 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
 Holt keeps the general ledger but does not close the books: there is no P&L,
 balance sheet, accounts payable or payroll here. `JournalEntry` carries an
 `EXPORTED` status for the handoff, and `GET /api/accounting/export-journal`
-produces the file.
+produces the file. It takes Change settings (`admin.settings`), the key of its
+one screen, `/app/admin/export/data`. It took Post journals until Managers were
+given that key to keep posting the daily journal (2026-11-21); a single entry's
+export (`journal-entries/[id]/export.ts`) is View accounting.
 
 ```bash
 /api/accounting/export-journal?from=2026-01-01&to=2026-01-31&format=standard

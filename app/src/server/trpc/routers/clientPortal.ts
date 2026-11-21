@@ -1,21 +1,21 @@
 // /app/src/server/trpc/routers/clientPortal.ts
 //
 // Staff-side surface for the consultancy client portal: generate a
-// customer's tokenized hub link (MANAGER/ADMIN — the link exposes invoices
-// and appointment history). Gated on the `clientPortal` feature.
+// customer's tokenized hub link. The link exposes invoices and appointment
+// history, and its one caller is Copy Portal Link on the invoice detail, so it
+// takes the Invoices screens' key, "Bill customers directly"
+// (accounting.invoice). Gated on the `clientPortal` feature.
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/lib/prisma";
 import { router } from "../trpc";
-import { roleProcedure } from "../trpc";
+import { permissionProcedure } from "../trpc";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { generateClientPortalToken } from "@/lib/clientPortalToken";
 
-const PORTAL_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
-
 export const clientPortalRouter = router({
-  generateLink: roleProcedure(PORTAL_ROLES)
+  generateLink: permissionProcedure("accounting.invoice")
     .input(z.object({ customerId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       if (!(await isModuleEnabled("clientPortal"))) {

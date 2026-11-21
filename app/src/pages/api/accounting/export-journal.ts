@@ -5,7 +5,9 @@
 // (?format=quickbooks|xero|sage|standard; QuickBooks by default, and `standard`
 // is the plain double-entry shape that imports anywhere). The anti-lock-in promise extends to the books:
 // an operator can hand their accountant a clean journal any time, no support
-// ticket. ADMIN only (financial data).
+// ticket. Change settings (admin.settings), the key of its one screen,
+// /app/admin/export/data: Post journals would also open it to Managers, who
+// hold that key to post the daily journal.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
@@ -25,7 +27,7 @@ function parseDateParam(value: unknown): Date | null {
 }
 
 export default requirePermission(
-  "accounting.post",
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "GET") {
       return res.status(405).json({ error: "Method not allowed" });

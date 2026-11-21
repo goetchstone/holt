@@ -49,8 +49,8 @@ jest.mock("@/lib/email/queue", () => ({
   enqueueAndSend: jest.fn(async () => undefined),
 }));
 jest.mock("@/lib/auth/requireAuth", () => ({
-  requireAuthWithRole:
-    (_roles: string[], handler: (req: unknown, res: unknown, session: unknown) => unknown) =>
+  requirePermission:
+    (_permission: unknown, handler: (req: unknown, res: unknown, session: unknown) => unknown) =>
     (req: unknown, res: unknown) =>
       handler(req, res, { user: { email: "manager@example.com" } }),
 }));

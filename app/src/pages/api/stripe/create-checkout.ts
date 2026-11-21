@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import {
   calculateOrderBalance,
@@ -80,4 +80,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+// Starting a card payment on an order is taking payment, the key recording an
+// order payment takes (sales/orders/[id]/payments.ts).
+export default requirePermission("payment.take", handler);
