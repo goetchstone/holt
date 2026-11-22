@@ -2,7 +2,6 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import NextAuth, { NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { LAST_SEEN_THROTTLE_MS } from "@/lib/loginActivity";
 import {
@@ -12,6 +11,8 @@ import {
   hasNoPrivilegedStaff,
 } from "@/lib/auth/authProviders";
 import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
+import { recordSignInLink, signInAccountsAdapter } from "@/lib/auth/signInAccounts";
+import { startFreshOAuthSignIn } from "@/lib/auth/freshOAuthSignIn";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logger } from "@/lib/logger";
 import { getAppSettings } from "@/lib/appSettings";
@@ -22,7 +23,9 @@ import {
 } from "@/lib/auth/sessionToken";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // PrismaAdapter, with the write that joins a sign-in to a person refused onto
+  // anyone a staff member already signs in as (lib/auth/signInAccounts.ts).
+  adapter: signInAccountsAdapter(),
 
   // In production NextAuth issues __Secure- cookies over HTTPS automatically;
   // set it explicitly so the intent is visible and a misread NODE_ENV can't
@@ -203,6 +206,10 @@ export const authOptions: NextAuthOptions = {
     },
   },
 
+  // Every Account joined to a User goes on the audit trail. NextAuth 4 never
+  // calls unlinkAccount, and nothing in Holt does either.
+  events: { linkAccount: recordSignInLink },
+
   secret: process.env.NEXTAUTH_SECRET,
 };
 
@@ -222,5 +229,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
   const providers = await buildAuthProvidersAsync();
+  // An OAuth sign-in is a fresh sign-in as whoever the OAuth identity belongs
+  // to: NextAuth must not see the session cookie, or it joins the new account to
+  // whoever is signed in at this browser (lib/auth/freshOAuthSignIn.ts).
+  startFreshOAuthSignIn(req, res, (id) => providers.find((p) => p.id === id)?.type);
   return NextAuth(req, res, { ...authOptions, providers });
 }
