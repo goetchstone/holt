@@ -22,7 +22,7 @@
 // with more enum-gated access than they were meant to have -- and demoting an
 // ADMIN to a custom role really does demote them.
 
-import { StaffRole } from "@prisma/client";
+import { Prisma, StaffRole } from "@prisma/client";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { PRIVILEGED_STAFF_ROLES } from "@/lib/auth/adminLockout";
@@ -138,14 +138,34 @@ async function findTarget(roleId: unknown, role: unknown): Promise<TargetRole | 
   return null;
 }
 
+/** A client `sessionStaffMember` can read through: the app's, or a transaction's. */
+export type StaffLookupClient = Pick<Prisma.TransactionClient, "staffMember">;
+
+/**
+ * The signed-in caller's own active staff row: the one linked to the session's
+ * User id, as every gate resolves it. Null when the session carries no id, or
+ * no active row is linked to it.
+ *
+ * Never look the caller up by `StaffMember.email`. Anyone holding staff.manage
+ * can write a staff member's email, so an email-keyed lookup lets them choose
+ * whose row a session acts as -- until 2026-11-21 a General Manager who gave
+ * the Owner's row their own session email opened tills and saw the pipeline
+ * as the Owner. `__tests__/staffEmailLookupRatchet.test.ts` fails on a new one.
+ */
+export async function sessionStaffMember<S extends Prisma.StaffMemberSelect>(
+  session: Session | null | undefined,
+  select: S,
+  db: StaffLookupClient = prisma,
+): Promise<Prisma.StaffMemberGetPayload<{ select: S }> | null> {
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  if (!userId) return null;
+  const staff = await db.staffMember.findFirst({ where: { userId, isActive: true }, select });
+  return staff as Prisma.StaffMemberGetPayload<{ select: S }> | null;
+}
+
 /** The signed-in caller's own staff role, read fresh -- never from the session. */
 export async function callerStaffRole(session: Session): Promise<string | null> {
-  const userId = (session.user as { id?: string } | undefined)?.id;
-  if (!userId) return null;
-  const staff = await prisma.staffMember.findFirst({
-    where: { userId, isActive: true },
-    select: { role: true },
-  });
+  const staff = await sessionStaffMember(session, { role: true });
   return staff?.role ?? null;
 }
 

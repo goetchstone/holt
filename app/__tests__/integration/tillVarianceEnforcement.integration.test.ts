@@ -76,11 +76,29 @@ async function fixtures() {
   const register = await prisma.register.create({
     data: { name: "Front Desk", storeLocationId: store.id },
   });
+  // The handlers resolve the caller by the session's User id, so each staff
+  // row is linked to the User its session names.
+  await prisma.user.createMany({
+    data: [
+      { id: "cashier", email: "cashier@example.com" },
+      { id: "manager", email: "manager@example.com" },
+    ],
+  });
   const cashier = await prisma.staffMember.create({
-    data: { displayName: "Cashier Cass", email: "cashier@example.com", role: "REGISTER" },
+    data: {
+      userId: "cashier",
+      displayName: "Cashier Cass",
+      email: "cashier@example.com",
+      role: "REGISTER",
+    },
   });
   const manager = await prisma.staffMember.create({
-    data: { displayName: "Manager Max", email: "manager@example.com", role: "MANAGER" },
+    data: {
+      userId: "manager",
+      displayName: "Manager Max",
+      email: "manager@example.com",
+      role: "MANAGER",
+    },
   });
   const till = await prisma.till.create({
     data: {
@@ -93,8 +111,12 @@ async function fixtures() {
   return { store, register, cashier, manager, till };
 }
 
-const cashierSession = { user: { email: "cashier@example.com" } } as unknown as Session;
-const managerSession = { user: { email: "manager@example.com" } } as unknown as Session;
+const cashierSession = {
+  user: { id: "cashier", email: "cashier@example.com" },
+} as unknown as Session;
+const managerSession = {
+  user: { id: "manager", email: "manager@example.com" },
+} as unknown as Session;
 
 describe("Till variance discipline — real DB", () => {
   beforeEach(async () => {

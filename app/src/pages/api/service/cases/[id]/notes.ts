@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { created, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -17,9 +18,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (!note?.trim()) return badRequest(res, "Note text is required");
 
   try {
-    const staff = await prisma.staffMember.findFirst({
-      where: { email: session.user?.email },
-    });
+    const staff = await sessionStaffMember(session, { id: true });
 
     const caseNote = await prisma.serviceCaseNote.create({
       data: {
