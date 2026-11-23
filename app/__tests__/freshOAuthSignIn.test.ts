@@ -39,6 +39,11 @@ describe("which cookies are the session", () => {
     "__Secure-next-auth.session-token",
     "next-auth.session-token.0",
     "__Secure-next-auth.session-token.12",
+    // NextAuth's SessionStore reads every cookie whose name STARTS WITH the
+    // session cookie's (core/lib/cookie.js), so these are read as the session too.
+    "next-auth.session-tokenx",
+    "next-auth.session-token.a",
+    "__Secure-next-auth.session-token-extra",
   ])("%s is", (name) => {
     expect(isSessionCookie(name)).toBe(true);
   });
@@ -50,7 +55,6 @@ describe("which cookies are the session", () => {
     "next-auth.pkce.code_verifier",
     "next-auth.callback-url",
     "holt-impersonate",
-    "next-auth.session-tokenx",
     "x-next-auth.session-token",
   ])("%s is not", (name) => {
     expect(isSessionCookie(name)).toBe(false);

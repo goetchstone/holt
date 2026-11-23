@@ -57,8 +57,8 @@ import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
-import nextAuthHandler from "@/pages/api/auth/[...nextauth]";
-import { SignInLinkRefusedError, signInAccountsAdapter } from "@/lib/auth/signInAccounts";
+import nextAuthHandler, { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { SignInLinkRefusedError } from "@/lib/auth/signInAccounts";
 
 const SECRET = "oauth-link-test-secret-oauth-link-test-secret";
 const COOKIE = "next-auth.session-token";
@@ -263,8 +263,10 @@ describe("a Google sign-in at a browser where the Owner is signed in", () => {
 });
 
 describe("the adapter's link, whatever path reaches it", () => {
+  // Through the adapter NextAuth is actually given, so putting a plain
+  // PrismaAdapter back in authOptions fails these, not only a hand-built copy.
   const link = (userId: string, providerAccountId: string) =>
-    signInAccountsAdapter().linkAccount!({
+    authOptions.adapter!.linkAccount!({
       userId,
       type: "oauth",
       provider: "google",

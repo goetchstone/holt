@@ -31,8 +31,13 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
-/** NextAuth's session cookie, either prefix, whole or as one of its numbered pieces. */
-const SESSION_COOKIE = /^(?:__Secure-)?next-auth\.session-token(?:\.\d+)?$/;
+/**
+ * NextAuth's session cookie, either prefix. NextAuth reads as the session every
+ * cookie whose name STARTS WITH the session cookie's (core/lib/cookie.js,
+ * SessionStore), not only the whole name and its numbered pieces, so this hides
+ * by the same rule: a variant name it would still read can't slip past.
+ */
+const SESSION_COOKIE = /^(?:__Secure-)?next-auth\.session-token/;
 
 export function isSessionCookie(name: string): boolean {
   return SESSION_COOKIE.test(name);

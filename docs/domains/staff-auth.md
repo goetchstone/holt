@@ -745,8 +745,10 @@ every later sign-in with that account was the Owner. A password reset did not
 undo it, and nothing in Holt lists or removes `Account` rows.
 
 **Layer 1, the request (`lib/auth/freshOAuthSignIn.ts`).** The `[...nextauth]`
-handler hides the session cookie (`next-auth.session-token`, either prefix, and its
-numbered pieces) from NextAuth on `signin/<provider>` and `callback/<provider>` for
+handler hides the session cookie (every cookie whose name starts with
+`next-auth.session-token`, either prefix, by the rule NextAuth itself reads the
+session with: its numbered pieces and any variant name) from NextAuth on
+`signin/<provider>` and `callback/<provider>` for
 every provider except `credentials`, so NextAuth takes its not-signed-in branch:
 the sign-in is as whoever the OAuth identity belongs to. On the callback the old
 cookie is also expired in the reply, ahead of the new one NextAuth appends, since
