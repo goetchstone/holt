@@ -132,7 +132,7 @@ Without the mover flag she's 71 (still Hot). Without wealth she's 61 (Warm). Wit
 | Wealth tier | — | — | — | ✓ | ✓ |
 | Raw wealth signals | — | — | — | ✓ | ✓ |
 
-Designers see the tier but never wealth. The tier is actionable; the wealth detail is background.
+Designers see the tier but never wealth. The tier is actionable; the wealth detail is background. These are the built-in roles' starting points: the exact score comes with View marketing and wealth with See wealth data, and a store can give either to its own roles in Admin > Roles. A General Manager has View marketing too.
 
 ---
 

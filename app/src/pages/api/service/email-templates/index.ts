@@ -1,10 +1,14 @@
 // /app/src/pages/api/service/email-templates/index.ts
+//
+// The store's email templates, listed and added from Admin > Setup > Email
+// templates, their only reader. Setup: "Set up service" (service.setup), or
+// "Manage configuration", the key the screen opens on.
 
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import {
   success,
   created,
@@ -53,4 +57,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return methodNotAllowed(res, ["GET", "POST"]);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission({ anyOf: ["service.setup", "admin.config"] }, handler);

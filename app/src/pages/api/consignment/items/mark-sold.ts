@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -63,4 +63,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);
+// The item page's Mark Sold. "Transfer stock", like the page's other status
+// actions (mark-approval, mark-returned, return-from-approval).
+export default requirePermission("inventory.transfer", handler);

@@ -2,14 +2,15 @@
 
 // /app/src/app/(dashboard)/app/reports/monthly-performance/MonthlyPerformanceView.tsx
 //
-// Client view for the monthly performance report. Managers pick a salesperson;
-// everyone else is scoped to their own record server-side. Data via tRPC; the
-// server procedure resolves the effective salesperson from the session, so the
-// client name is only a hint the manager controls. Custom table because each cell
-// has bespoke conditional formatting + a salesperson-detail drilldown link.
+// Client view for the monthly performance report. A viewer who may see every
+// salesperson (canSeeAllSalespeople, decided by the server page from "See every
+// salesperson's numbers") picks one; everyone else is scoped to their own record
+// server-side. Data via tRPC; the server procedure resolves the effective
+// salesperson from the session, so the client name is only a hint that viewer
+// controls. Custom table because each cell has bespoke conditional formatting +
+// a salesperson-detail drilldown link.
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
@@ -26,21 +27,19 @@ function formatPct(value: number | null): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-export function MonthlyPerformanceView() {
+export function MonthlyPerformanceView({
+  canSeeAllSalespeople,
+}: Readonly<{ canSeeAllSalespeople: boolean }>) {
   const money = useMoneyFormatter();
   // Blank for zero so the dense grid stays readable (matches the original).
   const c = (v: number) => (v === 0 ? "" : money(v, { whole: true }));
-
-  const { data: session } = useSession();
-  const role = (session as { role?: string } | null)?.role;
-  const isManager = role === "MANAGER" || role === "ADMIN" || role === "SUPER_ADMIN";
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [selectedName, setSelectedName] = useState("");
   const [year, setYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
-    if (!isManager) return;
+    if (!canSeeAllSalespeople) return;
     fetch("/api/staff")
       .then((r) => r.json())
       .then((d) => {
@@ -52,10 +51,11 @@ export function MonthlyPerformanceView() {
         );
       })
       .catch(() => {});
-  }, [isManager]);
+  }, [canSeeAllSalespeople]);
 
-  // Managers must pick a name first; non-managers are resolved server-side.
-  const enabled = isManager ? !!selectedName : !!session;
+  // A viewer who may see everyone picks a name first; anyone else is resolved
+  // server-side (the page that rendered this view has already signed them in).
+  const enabled = canSeeAllSalespeople ? !!selectedName : true;
   const query = api.reports.monthlyPerformance.useQuery(
     { salesperson: selectedName, year },
     { enabled },
@@ -78,7 +78,7 @@ export function MonthlyPerformanceView() {
       <h1 className="text-2xl font-semibold text-brand-navy">Monthly Performance</h1>
 
       <div className="flex flex-wrap items-center gap-4">
-        {isManager && (
+        {canSeeAllSalespeople && (
           <div>
             <label htmlFor="sp" className="mb-1 block text-xs font-medium text-brand-gray">
               Salesperson
@@ -123,7 +123,7 @@ export function MonthlyPerformanceView() {
         </div>
       )}
 
-      {!loading && isManager && !selectedName && (
+      {!loading && canSeeAllSalespeople && !selectedName && (
         <p className="py-8 text-center text-sm text-brand-gray">Select a salesperson.</p>
       )}
 

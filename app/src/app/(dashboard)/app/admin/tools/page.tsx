@@ -1,11 +1,12 @@
 // /app/src/app/(dashboard)/app/admin/tools/page.tsx
 //
-// System Tools hub -- App Router port of the legacy admin/tools/index. MANAGER /
-// ADMIN (mirrors the legacy withAuth roles). Cards self-filter by role via
-// CardGrid; hrefs are unchanged so existing links keep working. Chrome from the
-// (dashboard) layout.
+// System Tools hub -- App Router port of the legacy admin/tools/index, on
+// Change settings. A card shows only to a viewer holding the key of the page it
+// opens (lib/auth/hubCards.ts); hrefs are unchanged so existing links keep
+// working. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -40,18 +41,19 @@ const ITEMS: CardGridItem[] = [
     description:
       "Phase 0.5.3 one-time job: walk every customer's order/payment history and write CustomerLedgerEntry rows. Idempotent. ADMIN only.",
     href: "/app/admin/tools/customer-ledger-backfill",
-    roles: ["ADMIN"],
   },
   {
     title: "Buyer Drafts",
     description:
       "Pre-the POS item + PO workbench. Buyer creates drafts here while specs are still in flight, then exports to the POS-format CSVs. ADMIN only.",
     href: "/app/admin/buyer-drafts",
-    roles: ["ADMIN"],
   },
 ];
 
 export default async function AdminToolsHubPage() {
-  await requirePage(undefined, { permission: "admin.settings" });
-  return <CardGrid title="System Tools" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "admin.settings",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="System Tools" items={visibleHubCards(ITEMS, holds)} />;
 }

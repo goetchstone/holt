@@ -12,7 +12,7 @@ If you only read one section, read the [How It All Fits Together](#how-it-all-fi
 
 ## 1. Customer Leveling
 
-**Source of truth**: `lib/customerLeveling.ts`. Recalculated by `POST /api/customers/recalculate-levels` (ADMIN only, run manually from the Customers page, 5-minute transaction).
+**Source of truth**: `lib/customerLeveling.ts`. Recalculated by `POST /api/customers/recalculate-levels` (Run marketing, `marketing.write`, run manually from the Customers page, which shows the button to its holders; 5-minute transaction).
 
 ### What we output
 
@@ -134,7 +134,7 @@ A dormant VIP has peak level 4 and current level 1. Using current would undersco
 
 ### Where it's used
 
-- Pipeline cards (`/sales/pipeline`) — tier shown to all roles, numeric score to ADMIN/MANAGER/MARKETING
+- Pipeline cards (`/sales/pipeline`) — tier shown to all roles, numeric score to holders of View marketing (`marketing.read`)
 - Leads board (`/leads`) — same
 - Customer detail page — same
 - Opportunity-style reports filter by tier
@@ -174,7 +174,7 @@ Windfall also flags dozens of life events and assets. We store all of them; only
 - `cryptoInterest` — investment profile
 - `recentDeathInFamily` — sensitive; deliberately not used for lead scoring
 
-All are visible on the customer detail Wealth tab (ADMIN/MARKETING only).
+All are visible on the customer detail Wealth tab (See wealth data, `customer.wealth`).
 
 ### Match confidence
 
@@ -184,9 +184,9 @@ Windfall returns a `matchConfidence` (0–1) indicating how confident they are t
 
 Wealth is sensitive. Strict rules:
 
-- **Raw wealth data** (`netWorth`, `wealthTier`, Wealth Insights report, wealth tab on customer page): **ADMIN / MARKETING only**. The pipeline API omits `wealthTier` from the response for other roles so it can't even be read via the network inspector.
+- **Raw wealth data** (`netWorth`, `wealthTier`, Wealth Insights report, wealth tab on customer page): **See wealth data** (`customer.wealth`): the Owner, Administrators and Marketing by default, not Managers. The customer GET, the pipeline API and the leads API leave it out for anyone else, so it can't even be read via the network inspector. Each says `wealthVisible`, and the screens show wealth from that (`lib/auth/wealthVisibility.ts`).
 - **Lead tier** (HOT/WARM/COOL/NEW): all roles see it. Captures the wealth signal without exposing the raw data.
-- **Numeric lead score**: ADMIN / MANAGER / MARKETING. Designers see tier only.
+- **Numeric lead score**: View marketing (`marketing.read`): the Owner, Administrators, General Managers, Managers and Marketing by default. Designers see tier only. The customer GET and the leads API say `scoreVisible`.
 - **Life event signals on the score**: the *effect* (higher score) is visible to all; the *reasons list* is currently not surfaced to designers, but could be.
 
 This two-layer model lets designers act on the signal without leaking sensitive data.
@@ -233,7 +233,7 @@ This two-layer model lets designers act on the signal without leaking sensitive 
 ### The cheat sheet
 
 1. **"Who is this customer?"** → `peakCustomerLevel` (1–4) + `lifetimeSpend`
-2. **"How much money do they have?"** → `wealthTier` from Windfall (ADMIN/MARKETING only)
+2. **"How much money do they have?"** → `wealthTier` from Windfall (See wealth data)
 3. **"Are they about to buy?"** → Life events (recent mover, mortgage, divorce, money in motion)
 4. **"What should I do about it?"** → `leadTier` 🔥/🙂/🙃/😐 (everyone sees it)
 
@@ -243,7 +243,7 @@ This two-layer model lets designers act on the signal without leaking sensitive 
 
 | Signal | Refreshed | Cadence |
 |---|---|---|
-| Customer levels | On-demand via `Recalculate Levels` button (ADMIN). Takes ~5 min. | Target: weekly (aligns with Windfall refresh) |
+| Customer levels | On-demand via `Recalculate Levels` button (Run marketing). Takes ~5 min. | Target: weekly (aligns with Windfall refresh) |
 | Lifetime fields (`lifetimeSpend`, etc.) | Populated by the level recalculation above. | Same as above |
 | Wealth enrichment | Manual CSV upload via `/admin/import/windfall`. | **Weekly** (Windfall's export cadence; life-event freshness depends on this) |
 | Lead score | Computed on-the-fly every time a lead/pipeline/customer page loads. No cache. | Always current against the inputs above |

@@ -42,11 +42,18 @@ export interface PermissionDef {
   /** What holding this actually lets someone do, in an operator's terms. */
   description: string;
   /**
-   * Marks a capability that moves money, changes what money means, or grants
-   * power to others. The admin UI warns before granting these, and they are
-   * deliberately absent from every non-privileged built-in role. This is a
-   * presentation and review aid — enforcement is identical for every
+   * Marks a capability that moves money, changes what money means, grants
+   * power to others, or reveals the store's money, customers' wealth or
+   * customer lists in bulk. The admin UI warns before granting these. This is
+   * a presentation and review aid — enforcement is identical for every
    * permission.
+   *
+   * Outside the Owner, Administrator, General Manager and Manager, a built-in
+   * role holds one only where it is that job's own work (Buyer, Department Head
+   * and Data Entry change pricing; People Operations manages staff and runs
+   * commission) or to keep what the role could do before the key existed:
+   * Register and Warehouse hold Refund returns, and Marketing holds See wealth
+   * data and See customer lists.
    */
   sensitive?: boolean;
 }
@@ -81,6 +88,14 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
  * genuinely separable in a real shop — refunding is not merely writing a
  * payment, and discounting is not merely writing an order. Resist adding a
  * verb until someone can name the person who should hold one but not the other.
+ *
+ * Keys commented "Role-list sweep" (2026-11-21) replaced hardcoded lists of
+ * staff enum roles (requireAuthWithRole, roleProcedure, requirePage role lists,
+ * `role === "X"` checks), which a store could not change. Each starts on for
+ * exactly the built-in roles its lists let through (a list naming ADMIN also let
+ * the Owner through), so nobody's access changes until the owner ticks or
+ * unticks it in Roles. Migration 20261121120000 grants each to the built-in
+ * roles a deployment has edited, which the deploy seeder never touches.
  */
 export const PERMISSIONS: PermissionDef[] = [
   // --- Sales -------------------------------------------------------------
@@ -88,13 +103,14 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "sales.read",
     domain: "sales",
     label: "View orders",
-    description: "See quotes, orders and proposals, and the till screens.",
+    description:
+      "See quotes and orders, and the till screens. B2B proposals are Work B2B proposals.",
   },
   {
     key: "sales.write",
     domain: "sales",
     label: "Write orders",
-    description: "Create and edit quotes, orders and proposals.",
+    description: "Create and edit quotes and orders. B2B proposals are Work B2B proposals.",
   },
   {
     key: "sales.discount",
@@ -107,7 +123,8 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "sales.cancel",
     domain: "sales",
     label: "Cancel orders",
-    description: "Cancel an order or line after it is written.",
+    description:
+      "Cancel an order or line after it is written, and delete a quote with no money on it.",
     sensitive: true,
   },
   {
@@ -145,7 +162,7 @@ export const PERMISSIONS: PermissionDef[] = [
     domain: "sales",
     label: "Manage client books",
     description:
-      "Open any salesperson's client book, and assign clients nobody owns to someone. It never changes who a sale is credited to.",
+      "Open any salesperson's client book, and assign clients nobody owns to someone. See every salesperson's Pipeline (the all-staff view, one salesperson's board, and search across every open quote), and archive or restore anyone's quotes, one at a time or in bulk. It never changes who a sale is credited to.",
   },
   {
     key: "sales.return",
@@ -153,6 +170,19 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Take returns",
     description:
       "Start a return and bring the goods back in. Giving the money back is Refund payment.",
+  },
+  // Role-list sweep: the MANAGER/ADMIN role lists on the two B2B proposal pages
+  // (/app/sales/proposals and its detail) and the eight /api/proposals routes,
+  // while View orders and Write orders claimed proposals in their descriptions.
+  // On for Manager. General Manager and custom roles (enum DESIGNER) never
+  // passed those lists.
+  {
+    key: "sales.proposal",
+    domain: "sales",
+    label: "Work B2B proposals",
+    description:
+      "Build, price, send and delete business-development (B2B) proposals, with each line's images and the proposal PDF, and turn an accepted one into an order. A proposal sets its own cost and retail on every line, and the order it becomes is written at those prices, outside discount approval.",
+    sensitive: true,
   },
 
   // --- Point of sale -----------------------------------------------------
@@ -172,7 +202,8 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "pos.till.adjust",
     domain: "pos",
     label: "Adjust till counts",
-    description: "Correct a counted till after close — changes recorded cash.",
+    description:
+      "Correct a counted till after close, which changes recorded cash, and reconcile a closed till, approving its variance.",
     sensitive: true,
   },
 
@@ -188,6 +219,20 @@ export const PERMISSIONS: PermissionDef[] = [
     domain: "payment",
     label: "Refund payment",
     description: "Return money to a customer.",
+    sensitive: true,
+  },
+  // Role-list sweep: the SUPER_ADMIN/MANAGER/ADMIN/REGISTER/WAREHOUSE role list
+  // on /api/returns/[id]/refund. That route takes this key or Refund payment, so
+  // Register and Warehouse keep paying out returns without being able to refund
+  // any other payment (General Manager reaches it through Refund payment). On for
+  // Manager, Register and Warehouse: sensitive, and held by two floor roles only
+  // because they did this before the key existed.
+  {
+    key: "payment.return-refund",
+    domain: "payment",
+    label: "Refund returns",
+    description:
+      "Pay out a return: back to a payment on the original order or to the customer's store credit, with its restocking fee. Refund payment allows this too; this key is for staff who refund returns and no other payment.",
     sensitive: true,
   },
   {
@@ -216,13 +261,51 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "customer.write",
     domain: "customer",
     label: "Edit customers",
-    description: "Create and edit customer records and interactions.",
+    description:
+      "Create and edit customer records and interactions. Addresses are Edit customer addresses; a trade account and tax exemption are Set trade accounts and tax exemptions.",
+  },
+  // Role-list sweep: the DESIGNER/MANAGER/ADMIN/WAREHOUSE/MARKETING role list on
+  // /api/customers/[id]/addresses. On for those roles. Custom roles passed it
+  // too, because their staff carry the enum DESIGNER, so migration
+  // 20261121120000 grants it to every custom role as well. Not sensitive: it
+  // moves no money and reveals no wealth or bulk customer data.
+  {
+    key: "customer.address",
+    domain: "customer",
+    label: "Edit customer addresses",
+    description:
+      "Add, change and remove a customer's addresses: where their orders are delivered and where vendors drop ship. The rest of the customer record is Edit customers.",
+  },
+  // Role-list sweep: the MANAGER/ADMIN role list on /api/customers/[id]/trade.
+  // DECISIONS 61 kept it on that list because no key covered a standing
+  // discount together with a tax exemption; this is that key. On for Manager.
+  {
+    key: "customer.trade",
+    domain: "customer",
+    label: "Set trade accounts and tax exemptions",
+    description:
+      "Make a customer a trade account, give them a trade tier (a standing discount on every eligible line of their later sales, with no manager's PIN) and set or clear their tax exemption. Each change is recorded.",
+    sensitive: true,
   },
   {
     key: "customer.credit.adjust",
     domain: "customer",
     label: "Adjust store credit",
     description: "Grant or remove store credit.",
+    sensitive: true,
+  },
+  // Role-list sweep: every ADMIN/MARKETING wealth check (the Owner passed each):
+  // the Wealth Insights page and procedure, WEALTH_ROLES in routers/reports.ts
+  // and /api/customers/[id], and the checks by role name in the Pipeline and
+  // Leads routes and on the customer and Pipeline screens. On for Marketing, and
+  // never Manager by default (docs/domains/staff-auth.md, Wealth Data
+  // Visibility). Checked like View cost: lib/auth/wealthVisibility.ts.
+  {
+    key: "customer.wealth",
+    domain: "customer",
+    label: "See wealth data",
+    description:
+      "See customers' wealth data from the wealth-data import (wealth tier, net worth, lifestyle and life-event signals): the Wealth Insights report, the wealth column and wealth-based lists in Opportunities, and the wealth badge and profile on the customer page, the Pipeline and the Leads board. Without it those screens leave wealth out.",
     sensitive: true,
   },
 
@@ -352,19 +435,33 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Work service",
     description: "Create and update tickets, cases and appointments.",
   },
+  // Role-list sweep: the MANAGER/ADMIN role lists on the delivery-zone,
+  // installer, case-setting (types, statuses, priorities) and email-template
+  // routes. Their screens stay on Change settings or Manage configuration, so a
+  // Manager makes these changes by API only, as before. On for Manager.
+  // Sensitive: a delivery zone's fee is charged on orders.
+  {
+    key: "service.setup",
+    domain: "service",
+    label: "Set up service",
+    description:
+      "Add and change how service is set up: installers, delivery zones with their fees and ZIP codes, service case types, statuses and priorities, and email templates. A zone's fee is what an order is charged for delivery there. The setup screens themselves open on Change settings (installers, delivery zones) or Manage configuration (case settings, email templates).",
+    sensitive: true,
+  },
 
   // --- Accounting --------------------------------------------------------
   {
     key: "accounting.read",
     domain: "accounting",
     label: "View accounting",
-    description: "See journals, AR and reconciliation.",
+    description:
+      "See journals, AR and reconciliation. Invoices you bill directly are Bill customers directly.",
   },
   {
     key: "accounting.post",
     domain: "accounting",
     label: "Post journals",
-    description: "Generate and export journal entries.",
+    description: "Post a journal entry, mark it exported, and delete a draft one.",
     sensitive: true,
   },
   {
@@ -372,6 +469,31 @@ export const PERMISSIONS: PermissionDef[] = [
     domain: "accounting",
     label: "Close periods",
     description: "Lock a period against further change.",
+    sensitive: true,
+  },
+  // Role-list sweep: BILLING_ROLES on the billing router (routers/billing.ts),
+  // PORTAL_ROLES on clientPortal.generateLink, and the MANAGER/ADMIN role lists
+  // on the four Invoices pages: the Owner, Administrator and Manager. The
+  // invoice PDF route moved here from View accounting, which also let General
+  // Manager download a PDF from screens it could not open. On for Manager.
+  {
+    key: "accounting.invoice",
+    domain: "accounting",
+    label: "Bill customers directly",
+    description:
+      "Open the Invoices screens: draft, edit, delete, issue, void and email invoices that bill a customer directly, download them as PDFs, send a card pay link or a client-hub link, and record payments against them. Issuing puts the invoice on the books.",
+    sensitive: true,
+  },
+  // Role-list sweep: the MANAGER/ADMIN role lists on the five chart-of-accounts
+  // routes (account groups, GL accounts, system GL mappings). The Chart of
+  // Accounts screen stays on Manage configuration, so a Manager makes these
+  // changes by API only, as before. On for Manager.
+  {
+    key: "accounting.chart.manage",
+    domain: "accounting",
+    label: "Set up the chart of accounts",
+    description:
+      "Add, edit and remove GL accounts and account groups, and choose which GL account each payment type and system line (sales tax, over/short, fees, receivables) posts to: every journal generated afterwards books by these choices. Seeing the chart is View accounting; the Chart of Accounts screen itself opens on Manage configuration.",
     sensitive: true,
   },
 
@@ -413,12 +535,42 @@ export const PERMISSIONS: PermissionDef[] = [
   // list of staff enum roles (MANAGER, ADMIN, SUPER_ADMIN) in the reports
   // router; migration 20261118120000 grants it to an edited Manager or
   // Administrator, which the deploy seeder never touches.
+  //
+  // Sales by Salesperson and its export joined it in the role-list sweep
+  // (2026-11-21). Their old list (PRIVILEGED_ROLES in lib/salesBySalesperson.ts)
+  // also let MARKETING choose anyone; that report alone takes this key or See
+  // customer lists, so Marketing keeps it there without gaining the other three.
   {
     key: "reporting.all-salespeople",
     domain: "reporting",
     label: "See every salesperson's numbers",
     description:
-      "On the Monthly Performance, Salesperson Detail and Designer Dashboard reports, choose any salesperson. Without it a person sees only their own numbers.",
+      "On Monthly Performance, Salesperson Detail, Designer Dashboard and Sales by Salesperson (with its export), choose any salesperson. Without it (or, on Sales by Salesperson, See customer lists) a person sees only their own numbers.",
+  },
+  // Role-list sweep: MANAGER_ADMIN and PIPELINE_ROLES in routers/reports.ts and
+  // the MANAGER/ADMIN role lists on the 17 report pages it names. On for Manager.
+  // General Manager was refused every one, and custom roles never passed.
+  // Sensitive: store-wide margin and inventory value, and the Dormant Customers
+  // and Cross-Sell customer lists.
+  {
+    key: "reporting.management",
+    domain: "reporting",
+    label: "View management reports",
+    description:
+      "Open the store-wide management reports: Comparative Sales, Sales Explorer, Gross Margin, Top & Bottom Sellers, Returns Analysis, Inventory Health, Aged Stock, Inventory Value, PO Sell-Thru, the Buyers Report, Service KPIs, Store Traffic, Pipeline Opportunity, Dormant Customers, Cross-Sell, Unclassified Returns and Unmapped Payments. Cost and margin on them also need View cost.",
+    sensitive: true,
+  },
+  // Role-list sweep: the ADMIN-only role lists on these four reports and on the
+  // balanceAging and staleQuotes procedures (Balance Due Aging and Stale Quote
+  // Cleanup were narrowed to ADMIN on 2026-05-05). No operating role holds it:
+  // only the Administrator (derived) and the Owner (wildcard).
+  {
+    key: "reporting.financial",
+    domain: "reporting",
+    label: "View financial reports",
+    description:
+      "Open Balance Due Aging (unpaid balances on open orders, by age), Stale Quote Cleanup (old quotes and their value), Consignment Summary (what is owed and paid to consignors) and Open PO Gaps (purchase orders missing a delivery date or acknowledgement). Cost on Consignment Summary and Open PO Gaps also needs View cost.",
+    sensitive: true,
   },
 
   // --- Marketing ---------------------------------------------------------
@@ -426,13 +578,28 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "marketing.read",
     domain: "marketing",
     label: "View marketing",
-    description: "See leads and campaign state.",
+    description:
+      "See leads and campaign state, the exact lead score beside the lead tier (on the customer page, the Pipeline and the Leads board), and the Leads board's needs-attention counts.",
   },
   {
     key: "marketing.write",
     domain: "marketing",
     label: "Run marketing",
-    description: "Manage leads, campaigns and list sync.",
+    description:
+      "Manage leads, campaigns and list sync. That includes assigning, pinning and deleting leads on the Leads board, and recalculating customer levels.",
+  },
+  // Role-list sweep: ADMIN_MARKETING and OPP_DRILL_ROLES in routers/reports.ts
+  // (the Customer Report and the Opportunities lists), and Marketing's place in
+  // Sales by Salesperson's old PRIVILEGED_ROLES. On for Marketing. OPP_TILE_ROLES
+  // also let Managers fetch the Opportunities tile counts, by API only (the page
+  // refused them); that ends.
+  {
+    key: "marketing.lists",
+    domain: "marketing",
+    label: "See customer lists",
+    description:
+      "Open the Customer Report (every customer's contact details, order history, spend and store credit) and the Opportunities lists (customers worth contacting this week), and download them. On Sales by Salesperson it also lets the holder choose any salesperson, as Marketing could before this key. Wealth columns and wealth-based lists also need See wealth data.",
+    sensitive: true,
   },
 
   // --- Staff -------------------------------------------------------------
@@ -455,7 +622,7 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "staff.time",
     domain: "staff",
     label: "Manage time",
-    description: "Edit time entries and shifts.",
+    description: "See and edit everyone's time entries and shifts, and log time for someone else.",
   },
   {
     key: "staff.manage",
@@ -488,7 +655,8 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "admin.settings",
     domain: "admin",
     label: "Change settings",
-    description: "Edit organization settings and feature modules.",
+    description:
+      "Edit organization settings and feature modules. Also lets the holder View the app as another role, as Impersonate does.",
     sensitive: true,
   },
   {
@@ -509,7 +677,7 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "admin.impersonate",
     domain: "admin",
     label: "Impersonate",
-    description: "View the app as another role.",
+    description: "View the app as another role. Change settings allows this too.",
     sensitive: true,
   },
   {
@@ -867,15 +1035,19 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.lead",
       "sales.clients.manage",
       "sales.return",
+      "sales.proposal",
       "pos.operate",
       "pos.till.manage",
       "pos.till.adjust",
       "payment.take",
       "payment.refund",
+      "payment.return-refund",
       "payment.void",
       "payment.giftcard.issue",
       "customer.read",
       "customer.write",
+      "customer.address",
+      "customer.trade",
       "customer.credit.adjust",
       "catalog.read",
       "catalog.cost",
@@ -893,8 +1065,16 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "warehouse.operate",
       "service.read",
       "service.write",
+      "service.setup",
       "accounting.read",
+      // Post journals (2026-11-21): Managers post, mark exported and delete the
+      // daily journal from the Journal Entries page, which was a MANAGER/ADMIN
+      // role list and is now this key.
+      "accounting.post",
+      "accounting.invoice",
+      "accounting.chart.manage",
       "reporting.read",
+      "reporting.management",
       "reporting.all-salespeople",
       "reporting.export",
       "marketing.read",
@@ -916,6 +1096,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.lead",
       "customer.read",
       "customer.write",
+      "customer.address",
       "catalog.read",
       "catalog.cost",
       "inventory.read",
@@ -938,6 +1119,9 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "pos.operate",
       "pos.till.manage",
       "payment.take",
+      // Refund returns, and no other payment: the till paid out returns through
+      // a role list that named REGISTER before the key existed.
+      "payment.return-refund",
       "customer.read",
       "customer.write",
       "catalog.read",
@@ -962,7 +1146,11 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "warehouse.read",
       "warehouse.operate",
       "sales.return",
+      // Refund returns, and no other payment: the returns desk paid out returns
+      // through a role list that named WAREHOUSE before the key existed.
+      "payment.return-refund",
       "customer.read",
+      "customer.address",
       "service.read",
       "service.write",
     ],
@@ -988,10 +1176,13 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     permissions: [
       "reporting.traffic",
       "customer.read",
+      "customer.address",
+      "customer.wealth",
       "catalog.read",
       "catalog.cost",
       "marketing.read",
       "marketing.write",
+      "marketing.lists",
       "reporting.read",
     ],
   },

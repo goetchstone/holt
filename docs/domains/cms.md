@@ -124,18 +124,23 @@ panels) keeps `brand-black`. Before 2026-10-02 these pages hardcoded
 `text-brand-navy`, which made their headings and post titles invisible on a
 dark site.
 
-## Editor (ADMIN-only, `/app/admin/cms`)
+## Editor (Change settings, `/app/admin/cms`)
 
 - Hub + Pages/Posts lists + block editor (`components/cms/admin/BlockEditor.tsx`
   — dnd-kit reorder, add/remove, per-type fields in `BlockFields.tsx`) + Menus
   editor. Draft/publish, slug auto-fill, SEO fields.
-- API: `src/pages/api/cms/{pages,posts,menus}/*` — REST, `requireAuthWithRole(["ADMIN"])`,
-  org-scoped, surfaces server messages via `getErrorMessage`.
+- API: `src/pages/api/cms/{pages,posts,menus,media}/*` — REST, `requirePermission("admin.settings")`
+  (Change settings, the key of every editor page), org-scoped, surfaces server
+  messages via `getErrorMessage`.
+- The hub's Pages, Posts, Menus and Comments cards follow the key of the page
+  each opens (`lib/auth/hubCards.ts`, all Change settings today), so a role a
+  store builds and gives Change settings sees them. Until 2026-11-21 each card
+  carried `roles: ["ADMIN"]`, so such a role reached a hub with every card hidden.
 
 ## Feature flags
 
 `cms` (default on) and `blog` (default off) live in `lib/featureCatalog.ts`.
-Pages call `requirePage(["ADMIN"], { feature: "cms" })`; the toggles appear in
+Pages call `requirePage(undefined, { permission: "admin.settings", feature: "cms" })`; the toggles appear in
 Admin → Settings → Modules automatically (the section renders `FEATURES`).
 
 ## Example content

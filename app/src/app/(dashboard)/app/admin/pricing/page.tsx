@@ -1,11 +1,13 @@
 // /app/src/app/(dashboard)/app/admin/pricing/page.tsx
 //
-// Vendor Pricing hub -- App Router port of the legacy admin/pricing/index.
-// MANAGER / ADMIN (mirrors the legacy withAuth roles). Cards link to the import
-// wizard, fabric catalog, configurator, options, and style editor. Chrome from
-// the (dashboard) layout.
+// Vendor Pricing hub -- App Router port of the legacy admin/pricing/index, on
+// Change settings. Cards link to the import wizard, fabric catalog,
+// configurator, options, and style editor, each shown only to a viewer holding
+// the key of the page it opens (lib/auth/hubCards.ts). Chrome from the
+// (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const sections: CardGridItem[] = [
@@ -41,6 +43,9 @@ const sections: CardGridItem[] = [
 ];
 
 export default async function PricingHubPage() {
-  await requirePage(undefined, { permission: "admin.settings" });
-  return <CardGrid title="Vendor Pricing" items={sections} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "admin.settings",
+    also: hubCardKeys(sections),
+  });
+  return <CardGrid title="Vendor Pricing" items={visibleHubCards(sections, holds)} />;
 }

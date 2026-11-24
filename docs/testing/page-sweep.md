@@ -39,7 +39,8 @@ The first runs, on 2026-11-20, found the Leads board 500ing on every load where
 Mailchimp is not set up; four commission and pay screens an Administrator can
 open whose data APIs refuse them; and two data APIs (the Leads board's
 needs-attention strip, consignment receiving gaps) that refuse the Owner because
-they check the staff enum for MANAGER or ADMIN by name.
+they check the staff enum for MANAGER or ADMIN by name. Both take permission keys since the 2026-11 role-list sweep, and
+`e2e/knownFailures.ts` no longer lists their pages.
 
 ## Running it
 

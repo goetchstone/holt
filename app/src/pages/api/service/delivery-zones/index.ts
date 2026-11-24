@@ -1,8 +1,14 @@
 // /app/src/pages/api/service/delivery-zones/index.ts
+//
+// Delivery zones and their fees for Admin > Service > Delivery zones: the
+// list, the ?zipCode lookup, and adding a zone. A zone's fee is what an order
+// is charged for delivery there (lib/delivery/deliveryFee.ts), so this is
+// setup: "Set up service" (service.setup), or "Change settings", the key the
+// screen opens on.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -17,7 +23,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission({ anyOf: ["service.setup", "admin.settings"] }, handler);
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   const zipCode = req.query.zipCode as string | undefined;

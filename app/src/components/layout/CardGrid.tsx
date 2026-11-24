@@ -2,20 +2,19 @@
 
 // /app/src/components/layout/CardGrid.tsx
 //
-// Chrome-free card-grid hub for App Router pages. Same card markup + role
-// filtering as the Pages-Router CardGridPageLayout, but without MainLayout — the
-// (dashboard) layout supplies the chrome. Role filtering runs client-side via
-// useEffectiveRole so impersonation is honored. SUPER_ADMIN sees every card.
+// Chrome-free card-grid hub for App Router pages; the (dashboard) layout
+// supplies the chrome. The cards arrive already filtered by the hub page, on
+// the server, to the ones whose page the viewer may open (lib/auth/hubCards.ts,
+// View as included). This component only hides a card whose feature module the
+// deployment has switched off.
 
 import Link from "next/link";
-import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
 import { useFeatures } from "@/lib/hooks/useFeatures";
 
 export type CardGridItem = {
   title: string;
   description: string;
   href: string;
-  roles?: string[];
   // Optional gating feature-module key (lib/featureCatalog). Hidden when the
   // deployment has that module switched off in AppSettings.features.
   feature?: string;
@@ -25,15 +24,9 @@ export default function CardGrid({
   title,
   items,
 }: Readonly<{ title: string; items: CardGridItem[] }>) {
-  const { effectiveRole } = useEffectiveRole();
   const { enabled } = useFeatures();
 
-  const visibleItems = items.filter((item) => {
-    if (item.feature && !enabled(item.feature)) return false;
-    if (!item.roles || item.roles.length === 0) return true;
-    if (effectiveRole === "SUPER_ADMIN") return true;
-    return item.roles.includes(effectiveRole);
-  });
+  const visibleItems = items.filter((item) => !item.feature || enabled(item.feature));
 
   return (
     <div className="space-y-6 py-2 font-serif">

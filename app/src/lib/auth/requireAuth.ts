@@ -8,14 +8,14 @@
 //   safeguard: if no signed-in MANAGER exists, enforcement is skipped so
 //   the first user can promote themselves via Admin > Staff.
 // requirePermission -- the same shape, but gating on a CAPABILITY from
-//   lib/auth/permissionCatalog.ts rather than a job title. This is where the
-//   335 role-gated routes are headed; today exactly one route uses it (see
-//   docs/domains/staff-auth.md for what is and is not enforced).
+//   lib/auth/permissionCatalog.ts rather than a job title. Since the 2026-11
+//   role-list sweep only the two house-call routes still call
+//   requireAuthWithRole (see docs/domains/staff-auth.md for what is and is not
+//   enforced).
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession, Session } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { prisma } from "@/lib/prisma";
 import {
   logBootstrapBypass,
   logPermissionDenial,
@@ -54,32 +54,6 @@ export function requireAuth(handler: AuthenticatedHandler) {
 
     return handler(req, res, session);
   };
-}
-
-/**
- * The signed-in user's role RIGHT NOW, read from the database.
- *
- * Use this instead of `session.role` or `session.user.role`. Those come off the
- * JWT, which is minted at sign-in and not revisited: a staff member who is
- * demoted, or deactivated entirely, keeps whatever the token says until it
- * expires. That is the same hole resolveRoleListAccess closes for the role-list
- * gates -- offboarding that does not actually revoke anything -- and reading
- * the role off the session reopens it one route at a time.
- *
- * Returns null when there is no ACTIVE staff record, so callers deny by default.
- * Exists for routes that cannot simply wrap in requireAuthWithRole because they
- * also accept a machine Bearer token for cron.
- */
-export async function activeStaffRole(
-  session: { user?: { id?: string | null } | null } | null,
-): Promise<string | null> {
-  const userId = session?.user?.id;
-  if (!userId) return null;
-  const staff = await prisma.staffMember.findFirst({
-    where: { userId, isActive: true },
-    select: { role: true },
-  });
-  return staff?.role ?? null;
 }
 
 export function requireAuthWithRole(roles: string[], handler: GatedHandler, options?: GateOptions) {

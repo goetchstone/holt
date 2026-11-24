@@ -16,7 +16,6 @@ function ctx(overrides: Partial<TrpcContext> = {}): TrpcContext {
   return {
     userId: null,
     userEmail: null,
-    tokenRole: null,
     impersonate: null,
     headers: new Headers(),
     ...overrides,

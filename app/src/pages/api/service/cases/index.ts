@@ -6,8 +6,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { computeLastActionAt, summarizeNoteText } from "@/lib/serviceCaseLastAction";
 import { logError } from "@/lib/logger";
@@ -113,14 +112,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 
   if (req.method === "POST") {
-    // Narrower than the outer gate (GET stays open to any staff): opening a
-    // service case is a service-team action, register/marketing have no
-    // reason to create one.
-    const mutationRole = await activeStaffRole(session as { user?: { id?: string | null } | null });
-    if (!["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     const {
       typeId,
       statusId,
@@ -221,7 +212,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+// GET is the Service queue (/app/service, "View service"); POST opens a case
+// from New case (/app/service/cases/new, "Work service"). The queue carries
+// each case's latest note, internal ones included, so Register and Marketing,
+// who hold neither key, are refused both.
+const readGate = requirePermission("service.read", handler);
+const writeGate = requirePermission("service.write", handler);
+
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") return readGate(req, res);
+  return writeGate(req, res);
+}

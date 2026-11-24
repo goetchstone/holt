@@ -810,7 +810,9 @@ describe("duplicating an order", () => {
     await as(orderDisclaimersRoute, "POST", { id }, { orderDisclaimerId: d.id });
 
     // Its change log ("copied from", the flag, the disclaimer) used to block the delete.
-    const res = await as(orderRoute, "DELETE", { id });
+    // Deleting a quote needs Cancel orders, which the route's gate answers in `also`.
+    const res = makeRes();
+    await orderRoute(req("DELETE", { id }), res, owner, { holds: { "sales.cancel": true } });
     expect(res.statusCode).toBe(204);
     expect(await prisma.salesOrder.findUnique({ where: { id: copyId } })).toBeNull();
     expect(await prisma.orderChangeLog.count({ where: { salesOrderId: copyId } })).toBe(0);

@@ -27,7 +27,6 @@ import type {
 import { WealthTierBadge } from "@/components/customer/WealthTierBadge";
 import { LeadScoreBadge } from "@/components/customer/LeadScoreBadge";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
 import { ARCHIVE_REASONS, REPLACEMENT_REASONS } from "@/lib/quoteArchive";
 import { getErrorMessage } from "@/lib/toastError";
 import { usePersistentFilters } from "@/hooks/usePersistentFilters";
@@ -281,6 +280,7 @@ function QuoteCard({
   onRestore,
   isArchived,
   searchTerm = "",
+  canSeeWealth,
 }: Readonly<{
   quote: PipelineQuote;
   onFollowUp?: (q: PipelineQuote) => void;
@@ -290,9 +290,10 @@ function QuoteCard({
   onRestore?: (q: PipelineQuote) => void;
   isArchived?: boolean;
   searchTerm?: string;
+  /** The pipeline response's wealthVisible: the server sent wealth tiers. */
+  canSeeWealth: boolean;
 }>) {
   const currency = useMoneyFormatter();
-  const { effectiveRole } = useEffectiveRole();
   const [showHistory, setShowHistory] = useState(false);
   // Most recent note, shown on active cards so nobody has to expand the history for it.
   const lastNote = quote.interactions.find((ix) => ix.notes)?.notes ?? null;
@@ -302,8 +303,6 @@ function QuoteCard({
   const customerName = quote.customer
     ? `${quote.customer.firstName ?? ""} ${quote.customer.lastName ?? ""}`.trim() || "No name"
     : "No customer";
-  const canSeeWealth =
-    effectiveRole === "ADMIN" || effectiveRole === "SUPER_ADMIN" || effectiveRole === "MARKETING";
 
   return (
     // Card is an <a> for proper a11y + native middle-click / right-click
@@ -847,6 +846,7 @@ export function PipelineView() {
         onAddNote={setNoteTarget}
         onClientInfo={setClientInfoTarget}
         onArchive={setArchiveTarget}
+        canSeeWealth={data?.wealthVisible === true}
       />
     );
   }
@@ -1066,6 +1066,7 @@ export function PipelineView() {
                       isArchived
                       searchTerm={debouncedSearch}
                       onRestore={handleRestore}
+                      canSeeWealth={data?.wealthVisible === true}
                     />
                   ))}
                 </>

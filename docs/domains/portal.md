@@ -78,7 +78,7 @@ The customer cannot approve, inspect, or process the refund — those are staff-
 
 Every order link is built by `portalOrderUrl(orderId, customerId, ttlHours)` in `lib/portalLink.ts`: `<NEXTAUTH_URL>/portal/order?token=<jwt>`, signed for the store's lifetime. It is reached three ways (checked against source 2026-11-21):
 
-- `POST /api/portal/generate-link` takes `{ orderId }` (a number) and answers `{ url, orderno }`: 404 for an unknown order, 400 for one with no customer. Gated `requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"])`. The order page's "Customer Portal (Test Mode)" card calls it from "Generate Portal Link", and that card shows only to MANAGER, ADMIN and SUPER_ADMIN.
+- `POST /api/portal/generate-link` takes `{ orderId }` (a number) and answers `{ url, orderno }`: 404 for an unknown order, 400 for one with no customer. It takes Write orders (`sales.write`), the key `text-link` takes. Until 2026-11-21 it was a DESIGNER/REGISTER/MANAGER/ADMIN role list: General Manager gains it, and staff on a store's own role (who passed as the enum DESIGNER) need the key. The order page's "Customer Portal (Test Mode)" card calls it from "Generate Portal Link", and shows to holders of that key.
 - "Text the link" on the same card (`POST /api/portal/text-link`, `sales.write`) texts a fresh link. Who may get a text: `sms.md`
 - Each automatic customer message (`lib/messages/due.ts`) carries a fresh link when its email or its text is set to include the order link.
 

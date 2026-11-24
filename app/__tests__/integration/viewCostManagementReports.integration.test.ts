@@ -2,12 +2,14 @@
 //
 // "View cost" (catalog.cost, SEC-14) over the management reports: Gross
 // Margin, Top & Bottom Sellers, Sales Explorer, Inventory Health, PO
-// Sell-Through and the Buyers Report on the MANAGER/ADMIN role list, and the
-// Open PO Gaps page on ADMIN. Each keeps its gate; an admin whose role lost
-// View cost gets the same report without cost or margin (strip, never deny),
-// in an order that does not give a cost or margin ranking away. Gross Margin
-// and the Buyers Report also check she does not get it back by viewing as a
-// MANAGER that has it.
+// Sell-Through and the Buyers Report on "View management reports" (a
+// MANAGER/ADMIN role list until the 2026-11 sweep), and the Open PO Gaps page
+// on "View financial reports" (ADMIN-only before it; the gates themselves are
+// pinned in reportingKeys.integration.test.ts). Each keeps its gate; an admin
+// whose role lost View cost gets the same report without cost or margin
+// (strip, never deny), in an order that does not give a cost or margin ranking
+// away. Gross Margin and the Buyers Report also check she does not get it back
+// by viewing as a MANAGER that has it.
 //
 // Real router, real gates, real database; the tRPC context is built by hand.
 
@@ -38,7 +40,6 @@ function reportsAs(userId: string, impersonate: string | null = null) {
   const ctx: TrpcContext = {
     userId,
     userEmail: `${userId}@example.com`,
-    tokenRole: null,
     impersonate,
     headers: new Headers(),
   };

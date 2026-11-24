@@ -6,7 +6,8 @@
 // argued for in PR #67 and encoded in roleDecision.ts survive the move from
 // role lists to capabilities:
 //
-//   - impersonation is honoured only for a real SUPER_ADMIN/ADMIN;
+//   - impersonation is honoured only for a real role holding Impersonate or
+//     Change settings (IMPERSONATE), by default SUPER_ADMIN and ADMIN;
 //   - impersonation only ever REDUCES privilege;
 //   - the bootstrap safeguard still fires when no privileged user exists;
 //   - the wildcard covers permissions that no RolePermission row mentions,
@@ -20,7 +21,8 @@ import {
 
 const GRANTS = {
   SUPER_ADMIN: [] as string[], // wildcard holder — deliberately no rows
-  ADMIN: ["payment.refund", "staff.manage"],
+  // Change settings is what lets the built-in Administrator View as.
+  ADMIN: ["payment.refund", "staff.manage", "admin.settings"],
   MANAGER: ["payment.refund"],
   DESIGNER: ["sales.read"],
   FLOOR_LEAD: ["sales.discount"], // a deployment's own role
@@ -239,8 +241,9 @@ describe("decidePermissionAccess — { anyOf } for a route that serves several s
     expect(decide({ permission: SCREENS, realRole: "ADMIN", impersonate: "MANAGER" }).allowed).toBe(
       false,
     );
-    // Holding one key each is not holding a key both: no key is shared.
-    const split = { ...GRANTS, ADMIN: ["sales.discount"] };
+    // Holding one key each is not holding a key both: no key is shared. (Each
+    // edited ADMIN keeps Change settings, so View as is still honoured.)
+    const split = { ...GRANTS, ADMIN: ["sales.discount", "admin.settings"] };
     expect(
       decide({
         permission: SCREENS,
@@ -250,7 +253,7 @@ describe("decidePermissionAccess — { anyOf } for a route that serves several s
       }).allowed,
     ).toBe(false);
     // Sharing one admits.
-    const shared = { ...GRANTS, ADMIN: ["sales.read"] };
+    const shared = { ...GRANTS, ADMIN: ["sales.read", "admin.settings"] };
     expect(
       decide({
         permission: SCREENS,
@@ -281,26 +284,66 @@ describe("decidePermissionAccess — { anyOf } for a route that serves several s
   });
 });
 
+describe("decidePermissionAccess — who may View as is decided on the real role's keys", () => {
+  it("ignores the cookie for an ADMIN whose role holds neither Impersonate nor Change settings", () => {
+    // The owner unticked Change settings on Administrator.
+    const grantsByRole = { ...GRANTS, ADMIN: ["payment.refund", "staff.manage"] };
+    const d = decide({ realRole: "ADMIN", impersonate: "DESIGNER", grantsByRole });
+    expect(d.effectiveUserRole).toBe("ADMIN");
+    expect(d.allowed).toBe(true); // ADMIN's own payment.refund decided it
+  });
+
+  it("honours it for a store's own role holding Change settings, and only narrows", () => {
+    const grantsByRole = {
+      ...GRANTS,
+      FLOOR_LEAD: ["sales.discount", "payment.refund", "admin.settings"],
+    };
+    const as = (permission: string) =>
+      decide({ realRole: "FLOOR_LEAD", impersonate: "DESIGNER", permission, grantsByRole });
+    expect(as("payment.refund").effectiveUserRole).toBe("DESIGNER");
+    // DESIGNER lacks refunds: viewing as it narrows FLOOR_LEAD's reach.
+    expect(as("payment.refund").allowed).toBe(false);
+    // DESIGNER holds sales.read, FLOOR_LEAD does not: nothing is borrowed.
+    expect(as("sales.read").allowed).toBe(false);
+  });
+
+  it("honours it for a role holding only the owner-tier Impersonate key", () => {
+    const grantsByRole = { ...GRANTS, FLOOR_LEAD: ["sales.discount", "admin.impersonate"] };
+    const d = decide({
+      realRole: "FLOOR_LEAD",
+      impersonate: "DESIGNER",
+      permission: "sales.discount",
+      grantsByRole,
+    });
+    expect(d.effectiveUserRole).toBe("DESIGNER");
+    expect(d.allowed).toBe(false);
+  });
+});
+
 describe("one implementation of the shared rules", () => {
   // The role path and the permission path must not merely agree today; they
-  // must be incapable of disagreeing. Both call resolveEffectiveRole.
+  // must be incapable of disagreeing. Both call resolveEffectiveRole. Who may
+  // View as is each real role's own answer: ADMIN holds Change settings in
+  // GRANTS, SUPER_ADMIN holds every key, DESIGNER neither.
   it.each([
-    ["ADMIN", "SUPER_ADMIN", "ADMIN"],
-    ["SUPER_ADMIN", "DESIGNER", "DESIGNER"],
-    ["DESIGNER", "ADMIN", "DESIGNER"],
-    ["ADMIN", null, "ADMIN"],
-  ])("resolveEffectiveRole(%s, %s) === %s on both paths", (real, imp, expected) => {
-    expect(resolveEffectiveRole(real, imp as string | null)).toBe(expected);
-    expect(
-      decideRoleAccess({
-        allowedRoles: [],
-        realRole: real,
-        impersonate: imp as string | null,
-        privilegedCount: 1,
-      }).effectiveUserRole,
-    ).toBe(expected);
-    expect(decide({ realRole: real, impersonate: imp as string | null }).effectiveUserRole).toBe(
-      expected,
-    );
-  });
+    ["ADMIN", "SUPER_ADMIN", true, "ADMIN"],
+    ["SUPER_ADMIN", "DESIGNER", true, "DESIGNER"],
+    ["DESIGNER", "ADMIN", false, "DESIGNER"],
+    ["ADMIN", null, true, "ADMIN"],
+  ] as const)(
+    "resolveEffectiveRole(%s, %s, %s) === %s on both paths",
+    (real, imp, canImpersonate, expected) => {
+      expect(resolveEffectiveRole(real, imp, canImpersonate)).toBe(expected);
+      expect(
+        decideRoleAccess({
+          allowedRoles: [],
+          realRole: real,
+          impersonate: imp,
+          canImpersonate,
+          privilegedCount: 1,
+        }).effectiveUserRole,
+      ).toBe(expected);
+      expect(decide({ realRole: real, impersonate: imp }).effectiveUserRole).toBe(expected);
+    },
+  );
 });

@@ -62,11 +62,12 @@ Tests: `__tests__/ticketContract.test.ts`, `ticketNumbering.test.ts`,
 
 | Route | Method | Auth | Purpose |
 |---|---|---|---|
-| `/api/tickets` | GET | SUPER_ADMIN/ADMIN/MANAGER | Queue list; `?status=open\|<status>`, `?assignedToId=<id>\|unassigned`, `?q=` search |
+| `/api/tickets` | GET | `service.read` | Queue list; `?status=open\|<status>`, `?assignedToId=<id>\|unassigned`, `?q=` search |
 | `/api/tickets` | POST | public (rate-limited 5/min) | Open a ticket; first message stored as a non-internal `TicketMessage`; returns `{ ticketNumber, publicToken }` |
-| `/api/tickets/[id]` | GET | staff | Full ticket incl. internal notes |
-| `/api/tickets/[id]` | PATCH | staff | Triage: status (transition-validated) / priority / assignee / subject; manages `resolvedAt` |
-| `/api/tickets/[id]/messages` | POST | staff | Add a public reply or internal note; author resolved from session → StaffMember |
+| `/api/tickets/[id]` | GET | `service.read` | Full ticket incl. internal notes |
+| `/api/tickets/[id]` | PATCH | `service.read` and `service.write` | Triage: status (transition-validated) / priority / assignee / subject; manages `resolvedAt`. Without `service.write`: 403 saying so |
+| `/api/tickets/[id]/messages` | POST | `service.write` | Add a public reply or internal note; author resolved from session → StaffMember |
+| `/api/tickets/[id]/attachments` | POST | `service.write` | Staff upload a file to the ticket (multipart) |
 | `/api/tickets/public/[token]` | GET | public | Status + public thread (internal notes filtered); each attachment's `url` is a fresh one-hour file link, never the stored path; a staff reply or file reads "Support" |
 | `/api/tickets/public/[token]` | POST | public (rate-limited) | Customer reply; reopens a WAITING/RESOLVED ticket to OPEN |
 | `/api/tickets/public/[token]/attachment` | POST | public (rate-limited 5/min) | Customer adds a file; answers with the file's one-hour link |
@@ -75,6 +76,23 @@ Tests: `__tests__/ticketContract.test.ts`, `ticketNumbering.test.ts`,
 Handlers stay thin (CLAUDE.md rule 14): validation lives in `requestBody.ts`,
 transition rules in `ticketContract.ts`. Search uses `buildSearchFilter`
 combined as `{ AND: [filters, searchFilter] }`.
+
+**Who works tickets (since 2026-11-21).** Reading takes "View service"
+(`service.read`): the queue, a ticket and the ticket page. Changing one takes
+"Work service" (`service.write`): replies, internal notes, attachments and
+triage. Both are store configuration in Admin > Setup > Roles. By default every
+role that holds one holds the other: General Manager, Delivery & Dispatch,
+Customer Service, Manager, Designer, Warehouse and Installer, plus the
+Administrator and the Owner. Before, the ticket page and these routes took
+SUPER_ADMIN/ADMIN/MANAGER role lists (attachments added DESIGNER), so a
+Customer Service rep saw the queue and was refused every ticket. A store role
+with only `service.read` opens a ticket but its reply, attach and triage calls
+get 403; the page still shows those controls. Tested by
+`__tests__/integration/helpdeskGates.integration.test.ts`.
+
+The ticket's Owner picker reads `/api/staff`, which is "Manage staff"
+(`staff.manage`), so it lists nobody for a role without that key (403
+swallowed); that includes Managers.
 
 ## UI
 
@@ -89,8 +107,10 @@ combined as `{ AND: [filters, searchFilter] }`.
 - Public status: `app/(site)/support/[token]/` — status + thread + reply;
   `noindex`.
 
-Nav: `Helpdesk` in `lib/auth/navPermissions.ts` (`NAV_ITEMS`,
-`NAV_FEATURE_KEYS.Helpdesk = "helpdesk"`, default roles SUPER_ADMIN/ADMIN/MANAGER).
+Nav: `Helpdesk` in `lib/auth/navPermissions.ts` (`NAV_ITEMS`, permission
+`service.read`, `NAV_FEATURE_KEYS.Helpdesk = "helpdesk"`). The queue page and
+the ticket page take the same key and the `helpdesk` feature
+(`requirePage(undefined, { permission: "service.read", feature: "helpdesk" })`).
 
 ## Verification checklist
 
