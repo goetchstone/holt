@@ -1,7 +1,7 @@
 // /app/src/pages/api/accounting/journal-entries/[id].ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
@@ -118,4 +118,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+// Opening an entry is View accounting, the Journal Entries screen's key.
+// Posting it, marking it exported and deleting a draft are Post journals,
+// which Managers hold so they keep doing what the old MANAGER/ADMIN list let
+// them do.
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    return requirePermission("accounting.read", handler)(req, res);
+  }
+  return requirePermission("accounting.post", handler)(req, res);
+}

@@ -7,11 +7,18 @@
 // integration/ownerTierEscalation.integration.test.ts.
 
 import {
+  deactivationRefusalFor,
+  isOwnerTierMember,
   legacyRoleFor,
+  normalizeStaffEmail,
   ownerOnlyKeysChanged,
   passwordRefusalFor,
   refusalFor,
   roleEditRefusalFor,
+  signInChanges,
+  signInRefusalFor,
+  signInSubjectFor,
+  type SignInChange,
 } from "@/lib/auth/roleAssignment";
 
 const role = (over: Partial<Parameters<typeof refusalFor>[1]> = {}) => ({
@@ -20,6 +27,7 @@ const role = (over: Partial<Parameters<typeof refusalFor>[1]> = {}) => ({
   name: "Manager",
   isSystem: true,
   grantsAllPermissions: false,
+  ownerOnlyKeys: [] as readonly string[],
   ...over,
 });
 
@@ -60,6 +68,17 @@ describe("refusalFor", () => {
     expect(refusalFor("ADMIN", allOfIt)).toMatch(/only an owner/i);
     expect(refusalFor("SUPER_ADMIN", owner)).toBeNull();
     expect(refusalFor("SUPER_ADMIN", allOfIt)).toBeNull();
+  });
+
+  it("counts a role holding an owner-only key as the owner tier (assigning it hands over the key)", () => {
+    const payroll = role({
+      key: "PAYROLL",
+      name: "Payroll",
+      isSystem: false,
+      ownerOnlyKeys: ["staff.commission-pay"],
+    });
+    expect(refusalFor("ADMIN", payroll)).toBe("Only an owner can assign Payroll.");
+    expect(refusalFor("SUPER_ADMIN", payroll)).toBeNull();
   });
 });
 
@@ -124,5 +143,173 @@ describe("roleEditRefusalFor and ownerOnlyKeysChanged", () => {
     expect(ownerOnlyKeysChanged(["admin.settings"], ["admin.settings", "admin.config"])).toEqual(
       [],
     );
+  });
+});
+
+const CALLERS = [null, "DESIGNER", "GENERAL_MANAGER", "HR", "MANAGER", "ADMIN", "SUPER_ADMIN"];
+const CHANGES: SignInChange[] = ["password", "sign-in email", "active status", "login link", "role"];
+
+/** The refusal signInRefusalFor must give, written out rather than derived. */
+function expectedSignInRefusal(caller: string | null, ownerTier: boolean, change: SignInChange) {
+  const admin = caller === "ADMIN" || caller === "SUPER_ADMIN";
+  if (!admin) {
+    return change === "password"
+      ? "Only an admin can set a staff member's password."
+      : `Only an admin can change a staff member's ${change}.`;
+  }
+  if (ownerTier && caller !== "SUPER_ADMIN") {
+    return change === "password"
+      ? "Only an owner can set the password of someone who holds Owner."
+      : `Only an owner can change the ${change} of someone who holds Owner.`;
+  }
+  return null;
+}
+
+describe("signInRefusalFor: changing how someone signs in is assigning their role", () => {
+  for (const caller of CALLERS) {
+    for (const ownerTier of [true, false]) {
+      for (const change of CHANGES) {
+        it(`${caller ?? "nobody"} / ${ownerTier ? "owner tier" : "ordinary"} / ${change}`, () => {
+          expect(signInRefusalFor(caller, { roleName: "Owner", ownerTier }, change)).toBe(
+            expectedSignInRefusal(caller, ownerTier, change),
+          );
+        });
+      }
+    }
+  }
+
+  it("leaves passwordRefusalFor's messages as they were", () => {
+    const owner = role({ key: "SUPER_ADMIN", name: "Owner", grantsAllPermissions: true });
+    expect(passwordRefusalFor("HR", role())).toBe("Only an admin can set a staff member's password.");
+    expect(passwordRefusalFor("ADMIN", owner)).toBe(
+      "Only an owner can set the password of someone who holds Owner.",
+    );
+  });
+});
+
+describe("deactivationRefusalFor: switching someone off is narrower", () => {
+  const ordinary = { roleName: "Designer", privileged: false, ownerTierByRole: false };
+  const administrator = { roleName: "Administrator", privileged: true, ownerTierByRole: false };
+  const owner = { roleName: "Owner", privileged: true, ownerTierByRole: true };
+
+  it("lets anyone who reaches it switch off an ordinary member", () => {
+    for (const caller of CALLERS) expect(deactivationRefusalFor(caller, ordinary)).toBeNull();
+  });
+
+  it("keeps an Administrator for admins, and the owner tier for owners", () => {
+    for (const caller of ["HR", "GENERAL_MANAGER", "MANAGER", "DESIGNER", null]) {
+      expect(deactivationRefusalFor(caller, administrator)).toBe(
+        "Only an admin can deactivate someone who holds Administrator.",
+      );
+      expect(deactivationRefusalFor(caller, owner)).toBe(
+        "Only an owner can deactivate someone who holds Owner.",
+      );
+    }
+    expect(deactivationRefusalFor("ADMIN", administrator)).toBeNull();
+    expect(deactivationRefusalFor("ADMIN", owner)).toBe(
+      "Only an owner can deactivate someone who holds Owner.",
+    );
+    expect(deactivationRefusalFor("SUPER_ADMIN", owner)).toBeNull();
+  });
+});
+
+describe("isOwnerTierMember and signInSubjectFor: the member's tier, read strictly", () => {
+  const designerRole = { key: "DESIGNER", name: "Designer", grantsAllPermissions: false };
+  const wildcard = { key: "PARTNER", name: "Partner", grantsAllPermissions: true };
+  const adminRole = { key: "ADMIN", name: "Administrator", grantsAllPermissions: false };
+
+  it("is the owner tier when the enum, the Role row or an owner-only key says so", () => {
+    expect(
+      isOwnerTierMember({ enumRole: "SUPER_ADMIN", role: designerRole, ownerOnlyKeysHeld: [] }),
+    ).toBe(true);
+    expect(isOwnerTierMember({ enumRole: "ADMIN", role: wildcard, ownerOnlyKeysHeld: [] })).toBe(
+      true,
+    );
+    expect(
+      isOwnerTierMember({
+        enumRole: "DESIGNER",
+        role: { key: "PAYROLL", name: "Payroll", grantsAllPermissions: false },
+        ownerOnlyKeysHeld: ["staff.commission-pay"],
+      }),
+    ).toBe(true);
+    expect(isOwnerTierMember({ enumRole: "ADMIN", role: adminRole, ownerOnlyKeysHeld: [] })).toBe(
+      false,
+    );
+    expect(isOwnerTierMember({ enumRole: "DESIGNER", role: null, ownerOnlyKeysHeld: [] })).toBe(
+      false,
+    );
+  });
+
+  it("does not let an owner-only key make deactivation owner-only", () => {
+    const gmWithKey = signInSubjectFor({
+      enumRole: "GENERAL_MANAGER",
+      role: { key: "GENERAL_MANAGER", name: "General Manager", grantsAllPermissions: false },
+      ownerOnlyKeysHeld: ["staff.commission-pay"],
+    });
+    expect(gmWithKey).toEqual({
+      roleName: "General Manager",
+      ownerTier: true,
+      ownerTierByRole: false,
+      privileged: false,
+    });
+  });
+
+  it("calls a member privileged by either column", () => {
+    const split = signInSubjectFor({ enumRole: "ADMIN", role: designerRole, ownerOnlyKeysHeld: [] });
+    expect(split.privileged).toBe(true);
+    const byRole = signInSubjectFor({ enumRole: "DESIGNER", role: adminRole, ownerOnlyKeysHeld: [] });
+    expect(byRole.privileged).toBe(true);
+    const enumOwner = signInSubjectFor({
+      enumRole: "SUPER_ADMIN",
+      role: designerRole,
+      ownerOnlyKeysHeld: [],
+    });
+    expect(enumOwner).toMatchObject({ ownerTier: true, ownerTierByRole: true, privileged: true });
+    const noRole = signInSubjectFor({ enumRole: "REGISTER", role: null, ownerOnlyKeysHeld: [] });
+    expect(noRole).toEqual({
+      roleName: "REGISTER",
+      ownerTier: false,
+      ownerTierByRole: false,
+      privileged: false,
+    });
+  });
+});
+
+describe("signInChanges: what a PATCH body changes about signing in", () => {
+  const current = { email: "sam@example.com", isActive: true };
+
+  it("sees no change in a resent email, trimmed on both sides", () => {
+    expect(signInChanges(current, { email: "sam@example.com" })).toEqual({});
+    expect(signInChanges(current, { email: "  sam@example.com " })).toEqual({});
+    expect(signInChanges({ ...current, email: " sam@example.com  " }, { email: "sam@example.com" }))
+      .toEqual({});
+    expect(signInChanges({ ...current, email: null }, { email: "" })).toEqual({});
+    expect(signInChanges({ ...current, email: "   " }, { email: null })).toEqual({});
+    expect(signInChanges(current, {})).toEqual({});
+  });
+
+  it("reports a changed or cleared email, trimmed, compared exactly", () => {
+    expect(signInChanges(current, { email: " new@example.com " })).toEqual({
+      email: "new@example.com",
+    });
+    expect(signInChanges(current, { email: "Sam@example.com" })).toEqual({
+      email: "Sam@example.com",
+    });
+    expect(signInChanges(current, { email: null })).toEqual({ email: null });
+  });
+
+  it("reports switching off and back on, and nothing for the state it already has", () => {
+    expect(signInChanges(current, { isActive: true })).toEqual({});
+    expect(signInChanges(current, { isActive: false })).toEqual({ active: "deactivate" });
+    expect(signInChanges({ ...current, isActive: false }, { isActive: true })).toEqual({
+      active: "reactivate",
+    });
+  });
+
+  it("normalizes an email the one way both sides use", () => {
+    expect(normalizeStaffEmail("  a@b.c ")).toBe("a@b.c");
+    expect(normalizeStaffEmail("")).toBeNull();
+    expect(normalizeStaffEmail(null)).toBeNull();
+    expect(normalizeStaffEmail(undefined)).toBeNull();
   });
 });

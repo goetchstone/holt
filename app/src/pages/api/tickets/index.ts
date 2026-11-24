@@ -3,13 +3,15 @@
 // Helpdesk tickets collection.
 //   POST (public) -- open a ticket from the public /support form. Rate-limited;
 //                    the first message is stored as a non-internal TicketMessage.
-//   GET  (staff)  -- back-office queue with status/assignee filters + search.
+//   GET  (staff)  -- back-office queue with status/assignee filters + search, on
+//                    "View service" (service.read), the key of the queue page
+//                    and the Helpdesk nav entry.
 // Method dispatch at the top mirrors pages/api/bookings/index.ts: GET runs
-// through requireAuthWithRole, POST through the public rate limiter.
+// through requirePermission, POST through the public rate limiter.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID, getAppSettings } from "@/lib/appSettings";
 import { rateLimit } from "@/lib/rateLimit";
@@ -25,12 +27,11 @@ import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 import { getEmailChrome } from "@/lib/email/wordingSettings";
 
-const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
 const OPEN_STATUSES = TICKET_STATUS_VALUES.filter((s) => isOpenTicketStatus(s));
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 }, "tickets");
 
-const listTickets = requireAuthWithRole(
-  STAFF_ROLES,
+const listTickets = requirePermission(
+  "service.read",
   async (req: NextApiRequest, res: NextApiResponse) => {
     const filters: Prisma.TicketWhereInput = { organizationId: DEFAULT_ORG_ID };
 

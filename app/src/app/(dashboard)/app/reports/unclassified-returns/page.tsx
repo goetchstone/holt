@@ -3,7 +3,7 @@
 // Unclassified Returns — B3 exception report. Lists return-shaped lines
 // booked on the default-restock assumption because no Return record
 // classifies them (imported/historical returns, or a Return that hasn't
-// been inspected yet). MANAGER/ADMIN, filter-driven via tRPC (the report
+// been inspected yet). "View management reports", filter-driven via tRPC (the report
 // runs on "Run Report"), so this server page just gates and renders the
 // client view. Chrome from the (dashboard) layout.
 
@@ -11,6 +11,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { UnclassifiedReturnsView } from "./UnclassifiedReturnsView";
 
 export default async function UnclassifiedReturnsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "reporting.management" });
   return <UnclassifiedReturnsView />;
 }

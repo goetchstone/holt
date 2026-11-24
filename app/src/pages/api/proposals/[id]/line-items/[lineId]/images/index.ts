@@ -2,9 +2,12 @@
 //
 // POST: Upload an image for a proposal line item.
 // Saves to data/uploads/proposals/{proposalId}/{lineId}-{timestamp}.{ext}
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import fs from "fs";
@@ -27,7 +30,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end();
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.proposal", handler);
 
 async function handleUpload(req: NextApiRequest, res: NextApiResponse) {
   const proposalId = Number.parseInt(req.query.id as string, 10);

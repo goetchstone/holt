@@ -107,7 +107,6 @@ function caller(who: string) {
   const ctx: TrpcContext = {
     userId: who,
     userEmail: `${who}@example.com`,
-    tokenRole: null,
     impersonate: null,
     headers: new Headers(),
   };

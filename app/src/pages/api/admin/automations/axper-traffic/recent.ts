@@ -1,15 +1,15 @@
 // /app/src/pages/api/admin/automations/axper-traffic/recent.ts
 //
-// Returns the last N TrafficSyncLog rows for the admin Axper-traffic
-// page. ADMIN/MANAGER only — keeps cron-internals out of designer
-// sight even though the data isn't sensitive.
+// Returns the last N TrafficSyncLog rows for the admin Axper-traffic page, its
+// only caller, on that page's key: "Change settings" (admin.settings). Keeps
+// cron-internals out of designer sight even though the data isn't sensitive.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "SUPER_ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

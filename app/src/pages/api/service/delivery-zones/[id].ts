@@ -1,8 +1,11 @@
 // /app/src/pages/api/service/delivery-zones/[id].ts
+//
+// One delivery zone, read and edited (its fees included) from Admin > Service >
+// Delivery zones. Setup, gated as delivery-zones/index.ts is.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -20,7 +23,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission({ anyOf: ["service.setup", "admin.settings"] }, handler);
 
 async function handleGet(id: number, res: NextApiResponse) {
   try {

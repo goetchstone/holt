@@ -296,7 +296,8 @@ describe("every report credits each person their share of a split sale", () => {
 
   it("Sales by Salesperson, and its drill-down into the partner", async () => {
     const { ana, ben } = await world();
-    const auth = { role: "ADMIN", userId: "owner" };
+    // The owner's view: every salesperson (the gate's answer, passed in).
+    const auth = { seesEveryone: true, userId: "owner" };
     const report = await getSalesBySalesperson(prisma, {
       auth,
       startDate: "2026-01-01",

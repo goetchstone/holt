@@ -370,7 +370,7 @@ Since 2026-04-24:
 This is the store-grain count against the POS, kept for the cutover. Holt's own
 count is by place: see "The handheld floor" → "Counting" (DECISIONS #21).
 
-1. **Freeze** — `app/(dashboard)/app/inventory/freeze/FreezeView.tsx` declares a count event for a location. Locks edits while the count runs.
+1. **Freeze** — `app/(dashboard)/app/inventory/freeze/FreezeView.tsx` declares a count event for a location. Locks edits while the count runs. The page is on `inventory.count` (Run counts) since 2026-11, the key of its Compare route and of the count pages beside it on the Physical Inventory Hub. It was a MANAGER/ADMIN/WAREHOUSE role list; General Manager and Department Head gain it. Creating and cancelling a snapshot stay `inventory.adjust` on their routes (POST and DELETE on `/api/inventory/freeze` and `/api/inventory/freeze/[id]`), so Warehouse and Department Head open the page but get 403 on those two buttons. Reading the list and a snapshot (GET on the same routes) needs only a sign-in.
 2. **Scan** — barcode scanner posts UPCs to `/api/inventory/physical-count`. Each scan creates a `PhysicalInventoryCount` row. Unidentified UPCs (no `Upc` row, no `Product` match) become `UnidentifiedScan` with an optional photo.
 3. **Reconcile** — `app/(dashboard)/app/inventory/reconcile-photos/ReconcilePhotosView.tsx` walks each unidentified scan; admin either creates a new Product (with the photo attached) or marks the scan as "not stock" (e.g., display fixture).
 4. **Variance report** — `app/(dashboard)/app/inventory/variance-report/VarianceReportView.tsx` shows scanned-qty vs expected-qty per product. Admin posts a reconciliation per product (accept count, accept book, or split).
@@ -392,6 +392,8 @@ Operational views over the same inventory data:
 | `warehouse/returns.tsx` | Pending vendor returns (consignment) and customer-return staging |
 | `warehouse/locations.tsx` | StockLocation admin: rename, add aliases, mark a location as holding committed stock, view position counts |
 
+**Who opens each page (2026-11 role-list sweep).** Every page above was a MANAGER/ADMIN/WAREHOUSE role list. Each now takes its data route's key, because these views turn a 403 into an empty screen. Overview, Dashboard, Outbound, Awaiting delivery, Positions, Locations and Transfers (list, new, detail) are on `inventory.transfer`. Inbound is on `purchasing.receive`, so a Buyer sees the POs coming in; PO totals stay behind View cost. Pickups and Returns are on `sales.return`; the returned-stock routes also admit Transfer stock. The Dispatch queue is on `warehouse.operate`. Set aside (`inventory.read`) and the hub (`warehouse.read`) are unchanged. The one exception to "the data route's key" is Awaiting delivery: its route is on `purchasing.receive`, and the page takes `inventory.transfer` to keep Buyers off a screen of customers' balances (an owner question; the route is unchanged).
+
 **Reading stores and stock locations (SEC-15, 2026-09-30).** Three reads, one per need, all returning `{ locations }`:
 
 | Route | Key | Returns | Used by |
@@ -410,12 +412,12 @@ Before this key, store writes needed "Transfer stock" **and** a hardcoded MANAGE
 
 - **Defaults:** one switch cannot split the two old audiences, so it starts on for their union, and nobody loses a setup action: SUPER_ADMIN, ADMIN, GENERAL_MANAGER and MANAGER. Migration `20260930120000` grants it to edited and custom roles holding Adjust inventory, or holding Transfer stock with key ADMIN or MANAGER. Some roles gain:
   - SUPER_ADMIN can now set up stores (the old exact MANAGER/ADMIN check refused it);
-  - GENERAL_MANAGER, which could edit stock locations, can now also create and edit stores, through the API only, since neither write screen admits it;
+  - GENERAL_MANAGER, which could edit stock locations, can now also create and edit stores. Since the 2026-11 sweep it does so from Warehouse → Locations, which opens on Transfer stock, a key General Manager holds, and has no client-side gating; before, neither write screen admitted it;
   - a custom or edited role holding only Adjust inventory gains store writes;
   - an edited ADMIN/MANAGER holding Transfer stock but not Adjust inventory gains stock-location edits.
 
   WAREHOUSE staff can still view Warehouse → Locations but not change it; the owner can tick the switch for them in Roles.
-- **The screen:** Warehouse → Locations itself is still gated on a MANAGER/ADMIN/WAREHOUSE role list (pending in `pagePermissions.ts`). The switch decides who can **save**; who can **open** that screen moves with the page keys (PERM-01).
+- **The screen:** Warehouse → Locations opens on Transfer stock (`inventory.transfer`). Its list route reads on any of `inventory.locations.manage`, `admin.config` or `inventory.transfer`, and Transfer stock is the one of the three that Warehouse holds. The switch decides who can **save**. A role holding Set up stores and stock locations or Manage configuration without Transfer stock can read the route but not open this screen; it sets stores up in Admin → Setup → Stores.
 - **What it does not cover:** moving stock (Transfer stock); the traffic-counter mapping on a store (a settings preset, `admin.config`); and the UNMATCHED stock location the POS import creates (the import's own key).
 
 ## Transfers
@@ -453,7 +455,7 @@ Both compare `PhysicalInventoryCount` with `InventorySnapshot` (the expected bas
 - The cost fields (`expectedCost`, `countedCost`, `varianceCost`) go only to a caller holding "View cost" (`catalog.cost`; see Cost Visibility in `docs/domains/staff-auth.md`).
 - Anyone else gets quantities only.
 
-**Inventory Health report** (`/app/reports/inventory-health`, MANAGER+ADMIN) — valuation + dead-stock view. Engine `lib/reports/inventoryHealth.ts` exposes a pure `summarizeInventoryHealth` (testable, no I/O) plus the Prisma loader: on-hand value = units × unit cost, grouped by department/vendor, with a dead-stock band for positions that have on-hand but no sales in the lookback window. Lives under `/reports`, not `/inventory`, but reads the same `InventoryPosition` data. Cost value, dead-stock cost, dead % and uncosted units need View cost; without it the report shows units, retail value and dead units, ordered by retail value (`inventoryHealthForCaller`).
+**Inventory Health report** (`/app/reports/inventory-health`, View management reports: `reporting.management`, built in for the Owner, Administrator and Manager) — valuation + dead-stock view. Engine `lib/reports/inventoryHealth.ts` exposes a pure `summarizeInventoryHealth` (testable, no I/O) plus the Prisma loader: on-hand value = units × unit cost, grouped by department/vendor, with a dead-stock band for positions that have on-hand but no sales in the lookback window. Lives under `/reports`, not `/inventory`, but reads the same `InventoryPosition` data. Cost value, dead-stock cost, dead % and uncosted units need View cost; without it the report shows units, retail value and dead units, ordered by retail value (`inventoryHealthForCaller`).
 
 The classic "where's the missing inventory" debugging path:
 
@@ -875,4 +877,4 @@ Not built in PR 4, tracked in `ROADMAP.md` → "Handheld floor" (rule 50): an of
 Exports neutralise formula cells (CSV injection, 2026-11-20). A cell whose text starts with `=`, `+`, `-`, `@`, tab or CR is run as a formula by Excel/Sheets/Numbers, and customer, product and note fields are user-entered. `neutraliseFormulaCell` in `app/src/lib/csv.ts` is the one function: it prefixes a single quote to such a string, except a string that is wholly a plain number (`-12.50`, `+3`), and never touches a number value. `csvCell`/`csvRow` (`app/src/lib/csvExport.ts`) and `rowsToCsv` (`app/src/lib/csv.ts`) both go through it, and `neutraliseRow` covers exporters that hand rows to json2csv or Papa. Covers here: the stock-count variance export (`pages/api/inventory/export-variance.ts`), which keeps json2csv and passes each row through `neutraliseRow`. `app/__tests__/fixtures/csv-producers.txt` lists every CSV-producing file under `app/src` and `app/__tests__/csvExportManifest.test.ts` fails when a producer is unlisted or bypasses a helper; a new export goes through a helper and into that manifest.
 
 ---
-Last verified: 2026-10-21
+Last verified: 2026-11-21 (the warehouse page keys, Locations and Freeze, and the Inventory Health report's key); the rest 2026-10-21

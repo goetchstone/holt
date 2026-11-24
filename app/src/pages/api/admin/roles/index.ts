@@ -9,9 +9,8 @@
 // silently omit every permission a later release adds — the same coupling the
 // registry payload in api/admin/settings exists to remove.
 //
-// Gated on staff.manage, which the catalog describes as "Create staff and assign
-// roles — grants power to others": the list feeds the Staff screen's role
-// picker. Creating a role also takes what assigning one takes (roleEditRefusalFor
+// Gated on staff.manage (Admin > Staff's key): the list feeds the Staff screen's
+// role picker. Creating a role also takes what assigning one takes (roleEditRefusalFor
 // in lib/auth/roleAssignment): admins only, and the owner tier's keys only by an
 // owner. Until 2026-11-20 staff.manage alone let a General Manager or People
 // Operations create a role holding any key.

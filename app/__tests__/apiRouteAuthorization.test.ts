@@ -62,12 +62,6 @@ const UNGATED_BY_DESIGN: Record<string, string> = {
     "No-login public ticket view/reply; the ticket's stable publicToken IS the authorization, rate-limited, internal notes filtered out",
   "tickets/public/[token]/attachment.ts":
     "Customer attaches a file to their own ticket; same publicToken capability as the status/reply endpoint, rate-limited",
-
-  // --- Automation/cron endpoints still on a manual role check (not yet guardAutomation) ---
-  "automations/customer-level-recalc.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the host's cron (scripts/auto-customer-level-recalc.sh) OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- stricter than the other automations, which accept any session",
-  "mailchimp/backfill-customer-links.ts":
-    "Bearer AUTO_IMPORT_API_KEY OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- same dual-auth mechanism as automations/customer-level-recalc.ts, triggered from the same admin mailchimp-sync UI though the route lives outside api/automations/*",
 };
 
 /** Files that are helpers/config, not routes. */
@@ -188,8 +182,16 @@ interface DispatchBranch {
   gated: boolean;
 }
 
-async function dispatchBranches(): Promise<DispatchBranch[]> {
-  const out: DispatchBranch[] = [];
+/** A route whose default export is a plain function: its body, and the local
+ *  consts built from a gate that the body may return through. */
+interface Dispatcher {
+  rel: string;
+  body: string;
+  gatedLocals: ReadonlySet<string>;
+}
+
+async function dispatchers(): Promise<Dispatcher[]> {
+  const out: Dispatcher[] = [];
   for (const file of await walk(API_ROOT)) {
     const src = await fs.readFile(file, "utf8");
     const body = /export default (?:async )?function\s*\w*\s*\([^)]*\)[^{]*\{([\s\S]*?)\n\}\n/.exec(
@@ -201,11 +203,19 @@ async function dispatchBranches(): Promise<DispatchBranch[]> {
         .filter(([, , fn]) => DISPATCH_GATE.test(fn))
         .map(([, name]) => name),
     );
+    out.push({ rel: path.relative(API_ROOT, file), body: body[1], gatedLocals });
+  }
+  return out;
+}
+
+async function dispatchBranches(): Promise<DispatchBranch[]> {
+  const out: DispatchBranch[] = [];
+  for (const { rel, body, gatedLocals } of await dispatchers()) {
     const branch =
       /if\s*\(\s*req\.method\s*===\s*["'](\w+)["']\s*\)\s*\{?\s*return\s+([\w.]+)\s*\(/g;
-    for (const [, method, callee] of body[1].matchAll(branch)) {
+    for (const [, method, callee] of body.matchAll(branch)) {
       out.push({
-        key: `${path.relative(API_ROOT, file)} ${method}`,
+        key: `${rel} ${method}`,
         callee,
         gated: DISPATCH_GATE.test(callee) || gatedLocals.has(callee),
       });
@@ -230,5 +240,89 @@ describe("per-method dispatch", () => {
   it("the public-by-design list has no stale entries", async () => {
     const ungated = new Set((await dispatchBranches()).filter((b) => !b.gated).map((b) => b.key));
     expect(Object.keys(PUBLIC_METHODS_BY_DESIGN).filter((k) => !ungated.has(k))).toEqual([]);
+  });
+});
+
+// The branch check sees only `if (req.method === "X") return ...` lines. A
+// dispatcher's LAST statement is the one that runs for every method no branch
+// took, so in `if (GET) return readGate(...); return writeGate(...);` it is the
+// whole write path, and it is not a branch. The route-level check above passes
+// on the read gate alone, so a last line that called the handler bare passed
+// every check here (service/settings/statuses.ts, 2026-11-21). So the last
+// statement of every default-export function that reads req.method must return
+// through a gate, or refuse the method with a 405, or be argued for below. A
+// file on UNGATED_BY_DESIGN is public as a whole and needs no entry. Which gate
+// is a behavioural question this cannot answer (returning the read gate passes
+// here); the route's own tests refuse it a write with a role that passes its
+// read gate (serviceRouteKeys, accountingBillingGates).
+const LAST_STATEMENT_BY_DESIGN: Record<string, string> = {
+  "uploads/[...path].ts":
+    "not a dispatcher: one inline GET handler that answers every other method 405 first; public upload folders are served without a session, the rest only to a signed-in one",
+};
+
+/** The body's last top-level statement. Prettier indents the body's statements
+ *  two spaces; deeper lines, closing brackets and comments belong to one. */
+function lastStatement(body: string): string {
+  const lines = body.split("\n");
+  let start = -1;
+  lines.forEach((line, i) => {
+    if (/^ {2}(?![\s)\]}]|\/\/|\/\*|\*)/.test(line)) start = i;
+  });
+  return start === -1 ? "" : lines.slice(start).join("\n").trim();
+}
+
+/** Does this body end by returning through a gate, or by refusing the method? */
+function endsGated(body: string, gatedLocals: ReadonlySet<string>): boolean {
+  const last = lastStatement(body);
+  if (/^return\s+(?:res\.status\(\s*405\s*\)|methodNotAllowed\()/.test(last)) return true;
+  const callee = /^return\s+([\w.]+)\s*\(/.exec(last)?.[1];
+  return callee !== undefined && (DISPATCH_GATE.test(callee) || gatedLocals.has(callee));
+}
+
+async function methodReaders(): Promise<Dispatcher[]> {
+  return (await dispatchers()).filter(
+    (d) => /\breq\.method\b/.test(d.body) && !(d.rel in UNGATED_BY_DESIGN),
+  );
+}
+
+describe("a dispatcher's last statement", () => {
+  it("finds the dispatchers it is meant to check", async () => {
+    // A floor, so a pattern that matches nothing cannot pass silently. 39 on
+    // 2026-11-21, nine of them ending `return writeGate(req, res)` or the like.
+    const found = await methodReaders();
+    expect(found.length).toBeGreaterThanOrEqual(35);
+    expect(found.map((d) => d.rel)).toContain("service/settings/statuses.ts");
+  });
+
+  it("returns through a gate, or refuses the method", async () => {
+    const offenders = (await methodReaders())
+      .filter((d) => !endsGated(d.body, d.gatedLocals) && !(d.rel in LAST_STATEMENT_BY_DESIGN))
+      .map((d) => `${d.rel}: ${lastStatement(d.body).split("\n")[0]}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it("the by-design list has no stale entries, and every entry states a reason", async () => {
+    const ungated = new Set(
+      (await methodReaders()).filter((d) => !endsGated(d.body, d.gatedLocals)).map((d) => d.rel),
+    );
+    expect(Object.keys(LAST_STATEMENT_BY_DESIGN).filter((rel) => !ungated.has(rel))).toEqual([]);
+    for (const reason of Object.values(LAST_STATEMENT_BY_DESIGN)) {
+      expect(reason.length).toBeGreaterThan(25);
+    }
+  });
+
+  it("would fail on any of them whose last line called the handler bare", async () => {
+    // The check proven able to fail, on every route it passes: each copy has
+    // its last statement swapped for `return handler(req, res);`.
+    const passing = (await methodReaders()).filter((d) => endsGated(d.body, d.gatedLocals));
+    const missed = passing
+      .filter((d) => {
+        const last = lastStatement(d.body);
+        const bare = `${d.body.slice(0, d.body.lastIndexOf(last))}return handler(req, res);`;
+        return endsGated(bare, d.gatedLocals);
+      })
+      .map((d) => d.rel);
+    expect(passing.length).toBeGreaterThanOrEqual(35);
+    expect(missed).toEqual([]);
   });
 });

@@ -4,7 +4,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { getAppSettings, getBusinessTimeZone } from "@/lib/appSettings";
-import { requirePermission } from "@/lib/auth/requireAuth";
+import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
+import { canViewWealth, VIEW_WEALTH } from "@/lib/auth/wealthVisibility";
 import { prisma } from "@/lib/prisma";
 import { calculateLeadScore, leadScoreInputFromCustomer, type LeadTier } from "@/lib/leadScore";
 import { detectPossibleDuplicates } from "@/lib/duplicateQuotes";
@@ -52,10 +53,10 @@ export interface PipelineQuote {
     id: number;
     firstName: string | null;
     lastName: string | null;
-    // wealthTier is only included for ADMIN/MARKETING, omitted for others
+    // wealthTier is only included for a holder of See wealth data (customer.wealth)
     wealthTier?: string | null;
     leadTier: LeadTier | null;
-    // leadScore only included for ADMIN/MANAGER/MARKETING
+    // leadScore is only included for a holder of View marketing (marketing.read)
     leadScore?: number | null;
     phone: string | null;
     email: string | null;
@@ -123,6 +124,9 @@ export interface PipelineResponse {
   staffSummaries: StaffSummary[];
   myStaffId: number | null;
   canViewAll: boolean;
+  // Whether wealthTier was sent: the board hides the wealth badge from the same
+  // answer that stripped it, rather than guessing from missing fields.
+  wealthVisible: boolean;
   scope: PipelineScope;
   viewingStaff: { id: number; displayName: string } | null;
   showingArchived: boolean;
@@ -201,7 +205,7 @@ const QUOTE_SELECT = {
   },
 } as const;
 
-type RoleVisibility = {
+type FieldVisibility = {
   canSeeWealth: boolean;
   canSeeScore: boolean;
 };
@@ -212,7 +216,7 @@ interface QuoteMapContext {
   now: Date;
   today: string;
   timeZone: string;
-  visibility: RoleVisibility;
+  visibility: FieldVisibility;
   entriesByCustomer: Map<number, ClientNoteRow[]>;
   backgroundByCustomer: Map<number, ClientBackground>;
 }
@@ -339,6 +343,7 @@ async function handler(
   req: NextApiRequest,
   res: NextApiResponse<PipelineResponse | { error: string }>,
   session: Session,
+  access: CallerAccess,
 ) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
@@ -346,7 +351,7 @@ async function handler(
 
   const staff = await prisma.staffMember.findUnique({
     where: { email: session.user.email },
-    select: { id: true, displayName: true, aliases: true, role: true, defaultStore: true },
+    select: { id: true, displayName: true, aliases: true, defaultStore: true },
   });
 
   // Deny when no StaffMember record exists. The earlier `|| !staff`
@@ -357,18 +362,15 @@ async function handler(
     return res.status(403).json({ error: "Staff record required" });
   }
 
-  const canViewAll =
-    staff.role === "MANAGER" || staff.role === "ADMIN" || staff.role === "SUPER_ADMIN";
-  // Wealth data is restricted to ADMIN/MARKETING. Score visibility is broader
-  // (ADMIN/MANAGER/MARKETING) since the score itself doesn't expose wealth.
+  // Each answered by the gate's `also`, from the same staff read as the gate.
+  // Every salesperson's pipeline is "Manage client books" (sales.clients.manage).
+  const canViewAll = access.holds["sales.clients.manage"];
+  // Wealth is "See wealth data" (customer.wealth). The score is "View marketing"
+  // (marketing.read), held more widely, since the score itself doesn't expose
+  // wealth.
   const visibility = {
-    canSeeWealth:
-      staff?.role === "ADMIN" || staff?.role === "SUPER_ADMIN" || staff?.role === "MARKETING",
-    canSeeScore:
-      staff?.role === "ADMIN" ||
-      staff?.role === "SUPER_ADMIN" ||
-      staff?.role === "MANAGER" ||
-      staff?.role === "MARKETING",
+    canSeeWealth: canViewWealth(access),
+    canSeeScore: access.holds["marketing.read"],
   };
   const rawScope = req.query.scope as string | undefined;
   const showingArchived = req.query.archived === "true";
@@ -384,8 +386,8 @@ async function handler(
     ? { pipelineArchivedAt: { not: null as null } }
     : { pipelineArchivedAt: null };
 
-  // ── search: open quotes by name or notes. Takes precedence over scope: a manager
-  // searches every open quote; a salesperson searches only their own.
+  // ── search: open quotes by name or notes. Takes precedence over scope: a holder of
+  // Manage client books searches every open quote; a salesperson only their own.
   const searchTerm = typeof req.query.search === "string" ? req.query.search.trim() : "";
   if (searchTerm) {
     const rawQuotes = await prisma.salesOrder.findMany({
@@ -405,6 +407,7 @@ async function handler(
       staffSummaries: [],
       myStaffId: staff.id,
       canViewAll,
+      wealthVisible: visibility.canSeeWealth,
       scope: "search",
       viewingStaff: null,
       showingArchived,
@@ -547,6 +550,7 @@ async function handler(
       staffSummaries,
       myStaffId: staff?.id ?? null,
       canViewAll,
+      wealthVisible: visibility.canSeeWealth,
       scope: "all",
       viewingStaff: null,
       showingArchived: false,
@@ -560,7 +564,7 @@ async function handler(
     });
   }
 
-  // ── scope=staff: a specific designer's pipeline (manager only) ───────────
+  // ── scope=staff: a specific designer's pipeline (Manage client books) ─────
 
   const rawStaffId = Number.parseInt(req.query.staffId as string, 10);
   if (rawScope === "staff" && canViewAll && !Number.isNaN(rawStaffId)) {
@@ -615,6 +619,7 @@ async function handler(
       staffSummaries: [],
       myStaffId: staff?.id ?? null,
       canViewAll,
+      wealthVisible: visibility.canSeeWealth,
       scope: "staff",
       viewingStaff: { id: targetStaff.id, displayName: targetStaff.displayName },
       showingArchived,
@@ -678,6 +683,7 @@ async function handler(
     staffSummaries: [],
     myStaffId: staff?.id ?? null,
     canViewAll,
+    wealthVisible: visibility.canSeeWealth,
     scope: "mine",
     viewingStaff: staff ? { id: staff.id, displayName: staff.displayName } : null,
     showingArchived,
@@ -687,8 +693,10 @@ async function handler(
 }
 
 // Same permission as ./[id].ts, which archives and restores the quotes this
-// board lists: the pipeline is a designer/manager concern. It matches the Sales
-// hub's own Pipeline card (ADMIN/MANAGER/DESIGNER), which is the only link to
-// this board. The per-scope and per-field visibility checks inside the handler
-// (canViewAll, wealth, lead score) are unchanged and still narrow further.
-export default requirePermission("sales.lead", handler);
+// board lists: the pipeline is a designer/manager concern. Inside it, the
+// `also` keys narrow further: every salesperson's pipeline is "Manage client
+// books" (sales.clients.manage), the wealth tier "See wealth data"
+// (customer.wealth) and the numeric lead score "View marketing" (marketing.read).
+export default requirePermission("sales.lead", handler, {
+  also: ["sales.clients.manage", VIEW_WEALTH, "marketing.read"],
+});

@@ -78,8 +78,9 @@ The scheduler authenticates with `Authorization: Bearer <AUTO_IMPORT_API_KEY>`. 
 `lib/auth/secretsEqual.ts` in constant time (always over the expected secret's length, then the lengths
 must match, so the time says nothing about the guess); an unset or empty key, a missing header, or any
 scheme but exactly `Bearer` fails closed.
-`guardAutomation`, `source-import`, `email-queue`, `customer-level-recalc` and
-`mailchimp/backfill-customer-links` all call it, and `app/__tests__/automationKeyTripwire.test.ts` fails
+`guardAutomation`, `source-import` and `email-queue` call it (`customer-level-recalc` and
+`mailchimp/backfill-customer-links` go through `guardAutomation` since 2026-11-21, so a person running
+them by hand needs `admin.automations`), and `app/__tests__/automationKeyTripwire.test.ts` fails
 if a file under `src` compares an authorization header to a `Bearer ${...}` template again. The
 bookings calendar feed's `?token=` (`BOOKING_FEED_TOKEN`, `pages/api/bookings/feed.ics.ts`) goes
 through the same `secretsEqual`.

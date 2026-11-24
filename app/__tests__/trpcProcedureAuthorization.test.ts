@@ -149,3 +149,31 @@ describe("tRPC procedures authorize, not just authenticate", () => {
     }
   });
 });
+
+// The 2026-11 role-list sweep moved the last roleProcedure callers (the reports,
+// billing and client-portal routers) onto permission keys, which a store sets in
+// Roles; a role list is a hardcoded set of staff enum values it cannot. The
+// checks above count roleProcedure as gated, so a new one would pass them. This
+// holds the routers at none: roleProcedure stays for tests that pin the shared
+// role-list decision, and a router that needs a gate takes a key.
+describe("no procedure is gated by a role list", () => {
+  const onRoleList = (proc: unknown) =>
+    middlewaresOf(proc).some((m) => authMiddlewareMarkers.roleLists.has(m as object));
+
+  it("the marker tells a role list from a permission key (the instrument can disagree)", () => {
+    expect(onRoleList(roleProcedure(["MANAGER", "ADMIN"]))).toBe(true);
+    expect(onRoleList(permissionProcedure("reporting.read"))).toBe(false);
+    expect(onRoleList(protectedProcedure)).toBe(false);
+  });
+
+  it("finds no mounted procedure built with roleProcedure", () => {
+    const procs = (appRouter as unknown as { _def: { procedures: Record<string, unknown> } })._def
+      .procedures;
+    expect(Object.keys(procs).length).toBeGreaterThan(50);
+    expect(
+      Object.entries(procs)
+        .filter(([, proc]) => onRoleList(proc))
+        .map(([path]) => path),
+    ).toEqual([]);
+  });
+});
