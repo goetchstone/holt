@@ -32,6 +32,18 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 5
     groups:
+      # tRPC's client, server and react-query adapter peer-depend on each
+      # other at one exact version (a client at 11.29.5 requires server
+      # 11.29.5), and the adapter wraps @tanstack/react-query. Inside
+      # patch-and-minor, Dependabot twice moved @trpc/client without the
+      # server and adapter (#146, #150, 2026-11-23/24), so npm ci refused the
+      # whole group (ERESOLVE) and thirteen unrelated updates failed with it;
+      # #151 landed them by hand. In their own group the four move in one PR,
+      # and a mismatch Dependabot still produces fails CI there alone.
+      trpc:
+        patterns:
+          - "@trpc/*"
+          - "@tanstack/react-query"
       patch-and-minor:
         update-types:
           - "patch"
@@ -47,6 +59,8 @@ updates:
         # line that broke the build (#157, 2026-09-12).
         exclude-patterns:
           - "stripe"
+          - "@trpc/*"
+          - "@tanstack/react-query"
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
