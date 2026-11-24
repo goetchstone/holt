@@ -75,6 +75,12 @@ describe("splitUpcPriceTotal — the concatenation trap", () => {
   it("returns null on a line that is not a price line at all", () => {
     expect(splitUpcPriceTotal("Merino Wool Large Bin - Feather", 1)).toBeNull();
   });
+
+  it("refuses a quantity of 0, which every reading with a $0 total satisfies", () => {
+    // Fuzz seed 443275222 (CI, 2026-11-21): a 400-digit price reads as 0, and
+    // 0 x 0 == 0 "confirmed" the first UPC length tried.
+    expect(splitUpcPriceTotal("8400272447620.00$0.00", 0)).toBeNull();
+  });
 });
 
 describe("parseMarketTimeOrderText", () => {
@@ -135,6 +141,23 @@ describe("parseMarketTimeOrderText", () => {
     expect(order.items[1].name).toBe('Merino Wool 16" Laptop Computer Sleeve - Granite V');
   });
 
+  it("reads a name of 200 lines of unclosed availability markers in well under a second", () => {
+    // The name joins every line before the money line, so the per-line cut does
+    // not bound it; a "(Avail:" with no ")" after it made the marker's match scan
+    // to the end of the name from every one of them: 4.9 s for these 200 lines.
+    const marker = "(Avail:".repeat(143).slice(0, 1000);
+    const text = [
+      "QtyImageItem #NameUPCPriceUQUOMTotal",
+      "1GL60BIN50FTLG",
+      ...Array.from({ length: 200 }, () => marker),
+      "84002724476255.00$55.00",
+    ].join("\n");
+    const start = performance.now();
+    const parsed = parseMarketTimeOrderText(text);
+    expect(performance.now() - start).toBeLessThan(500);
+    expect(parsed.items.map((i) => i.itemNumber)).toEqual(["GL60BIN50FTLG"]);
+  });
+
   it("reconciles against the printed SKU, unit and money totals", () => {
     expect(order.warnings).toEqual([]);
     expect(order.printedSkus).toBe(3);
@@ -157,6 +180,21 @@ describe("parseMarketTimeOrderText", () => {
       ["1GL60BIN50FTLG", "A bin", "not-a-price-line", "6GL70TECH10GN16IN"].join("\n"),
     );
     expect(broken.warnings.some((w) => w.includes("GL60BIN50FTLG"))).toBe(true);
+  });
+
+  it("leaves out an item of quantity 0 and says so (rule 31)", () => {
+    const zero = parseMarketTimeOrderText(
+      [
+        "0GL60BIN50FTLG",
+        "A bin",
+        "8400272447620.00$0.00",
+        "6GL70TECH10GN16IN",
+        "A sleeve",
+        "84002724051135.00$210.00",
+      ].join("\n"),
+    );
+    expect(zero.items.map((i) => [i.itemNumber, i.qty])).toEqual([["GL70TECH10GN16IN", 6]]);
+    expect(zero.warnings).toContain("Item GL60BIN50FTLG: quantity 0 -- skipped.");
   });
 
   it("says nothing about holds on an ordinary order", () => {

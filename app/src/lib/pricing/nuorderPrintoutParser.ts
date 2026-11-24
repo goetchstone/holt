@@ -16,6 +16,26 @@
 // printed line total. Two digits landing in one column is treated as broken
 // alignment, never averaged. A parsed-vs-printed Grand Total mismatch adds a
 // warning so dropped lines can't pass silently.
+//
+// The same rule covers an amount that is not a number. Numbers are read through
+// parseBoundary.ts (rule 42): a wholesale price that does not read, or a
+// wholesale price, suggested retail price or grid quantity of 300 or more digits
+// (`hasOverlongNumber`; 300-308 digits still read, as an absurd number), drops
+// its block with a warning, and a line total or Grand Total too long to be real
+// is not matched at all, so it meets the "no line total" and "Grand Total not
+// found" refusals. A printed Total Quantity that long is not read, with a
+// warning. Until 2026-11-21 a 400-digit price and line total both read as
+// Infinity, and Infinity x qty - Infinity is NaN, which no "> 0.01" check
+// refuses; and a 305-digit retail price was kept as the item's selling price.
+
+import {
+  finiteInt,
+  finiteOrNull,
+  finiteSum,
+  hasOverlongNumber,
+  OVERLONG_REASON as TOO_LONG,
+  parseMoney,
+} from "./parseBoundary";
 
 export interface PositionedItem {
   str: string;
@@ -109,6 +129,13 @@ const GRID_MARGIN = 30;
 // rows in these printouts sit 2pt+ apart).
 const ROW_Y_TOLERANCE = 1;
 
+// A money amount, the same pattern twice: at most 31 digits and commas before the
+// cents, and not the tail of a longer run, so a 400-digit amount does not match
+// and a 50k-digit token is scanned in linear time. Unbounded ([\d,]*), one
+// 50k-digit token took 0.6-1.7 s (Node 24).
+const TRAILING_MONEY = /(?<![\d,])(\d[\d,]{0,30}\.\d{2})$/;
+const FIRST_MONEY = /(?<![\d,])(\d[\d,]{0,30}\.\d{2})/;
+
 const STYLE_ANCHOR =
   /^Style #\s*(\S+)\s*\|\s*(.*?)\s*Wholesale:\s*USD\s*([\d,.]+)(?:\s*Sugg\. Retail:\s*USD\s*([\d,.]+))?/;
 
@@ -133,11 +160,6 @@ interface StyleBlock {
   gridTokens: PositionedItem[];
 }
 
-function parseMoney(s: string): number {
-  const n = Number.parseFloat(s.replaceAll(",", ""));
-  return Number.isNaN(n) ? 0 : n;
-}
-
 function isDigits(s: string): boolean {
   return /^\d+$/.test(s);
 }
@@ -146,8 +168,8 @@ function isDigits(s: string): boolean {
  *  "1,000.00" when NuOrder stacks the currency and amount on separate
  *  rows). Anchored so size labels and page numbers can't match. */
 function trailingMoney(s: string): number | null {
-  const m = /(\d[\d,]*\.\d{2})$/.exec(s.trim());
-  return m ? parseMoney(m[1]) : null;
+  const m = TRAILING_MONEY.exec(s.trim());
+  return m ? finiteOrNull(m[1].replaceAll(",", "")) : null;
 }
 
 function buildRow(items: PositionedItem[]): Row {
@@ -251,10 +273,22 @@ class PrintoutScanner {
     this.flush();
     const season = m[2].trim();
     if (!this.season && season) this.season = season;
+    const unitPrice = finiteOrNull(m[3].replaceAll(",", ""));
+    let unread: string | null = null;
+    if (hasOverlongNumber(m[3])) unread = `the wholesale price ${TOO_LONG}`;
+    else if (unitPrice === null) unread = "the wholesale price is not a number";
+    else if (m[4] && hasOverlongNumber(m[4])) unread = `the suggested retail price ${TOO_LONG}`;
+    if (unread !== null || unitPrice === null) {
+      // The block's rows are skipped while nothing is pending.
+      this.warnings.push(`Style ${m[1]}: ${unread} — add this item manually.`);
+      return true;
+    }
     this.pending = {
       styleNumber: m[1],
       season,
-      unitPrice: parseMoney(m[3]),
+      unitPrice,
+      // 0 is "none": the normalizer turns it into a null retail. A retail price
+      // that does not read is none as well; one of 300 digits was refused above.
       msrp: m[4] ? parseMoney(m[4]) : 0,
       productName: this.productName,
       columns: null,
@@ -270,12 +304,17 @@ class PrintoutScanner {
   private trySummary(text: string): boolean {
     const qtyMatch = /^Total Quantity:\s*(\d+)/.exec(text);
     if (qtyMatch) {
-      if (!this.inCancelled) this.printedTotalQty = Number.parseInt(qtyMatch[1], 10);
+      if (this.inCancelled) return true;
+      if (hasOverlongNumber(qtyMatch[1])) {
+        this.warnings.push(`The printed Total Quantity ${TOO_LONG}, so it was not read.`);
+      } else {
+        this.printedTotalQty = finiteInt(qtyMatch[1]);
+      }
       return true;
     }
     if (text.startsWith("Grand Total:")) {
-      const money = /(\d[\d,]*\.\d{2})/.exec(text);
-      if (money) this.printedGrandTotal = parseMoney(money[1]);
+      const money = FIRST_MONEY.exec(text);
+      if (money) this.printedGrandTotal = finiteOrNull(money[1].replaceAll(",", ""));
       return true;
     }
     // Subtotal (duplicate of Grand Total), the cancelled section's Total,
@@ -352,6 +391,8 @@ class PrintoutScanner {
     const columns = block.columns as SizeColumn[];
     const digits = block.gridTokens.filter((tok) => isDigits(tok.str));
     if (digits.length === 0) return "no quantities found in the size grid";
+    // 300-308 digits still read, and 0 x such a quantity passes a free line's checks.
+    if (digits.some((tok) => hasOverlongNumber(tok.str))) return `a quantity ${TOO_LONG}`;
     const assigned = new Map<number, number>();
     for (const tok of digits) {
       let best = 0;
@@ -359,7 +400,7 @@ class PrintoutScanner {
         if (Math.abs(columns[i].x - tok.x) < Math.abs(columns[best].x - tok.x)) best = i;
       }
       if (assigned.has(best)) return `two quantities landed in the "${columns[best].label}" column`;
-      assigned.set(best, Number.parseInt(tok.str, 10));
+      assigned.set(best, finiteInt(tok.str));
     }
     const qtyIndex = columns.length - 1;
     const qty = assigned.get(qtyIndex);
@@ -387,6 +428,13 @@ class PrintoutScanner {
     const binned = this.binDigits(block);
     if (typeof binned === "string") {
       this.warnings.push(`${label}: ${binned} — add this item manually.`);
+      return;
+    }
+    // A style ordered at 0 is a cancelled line, not an item (rule 31), and
+    // 0 x price == $0.00 would let it through the check below. The Cancelled
+    // Styles section keeps its own rows for its summary.
+    if (binned.qty <= 0 && !this.inCancelled) {
+      this.warnings.push(`${label}: quantity 0 — left out.`);
       return;
     }
     let extension: number | null = null;
@@ -439,8 +487,8 @@ class PrintoutScanner {
       warnings: this.warnings,
       cancelled: {
         items: this.cancelledItems.length,
-        units: this.cancelledItems.reduce((sum, it) => sum + it.totalUnits, 0),
-        total: this.cancelledItems.reduce((sum, it) => sum + it.totalPrice, 0),
+        units: finiteSum(this.cancelledItems.map((it) => it.totalUnits)),
+        total: finiteSum(this.cancelledItems.map((it) => it.totalPrice)),
       },
       items: this.items,
     };

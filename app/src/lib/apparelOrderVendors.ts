@@ -497,6 +497,7 @@ export function normalizeNuOrder(
     orderDate: parsed.orderDate,
     season: rows.find((r) => r.season)?.season ?? "",
     rows,
+    warnings: [...parsed.warnings],
   };
 }
 
@@ -591,6 +592,7 @@ export function normalizeZSupply(
     orderDate: parsed.invoiceDate,
     season: "",
     rows,
+    warnings: [...parsed.warnings],
   };
 }
 

@@ -39,9 +39,46 @@ Fields driving the workflow:
 | Refund            | `POST /api/returns/[id]/refund` → `refundReturn` in `lib/returns/refundReturn.ts` (to the original payment, or to store credit; `retryRefundPaymentId` finishes one waiting on its processor) |
 | Exchange          | `POST /api/returns/[id]/exchange` — creates an exchange `SalesOrder` linked via `exchangeOrderId`, mirrors the original storeLocation + salesperson + customer                             |
 | Pickup planning   | `/app/warehouse/pickups` → `GET /api/warehouse/returns/pickups` reads `pickupRequired = true && status IN INITIATED/PICKUP_SCHEDULED`                                                      |
-| Customer portal   | `GET /api/portal/returns/[token]` + `POST /api/portal/returns/request` — token-only, no staff session; staff mint the token with `POST /api/sales/orders/[id]/return-link` (`sales.write`) |
+| Customer portal   | `GET /api/portal/returns/[token]` + `POST /api/portal/returns/request` — token-only, no staff session; staff mint the token with `POST /api/sales/orders/[id]/return-link` (`sales.write`). Both answer `PortalReturn` only (see "The return's line" below) |
 
 Auth is mixed. `/api/returns`, `/api/returns/[id]` and `/api/returns/[id]/exchange` gate on `requirePermission("sales.return")`, which MANAGER, REGISTER and WAREHOUSE hold by default (`lib/auth/permissionCatalog.ts`) on top of ADMIN/SUPER_ADMIN. `/api/returns/[id]/status` takes `sales.return` too since 2026-10-17 (it was a role list without WAREHOUSE, whose staff work the returns queue), as do `/api/returns/[id]/disposition` and `/api/warehouse/returns/returned-stock` (either `sales.return` or `inventory.transfer`); and `/api/returns/[id]/refund` is `requireAuthWithRole(["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"])`. The list/new/detail pages require only a signed-in user. The warehouse queue and pickup PAGES are MANAGER/ADMIN/WAREHOUSE. The endpoints behind them, `/api/warehouse/returns/queue` and `/api/warehouse/returns/pickups`, are `requirePermission("sales.return")` (checked 2026-10-16; this line used to say they had no role check).
+
+### The return's line (2026-11-21)
+
+A return is valued from its line when it is paid out (`bookReturn` reads the line's
+price, tax and cost), so which line a return names is not a label. Three routes write
+`Return.lineItemId` from what a caller sends, and two of them ask `returnLineProblem()`
+in `lib/returns/returnLine.ts`: the customer's portal request, where a token holder
+names a line, and the staff return link. The third, New return, does not (below). A
+line passes `returnLineProblem` when it is on the return's own
+order, still counted (not CANCELLED or REPLACED, `orderedQuantity` above zero: rules 31
+and 33, through `isCountedItemLine`), and goods: not a gift card (the item kind of the
+counted filter leaves it out) and not the order's delivery fee (as `POST /api/returns`
+refuses it). Anything else is a 400: one message for a line not on the order, one
+naming the other reasons. A line id that is not a whole
+number above zero is a 400 before any lookup. The portal request used to write any line
+id it was sent, so a token holder could point their return at another customer's line.
+
+The portal request also checks its body before Prisma does
+(`parsePortalReturnRequest` in `lib/returns/portalReturn.ts`): an unknown `reason` is
+a 400 naming the `ReturnReason` values (it was a 500 from the enum column). Both portal
+routes answer `PortalReturn` (`lib/returns/portalReturnContract.ts`, imported by both
+portal pages): return number, status, product name, quantity, created and customer
+notes, the fields the two pages read. The reason is stored but not sent back, since
+neither page reads it. The request route used to answer with the whole `Return` row.
+
+**New return is the third writer, and it does not ask `returnLineProblem`**, so this is
+not one guard on every path (CLAUDE.md rule 42). `POST /api/returns` takes the
+`lineItemId` from the body, finds the line within the order, refuses the delivery fee
+(`deliveryFeeLineEditProblem`) and defers a gift card to the store's "Refund unused gift
+cards" setting (`giftCardLineEditProblem`). It checks neither the line's status nor its
+quantity, so staff holding `sales.return` can start a return on a cancelled or replaced
+line, and `bookReturn` values it at that line's price when it is paid out (cancel and
+replace keep the line's price and quantity). A zero-quantity line is taken too, though
+`computeReturnValue` refuses to value it. An unknown reason there is still a 500.
+Moving it onto `returnLineProblem` needs care: that function refuses every gift card,
+where New return honours the store's setting (`giftCardSaleBooks.integration.test.ts`
+returns an unused card through it). Listed under "Known gaps" below.
 
 ## Returned stock: the piece, not the paperwork (since 2026-10-17)
 
@@ -152,6 +189,10 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`.
 
 ## Known gaps (master plan)
 
+- **New return takes a cancelled, replaced or zero-quantity line** (found 2026-11-21).
+  `POST /api/returns` should refuse what `returnLineProblem` refuses, except that a gift
+  card line stays the store's choice (`giftCardLineEditProblem`), and a reason outside
+  `ReturnReason` should be a 400. "The return's line" above has the detail.
 - ✅ **Pickups on a delivery run.** "Add to run" on the pickup schedule makes the pickup a run stop; completing it sets PICKUP_COMPLETED (`lib/fulfilment/returnPickup.ts`, `docs/domains/service-dispatch.md` → "Run stop outcomes"). The run planner does not suggest pickups by zone yet.
 - **Vendor return path** for damaged items (consignment-specific in `docs/domains/consignment.md`; non-consignment vendor returns have no formal workflow)
 
