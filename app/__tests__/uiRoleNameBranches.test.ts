@@ -40,7 +40,7 @@ const ROLE_NAME_DEBT: Record<string, string> = {
   "components/navigation/TopNav.tsx":
     "the 'View as' menu is offered to a real SUPER_ADMIN/ADMIN, the same rule as resolveEffectiveRole (roleDecision.ts)",
   "app/(dashboard)/app/admin/staff/StaffView.tsx":
-    "the role picker mirrors lib/auth/roleAssignment.ts: only admins assign roles, only the owner the owner tier (USE-02)",
+    "the role picker, the sign-in email field and the on/off toggle mirror lib/auth/roleAssignment.ts: only admins assign roles or change how someone signs in, only the owner the owner tier (USE-02)",
   // Debt: access decided by name while the route uses a key (PERM-01 / F6 / SEC-14).
   "components/layout/CardGrid.tsx":
     "hub cards filter by role arrays and SUPER_ADMIN sees all; cards should carry their destination's key (PERM-01)",
