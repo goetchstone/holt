@@ -11,6 +11,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { logError, logger } from "@/lib/logger";
 import { priceCart, type CartDiscount } from "@/lib/pos/cartPricing";
@@ -225,11 +226,8 @@ export async function handler(
       const found = await findVendorsByName(tx, vendorNames, { ignoreCase: true });
       const vendorMap = new Map([...found].map(([name, v]) => [name.toLowerCase(), v.id]));
 
-      // Resolve salesperson from session
-      const staff = await tx.staffMember.findFirst({
-        where: { email: session.user?.email || "" },
-        select: { displayName: true },
-      });
+      // Resolve salesperson from the session's own staff row (by User id, never email)
+      const staff = await sessionStaffMember(session, { displayName: true }, tx);
 
       // Resolve the store this sale belongs to BEFORE pricing -- tax
       // resolution needs its taxDistrictId, and inventory allocation

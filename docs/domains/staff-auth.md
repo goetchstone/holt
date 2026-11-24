@@ -702,6 +702,64 @@ pages.
 
 The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens. Their scripts run only because `pages/_document.tsx` passes the request's nonce to `<Head>` and `<NextScript>`: every page carries a nonce Content-Security-Policy (`src/proxy.ts`, `docs/DECISIONS.md` entry 62), Next stamps the Pages Router's scripts from those props alone, and without them every script on the sign-in screens is blocked and nobody can sign in. The browser page sweep opens the three screens signed out (`e2e/pages.spec.ts`).
 
+## Who the caller is (2026-11-21)
+
+A route that needs the caller's own staff row (to record who opened a till, to
+show "my" pipeline, to set "my" active store) gets it from
+`sessionStaffMember(session, select, db?)` in `lib/auth/roleAssignment.ts`: the
+**active** row whose `userId` is the session's User id, or null when the session
+carries no id or no active row is linked to it. That is how every gate resolves
+the caller (`permissionResolver.ts`), so a route can no longer act as a
+different row than the one its gate admitted. `callerStaffRole` is the same
+lookup, selecting `role`. Pass a transaction as `db` when the lookup belongs in
+one (`create-from-cart`, `duplicate`, opening a service case, the till routes'
+injected client).
+
+**Never by email.** Until 2026-11-21 thirteen routes found the caller with
+`staffMember.findFirst/findUnique({ where: { email: <session email> } })`, with
+no `userId` and no `isActive` filter: `interactions/active.ts`,
+`sales/interactions/index.ts`, `sales/clients/index.ts`,
+`sales/pipeline/index.ts`, `sales/pipeline/[id].ts`,
+`sales/orders/create-from-cart.ts`, `sales/orders/[id]/duplicate.ts`,
+`registers/[id]/tills/open.ts`, `tills/[id]/close.ts`, `service/dashboard.ts`,
+`service/cases/index.ts`, `service/cases/[id]/notes.ts` and
+`staff/active-store.ts`. Anyone holding `staff.manage` can write a staff
+member's email (People Operations, the General Manager), so they chose whose row
+those routes acted as: a General Manager who gave the Owner's row their own
+session email opened tills as the Owner, saw the Owner's pipeline and archived
+quotes under the Owner's scope, and moved the Owner's active store. A deactivated
+row was matched too. And where the session had no email, five lookups (both till
+routes, open and close, and the service-note, service-case and service-dashboard
+lookups) passed `email: undefined`, which Prisma drops from the filter, so they
+matched whichever staff row came first. The warehouse transfer request found its
+requester the same way on `User` (`user.findUnique` by the session email); it now
+takes the session's User id.
+
+The session's email is still written where it is only a label (`createdBy`,
+`updatedBy`, the order's `salesperson` fallback, the duplicated quote's actor
+email); a label decides nothing.
+
+Only four lookups in three files may still find a staff member by email,
+because there is no session yet: in `authProviders.ts`, local sign-in checking
+the typed email (`authorizeLocal`) and the OAuth sign-in allowlist admitting a
+provider-verified email only if an active staff row holds it
+(`findActiveStaffByEmail`); a password-reset request (`passwordReset.ts`); and
+first sign-in linking an unlinked row to the User the identity provider verified
+(`[...nextauth].ts`). Two more look up by email without deciding who the caller
+is: the staff routes' collision check, whether an address being written is already
+another row's (`staff/[id].ts` and `staff/index.ts`, case-insensitively).
+`__tests__/staffEmailLookupRatchet.test.ts` fails on any
+other `staffMember` call whose `where` names `email`, and on a listed exception
+that has gone. It cannot see a `where` built in a variable and passed by name
+(three such sites exist, none keyed by email), a `user` lookup, or a screen: the
+Service screen's "My Cases" tab and the Interactions screen still pick the
+caller out of the staff list by email in the browser (tracked).
+Behaviour: `__tests__/integration/sessionStaffIdentity.integration.test.ts`
+gives the Owner's row the General Manager's session email (and the GM's row
+another address), and asserts the pipeline, opening a till and setting the
+active store act as the General Manager; and that a warehouse transfer records
+the session's own User when its email belongs to another User row.
+
 ## A session whose user is gone (2026-10-17)
 
 A session is a signed JWT carrying a user id, and it outlives the `User` row it
@@ -981,6 +1039,7 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `lib/auth/endSession.ts` -- every sign-out, and the sign-in screen's check that it held
 - `lib/auth/freshOAuthSignIn.ts` -- an OAuth sign-in never sees the session cookie, so it can't link onto whoever is signed in
 - `lib/auth/signInAccounts.ts` -- the NextAuth adapter: `linkAccount` refused onto an existing staff member's User, and recorded
+- `lib/auth/roleAssignment.ts` -- who may assign a role, set a password or edit a role; `sessionStaffMember`, the one way a route finds the caller's own staff row (see "Who the caller is")
 - `lib/auth/roleAdmin.ts` -- wire types + serialization shared by the Roles GUI and its API
 - `lib/auth/secretsEqual.ts` -- the one constant-time comparison for a secret a request presents (`timingSafeEqual` always over the expected secret's length, then the lengths must match; no hashing, which CodeQL read as a weak password hash; an empty expected secret never matches). Used by the scheduler's service key (`lib/automations/guardAutomation.ts`) and the bookings feed token (`pages/api/bookings/feed.ics.ts`); `automationKeyTripwire.test.ts` fails on a `Bearer` header compared with `===` or `!==`
 - `server/trpc/trpc.ts` -- `roleProcedure` / `permissionProcedure`
