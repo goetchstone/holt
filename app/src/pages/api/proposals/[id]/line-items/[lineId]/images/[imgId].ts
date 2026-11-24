@@ -1,17 +1,20 @@
 // /app/src/pages/api/proposals/[id]/line-items/[lineId]/images/[imgId].ts
 //
 // DELETE: Remove an image from a proposal line item.
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import fs from "fs";
 import path from "path";
 import { safePathJoin, PathTraversalError } from "@/lib/safePathJoin";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.proposal",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "DELETE") {
       res.setHeader("Allow", ["DELETE"]);

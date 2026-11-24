@@ -83,10 +83,10 @@ async function makeStaff(opts: {
   return staff.id;
 }
 
-// The caller can manage staff but is NOT an admin, so a target ADMIN can be the
-// sole admin. HR holds staff.manage (permissionCatalog.ts).
-async function callAs(hrUserId: string, over: Partial<NextApiRequest>) {
-  sessionMock.mockResolvedValue({ user: { id: hrUserId } });
+// Switching off an admin takes an admin (deactivationRefusalFor, USE-02's third
+// door), so the lockout cases are an admin acting on themselves or a peer.
+async function callAs(userId: string, over: Partial<NextApiRequest>) {
+  sessionMock.mockResolvedValue({ user: { id: userId } });
   const res = makeRes();
   await staffRoute(makeReq(over), res);
   return res;
@@ -101,10 +101,9 @@ beforeEach(async () => {
 
 describe("SEC-03 last-admin guard (real DB)", () => {
   it("refuses DELETE of the only active admin with 409 and the pinned message", async () => {
-    await makeStaff({ userId: "hr", roleKey: "HR" });
     const adminId = await makeStaff({ userId: "admin1", roleKey: "ADMIN" });
 
-    const res = await callAs("hr", { method: "DELETE", query: { id: String(adminId) } });
+    const res = await callAs("admin1", { method: "DELETE", query: { id: String(adminId) } });
 
     expect(res.statusCode).toBe(409);
     expect((res.body as { error: string }).error).toBe(LAST_ADMIN_MESSAGE);
@@ -114,11 +113,10 @@ describe("SEC-03 last-admin guard (real DB)", () => {
   });
 
   it("allows DELETE of an admin while another active admin remains", async () => {
-    await makeStaff({ userId: "hr", roleKey: "HR" });
     const admin1 = await makeStaff({ userId: "admin1", roleKey: "ADMIN" });
     await makeStaff({ userId: "admin2", roleKey: "ADMIN" });
 
-    const res = await callAs("hr", { method: "DELETE", query: { id: String(admin1) } });
+    const res = await callAs("admin2", { method: "DELETE", query: { id: String(admin1) } });
 
     expect(res.statusCode).toBe(0); // res.json without an explicit status
     const gone = await prisma.staffMember.findUnique({ where: { id: admin1 } });
@@ -126,10 +124,9 @@ describe("SEC-03 last-admin guard (real DB)", () => {
   });
 
   it("refuses PATCH { isActive: false } on the only active admin", async () => {
-    await makeStaff({ userId: "hr", roleKey: "HR" });
     const adminId = await makeStaff({ userId: "admin1", roleKey: "ADMIN" });
 
-    const res = await callAs("hr", {
+    const res = await callAs("admin1", {
       method: "PATCH",
       query: { id: String(adminId) },
       body: { isActive: false },
@@ -158,8 +155,11 @@ describe("SEC-03 last-admin guard (real DB)", () => {
   });
 
   it("refuses linking a staff record to a login already held by another active staff member", async () => {
-    await makeStaff({ userId: "hr", roleKey: "HR" });
-    await makeStaff({ userId: "admin1", roleKey: "ADMIN", email: "owner@store.com" });
+    await makeStaff({ userId: "admin2", roleKey: "ADMIN" });
+    await makeStaff({ userId: "admin1", roleKey: "ADMIN" });
+    // admin1's login is owner@store.com; their staff row says otherwise, so the
+    // link guard, not the email-collision check, is what refuses below.
+    await prisma.user.update({ where: { id: "admin1" }, data: { email: "owner@store.com" } });
     // A benign, unlinked staff record we try to point at the owner's login.
     const benign = await prisma.staffMember.create({
       data: {
@@ -171,13 +171,14 @@ describe("SEC-03 last-admin guard (real DB)", () => {
       select: { id: true },
     });
 
-    const res = await callAs("hr", {
+    const res = await callAs("admin2", {
       method: "PATCH",
       query: { id: String(benign.id) },
       body: { email: "owner@store.com" },
     });
 
     expect(res.statusCode).toBe(409);
+    expect((res.body as { error: string }).error).toMatch(/already belongs to another active/);
     const after = await prisma.staffMember.findUnique({ where: { id: benign.id } });
     expect(after?.userId).toBeNull(); // never linked
   });

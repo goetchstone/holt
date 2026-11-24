@@ -13,6 +13,11 @@ Roles. It replaced `requireAuthWithRole(["SUPER_ADMIN"])` /
 Administrator (page keys `admin.settings` / `reporting.read`) while every data
 call was refused. Do not confuse it with `staff.commission` ("Run commission",
 held by Manager and others; it gates only `api/admin/sales/goals.ts`).
+Monthly Sales Percentages (`/app/admin/reports/monthly-percentages`, the split
+of the yearly goal across the months) is neither: its page and its API
+(`/api/reports/monthly-percentages`) take Change settings (`admin.settings`).
+The API was a MANAGER/ADMIN role list until 2026-11-21, which Managers reached
+by API only.
 
 Gated by the key: `api/admin/reports/commission-payouts/{index,[id],drift}`,
 `commission-tiers` and `commission-tiers/tiers`,
@@ -22,7 +27,8 @@ Gated by the key: `api/admin/reports/commission-payouts/{index,[id],drift}`,
 `/app/reports/commission`, `/app/admin/reports/commission-tiers` and
 `/app/reports/pay-period-sales` (`PAGE_ACCESS` in `lib/auth/pagePermissions.ts`).
 The Reports hub shows the Pay Period Sales and Commission cards only to a
-holder (`reports/page.tsx`, from `requirePage({ also })`).
+holder, because a hub card follows its page's key (`lib/auth/hubCards.ts`,
+answered by the hub's `requirePage({ also })`).
 
 One surface is the exception, and deliberately so: plan assignment and the
 `isDesigner` toggle live on the `staff.manage` staff-admin page, which carries

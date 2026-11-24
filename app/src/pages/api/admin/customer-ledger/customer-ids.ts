@@ -5,7 +5,8 @@
 // nginx 300s proxy timeout — running every customer in one synchronous POST
 // blew past the timeout on a production-sized customer table.
 //
-// Cheap query: ids only, no joins. ADMIN-only.
+// Cheap query: ids only, no joins. Change settings (admin.settings), the key
+// of the backfill screen, like backfill.ts.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -13,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
 export default requirePermission(
-  "accounting.post",
+  "admin.settings",
   async (_req: NextApiRequest, res: NextApiResponse) => {
     try {
       const customers = await prisma.customer.findMany({

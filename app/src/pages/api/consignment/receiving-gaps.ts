@@ -2,12 +2,14 @@
 //
 // Returns summary counts and item lists for consignment data quality gaps:
 // items with no receipt link, items with no store location, and existing receipts.
-// Manager-only.
+// On "View accounting", the key of the Receiving Gaps page, its one caller; a
+// rug's cost only for a holder of "View cost". Until 2026-11 it was "Write
+// purchase orders" plus a check that the staff role was MANAGER or ADMIN by
+// name, which refused the Owner, the General Manager and every custom role.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import { prisma } from "@/lib/prisma";
@@ -15,16 +17,11 @@ import { prisma } from "@/lib/prisma";
 async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
-  session: Session,
+  _session: Session,
   access: CallerAccess,
 ) {
   const showCost = canViewCost(access);
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
-  if (role !== "MANAGER" && role !== "ADMIN")
-    return res.status(403).json({ error: "Manager role required" });
 
   const type = req.query.type as string | undefined;
   const limit = Math.min(Number.parseInt(req.query.limit as string) || 500, 1000);
@@ -96,4 +93,4 @@ async function handler(
   });
 }
 
-export default requirePermission("purchasing.write", handler, WITH_COST);
+export default requirePermission("accounting.read", handler, WITH_COST);

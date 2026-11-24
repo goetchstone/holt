@@ -7,7 +7,6 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { release } from "@/lib/inventory/allocation";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
@@ -49,8 +48,8 @@ function repricingSummary(r: QuoteTradeRepricing): QuoteTradeRepricing & { messa
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
- *  requireAuthWithRole (which needs real cookies). Role enforcement is
- *  covered by the apiRouteAuthorization tripwire. */
+ *  requirePermission (which needs real cookies). A direct caller passes
+ *  `access` for what the gate's `also` answers: DELETE needs sales.cancel. */
 export async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -201,11 +200,13 @@ export async function handler(
 
   if (req.method === "DELETE") {
     // Deleting is narrower than the general sales-order gate this file is wrapped
-    // in -- MANAGER/ADMIN only, not DESIGNER/REGISTER -- and only for a quote with no
-    // money on it (lib/sales/cancelOrder.ts). Everything else gets cancelled.
-    const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
-    if (role !== "MANAGER" && role !== "ADMIN") {
-      return res.status(403).json({ error: "Manager role required to delete a quote" });
+    // in: it needs "Cancel orders" (sales.cancel), answered by the gate's `also`,
+    // and only a quote with no money on it may go (lib/sales/cancelOrder.ts).
+    // Everything else gets cancelled.
+    if (!access.holds["sales.cancel"]) {
+      return res
+        .status(403)
+        .json({ error: "Deleting a quote needs the Cancel orders permission." });
     }
 
     try {
@@ -411,7 +412,9 @@ export async function handler(
   }
 }
 
-export default requirePermission("sales.write", handler, { also: [DISCOUNT_PERMISSION] });
+export default requirePermission("sales.write", handler, {
+  also: [DISCOUNT_PERMISSION, "sales.cancel"],
+});
 
 /**
  * What a status change does beyond writing the status: the change-log row, and

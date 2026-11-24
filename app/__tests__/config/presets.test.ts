@@ -26,6 +26,11 @@ import {
   serializePresetBundle,
 } from "@/lib/config/presetSerialize";
 import { loadAllPresets, loadPresetFile, safeJoin } from "@/lib/config/presetFiles";
+import {
+  BUILT_IN_ROLES,
+  permissionsForBuiltInRole,
+  stripBaselinePermissions,
+} from "@/lib/auth/permissionCatalog";
 
 const VALID_YAML = `
 version: 1
@@ -711,5 +716,74 @@ describe("the presets this repo actually ships", () => {
       "Millbrook Falls Showroom",
       "Wintergreen Harbor Showroom",
     ]);
+  });
+});
+
+describe("the example roles preset keeps what the roles it names hold", () => {
+  // config/example.yaml is the roles preset people copy, and a roles preset
+  // REPLACES a role's grants: applying it revokes every key it leaves out. So
+  // the example may leave out of a built-in role only the keys its comments
+  // say it means to revoke, and its own role must hold the keys a migration
+  // gave every role a store built. Both had drifted: the example Designer
+  // silently dropped Work leads, and Floor Lead Edit customer addresses.
+  const repoConfigRoot = path.resolve(__dirname, "..", "..", "..", "config");
+  const isBuiltIn = (key: string) => BUILT_IN_ROLES.some((r) => r.key === key);
+
+  /** Keys the example leaves out of a built-in role on purpose; each is
+   *  explained in a comment beside that role in example.yaml. */
+  const DELIBERATE_REVOCATIONS: Record<string, string[]> = {
+    DESIGNER: ["catalog.cost", "reporting.read"],
+  };
+
+  /** Keys a migration granted every non-wildcard role, store-built ones
+   *  included, whatever else they held. */
+  const GRANTED_EVERY_STORE_ROLE: Record<string, string> = {
+    "reporting.traffic": "20260924120000_grant_reporting_traffic",
+    "customer.address": "20261121120000_grant_role_list_keys",
+  };
+
+  async function exampleRoles() {
+    const text = await fs.readFile(path.join(repoConfigRoot, "example.yaml"), "utf8");
+    const result = parsePresetText(text, "yaml");
+    if (!result.ok) throw new Error(`config/example.yaml is invalid: ${result.errors.join("; ")}`);
+    return result.bundle.presets.flatMap((p) => (p.kind === "roles" ? p.roles : []));
+  }
+
+  it("leaves out of a built-in role only what it says it revokes, and adds nothing", async () => {
+    const builtIns = (await exampleRoles()).filter((r) => isBuiltIn(r.key));
+    expect(builtIns.map((r) => r.key)).toEqual(Object.keys(DELIBERATE_REVOCATIONS));
+    for (const role of builtIns) {
+      const shipped = stripBaselinePermissions(permissionsForBuiltInRole(role.key));
+      const listed = stripBaselinePermissions(role.permissions);
+      expect({
+        role: role.key,
+        revoked: shipped.filter((key) => !listed.includes(key)).sort(),
+        added: listed.filter((key) => !shipped.includes(key)).sort(),
+      }).toEqual({ role: role.key, revoked: DELIBERATE_REVOCATIONS[role.key], added: [] });
+    }
+  });
+
+  it("gives its own roles every key a migration granted every store-built role", async () => {
+    const own = (await exampleRoles()).filter((r) => !isBuiltIn(r.key));
+    expect(own.length).toBeGreaterThan(0);
+    for (const role of own) {
+      expect({
+        role: role.key,
+        missing: Object.keys(GRANTED_EVERY_STORE_ROLE).filter(
+          (key) => !role.permissions.includes(key),
+        ),
+      }).toEqual({ role: role.key, missing: [] });
+    }
+    // Each key is named by the migration that granted it.
+    for (const [key, migration] of Object.entries(GRANTED_EVERY_STORE_ROLE)) {
+      const sql = await fs.readFile(
+        path.join(__dirname, "..", "..", "prisma", "migrations", migration, "migration.sql"),
+        "utf8",
+      );
+      expect({ migration, grants: sql.includes(`SELECT "id", '${key}'`) }).toEqual({
+        migration,
+        grants: true,
+      });
+    }
   });
 });

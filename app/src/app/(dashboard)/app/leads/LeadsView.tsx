@@ -5,14 +5,17 @@
 // Leads kanban board with filters, needs-attention strip, generate-from-campaign
 // and manual-add modals. App Router port of the legacy pages/leads/index.tsx body
 // (minus MainLayout chrome, which comes from the (dashboard) layout). Reads the
-// shared /api/leads* + /api/mailchimp/campaigns + /api/staff REST endpoints. Role
-// gating (leadScore / wealthTier only for managers) preserved via useSession.
+// shared /api/leads* + /api/mailchimp/campaigns + /api/staff REST endpoints.
+// What each viewer sees is decided on the server: the page passes whether they
+// hold "View marketing" (the needs-attention strip) and "Run marketing" (pin,
+// assign, delete), and GET /api/leads says whether it sent the numeric score
+// (scoreVisible) and the wealth tier (wealthVisible).
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { getErrorMessage } from "@/lib/toastError";
 
 type LeadTier = "HOT" | "WARM" | "COOL" | "NEW";
 type Staleness = "active" | "going_stale" | "expired";
@@ -122,15 +125,22 @@ function leadDisplayName(lead: LeadRow): string {
   return lead.email || "Unknown";
 }
 
-export function LeadsView() {
-  const { data: session } = useSession();
-  const userRole = (session as any)?.role || "DESIGNER";
-  const isManager = userRole === "MANAGER" || userRole === "ADMIN" || userRole === "SUPER_ADMIN";
-
+export function LeadsView({
+  canSeeAttention,
+  canManageLeads,
+}: Readonly<{
+  /** Holds "View marketing" (marketing.read): the needs-attention counts. */
+  canSeeAttention: boolean;
+  /** Holds "Run marketing" (marketing.write): pin, assign and delete leads. */
+  canManageLeads: boolean;
+}>) {
   const money = useMoneyFormatter();
   const formatCurrency: CurrencyFormatter = (amount) => money(amount, { whole: true });
 
   const [leads, setLeads] = useState<LeadRow[]>([]);
+  // Whether GET /api/leads sent each lead's numeric score and wealth tier.
+  const [scoreVisible, setScoreVisible] = useState(false);
+  const [wealthVisible, setWealthVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
@@ -142,7 +152,7 @@ export function LeadsView() {
   const [filterHot, setFilterHot] = useState(false);
   const [filterTier, setFilterTier] = useState<LeadTier | "">("");
 
-  // Needs-attention counts (manager-only)
+  // Needs-attention counts (View marketing)
   const [needsAttention, setNeedsAttention] = useState<NeedsAttention | null>(null);
 
   // Campaign modal
@@ -170,8 +180,10 @@ export function LeadsView() {
       if (filterSource) params.source = filterSource;
       const res = await axios.get("/api/leads", { params });
       setLeads(res.data.data);
-    } catch {
-      toast.error("Failed to load leads");
+      setScoreVisible(res.data.scoreVisible === true);
+      setWealthVisible(res.data.wealthVisible === true);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to load leads"));
     } finally {
       setLoading(false);
     }
@@ -181,24 +193,24 @@ export function LeadsView() {
     fetchLeads();
   }, [fetchLeads]);
 
-  // Load the "Needs Attention" counts for managers
+  // Load the "Needs Attention" counts for holders of View marketing
   useEffect(() => {
-    if (!isManager) return;
+    if (!canSeeAttention) return;
     axios
       .get<NeedsAttention>("/api/leads/needs-attention")
       .then((res) => setNeedsAttention(res.data))
       .catch(() => {
         /* non-critical — just hide the strip */
       });
-  }, [isManager, leads.length]); // refresh when leads change
+  }, [canSeeAttention, leads.length]); // refresh when leads change
 
   async function togglePin(lead: LeadRow) {
     try {
       await axios.put(`/api/leads/${lead.id}`, { pinned: !lead.pinned });
       toast.success(lead.pinned ? "Unpinned" : "Pinned — won't auto-archive");
       fetchLeads();
-    } catch {
-      toast.error("Failed to pin.");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to pin."));
     }
   }
 
@@ -239,8 +251,8 @@ export function LeadsView() {
     try {
       await axios.put(`/api/leads/${lead.id}`, { status: newStatus });
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: newStatus } : l)));
-    } catch {
-      toast.error("Failed to update status");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to update status"));
     }
   };
 
@@ -248,8 +260,8 @@ export function LeadsView() {
     try {
       await axios.put(`/api/leads/${lead.id}`, { assignedToId: staffId });
       await fetchLeads();
-    } catch {
-      toast.error("Failed to assign lead");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to assign lead"));
     }
   };
 
@@ -258,8 +270,8 @@ export function LeadsView() {
       await axios.put(`/api/leads/${leadId}`, { notes });
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, notes } : l)));
       toast.success("Notes saved");
-    } catch {
-      toast.error("Failed to save notes");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to save notes"));
     }
   };
 
@@ -274,8 +286,8 @@ export function LeadsView() {
       setShowCampaignModal(false);
       setSelectedCampaignId("");
       fetchLeads();
-    } catch {
-      toast.error("Failed to generate leads");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to generate leads"));
     } finally {
       setGenerating(false);
     }
@@ -296,8 +308,8 @@ export function LeadsView() {
         notes: "",
       });
       fetchLeads();
-    } catch {
-      toast.error("Failed to create lead");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to create lead"));
     } finally {
       setCreating(false);
     }
@@ -308,8 +320,8 @@ export function LeadsView() {
       await axios.delete(`/api/leads/${leadId}`);
       setLeads((prev) => prev.filter((l) => l.id !== leadId));
       toast.success("Lead deleted");
-    } catch {
-      toast.error("Failed to delete lead");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to delete lead"));
     }
   };
 
@@ -405,8 +417,8 @@ export function LeadsView() {
           </div>
         </div>
 
-        {/* Needs Attention strip (manager-only) */}
-        {isManager && needsAttention && (
+        {/* Needs Attention strip (View marketing) */}
+        {canSeeAttention && needsAttention && (
           <div className="bg-white border border-brand-gray/20 rounded-lg p-3">
             {needsAttention.newToAssign === 0 &&
             needsAttention.goingStale === 0 &&
@@ -501,7 +513,9 @@ export function LeadsView() {
                       <LeadCard
                         key={lead.id}
                         lead={lead}
-                        isManager={isManager}
+                        canManage={canManageLeads}
+                        scoreVisible={scoreVisible}
+                        wealthVisible={wealthVisible}
                         isExpanded={expandedId === lead.id}
                         staff={staff}
                         formatCurrency={formatCurrency}
@@ -685,7 +699,9 @@ export function LeadsView() {
 
 function LeadCard({
   lead,
-  isManager,
+  canManage,
+  scoreVisible,
+  wealthVisible,
   isExpanded,
   staff,
   formatCurrency,
@@ -697,7 +713,9 @@ function LeadCard({
   onTogglePin,
 }: {
   lead: LeadRow;
-  isManager: boolean;
+  canManage: boolean;
+  scoreVisible: boolean;
+  wealthVisible: boolean;
   isExpanded: boolean;
   staff: StaffOption[];
   formatCurrency: CurrencyFormatter;
@@ -737,7 +755,7 @@ function LeadCard({
       {lead.staleness === "going_stale" && (
         <div className="bg-amber-50 border-b border-amber-200 px-3 py-1 text-xs text-amber-800 flex items-center justify-between">
           <span>Going stale · no action in {lead.daysSinceLastAction ?? "?"} days</span>
-          {isManager && (
+          {canManage && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -769,12 +787,12 @@ function LeadCard({
                   className={`text-xs px-1.5 py-0.5 rounded-full border ${tierPill.bg} font-medium whitespace-nowrap`}
                 >
                   {tierPill.emoji} {tierPill.label}
-                  {isManager && lead.leadScore !== undefined && (
+                  {scoreVisible && lead.leadScore !== undefined && (
                     <span className="ml-1 opacity-70">{lead.leadScore}</span>
                   )}
                 </span>
               )}
-              {lead.wealthTier && isManager && (
+              {wealthVisible && lead.wealthTier && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-brand-gold/15 text-brand-gold font-medium">
                   {lead.wealthTier.replace(/_/g, " ")}
                 </span>
@@ -848,8 +866,8 @@ function LeadCard({
             </select>
           </div>
 
-          {/* Assignment (managers only) */}
-          {isManager && (
+          {/* Assignment (Run marketing) */}
+          {canManage && (
             <div>
               <label
                 htmlFor={`lead-assign-${lead.id}`}
@@ -908,8 +926,8 @@ function LeadCard({
             </a>
           )}
 
-          {/* Delete (managers only) */}
-          {isManager && (
+          {/* Delete (Run marketing, which the route requires) */}
+          {canManage && (
             <button
               onClick={() => {
                 if (

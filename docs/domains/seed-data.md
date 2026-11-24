@@ -133,6 +133,64 @@ A row count can't see a setting, so `npm run seed:coverage` fails if any of thes
 Run on a fresh practice copy (2026-11-05), the email cron's steps queued 7 morning emails and one
 low-stock list, and a stand-in mail server saw no connection.
 
+## Rows the page sweep opens
+
+The browser page sweep (`app/e2e/`, `docs/testing/page-sweep.md`) opens every dynamic route
+with a row from this seed, and in CI a route it can't fill fails the run. Until 2026-11-21
+seven routes were skipped for want of one. Five now open on rows written here, by the
+product's own code where it has some, and invoice detail, which opened an order invoice
+with no lines, now opens the draft below:
+
+- **A product with a previous system's stock id** (`inventoryOps.ts`): the 25 snapshot products
+  get `Product.externalId` 30001 to 30025, and their `IMPORT` snapshots record that id and the
+  export's name for the place (`<store code> Back Stock`, one of the back stock's aliases), as
+  the snapshot import does (`lib/inventory/snapshotImport.ts`). `LOCAL` snapshots record
+  neither. The product-variance drill-down is keyed by that id.
+- **A closed stock buy** (`buyerDrafts.ts`): the three latest stock orders placed at least 90
+  days ago and received in full, rebuilt into one `CLOSED` buy through
+  `lib/historicalPoImport.ts`, with the same three writes as
+  `pages/api/admin/buyer-drafts/import-purchase-order.ts` (draft PO, items, and a
+  `HISTORICAL_IMPORT` link to the real PO). Named for the season of its first order, budgeted
+  at its spend plus 15% in round thousands, kicked off 21 days before its first order, and
+  closed (and last edited, which is what the archive shows as its closing date) when the last
+  of its goods came in.
+- **A draft invoice with lines** (`authoredInvoices.ts`): one `DRAFT` through
+  `createDraftInvoice` (`lib/billing/invoiceService.ts`), the composer's path, for the first
+  customer: three design-fee lines, $550, no tax. It is never issued, because issuing posts a
+  journal and appends to the AR ledger, which this seed leaves out (see "What was deliberately
+  left out"). It is the only invoice with lines.
+- **A return link sent and not yet answered** (`returnLinks.ts`): the rows
+  `POST /api/sales/orders/[id]/return-link` writes, for the latest delivery order delivered at
+  least three days ago with nothing returned from it: an `INITIATED` return (reason `OTHER`,
+  `portalRequestedAt` two days ago, the order's first goods line) and the order's
+  `RETURN_INITIATED` change-log row. Its token, `seed-return-<orderno>`, is deterministic, like
+  the tickets' `seed-tok-` tokens, so anyone reading this repository can open that one invented
+  return's form on a public demo. A real link's token is a random UUID; never copy the shape.
+
+The client portal needs no row: its token is a signed JWT, which the sweep mints. The email
+campaign results page stays skipped: those tables are classified as never seeded
+(`coverage.ts`), and reversing that waits on the owner.
+
+**A practice copy gets no stock ids.** On a database whose name carries `practice`
+(`isPracticeCopy()`), `inventoryOps.ts` leaves every `externalId` null. The store's real
+products are imported into a practice copy after this seed, and the legacy product import
+updates whatever product already holds an incoming `externalId`
+(`adapters/legacyPos/runners.ts`, `classifyPrepared`), so a real product numbered 30001 to
+30025 would be merged into a demo product's sales and snapshot history.
+
+These modules run last, after `tradePricing.ts`, and draw nothing from the RNG, so no earlier
+row moves. The draft invoice's number, date and due date, and the return's number, come from
+the wall clock, as the composer's and the endpoint's do, so runs on different days differ
+there. `npm run seed:coverage` sees the new tables but not these column facts (an
+`externalId`, a portal token, a `DRAFT` status). The sweep's CI run is what fails if one goes
+missing.
+
+Measured 2026-11-21 on scratch databases, at ci scale and at demo scale: 25 products with a
+stock id, 150 `IMPORT` snapshots carrying it and the back stock's alias, one buy of 3 draft
+POs and 9 items with 3 links, one draft invoice of 3 lines totalling 550.00, and one return
+with a portal token and its change-log row. On a database named as a practice copy (ci
+scale), no product had a stock id and no snapshot recorded one.
+
 ## Why this exists
 
 1. **holt is open-source.** A real customer's orders and payments cannot ship in a public
@@ -177,14 +235,18 @@ npm run seed:demo -- --reset         # wipe an existing seeded DB and reseed
 | 9    | `purchasing.ts`        | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord`, every date derived from vendor lead time (see "Purchase orders")                                                                                                                                                                                           |
 | 10   | `consignment.ts`       | A GENERIC consignment `Vendor` + `ConsignmentReceipt`/`ConsignmentItem`/`ConsignmentPaymentBatch`                                                                                                                                                                                                                     |
 | 11   | `inventory.ts`         | `InventoryPosition` across floor / back stock / warehouse bulk / committed staging                                                                                                                                                                                                                                    |
+| 11b  | `inventoryOps.ts`      | `InventoryException`, `InventoryTransfer`, `PhysicalInventoryCount`, `UnidentifiedScan`, `InventoryFreeze`/`InventoryFreezeItem`, and a year of monthly `InventorySnapshot`s for 25 products. Those products carry the previous system's stock id (`Product.externalId` 30001 to 30025), recorded on their `IMPORT` months; none on a practice copy (see "Rows the page sweep opens") |
 | 12   | `service.ts`           | `ServiceCase` + `ServiceCaseNote` and the three operator-editable lookup tables                                                                                                                                                                                                                                       |
 | 12b  | `orderTools.ts`        | The invoice tools (GAP-07): five of the store's own `OrderFlag`s (one warns on opening, one switched off once an order carries it) and three `OrderDisclaimer`s, through `lib/sales/orderFlags.ts` and `lib/sales/orderDisclaimers.ts`. Flags go on the first six open orders and disclaimers on three (`SalesOrderFlag`, `SalesOrderDisclaimer`), each leaving the `OrderChangeLog` row staff's would, and notes on three of their lines. Orders taken by position, no RNG draws, so nothing else shifts |
 | 13   | `operations.ts`        | `Ticket` + `TicketMessage` (Helpdesk), `TimeEntry` + `StaffShift` (Time)                                                                                                                                                                                                                                              |
 | 14   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`, locked and PAID month by month                                                                                                                                                                                             |
 | 15   | `journal.ts`           | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal`                                                                                                                                                                                                                        |
 | 16   | `priceBooks.ts`        | Five invented vendors' price books through the real importers: three special-order lines (`VendorStyle`, `PriceList`, grade tiers and prices, per-style options) via `lib/pricing/importWholesaleBook.ts`, two flat lines (`Product`s, with case packs) via the generic product import; vendor and store-wide markups |
-| 17   | `productSources.ts`    | One invented supplier (`Brightwater Trade Supply`) as another vendor of six catalog items from two catalog vendors, with its own item numbers and costs, and one item listed with a second catalog vendor with no number or cost (`ProductSource`, GAP-22). Through `lib/purchasing/productSources.ts`; runs after everything but `vendorMerge.ts`, with no RNG draws, so nothing else shifts|
+| 17   | `productSources.ts`    | One invented supplier (`Brightwater Trade Supply`) as another vendor of six catalog items from two catalog vendors, with its own item numbers and costs, and one item listed with a second catalog vendor with no number or cost (`ProductSource`, GAP-22). Through `lib/purchasing/productSources.ts`; runs after the price books, with no RNG draws, so nothing else shifts|
 | 18   | `vendorMerge.ts`       | An invented misspelling of the supplier (`Brightwater Trade`), with a contact, merged into `Brightwater Trade Supply` through `lib/vendors/mergeVendor.ts`: the contact moves and the old spelling stays as an earlier name (`VendorAlias`, GAP-22). Runs after `productSources.ts`, no RNG draws|
+| 19   | `buyerDrafts.ts`       | One `CLOSED` `BuyerDraftBuy` rebuilt from three received stock orders through `lib/historicalPoImport.ts`: `BuyerDraftPurchaseOrder`, `BuyerDraftItem`, `BuyerDraftPoRealPoLink`. Runs after `tradePricing.ts`, no RNG draws (see "Rows the page sweep opens") |
+| 20   | `authoredInvoices.ts`  | One `DRAFT` authored `Invoice` with three `InvoiceLineItem`s, through `createDraftInvoice`. Never issued; no RNG draws |
+| 21   | `returnLinks.ts`       | One `INITIATED` `Return` with a portal token and its order's `RETURN_INITIATED` `OrderChangeLog` row, the rows the return-link endpoint writes. No RNG draws |
 
 Everything is realistic-but-clearly-fake: invented names, `@example.com` emails, made-up
 single-state addresses (synthetic towns in `prisma/seed/demo/names.ts`), invented furniture-trade vendor names. No real people, no real
@@ -276,10 +338,15 @@ for delivery (`SCHEDULED_DELIVERY`) or waiting for the customer (`READY_FOR_PICK
 2026-10-17 the state was drawn at random whatever the order's age, so orders from
 eighteen months ago were still waiting on the vendor.
 
-`InvoiceLineItem` rows are deliberately NOT created: `generateSalesJournal` only checks
-`invoices.length > 0`, never their contents, and skipping them lets `OrderLineItem` rows
-batch through `createMany` instead of one round trip per line (meaningful at demo scale
-— 6,000 orders × ~2.5 lines each).
+Order invoices get no `InvoiceLineItem` rows, deliberately: `generateSalesJournal` only
+checks `invoices.length > 0`, never their contents, and skipping them lets `OrderLineItem`
+rows batch through `createMany` instead of one round trip per line (meaningful at demo
+scale — 6,000 orders × ~2.5 lines each). They, and the return orders' invoices, are written in
+the authored shape (`organizationId` 1, `ISSUED`) with no total, so Sales › Invoices and
+the client portal list every one of them at $0. Whether to give them lines and totals or
+move them to the order-coupled shape `bookReturn` writes (`organizationId` NULL) is an
+open owner decision. The only invoice with lines is the authored draft (see "Rows the
+page sweep opens").
 
 Every order carries its store's NAME (`storeLocation`) as well as its id, the way the
 register writes it (`create-from-cart.ts`). With only the id, every report that groups
@@ -381,8 +448,9 @@ case page's picker leaves it out. The first three open cases by id are given
 "Recliner mechanism repair", so a case page shows a checklist's tasks with their
 due dates. It makes no RNG draws, so nothing else the seed makes shifts.
 
-Still dark after this: Helpdesk (`Ticket`) and Time (`TimeEntry`, `StaffShift`)
-are each their own nav section with no seeded rows.
+Helpdesk (`Ticket`) and Time (`TimeEntry`, `StaffShift`), which this section once
+listed as still dark, are seeded by `operations.ts` (see "Helpdesk tickets and time"
+above).
 
 ### Tags
 
@@ -558,7 +626,9 @@ the first screen a viewer saw read $0. `HOLT_SEED_AS_OF=YYYY-MM-DD` (or `--as-of
 it, and with it the one `now` every date-relative module reads (`config.ts`
 `SeedWindow.now`: 4pm store time on the pinned date) -- open POs, delivery runs, shifts.
 Unpinned, `now` is the wall clock. `operations.ts` tickets and past shifts still read the
-wall clock either way.
+wall clock either way, and so do the draft invoice's number, date and due date
+(`authoredInvoices.ts`) and the return link's return number (`returnLinks.ts`), which come
+from the production code that writes them.
 
 **`priceBooks.ts` draws nothing from the RNG and runs last** (2026-10-29). It
 can't use `subRng` either, because `subRng(root, …)` takes one draw from the root
@@ -569,6 +639,16 @@ business columns. The tables compared were SalesOrder, OrderLineItem, Payment,
 PurchaseOrder, InventoryPosition, JournalEntryLine and Customer, plus the Product,
 Vendor and Category rows that aren't the new vendors'. All were identical; the
 module only adds rows.
+
+**The page-sweep rows were checked the same way (2026-11-21)**, at ci scale with
+`HOLT_SEED_AS_OF` pinned: SalesOrder, OrderLineItem, Payment, PurchaseOrder,
+PurchaseOrderItem, InventoryPosition, JournalEntry, JournalEntryLine, Customer,
+CommissionPayout and Till were identical, Product and InventorySnapshot were identical
+apart from the stock-id columns, and Invoice, Return and OrderChangeLog were identical
+apart from one appended row each. Two columns differed for reasons that hold for any two
+runs, so "byte-identical" above is not quite true: `ReceivingRecord.receiverUserId`, since
+`User.id` is a random `cuid()`, and `occurredAt` on the 13 stock movements of
+`inventoryOps.ts`'s transfers, which take the column's `now()` default.
 
 Verified directly (before the window moved to today): two consecutive `npm run seed:demo -- --reset` runs at ci scale
 produced identical output — same 420 orders, 448 payments (28 refunds), 362 closed tills
@@ -666,14 +746,15 @@ keep around.
   covering sales/adjustments would leave it in a WORSE, half-consistent state than not
   touching it at all — every seeded `Customer.openArBalance` stays at its schema default
   rather than drifting from a partial implementation.
-- **`InvoiceLineItem` rows.** `generateSalesJournal` never reads them (only
-  `invoices.length > 0`), and skipping them lets order-line creation batch through
-  `createMany`. See "Invoiced vs. deposit-only orders" above.
-- **`Return` records.** Every refund in this seed takes the
-  `UNCLASSIFIED_DEFAULT_RESTOCK` booking path (no `Return` row), matching how every
-  _imported_ historical return looks today — see `docs/domains/returns.md`. Generating
-  classified `RESTOCKED`/`WRITTEN_OFF` `Return` rows to exercise the B3 write-off branch
-  would be a reasonable follow-up but wasn't in scope here.
+- **`InvoiceLineItem` rows on order invoices.** `generateSalesJournal` never reads them
+  (only `invoices.length > 0`), and skipping them lets order-line creation batch through
+  `createMany`. See "Floor sales, delivery orders, and when a delivery order is
+  delivered" above. The one authored draft invoice has its lines (see "Rows the page
+  sweep opens").
+- **`Return` records: no longer left out.** This bullet said every refund booked with no
+  `Return` row. Refunds now book as native returns, each with a `Return` (see "Refunds"
+  above), and one more `Return`, `INITIATED` with a portal token, is a return link
+  waiting on its customer (see "Rows the page sweep opens").
 - **`prisma/seed/tax.ts` was not reused directly.** Its `new PrismaClient()` (no driver
   adapter) throws under Prisma 7 — `PrismaClientInitializationError: PrismaClient needs
 to be constructed with a non-empty, valid PrismaClientOptions` — a pre-existing issue

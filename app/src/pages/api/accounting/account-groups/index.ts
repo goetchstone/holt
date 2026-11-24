@@ -1,7 +1,7 @@
 // /app/src/pages/api/accounting/account-groups/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -83,4 +83,21 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+// The list serves the Chart of Accounts screen and the Account Group picker on
+// the category editor, so a GET takes either screen's key (Edit catalog for the
+// picker, as /api/tax/groups does), View accounting, or the write key. Creating
+// a group is chart setup: the screen's key, or "Set up the chart of accounts",
+// which Managers hold (they made these writes by API under the old MANAGER/ADMIN
+// list).
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    return requirePermission(
+      { anyOf: ["admin.config", "accounting.chart.manage", "accounting.read", "catalog.write"] },
+      handler,
+    )(req, res);
+  }
+  return requirePermission({ anyOf: ["admin.config", "accounting.chart.manage"] }, handler)(
+    req,
+    res,
+  );
+}

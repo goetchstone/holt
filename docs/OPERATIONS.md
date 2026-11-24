@@ -200,7 +200,7 @@ Starts on, Sundays at 4 AM. Refreshes `Customer.customerLevel` / `lifetimeSpend`
 
 - Admin → Automations: when it last ran and how it went
 - `MailchimpSyncLog` rows with `kind = 'customer-level-recalc'`
-- `/admin/tools/recalculate-levels` still works for ad-hoc triggers (the manual button calls the same pure helper).
+- For an ad-hoc run, the Customers list's Recalculate Levels button (`/api/customers/recalculate-levels`, "Run marketing") calls the same helper. `/api/automations/customer-level-recalc` by hand takes the scheduler's key or "Run scheduled jobs" (`admin.automations`), no longer a Manager's session.
 
 ### Mailchimp New Customer Sync
 

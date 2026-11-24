@@ -49,8 +49,8 @@ jest.mock("@/lib/email/queue", () => ({
   enqueueAndSend: jest.fn(async () => undefined),
 }));
 jest.mock("@/lib/auth/requireAuth", () => ({
-  requireAuthWithRole:
-    (_roles: string[], handler: (req: unknown, res: unknown, session: unknown) => unknown) =>
+  requirePermission:
+    (_permission: unknown, handler: (req: unknown, res: unknown, session: unknown) => unknown) =>
     (req: unknown, res: unknown) =>
       handler(req, res, { user: { email: "manager@example.com" } }),
 }));
@@ -468,7 +468,6 @@ describe("one open checkout per order or invoice (real DB)", () => {
     const caller = createCallerFactory(appRouter)({
       userId: user.id,
       userEmail: user.email,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     });

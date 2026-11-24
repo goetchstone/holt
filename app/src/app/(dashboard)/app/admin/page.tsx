@@ -1,14 +1,16 @@
 // /app/src/app/(dashboard)/app/admin/page.tsx
 //
-// Admin Tools hub -- App Router port of the legacy admin/index. MANAGER / ADMIN
-// (mirrors the legacy withAuth roles). Cards self-filter by role via CardGrid;
-// hrefs are unchanged so existing links keep working. Chrome from the
-// (dashboard) layout. This is the main Admin hub linking every admin surface.
+// Admin Tools hub -- App Router port of the legacy admin/index, on Change
+// settings. A card shows only to a viewer holding the key of the page it opens
+// (lib/auth/hubCards.ts); hrefs are unchanged so existing links keep working.
+// Chrome from the (dashboard) layout. This is the main Admin hub linking every
+// admin surface.
 //
 // The getting-started checklist (lib/gettingStarted.ts) sits above the cards
 // until every item is done.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 import { GettingStartedCard } from "@/components/admin/GettingStartedCard";
 import { loadGettingStarted } from "@/lib/gettingStartedServer";
@@ -20,31 +22,26 @@ const ITEMS: CardGridItem[] = [
     title: "Content (CMS)",
     description: "Manage public pages, blog posts, and site navigation.",
     href: "/app/admin/cms",
-    roles: ["ADMIN"],
   },
   {
     title: "Bookings",
     description: "View consultation bookings and the staff iCal subscription feed.",
     href: "/app/admin/bookings",
-    roles: ["ADMIN"],
   },
   {
     title: "Scheduling",
     description: "Bookable services, weekly availability hours, and time off.",
     href: "/app/admin/scheduling",
-    roles: ["ADMIN"],
   },
   {
     title: "Email",
     description: "Transactional email queue + SMTP status (booking + ticket notifications).",
     href: "/app/admin/email",
-    roles: ["ADMIN"],
   },
   {
     title: "Settings",
     description: "Branding, theme colors, localization, modules, and integration keys.",
     href: "/app/admin/settings",
-    roles: ["ADMIN"],
   },
   {
     title: "Vendor Pricing",
@@ -55,14 +52,12 @@ const ITEMS: CardGridItem[] = [
     title: "Import Tools",
     description: "Upload and manage sales import data.",
     href: "/app/admin/import",
-    roles: ["ADMIN"],
   },
   {
     title: "Export Data",
     description:
       "Download customers, products, orders, inventory, and more as CSV. Your data, anytime.",
     href: "/app/admin/export/data",
-    roles: ["ADMIN"],
   },
   {
     title: "Setup",
@@ -73,13 +68,11 @@ const ITEMS: CardGridItem[] = [
     title: "Gift Cards",
     description: "Look up balances, manage cards, and import the POS vouchers.",
     href: "/app/admin/gift-cards",
-    roles: ["ADMIN"],
   },
   {
     title: "System Tools",
     description: "Reload data, system configuration, and diagnostics.",
     href: "/app/admin/tools",
-    roles: ["ADMIN"],
   },
   {
     title: "Sales Goals",
@@ -100,7 +93,6 @@ const ITEMS: CardGridItem[] = [
     title: "Data Exports",
     description: "Download Windfall sales and customer CSV files.",
     href: "/app/admin/export/windfall",
-    roles: ["ADMIN"],
   },
   {
     title: "Automations",
@@ -135,7 +127,6 @@ const ITEMS: CardGridItem[] = [
     title: "Login Activity",
     description: "See who's logged in right now and when each staff member last signed in.",
     href: "/app/admin/login-activity",
-    roles: ["ADMIN"],
   },
   {
     title: "Inventory Exceptions",
@@ -151,7 +142,10 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function AdminLandingPage() {
-  await requirePage(undefined, { permission: "admin.settings" });
+  const { holds } = await requirePage(undefined, {
+    permission: "admin.settings",
+    also: hubCardKeys(ITEMS),
+  });
   // A failed read must not take the hub down -- it is how an admin reaches the
   // settings that would fix things -- and must not read as "all done" either.
   let checklist: GettingStartedItem[] | null = null;
@@ -169,7 +163,7 @@ export default async function AdminLandingPage() {
           The getting-started checklist could not be loaded; see the server log.
         </p>
       )}
-      <CardGrid title="Admin Tools" items={ITEMS} />
+      <CardGrid title="Admin Tools" items={visibleHubCards(ITEMS, holds)} />
     </div>
   );
 }

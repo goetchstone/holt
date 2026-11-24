@@ -300,7 +300,6 @@ describe("through the router", () => {
     return createCallerFactory(appRouter)({
       userId: user.id,
       userEmail: user.email,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     });

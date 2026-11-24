@@ -2,7 +2,8 @@
 //
 // Drives the billing tRPC procedures end-to-end through the real appRouter
 // (createCallerFactory) against the test DB: the feature gate (NOT_FOUND when
-// `billing` is off), the role gate (FORBIDDEN below MANAGER), and the
+// `billing` is off), the permission gate (FORBIDDEN without "Bill customers
+// directly", accounting.invoice), and the
 // create -> list -> detail -> issue -> recordPayment happy path through the
 // router layer — input parsing, error translation, and ctx audit fields
 // included. The service internals are proven in invoiceLifecycle; this proves
@@ -21,7 +22,6 @@ function ctxFor(userId: string, email: string): TrpcContext {
   return {
     userId,
     userEmail: email,
-    tokenRole: null,
     impersonate: null,
     headers: new Headers(),
   };
@@ -93,14 +93,32 @@ describe("billing tRPC router against a real DB", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("refuses below-MANAGER roles with FORBIDDEN", async () => {
+  it("refuses a role without Bill customers directly (accounting.invoice) with FORBIDDEN", async () => {
     await seedOrg({ billing: true });
     // A real privileged staff member must exist so the bootstrap safeguard
-    // doesn't waive the role check for the designer.
+    // doesn't waive the permission check for the others.
     await seedStaff("ADMIN", "admin");
     const designer = await seedStaff("DESIGNER", "designer");
     const caller = createCaller(ctxFor(designer.id, designer.email ?? ""));
     await expect(caller.billing.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    // A General Manager holds View accounting and Post journals but not this
+    // key, which none of the old role lists gave them: neither opens invoices,
+    // nor the client-hub link that shows a customer theirs.
+    const gm = await seedStaff("GENERAL_MANAGER", "gm");
+    const gmCaller = createCaller(ctxFor(gm.id, gm.email ?? ""));
+    await expect(gmCaller.billing.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(gmCaller.clientPortal.generateLink({ customerId: 1 })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("admits a Manager, who holds Bill customers directly by default", async () => {
+    // BILLING_ROLES let Managers in; the key keeps them in.
+    await seedOrg({ billing: true });
+    const manager = await seedStaff("MANAGER", "manager");
+    const caller = createCaller(ctxFor(manager.id, manager.email ?? ""));
+    await expect(caller.billing.list({})).resolves.toEqual([]);
   });
 
   it("create -> list -> detail -> issue -> recordPayment through the router", async () => {

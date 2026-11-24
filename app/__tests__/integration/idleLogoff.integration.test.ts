@@ -149,7 +149,7 @@ async function trpcUser(token: string): Promise<string | null> {
   return (await createContext({ req: req as unknown as Request })).userId;
 }
 
-/** A background request: what TopNav's notification poll does to the session. */
+/** A background request, such as a screen's polling read: what it does to the session. */
 async function backgroundRead(token: string) {
   const { res, out } = fakeRes();
   const session = await getServerSession(apiReq(token), res, authOptions);

@@ -3,7 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { calculateTillExpected } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
@@ -158,4 +158,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   await handleClose(req, res, session, prisma);
 }
 
-export default requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"], handler);
+// "Open and close tills" (pos.till.manage), the key that opens one
+// (registers/[id]/tills/open.ts).
+export default requirePermission("pos.till.manage", handler);

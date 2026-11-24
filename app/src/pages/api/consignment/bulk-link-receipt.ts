@@ -1,23 +1,22 @@
 // /app/src/pages/api/consignment/bulk-link-receipt.ts
 //
-// Assigns a set of ConsignmentItems to a ConsignmentReceipt.
+// Assigns a set of ConsignmentItems to a ConsignmentReceipt (Receiving Gaps'
+// Link to Receipt).
 // If receiptId is null a new receipt is created with the provided date and ref.
-// Manager-only.
+// "Write purchase orders" alone decides who may, the key Receive Shipment's
+// manifest import also creates receipts under. Until 2026-11 a second check
+// also required the staff role to be MANAGER or ADMIN by name, which refused
+// the Owner, the General Manager and every custom role.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
 export default requirePermission(
   "purchasing.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
-    if (role !== "MANAGER" && role !== "ADMIN")
-      return res.status(403).json({ error: "Manager role required" });
 
     const { itemIds, receiptId, newReceiptDate, newReceiptRef, vendorId } = req.body as {
       itemIds: number[];

@@ -5,12 +5,14 @@
 // dispatch board drag-and-drop.
 
 import type { NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import { assignOrderToRun } from "@/lib/deliveryService";
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], async (req, res, session) => {
+// Puts a stop on a run, as POST runs/[id]/stops does — same capability as the
+// rest of dispatch.
+export default requirePermission("warehouse.operate", async (req, res, session) => {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

@@ -9,10 +9,14 @@
 // Purpose: when the user drills into an Uncategorized sale and the item
 // isn't in the catalog at all, they can add it right there without leaving
 // the report.
+//
+// "Edit catalog" (catalog.write), the key that names creating a product, as
+// for products/basic.ts. The report itself opens on a read key, and relinking
+// the line afterwards is the order line route's own call (sales.write).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
@@ -112,4 +116,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("catalog.write", handler);

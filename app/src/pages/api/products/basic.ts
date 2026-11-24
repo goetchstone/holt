@@ -1,8 +1,14 @@
 // /app/src/pages/api/products/basic.ts
+//
+// Create a product (cost, retail, optional UPC) from Create Basic Product and
+// Create Variant's master picker. "Edit catalog" (catalog.write), the key of
+// both pages: a new product's first price is part of creating it, as in
+// products/import-basic.ts. Changing an existing product's price is "Change
+// pricing" (catalog.pricing), in products/[id].ts.
 
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -108,4 +114,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("catalog.write", handler);

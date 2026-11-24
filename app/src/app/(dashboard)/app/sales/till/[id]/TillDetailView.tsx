@@ -4,13 +4,14 @@
 //
 // Till detail body -- App Router port of the legacy sales/till/[id] (minus
 // MainLayout chrome, which the (dashboard) layout supplies). Staff/timing,
-// financials, denomination counts, payments, and the manager reconcile action
-// all read/write the shared /api/tills/:id REST endpoints exactly as before.
-// The id arrives as a prop from the server page (params awaited there). Money
-// is shown via useMoneyFormatter (till precision shows cents).
+// financials, denomination counts, payments, and the reconcile action all
+// read/write the shared /api/tills/:id REST endpoints exactly as before. The id
+// arrives as a prop from the server page (params awaited there), with whether
+// the viewer holds "Adjust till counts" (pos.till.adjust), the key the reconcile
+// route requires. Money is shown via useMoneyFormatter (till precision shows
+// cents).
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
@@ -159,10 +160,10 @@ function PaymentsTable({ payments, fmt }: Readonly<{ payments: TillPayment[]; fm
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export function TillDetailView({ id }: Readonly<{ id: string }>) {
-  const { data: session } = useSession();
-  const userRole = (session as { role?: string } | null)?.role || "DESIGNER";
-  const isManager = userRole === "MANAGER" || userRole === "ADMIN" || userRole === "SUPER_ADMIN";
+export function TillDetailView({
+  id,
+  canReconcile,
+}: Readonly<{ id: string; canReconcile: boolean }>) {
   const fmt = useMoneyFormatter();
 
   const [till, setTill] = useState<TillDetail | null>(null);
@@ -214,7 +215,7 @@ export function TillDetailView({ id }: Readonly<{ id: string }>) {
 
   const openingRows = till.counts.filter((c) => c.isOpening);
   const closingRows = till.counts.filter((c) => !c.isOpening);
-  const canReconcile = till.status === "CLOSED" && isManager;
+  const canReconcileTill = till.status === "CLOSED" && canReconcile;
 
   return (
     <div className="py-2 space-y-6 font-serif">
@@ -304,8 +305,8 @@ export function TillDetailView({ id }: Readonly<{ id: string }>) {
         </div>
       )}
 
-      {/* Reconcile action for managers */}
-      {canReconcile && (
+      {/* Reconcile action, for holders of Adjust till counts */}
+      {canReconcileTill && (
         <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
           {!showReconcile ? (
             <Button size="sm" onClick={() => setShowReconcile(true)}>

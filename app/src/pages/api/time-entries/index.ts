@@ -1,9 +1,10 @@
 // /app/src/pages/api/time-entries/index.ts
 //
 // Time entries collection. Any signed-in staff member can log + list their own
-// time; ADMIN/MANAGER/SUPER_ADMIN can view the whole team (?all=true) or filter
-// to one person (?staffMemberId=). The duration is parsed to minutes on the
-// client; this endpoint validates the integer minutes (CLAUDE.md rule 14).
+// time; a holder of "Manage time" (staff.time) can view the whole team
+// (?all=true), filter to one person (?staffMemberId=) and log time for someone
+// else. The duration is parsed to minutes on the client; this endpoint
+// validates the integer minutes (CLAUDE.md rule 14).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
@@ -14,22 +15,20 @@ import { parseTimeEntryCreateInput } from "@/lib/timeEntries/requestBody";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
-const CAN_SEE_ALL = new Set(["SUPER_ADMIN", "ADMIN", "MANAGER"]);
-
 async function resolveStaff(userId: string | undefined) {
   if (!userId) return null;
-  return prisma.staffMember.findFirst({ where: { userId }, select: { id: true, role: true } });
+  return prisma.staffMember.findFirst({ where: { userId }, select: { id: true } });
 }
 
 // Self-service: every staff role logs their own time, so the gate is "any
-// active staff member" -- the CAN_SEE_ALL check below narrows who can see or
-// attribute someone else's entries.
+// active staff member" (staff.self). "Manage time" (staff.time), answered by
+// the gate's `also`, narrows who can see or attribute someone else's entries.
 export default requirePermission(
   "staff.self",
-  async (req: NextApiRequest, res: NextApiResponse, session) => {
+  async (req: NextApiRequest, res: NextApiResponse, session, access) => {
     const staff = await resolveStaff((session.user as { id?: string }).id);
     if (!staff) return res.status(403).json({ error: "Only staff can track time" });
-    const privileged = CAN_SEE_ALL.has(staff.role);
+    const privileged = access.holds["staff.time"];
 
     if (req.method === "GET") {
       const where: Prisma.TimeEntryWhereInput = { organizationId: DEFAULT_ORG_ID };
@@ -97,4 +96,5 @@ export default requirePermission(
     res.setHeader("Allow", ["GET", "POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   },
+  { also: ["staff.time"] },
 );

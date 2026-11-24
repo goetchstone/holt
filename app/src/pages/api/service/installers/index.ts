@@ -1,8 +1,15 @@
 // /app/src/pages/api/service/installers/index.ts
+//
+// The installer roster. Adding an installer (POST) is setup, from Admin >
+// Service > Installers: "Set up service" (service.setup), or "Change settings",
+// the key that screen opens on. The list (GET) also fills the Service dispatch
+// board's installer picker, which only someone who may schedule an
+// appointment can use (dispatch/[id].ts PUT, "Operate warehouse"), so GET
+// admits that key too.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -17,7 +24,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+const readGate = requirePermission(
+  { anyOf: ["service.setup", "admin.settings", "warehouse.operate"] },
+  handler,
+);
+const writeGate = requirePermission({ anyOf: ["service.setup", "admin.settings"] }, handler);
+
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") return readGate(req, res);
+  return writeGate(req, res);
+}
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   const where: any = {};

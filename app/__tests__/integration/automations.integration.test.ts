@@ -717,6 +717,21 @@ describe("the routes still answer as they did", () => {
     expect(log.id).toBe(run.body.logId);
   });
 
+  it("customer levels by hand needs Run scheduled jobs, like the other jobs", async () => {
+    // A Manager's session ran it until 2026-11; Managers recalculate levels
+    // from the Customers list (/api/customers/recalculate-levels) instead.
+    await makeStaff("mia", "MANAGER");
+    const refused = await call(levelRoute, "mia");
+    expect(refused.status).toBe(403);
+    expect(await prisma.mailchimpSyncLog.count({ where: { kind: "customer-level-recalc" } })).toBe(
+      0,
+    );
+
+    const ran = await call(levelRoute, "owner");
+    expect(ran.status).toBe(200);
+    expect(ran.body).toMatchObject({ status: "SUCCESS", customersUpdated: 0, errors: [] });
+  });
+
   it("lead housekeeping logs its run", async () => {
     const run = await call(housekeepingRoute, null, key);
     expect(run.status).toBe(200);

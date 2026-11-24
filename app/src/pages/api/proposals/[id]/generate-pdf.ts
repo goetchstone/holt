@@ -1,17 +1,20 @@
 // /app/src/pages/api/proposals/[id]/generate-pdf.ts
 //
 // POST: Generate and return a PDF for the proposal.
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { generateProposalPdf } from "@/lib/proposalPdf";
 import { getAppSettings } from "@/lib/appSettings";
 import { toQty } from "@/lib/inventory/quantity";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.proposal",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);
