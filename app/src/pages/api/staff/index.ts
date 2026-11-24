@@ -16,12 +16,19 @@ import {
 import { auditActor, auditLog } from "@/lib/audit";
 import {
   DEFAULT_STAFF_ROLE,
+  callerStaffRole,
   defaultAssignment,
+  normalizeStaffEmail,
   resolveRoleAssignment,
+  signInRefusalFor,
+  subjectForAssignment,
+  type RoleAssignment,
 } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { resolvePlanAssignment } from "@/lib/commissionPlans";
 import { STAFF_RECORD_SELECT } from "@/lib/staffRecord";
+
+const EMAIL_TAKEN = "Email already in use by another staff member";
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   const where: Prisma.StaffMemberWhereInput = {};
@@ -42,55 +49,110 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   return res.json(staff);
 }
 
-async function handlePost(
-  req: NextApiRequest,
-  res: NextApiResponse,
-  session: Session,
+/** A step's answer: its value, or the refusal the request gets. */
+type Step<T> = { ok: true; value: T } | { ok: false; status: number; error: string };
+
+/** The plans picked on the form (GAP-24). These used to be dropped on create. */
+async function newMemberPlans(
+  body: Record<string, unknown>,
   access: CallerAccess,
-) {
-  const { displayName, email, role, roleId, defaultStore, isDesigner } = req.body;
-  if (!displayName) return res.status(400).json({ error: "displayName required" });
-  // The plans picked on the form (GAP-24). These used to be dropped on create.
+): Promise<Step<{ commissionPlanId?: number | null; protectionCommissionPlanId?: number | null }>> {
   const plans: { commissionPlanId?: number | null; protectionCommissionPlanId?: number | null } =
     {};
   for (const [field, kind] of [
     ["commissionPlanId", "MAIN"],
     ["protectionCommissionPlanId", "PROTECTION_PLAN"],
   ] as const) {
-    if (req.body[field] === undefined) continue;
-    const checked = await resolvePlanAssignment(req.body[field], kind);
-    if (!checked.ok) return res.status(400).json({ error: checked.error });
+    if (body[field] === undefined) continue;
+    const checked = await resolvePlanAssignment(body[field], kind);
+    if (!checked.ok) return { ok: false, status: 400, error: checked.error };
     // A new member has no plan, so naming one is a change: it needs the key.
     if (!canSeeCommissionPay(access) && changesCommissionPlan(checked.value, null)) {
-      return res.status(403).json({ error: COMMISSION_PLAN_REFUSED });
+      return { ok: false, status: 403, error: COMMISSION_PLAN_REFUSED };
     }
     plans[field] = checked.value;
   }
+  return { ok: true, value: plans };
+}
 
-  // Anyone with staff.manage may create a staff member; they get the default
-  // role. Any other role is an assignment, and only an admin assigns roles
-  // (lib/auth/roleAssignment.ts). This used to write whatever `role` said, so
-  // any staff.manage holder could create an ADMIN.
-  let assignment = await defaultAssignment();
-  if (role || roleId !== undefined) {
-    const requested = { role, roleId };
-    const newMember = { role: DEFAULT_STAFF_ROLE, roleId: null };
-    const resolved = await resolveRoleAssignment(requested, session, newMember);
-    if (!resolved.ok) return res.status(resolved.status).json({ error: resolved.error });
-    if (resolved.assignment) assignment = resolved.assignment;
+/**
+ * Anyone with staff.manage may create a staff member; they get the default
+ * role. Any other role is an assignment, and only an admin assigns roles
+ * (lib/auth/roleAssignment.ts). This used to write whatever `role` said, so
+ * any staff.manage holder could create an ADMIN.
+ */
+async function newMemberAssignment(
+  body: Record<string, unknown>,
+  session: Session,
+): Promise<Step<RoleAssignment>> {
+  const { role, roleId } = body;
+  if (!role && roleId === undefined) return { ok: true, value: await defaultAssignment() };
+  const newMember = { role: DEFAULT_STAFF_ROLE, roleId: null };
+  const requested = { role, roleId };
+  const resolved = await resolveRoleAssignment(requested, session, newMember);
+  if (!resolved.ok) return resolved;
+  return { ok: true, value: resolved.assignment ?? (await defaultAssignment()) };
+}
+
+/**
+ * A sign-in email decides who can sign in as the new member, so giving one
+ * takes what changing one takes (USE-02's third door): an admin, and for a
+ * member created into the owner tier, an owner. Anyone with staff.manage may
+ * still add someone WITHOUT an email; an admin adds it later.
+ */
+async function newMemberEmail(
+  email: unknown,
+  assignment: RoleAssignment,
+  session: Session,
+): Promise<Step<string | null>> {
+  if (email !== undefined && email !== null && typeof email !== "string") {
+    return { ok: false, status: 400, error: "email must be a string or null" };
   }
+  const signInEmail = normalizeStaffEmail(email);
+  if (!signInEmail) return { ok: true, value: null };
+  const refusal = signInRefusalFor(
+    await callerStaffRole(session),
+    await subjectForAssignment(assignment),
+    "sign-in email",
+  );
+  if (refusal) return { ok: false, status: 403, error: refusal };
+  // Only after the 403. The unique index is case-sensitive, so an address
+  // someone already has in another letter case is refused here.
+  const taken = await prisma.staffMember.findFirst({
+    where: { email: { equals: signInEmail, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (taken) return { ok: false, status: 409, error: EMAIL_TAKEN };
+  return { ok: true, value: signInEmail };
+}
+
+async function handlePost(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const { displayName, defaultStore, isDesigner } = body;
+  if (!displayName) return res.status(400).json({ error: "displayName required" });
+  const plans = await newMemberPlans(body, access);
+  if (!plans.ok) return res.status(plans.status).json({ error: plans.error });
+  const assignment = await newMemberAssignment(body, session);
+  if (!assignment.ok) return res.status(assignment.status).json({ error: assignment.error });
+  const { role, roleId } = assignment.value;
+  const email = await newMemberEmail(body.email, assignment.value, session);
+  if (!email.ok) return res.status(email.status).json({ error: email.error });
   try {
     const member = await prisma.staffMember.create({
       data: {
-        displayName,
-        email: email || null,
-        role: assignment.role,
-        roleId: assignment.roleId,
-        defaultStore: defaultStore || null,
-        ...plans,
+        displayName: displayName as string,
+        email: email.value,
+        role,
+        roleId,
+        defaultStore: (defaultStore as string) || null,
+        ...plans.value,
         // Default the report-visibility flag from the role unless set explicitly.
-        isDesigner:
-          typeof isDesigner === "boolean" ? isDesigner : assignment.role === DEFAULT_STAFF_ROLE,
+        isDesigner: typeof isDesigner === "boolean" ? isDesigner : role === DEFAULT_STAFF_ROLE,
       },
       select: {
         ...STAFF_RECORD_SELECT,
@@ -104,7 +166,7 @@ async function handlePost(
     return res.status(201).json(member);
   } catch (err) {
     if ((err as { code?: string }).code === "P2002") {
-      return res.status(409).json({ error: "Email already in use by another staff member" });
+      return res.status(409).json({ error: EMAIL_TAKEN });
     }
     throw err;
   }
