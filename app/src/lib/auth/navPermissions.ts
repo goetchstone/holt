@@ -134,39 +134,6 @@ const NAV_FEATURE_KEYS: Record<string, string> = {
   Time: "timeTracking",
 };
 
-/**
- * SUPER_ADMIN and ADMIN both bypass DB-level permission overrides and
- * see every nav item. Use this in auth helpers + route gates to mean
- * "owner-or-admin-equivalent access."
- *
- * NOT used by the nav any more: SUPER_ADMIN needs no special case here, because
- * it holds every permission through the `grantsAllPermissions` wildcard and
- * therefore satisfies every item's key on the ordinary path.
- */
-export function isPrivilegedRole(role: string | null | undefined): boolean {
-  return role === "SUPER_ADMIN" || role === "ADMIN";
-}
-
-/**
- * Client-side equivalent of the requireAuthWithRole auto-promotion:
- * SUPER_ADMIN satisfies any check that would accept ADMIN, plus
- * itself. Use anywhere UI code reads `role === "X"` to gate UI.
- *
- * Origin: 2026-05-19 — first SUPER_ADMIN login lost the impersonate
- * dropdown + several conditional UI elements because client checks
- * were still hard-coded to `=== "ADMIN"`.
- */
-export function hasRoleAccess(
-  userRole: string | null | undefined,
-  ...allowedRoles: string[]
-): boolean {
-  if (!userRole) return false;
-  if (userRole === "SUPER_ADMIN") {
-    return allowedRoles.includes("SUPER_ADMIN") || allowedRoles.includes("ADMIN");
-  }
-  return allowedRoles.includes(userRole);
-}
-
 // True when a nav item's gating feature module is enabled (or it has no
 // gating feature, i.e. it's a core item). `enabledFeatures` maps a feature
 // key to its on/off state; when omitted, all items pass (feature gating off).

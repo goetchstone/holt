@@ -1,10 +1,14 @@
 // /app/src/pages/api/service/settings/types/[id].ts
+//
+// Editing or deleting a service-case type, from Settings > Service. Setup:
+// "Set up service" (service.setup), or "Manage configuration", the key that
+// screen opens on.
 
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import {
   success,
   noContent,
@@ -60,4 +64,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return methodNotAllowed(res, ["PUT", "DELETE"]);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission({ anyOf: ["service.setup", "admin.config"] }, handler);

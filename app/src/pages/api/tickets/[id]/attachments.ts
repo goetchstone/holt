@@ -1,12 +1,13 @@
 // /app/src/pages/api/tickets/[id]/attachments.ts
 //
-// POST — staff upload a file attachment to a ticket (multipart). Same role
-// gate as ticket replies. Files land under data/uploads/attachments with
-// random names (createSecureForm) and serve via /api/uploads/[...path].
+// POST — staff upload a file attachment to a ticket (multipart), on "Work
+// service" (service.write), the key of ticket replies. Files land under
+// data/uploads/attachments with random names (createSecureForm) and serve via
+// /api/uploads/[...path].
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import path from "path";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { createSecureForm, assertUploadedFileInRoot } from "@/lib/secureUpload";
 import { getErrorMessage } from "@/lib/toastError";
@@ -14,8 +15,8 @@ import { logError } from "@/lib/logger";
 
 export const config = { api: { bodyParser: false } };
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER"],
+export default requirePermission(
+  "service.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

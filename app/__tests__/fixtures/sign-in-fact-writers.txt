@@ -1,0 +1,37 @@
+# Every file under app/src that writes a StaffMember or User row. MANIFEST,
+# read by __tests__/signInFactWriters.test.ts (CLAUDE.md rule 65).
+#
+# Who someone can sign in as is decided by a handful of facts: a StaffMember's
+# email, isActive, userId (the login it is linked to) and passwordHash, and the
+# User rows those point at. Until 2026-11-21 the Staff routes wrote the first
+# three on staff.manage alone, so a General Manager could put their own address
+# on the Owner's row, ask for a reset and sign in as the Owner. Each writer is
+# classified here so a new one cannot slip in unjudged:
+#
+#   guarded          judged by the sign-in rule: the file calls
+#                    signInChangeRefusal or signInRefusalFor
+#                    (lib/auth/roleAssignment.ts)
+#   self             writes only the session's own row, found by session userId
+#   token            proven by a single-use emailed token
+#   identity-proof   proven by the identity provider at sign-in
+#   no-sign-in-fact  writes none of email, isActive, userId or passwordHash on
+#                    a StaffMember; the columns it does write are named, and the
+#                    test checks every literal write against them
+#
+# The test fails in both directions: a writer missing here, and a line here
+# whose file no longer writes. Scripts and seeds (app/scripts, app/prisma) are
+# out of scope: they run on the host, which is the deployment perimeter.
+#
+# Format: path | class | columns (no-sign-in-fact only, else -) | reason
+
+src/pages/api/staff/[id].ts | guarded | - | PATCH and DELETE: email, active status both ways, the login link and an owner-tier role change go through signInChangeRefusal (deactivating an ordinary member through deactivationRefusalFor), in one transaction with the row locked
+src/pages/api/staff/index.ts | guarded | - | POST: a sign-in email on a new member takes signInRefusalFor against the role being assigned; without one, any staff.manage holder may create
+src/pages/api/admin/staff/[id]/set-password.ts | guarded | - | the password and the login link go through signInChangeRefusal(..., 'password') with the row locked; it creates or reuses the member's User
+src/server/trpc/routers/account.ts | self | - | My Account: the caller's own row by session userId (password after proving the current one, PIN, follow-up email, tag print mode)
+src/lib/auth/passwordReset.ts | token | - | sets passwordHash only for the holder of an unused, unexpired emailed token whose member is still active
+src/pages/api/auth/[...nextauth].ts | identity-proof | - | links userId on the provider-proven first sign-in, stamps lastLoginAt/lastSeenAt; the PrismaAdapter writes User and Account rows after signIn admits
+src/pages/api/staff/seed.ts | no-sign-in-fact | displayName, defaultStore, role | creates email-less rows nobody can sign in as until an admin adds an email (tracked: the USE-02 role-write sweep, for the role it writes)
+src/pages/api/staff/active-store.ts | no-sign-in-fact | activeStoreLocationId | the caller's own working store
+src/pages/api/admin/roles/[id].ts | no-sign-in-fact | roleId | deleting a role moves its holders to another role, judged by the roles API's own rule (roleEditRefusalFor)
+src/lib/sales/discountApproval.ts | no-sign-in-fact | pinFailedAttempts, pinLockedUntil | counts wrong approval PINs and locks the PIN
+src/lib/adapters/legacyPos/runners.ts | no-sign-in-fact | email, name | a placeholder User (no StaffMember, Account or password) that import rows point at; it writes no StaffMember

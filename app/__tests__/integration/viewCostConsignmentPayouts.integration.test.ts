@@ -151,7 +151,7 @@ beforeAll(async () => {
   await prisma.organization.create({ data: { name: "Test Co", slug: "test-co" } });
 
   // A holder, and an ADMIN whose View cost the owner has unticked (ADMIN also
-  // passes the Consignment Summary's ["ADMIN"] page list).
+  // holds View financial reports, the Consignment Summary page's key).
   await makeStaff("mia", "MANAGER");
   await makeStaff("ada", "ADMIN");
   await makeStaff("sam", "SUPER_ADMIN");

@@ -53,16 +53,25 @@ they are repeated here rather than left to be rediscovered.
 
 2. **A catalog entry may not call `lib/reports/*` directly.** Four report
    modules state in their own headers that authorization stays in the tRPC
-   procedure — `reports.ts` keeps non-managers to their own staff record in the
-   *procedure body*. Wrapping the lib function hands any salesperson any
-   colleague's numbers. Entries go through caller-scoped wrappers, with an
-   import tripwire.
+   procedure — `reports.ts` keeps a caller without "See every salesperson's
+   numbers" to their own staff record in the *procedure body*. Wrapping the lib
+   function hands any salesperson any colleague's numbers. Entries go through
+   caller-scoped wrappers, with an import tripwire.
 
-3. **The per-report permission substrate does not exist.** `reports.ts` has 40
-   role gates and **zero** `permissionProcedure`, and the catalog defines only
-   two reporting permissions. Mapping entries to `reporting.read` — held by
-   DESIGNER — reaches ADMIN-only reports and `dormantCustomers`' email-and-phone
-   list. Copy each report's existing role set instead of inventing permissions.
+3. **Gate each entry on its report's own permission key.** Since the
+   2026-11-21 role-list sweep every procedure in `reports.ts` is a
+   `permissionProcedure` (42, and no role lists) on the key of its report's
+   page: View reports (`reporting.read`), View management reports
+   (`reporting.management`), View financial reports (`reporting.financial`),
+   See customer lists (`marketing.lists`), See wealth data (`customer.wealth`)
+   and so on, tabled under Role Filtering in `docs/domains/reporting.md`. An
+   entry asks for the same key as the procedure it wraps — `permissionProcedure`
+   in tRPC, `requirePermission` on a REST route, the `permission` option of
+   `requirePage` on a page — and asks for any key the procedure reads beside it
+   (View cost, See every salesperson's numbers) through the gate's `also`.
+   Never a role list, and never `reporting.read` for everything: Designers hold
+   it, and it would reach the financial reports and `dormantCustomers`'
+   email-and-phone list, which is View management reports.
 
 ## When these branches merge
 

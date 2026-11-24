@@ -1,8 +1,8 @@
 // /app/src/pages/api/time-entries/[id].ts
 //
-// Edit/delete a single time entry. The owner can change their own entries;
-// ADMIN/MANAGER/SUPER_ADMIN can change anyone's. `billed` toggles the billedAt
-// stamp.
+// Edit/delete a single time entry. The owner can change their own entries; a
+// holder of "Manage time" (staff.time) can change anyone's. `billed` toggles
+// the billedAt stamp.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
@@ -13,20 +13,19 @@ import { parseTimeEntryUpdateInput } from "@/lib/timeEntries/requestBody";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
-const CAN_SEE_ALL = new Set(["SUPER_ADMIN", "ADMIN", "MANAGER"]);
-
 // Self-service: every staff role can own time entries, so the gate is "any
-// active staff member" -- the isOwner/CAN_SEE_ALL check below narrows who
-// can change someone else's entries.
+// active staff member" (staff.self). The isOwner / "Manage time" (staff.time,
+// answered by the gate's `also`) check below narrows who can change someone
+// else's entries.
 export default requirePermission(
   "staff.self",
-  async (req: NextApiRequest, res: NextApiResponse, session) => {
+  async (req: NextApiRequest, res: NextApiResponse, session, access) => {
     const id = Number(req.query.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
 
     const userId = (session.user as { id?: string }).id;
     const staff = userId
-      ? await prisma.staffMember.findFirst({ where: { userId }, select: { id: true, role: true } })
+      ? await prisma.staffMember.findFirst({ where: { userId }, select: { id: true } })
       : null;
     if (!staff) return res.status(403).json({ error: "Only staff can track time" });
 
@@ -37,7 +36,7 @@ export default requirePermission(
     if (!entry) return res.status(404).json({ error: "Time entry not found" });
 
     const isOwner = entry.staffMemberId === staff.id;
-    if (!isOwner && !CAN_SEE_ALL.has(staff.role)) {
+    if (!isOwner && !access.holds["staff.time"]) {
       return res.status(403).json({ error: "You can only change your own time entries" });
     }
 
@@ -75,4 +74,5 @@ export default requirePermission(
     res.setHeader("Allow", ["PATCH", "DELETE"]);
     return res.status(405).json({ error: "Method not allowed" });
   },
+  { also: ["staff.time"] },
 );

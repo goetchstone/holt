@@ -343,7 +343,11 @@ describe("InventoryPosition's single writer", () => {
     );
 
     const res = makeRes();
-    await orderHandler(makeReq("DELETE", { id: String(order.id) }), res, managerSession);
+    // What the route's gate answers in `also` for a Manager: Cancel orders, which
+    // deleting a quote needs.
+    await orderHandler(makeReq("DELETE", { id: String(order.id) }), res, managerSession, {
+      holds: { "sales.cancel": true },
+    });
     expect(res.statusCode).toBe(204);
 
     const free = await rowsAt(product.id, storeA.id, backA.id);

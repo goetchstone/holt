@@ -11,34 +11,20 @@
 // of remaining unlinked rows (i.e. activities whose email doesn't match
 // any Customer).
 //
-// MANAGER/ADMIN or Bearer AUTO_IMPORT_API_KEY.
+// Gated by guardAutomation, like every other automation trigger: the
+// scheduler's Bearer AUTO_IMPORT_API_KEY, or a session holding "Run scheduled
+// jobs" (admin.automations). Its only screen, Admin > Automations > Mailchimp
+// Sync, opens on Change settings, which the same roles hold by default.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { authorizedByAutoImportKey } from "@/lib/automations/guardAutomation";
+import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { prisma } from "@/lib/prisma";
 import { logError, logger } from "@/lib/logger";
 
-async function isAuthorized(req: NextApiRequest, session: unknown): Promise<boolean> {
-  if (authorizedByAutoImportKey(req)) return true;
-  // Database, not the token. The Bearer path above is for cron; this branch is a
-  // human, and a demoted or deactivated one kept access until their JWT expired.
-  const role = await activeStaffRole(session as { user?: { id?: string | null } | null } | null);
-  if (role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER") return true;
-  return false;
-}
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function run(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end();
-  }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!(await isAuthorized(req, session))) {
-    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {
@@ -75,3 +61,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Backfill failed" });
   }
 }
+
+export default guardAutomation(run);

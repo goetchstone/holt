@@ -879,7 +879,6 @@ describe("how someone prints tags", () => {
     const ctx: TrpcContext = {
       userId,
       userEmail: `${userId}@example.com`,
-      tokenRole: null,
       impersonate: null,
       headers: new Headers(),
     };

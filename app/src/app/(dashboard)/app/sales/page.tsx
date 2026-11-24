@@ -1,11 +1,13 @@
 // /app/src/app/(dashboard)/app/sales/page.tsx
 //
-// Sales hub — App Router port of the legacy sales/index. Any signed-in user
-// (cards self-filter by role via CardGrid). Hrefs are unchanged so existing
-// links — including those to still-Pages detail routes — keep working. Chrome
-// from the (dashboard) layout.
+// Sales hub — App Router port of the legacy sales/index, on View orders. A card
+// shows only to a viewer holding the key of the page it opens, and for a few
+// pages the key of the data they load (lib/auth/hubCards.ts). Hrefs are
+// unchanged so existing links — including those to still-Pages detail routes —
+// keep working. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -13,26 +15,22 @@ const ITEMS: CardGridItem[] = [
     title: "Pipeline",
     description: "Your active quotes and leads — follow up, track urgency, and log contacts.",
     href: "/app/sales/pipeline",
-    roles: ["ADMIN", "MANAGER", "DESIGNER"],
   },
   {
     title: "My Clients",
     description:
       "Everyone you've sold to or quoted, with your notes, what they've bought and when to follow up.",
     href: "/app/sales/clients",
-    roles: ["ADMIN", "MANAGER", "DESIGNER"],
   },
   {
     title: "New Quote",
     description: "Build a quote with configured, catalog, or custom items.",
     href: "/app/sales/quotes/new",
-    roles: ["ADMIN"],
   },
   {
     title: "Point of Sale",
     description: "Scan items and gift cards, build a cart, and process sales.",
     href: "/app/sales/pos",
-    roles: ["ADMIN", "REGISTER"],
     feature: "pos",
   },
   {
@@ -40,20 +38,17 @@ const ITEMS: CardGridItem[] = [
     description:
       "Bill a customer directly — draft, issue to the books, email with a Stripe pay link, and record payments.",
     href: "/app/sales/invoices",
-    roles: ["MANAGER", "ADMIN"],
     feature: "billing",
   },
   {
     title: "Quotes",
     description: "View and manage open quotes.",
     href: "/app/sales/orders?status=QUOTE",
-    roles: ["ADMIN", "MANAGER", "DESIGNER"],
   },
   {
     title: "Orders",
     description: "Manage confirmed customer orders.",
     href: "/app/sales/orders",
-    roles: ["ADMIN", "MANAGER", "DESIGNER"],
   },
   {
     title: "Customers",
@@ -64,48 +59,44 @@ const ITEMS: CardGridItem[] = [
     title: "Till",
     description: "Open, manage, and close your cash drawer.",
     href: "/app/sales/till",
-    roles: ["ADMIN", "REGISTER"],
     feature: "tills",
   },
   {
     title: "Returns",
     description: "Initiate and track customer returns.",
     href: "/app/sales/returns",
-    roles: ["ADMIN"],
   },
   {
     title: "House Calls",
     description: "Schedule and manage designer home visits.",
     href: "/app/service/house-calls",
-    roles: ["ADMIN"],
   },
   {
     title: "Interactions",
     description: "Track customer walk-ins, calls, and appointments.",
     href: "/app/interactions",
-    roles: ["ADMIN"],
   },
   {
     title: "Leads",
     description: "Track and assign sales leads from campaigns and other sources.",
     href: "/app/leads",
-    roles: ["ADMIN"],
   },
   {
     title: "B2B Proposals",
     description: "Build and manage business development proposals with custom pricing and images.",
     href: "/app/sales/proposals",
-    roles: ["ADMIN", "MANAGER"],
   },
   {
     title: "Import HD Proposal",
     description: "Import a Hunter Douglas Direct Connect proposal PDF as a quote.",
     href: "/app/sales/import-hd",
-    roles: ["ADMIN"],
   },
 ];
 
 export default async function SalesHubPage() {
-  await requirePage(undefined, { permission: "sales.read" });
-  return <CardGrid title="Sales" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "sales.read",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="Sales" items={visibleHubCards(ITEMS, holds)} />;
 }

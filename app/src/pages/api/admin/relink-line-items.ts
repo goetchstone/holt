@@ -3,10 +3,14 @@
 // Admin-triggered backfill for OrderLineItem.productId → Product.productNumber.
 // Product imports and the consignment manifest import already call backfillLineItemProductLinks
 // automatically; this endpoint is for ad-hoc cleanup or one-off sweeps across
-// the whole table. MANAGER/ADMIN only.
+// the whole table. Either of two keys admits: "Change settings"
+// (admin.settings), the key of its diagnostics page, or "Edit catalog"
+// (catalog.write), the key the product imports run the same backfill on.
+// Detailed Sales' Relink Line Items button calls it too, but that report opens
+// on a read key, which would hand a whole-table write to every report reader.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 import { success, methodNotAllowed, handleError } from "@/lib/apiResponse";
@@ -46,4 +50,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return methodNotAllowed(res, ["GET", "POST"]);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission({ anyOf: ["admin.settings", "catalog.write"] }, handler);

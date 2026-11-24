@@ -83,7 +83,7 @@ Prettier handles formatting. Run `npm run format` to auto-fix. Configuration:
 ### Styling
 
 - Use the brand color tokens (`brand-*` Tailwind classes) — never hardcode hex colors. The tokens resolve to themeable CSS variables driven by each organization's saved theme, so settings re-skin the UI without code changes.
-- Content max-width: `max-w-screen-lg` (enforced by `MainLayout`)
+- Content max-width: `max-w-screen-xl` (set by `AppShell`, `src/components/navigation/AppShell.tsx`, for every back-office page)
 - Primary target: iPad Pro 12.9" -- minimum 44x44px touch targets
 
 ### Comments

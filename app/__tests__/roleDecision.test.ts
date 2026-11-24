@@ -1,6 +1,35 @@
 // /app/__tests__/roleDecision.test.ts
 
-import { decideRoleAccess } from "@/lib/auth/roleDecision";
+import {
+  BUILT_IN_ROLES,
+  OWNER_ONLY_PERMISSIONS,
+  permissionsForBuiltInRole,
+} from "@/lib/auth/permissionCatalog";
+import { decideRoleAccess, IMPERSONATE, mayImpersonate } from "@/lib/auth/roleDecision";
+
+/** mayImpersonate's answer for a built-in role's default grants. */
+const builtInMayImpersonate = (role: string) =>
+  mayImpersonate((key) => permissionsForBuiltInRole(role).includes(key));
+
+describe("who may View as (IMPERSONATE)", () => {
+  test("is decided on keys: Impersonate or Change settings, either one", () => {
+    expect(IMPERSONATE).toEqual({ anyOf: ["admin.impersonate", "admin.settings"] });
+    expect(mayImpersonate((key) => key === "admin.impersonate")).toBe(true);
+    expect(mayImpersonate((key) => key === "admin.settings")).toBe(true);
+    expect(mayImpersonate((key) => key === "staff.manage")).toBe(false);
+    expect(mayImpersonate(() => false)).toBe(false);
+  });
+
+  test("keeps today's built-in audience: the Owner and the Administrator, no one else", () => {
+    // Role names used to decide this (useEffectiveRole.ts and roleDecision.ts).
+    // Moving it to keys must not hand View as to any other built-in role.
+    const audience = BUILT_IN_ROLES.map((r) => r.key).filter(builtInMayImpersonate);
+    expect(audience.sort()).toEqual(["ADMIN", "SUPER_ADMIN"]);
+    // The Administrator gets it through Change settings, not the owner-tier key.
+    expect(OWNER_ONLY_PERMISSIONS).toContain("admin.impersonate");
+    expect(permissionsForBuiltInRole("ADMIN")).not.toContain("admin.impersonate");
+  });
+});
 
 describe("decideRoleAccess", () => {
   test("allows when the real role is directly in the allowed list", () => {
@@ -8,6 +37,7 @@ describe("decideRoleAccess", () => {
       allowedRoles: ["MANAGER", "ADMIN"],
       realRole: "MANAGER",
       impersonate: null,
+      canImpersonate: false,
       privilegedCount: 5,
     });
     expect(d.allowed).toBe(true);
@@ -20,6 +50,7 @@ describe("decideRoleAccess", () => {
       allowedRoles: ["ADMIN"],
       realRole: "DESIGNER",
       impersonate: null,
+      canImpersonate: false,
       privilegedCount: 3,
     });
     expect(d.allowed).toBe(false);
@@ -31,6 +62,7 @@ describe("decideRoleAccess", () => {
       allowedRoles: ["ADMIN"],
       realRole: "SUPER_ADMIN",
       impersonate: null,
+      canImpersonate: true,
       privilegedCount: 5,
     });
     expect(d.allowed).toBe(true);
@@ -42,29 +74,46 @@ describe("decideRoleAccess", () => {
       allowedRoles: ["ADMIN"],
       realRole: "ADMIN",
       impersonate: "DESIGNER",
+      canImpersonate: true,
       privilegedCount: 5,
     });
     expect(d.effectiveUserRole).toBe("DESIGNER");
     expect(d.allowed).toBe(false);
   });
 
-  test("ignores impersonation for a non-privileged real role", () => {
+  test("ignores impersonation for a role that may not View as", () => {
     // A DESIGNER cannot impersonate ADMIN to gain access.
     const d = decideRoleAccess({
       allowedRoles: ["ADMIN"],
       realRole: "DESIGNER",
       impersonate: "ADMIN",
+      canImpersonate: false,
       privilegedCount: 5,
     });
     expect(d.effectiveUserRole).toBe("DESIGNER");
     expect(d.allowed).toBe(false);
   });
 
-  test("impersonating UP from ADMIN to a matching gate is allowed", () => {
+  test("ignores the cookie for an ADMIN whose role holds neither View-as key", () => {
+    // The owner unticked Change settings on Administrator: the cookie no longer
+    // changes what that admin's checks run as.
     const d = decideRoleAccess({
-      allowedRoles: ["WAREHOUSE"],
+      allowedRoles: ["WAREHOUSE", "ADMIN"],
       realRole: "ADMIN",
       impersonate: "WAREHOUSE",
+      canImpersonate: false,
+      privilegedCount: 5,
+    });
+    expect(d.effectiveUserRole).toBe("ADMIN");
+    expect(d.allowed).toBe(true);
+  });
+
+  test("viewing as a role that passes, from a real role that passes too, is allowed", () => {
+    const d = decideRoleAccess({
+      allowedRoles: ["WAREHOUSE", "ADMIN"],
+      realRole: "ADMIN",
+      impersonate: "WAREHOUSE",
+      canImpersonate: true,
       privilegedCount: 5,
     });
     expect(d.effectiveUserRole).toBe("WAREHOUSE");
@@ -76,6 +125,7 @@ describe("decideRoleAccess", () => {
       allowedRoles: ["ADMIN"],
       realRole: "DESIGNER",
       impersonate: null,
+      canImpersonate: false,
       privilegedCount: 0,
     });
     expect(d.allowed).toBe(true);
@@ -87,6 +137,7 @@ describe("decideRoleAccess", () => {
       allowedRoles: ["DESIGNER"],
       realRole: "DESIGNER",
       impersonate: null,
+      canImpersonate: false,
       privilegedCount: 0,
     });
     expect(d.allowed).toBe(true);
@@ -98,6 +149,7 @@ describe("decideRoleAccess", () => {
       allowedRoles: ["SUPER_ADMIN"],
       realRole: "ADMIN",
       impersonate: null,
+      canImpersonate: true,
       privilegedCount: 5,
     });
     expect(d.allowed).toBe(false);
@@ -112,6 +164,7 @@ describe("decideRoleAccess", () => {
         allowedRoles: ["SUPER_ADMIN"],
         realRole: "ADMIN",
         impersonate: "SUPER_ADMIN",
+        canImpersonate: true,
         privilegedCount: 5,
       });
       expect(d.allowed).toBe(false);
@@ -123,6 +176,7 @@ describe("decideRoleAccess", () => {
         allowedRoles: ["ADMIN"],
         realRole: "MANAGER",
         impersonate: "ADMIN",
+        canImpersonate: builtInMayImpersonate("MANAGER"),
         privilegedCount: 5,
       });
       expect(d.allowed).toBe(false);
@@ -134,6 +188,7 @@ describe("decideRoleAccess", () => {
         allowedRoles: ["ADMIN"],
         realRole: "SUPER_ADMIN",
         impersonate: "ADMIN",
+        canImpersonate: true,
         privilegedCount: 5,
       });
       expect(d.allowed).toBe(true);
@@ -147,6 +202,7 @@ describe("decideRoleAccess", () => {
         allowedRoles: ["ADMIN"],
         realRole: "SUPER_ADMIN",
         impersonate: "DESIGNER",
+        canImpersonate: true,
         privilegedCount: 5,
       });
       expect(d.allowed).toBe(false);
@@ -155,9 +211,10 @@ describe("decideRoleAccess", () => {
 
     test("ADMIN impersonating a lateral role is honoured — those are not rungs", () => {
       const d = decideRoleAccess({
-        allowedRoles: ["WAREHOUSE"],
+        allowedRoles: ["WAREHOUSE", "ADMIN"],
         realRole: "ADMIN",
         impersonate: "WAREHOUSE",
+        canImpersonate: true,
         privilegedCount: 5,
       });
       expect(d.allowed).toBe(true);
@@ -169,10 +226,59 @@ describe("decideRoleAccess", () => {
         allowedRoles: ["ADMIN"],
         realRole: "ADMIN",
         impersonate: "MANAGER",
+        canImpersonate: true,
         privilegedCount: 5,
       });
       expect(d.allowed).toBe(false);
       expect(d.effectiveUserRole).toBe("MANAGER");
+    });
+  });
+
+  describe("View as only narrows: the real role must pass the list too", () => {
+    // Until View as moved to keys this passed: a list only the viewed role
+    // matched admitted an ADMIN viewing as that role. Once a store's own role
+    // holding Change settings may View as (its staff carry the enum DESIGNER),
+    // the same rule would let it pass any list by viewing as a role on it.
+    test("an ADMIN viewing as WAREHOUSE does not pass a WAREHOUSE-only list", () => {
+      const d = decideRoleAccess({
+        allowedRoles: ["WAREHOUSE"],
+        realRole: "ADMIN",
+        impersonate: "WAREHOUSE",
+        canImpersonate: true,
+        privilegedCount: 5,
+      });
+      expect(d.effectiveUserRole).toBe("WAREHOUSE");
+      expect(d.allowed).toBe(false);
+      expect(d.bootstrapBypass).toBe(false);
+    });
+
+    test("a store's own role that may View as cannot borrow a list it is not on", () => {
+      // Custom-role staff carry the enum DESIGNER.
+      const borrow = (allowedRoles: string[]) =>
+        decideRoleAccess({
+          allowedRoles,
+          realRole: "DESIGNER",
+          impersonate: "WAREHOUSE",
+          canImpersonate: true,
+          privilegedCount: 5,
+        });
+      expect(borrow(["MANAGER", "ADMIN", "WAREHOUSE"]).allowed).toBe(false);
+      // On a list naming both, viewing as WAREHOUSE narrows to WAREHOUSE.
+      const both = borrow(["DESIGNER", "WAREHOUSE"]);
+      expect(both.allowed).toBe(true);
+      expect(both.effectiveUserRole).toBe("WAREHOUSE");
+    });
+
+    test("the Owner viewing as ADMIN passes an ADMIN list: SUPER_ADMIN is on it by the ADMIN rule", () => {
+      const d = decideRoleAccess({
+        allowedRoles: ["MANAGER", "ADMIN", "DESIGNER"],
+        realRole: "SUPER_ADMIN",
+        impersonate: "ADMIN",
+        canImpersonate: true,
+        privilegedCount: 5,
+      });
+      expect(d.allowed).toBe(true);
+      expect(d.effectiveUserRole).toBe("ADMIN");
     });
   });
 });

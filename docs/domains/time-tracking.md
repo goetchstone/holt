@@ -40,13 +40,12 @@ Tests: `__tests__/timeEntryDuration.test.ts`, `timeEntrySummary.test.ts`,
 
 | Route | Method | Auth | Purpose |
 |---|---|---|---|
-| `/api/time-entries` | GET | any staff | Own entries; ADMIN/MANAGER/SUPER_ADMIN add `?all=true` or `?staffMemberId=`; `?from`/`?to`/`?customerId` filters |
+| `/api/time-entries` | GET | any staff | Own entries; a holder of Manage time (`staff.time`) adds `?all=true` or `?staffMemberId=`; `?from`/`?to`/`?customerId` filters |
 | `/api/time-entries` | POST | any staff | Log time; only privileged users may set `staffMemberId` for someone else |
 | `/api/time-entries/[id]` | PATCH | owner or privileged | Edit fields; `billed` toggles `billedAt` |
 | `/api/time-entries/[id]` | DELETE | owner or privileged | Remove an entry |
 
-Privileged = SUPER_ADMIN / ADMIN / MANAGER. Non-staff users get 403 ("Only
-staff can track time").
+Privileged = holds Manage time (`staff.time`): the Owner, Administrators, General Managers, HR and Managers by default. The page's Team view already used this key. Since 2026-11 the routes read it from their gate's `also` instead of a SUPER_ADMIN/ADMIN/MANAGER role set, which had shown HR and General Managers the Team view with only their own time in it. Non-staff users get 403 ("Only staff can track time").
 
 ## UI
 

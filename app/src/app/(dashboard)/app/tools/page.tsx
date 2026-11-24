@@ -1,10 +1,11 @@
 // /app/src/app/(dashboard)/app/tools/page.tsx
 //
-// Tools hub — App Router port of the legacy tools/index. Any signed-in user
-// (cards self-filter by role via CardGrid). Chrome
-// from the (dashboard) layout.
+// Tools hub — App Router port of the legacy tools/index, on Change settings. A
+// card shows only to a viewer holding the key of the page it opens
+// (lib/auth/hubCards.ts). Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -13,14 +14,12 @@ const ITEMS: CardGridItem[] = [
     description:
       "Explore data across sales, purchasing, products, and consignment. Filter, join, and export.",
     href: "/app/tools/query-builder",
-    roles: ["ADMIN"],
   },
   {
     title: "Home Accessory Order Import",
     description:
       "Parse a home accessory vendor order (K&K, Wendover, MarketTime, Zodax, and others) and create draft POs and items in Buyer Drafts.",
     href: "/app/tools/home-accessory-order",
-    roles: ["ADMIN"],
   },
   {
     title: "Product Configurator",
@@ -44,11 +43,13 @@ const ITEMS: CardGridItem[] = [
     description:
       "Parse a vendor apparel order (PDF or CSV) into a draft Purchase Order + items in Buyer Drafts. ADMIN only.",
     href: "/app/tools/apparel-order",
-    roles: ["ADMIN"],
   },
 ];
 
 export default async function ToolsHubPage() {
-  await requirePage(undefined, { permission: "admin.settings" });
-  return <CardGrid title="Tools" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "admin.settings",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="Tools" items={visibleHubCards(ITEMS, holds)} />;
 }

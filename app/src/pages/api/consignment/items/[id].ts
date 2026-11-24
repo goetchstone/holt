@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { canViewCost, dropCostWrites, WITH_COST } from "@/lib/auth/costVisibility";
 import { prisma } from "@/lib/prisma";
@@ -127,4 +127,19 @@ async function handler(
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler, WITH_COST);
+// GET is the item page's key, View inventory, so everyone the page admits can
+// load the rug (cost still follows View cost). PUT is Transfer stock, like the
+// page's other status actions (mark-approval, mark-returned, return-from-approval).
+const readItem = requirePermission("inventory.read", handler, WITH_COST);
+const updateItem = requirePermission("inventory.transfer", handler, WITH_COST);
+
+export default async function consignmentItemRoute(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    return readItem(req, res);
+  }
+  if (req.method === "PUT") {
+    return updateItem(req, res);
+  }
+  res.setHeader("Allow", "GET, PUT");
+  return res.status(405).json({ error: "Method not allowed" });
+}

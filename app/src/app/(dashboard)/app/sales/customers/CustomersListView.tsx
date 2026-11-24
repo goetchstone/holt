@@ -6,7 +6,8 @@
 // Replicates StandardListPage's search + pagination inline (without its
 // MainLayout chrome, which the (dashboard) layout supplies), reading the shared
 // /api/customers REST endpoint. New-customer modal + Recalculate Levels
-// (manager-gated) preserved.
+// (shown on "Run marketing", marketing.write, which the page answers and the
+// route requires) preserved.
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -18,18 +19,17 @@ import { type Column } from "@/components/table/PaginatedTable";
 import CustomerEditModal from "@/components/modals/CustomerEditModal";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
+import { getErrorMessage } from "@/lib/toastError";
 
 type CustomerWithIncludes = Customer & {
   addresses: CustomerAddress[];
   externalIds: { externalId: string }[];
 };
 
-export function CustomersListView() {
+export function CustomersListView({
+  canRecalculateLevels,
+}: Readonly<{ canRecalculateLevels: boolean }>) {
   const router = useRouter();
-  const { effectiveRole } = useEffectiveRole();
-  const isManager =
-    effectiveRole === "MANAGER" || effectiveRole === "ADMIN" || effectiveRole === "SUPER_ADMIN";
 
   const [data, setData] = useState<CustomerWithIncludes[]>([]);
   const [total, setTotal] = useState(0);
@@ -71,8 +71,8 @@ export function CustomersListView() {
       const groups = Object.keys(res.groupStats || {}).length;
       toast.success(`Updated ${res.customersUpdated} customers across ${groups} department groups`);
       setRefreshTrigger(Date.now());
-    } catch {
-      toast.error("Failed to recalculate customer levels.");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to recalculate customer levels."));
     } finally {
       setRecalculating(false);
     }
@@ -168,7 +168,7 @@ export function CustomersListView() {
           >
             Email list
           </Link>
-          {isManager && (
+          {canRecalculateLevels && (
             <Button variant="secondary" onClick={handleRecalculateLevels} disabled={recalculating}>
               {recalculating ? "Recalculating..." : "Recalculate Levels"}
             </Button>

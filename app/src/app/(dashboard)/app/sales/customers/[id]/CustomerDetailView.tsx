@@ -6,7 +6,9 @@
 // (minus MainLayout chrome, which the (dashboard) layout supplies). Reads +
 // writes the shared /api/customers/:id REST endpoints (detail, trade, addresses,
 // email-stats) plus /api/admin/trade-tiers and /api/mailchimp/activities, which
-// all stay REST. Wealth UI stays role-gated client-side via useEffectiveRole.
+// all stay REST. Wealth data and the exact lead score show only when the detail
+// GET says it sent them (wealthVisible: See wealth data; scoreVisible: View
+// marketing), the same answers that stripped them server-side.
 // The id arrives as a prop from the server page (params awaited there).
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -30,7 +32,6 @@ import { isCashSaleCustomer } from "@/lib/pipelineClient";
 import { WealthTierBadge } from "@/components/customer/WealthTierBadge";
 import { LeadScoreBadge } from "@/components/customer/LeadScoreBadge";
 import { calculateLeadScore } from "@/lib/leadScore";
-import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
 import { getErrorMessage } from "@/lib/toastError";
 
 interface OrderLineItem {
@@ -146,6 +147,10 @@ interface CustomerWithRelations {
   preferredChannel: string | null;
   textableNumber: string | null;
   smsOptedOutAt: string | null;
+  /** Whether the GET sent wealth data (See wealth data, customer.wealth). */
+  wealthVisible: boolean;
+  /** Whether the viewer may see the exact lead score (View marketing, marketing.read). */
+  scoreVisible: boolean;
 }
 
 /** Whether Holt can text them, or why not (lib/sms/consent.ts decides; this says it). */
@@ -277,16 +282,16 @@ function CustomerLevelBadge({
 }
 
 // Lead score is safe for all roles; only the tier label is always shown.
-// Managers/admin/marketing also see the numeric score. Life-event signals boost
-// the score even for designers who can't see the raw wealth tier -- the signal
-// is "this customer is more likely to buy right now," which is role-safe.
+// Holders of View marketing (marketing.read) also see the numeric score.
+// Without See wealth data the GET sends no wealth enrichment at all, so the
+// score is worked out without it.
 function CustomerLeadScore({
   customer,
-  effectiveRole,
+  canSeeScore,
   canSeeWealth,
 }: {
   customer: CustomerWithRelations;
-  effectiveRole: string;
+  canSeeScore: boolean;
   canSeeWealth: boolean;
 }) {
   const wf = customer.windfallEnrichment;
@@ -304,11 +309,6 @@ function CustomerLeadScore({
     moneyInMotion: wf?.moneyInMotion,
     liquidityTrigger: wf?.liquidityTrigger,
   });
-  const canSeeScore =
-    effectiveRole === "ADMIN" ||
-    effectiveRole === "SUPER_ADMIN" ||
-    effectiveRole === "MANAGER" ||
-    effectiveRole === "MARKETING";
   return <LeadScoreBadge tier={score.tier} score={canSeeScore ? score.score : null} />;
 }
 
@@ -535,12 +535,12 @@ export function CustomerDetailView({
   canSeeClientNotes: boolean;
   openOnNotes: boolean;
 }) {
-  const { effectiveRole } = useEffectiveRole();
-  const canSeeWealth =
-    effectiveRole === "ADMIN" || effectiveRole === "SUPER_ADMIN" || effectiveRole === "MARKETING";
   const formatCurrency = useMoneyFormatter();
 
   const [customer, setCustomer] = useState<CustomerWithRelations | null>(null);
+  // The server's answers for this viewer, sent with the record they govern.
+  const canSeeWealth = customer?.wealthVisible === true;
+  const canSeeScore = customer?.scoreVisible === true;
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
@@ -796,7 +796,7 @@ export function CustomerDetailView({
             />
             <CustomerLeadScore
               customer={customer}
-              effectiveRole={effectiveRole}
+              canSeeScore={canSeeScore}
               canSeeWealth={canSeeWealth}
             />
             {canSeeWealth && <WealthTierBadge tier={customer.windfallEnrichment?.wealthTier} />}

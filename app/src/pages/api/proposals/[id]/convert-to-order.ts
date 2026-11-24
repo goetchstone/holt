@@ -2,9 +2,12 @@
 //
 // POST: Accept a proposal and create a SalesOrder from its line items.
 // The proposal's cost/retail are used directly (not from price lists).
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import {
@@ -20,8 +23,8 @@ import { toQty } from "@/lib/inventory/quantity";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.proposal",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

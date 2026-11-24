@@ -1,12 +1,14 @@
 // /app/src/app/(dashboard)/app/reports/page.tsx
 //
-// Reports hub — App Router port of the legacy reports/index. Any signed-in user
-// (cards self-filter by role via CardGrid). The card list is the migration's
-// index of every ported report; hrefs are unchanged so existing links keep
-// working. Chrome from the (dashboard) layout.
+// Reports hub — App Router port of the legacy reports/index, on View reports. A
+// card shows only to a reader holding the key of the report it opens (and, for
+// the Mailchimp Activity Log, the key of its data: lib/auth/hubCards.ts), so the
+// hub never lists a report its reader cannot open. The card list is the
+// migration's index of every ported report; hrefs are unchanged so existing
+// links keep working. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
-import { COMMISSION_PAY } from "@/lib/auth/commissionPay";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 // Monthly Performance + Salesperson Detail are intentionally not surfaced here
@@ -36,77 +38,66 @@ const ITEMS: CardGridItem[] = [
     description:
       "Compare two date ranges by store with dollar and percentage variance. Filter by department.",
     href: "/app/reports/comparative-sales",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Sales Explorer",
     description:
       "Compare two periods across Store, Department, Category, and Vendor in one expandable pivot tree, with variance and margin at every level plus drill-down to product-level rows.",
     href: "/app/reports/sales-explorer",
-    roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"],
   },
   {
     title: "Gross Margin",
     description:
       "Revenue, cost, and margin for a date range. Pivot by department or vendor to see where the profit actually comes from. Flags rows where cost is missing.",
     href: "/app/reports/gross-margin",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Inventory Health",
     description:
       "On-hand valuation (at cost and retail) plus dead stock — inventory that hasn't sold in your chosen window. Pivot by department or vendor to find where cash is tied up and stuck.",
     href: "/app/reports/inventory-health",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Follow-Ups",
     description:
       "Every client's next follow-up across the team: who's due, who it belongs to, and contacts logged by each salesperson.",
     href: "/app/reports/follow-ups",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Aged Stock",
     description:
       "How long uncommitted stock has been here, counted from when it came onto the books, with the oldest products listed.",
     href: "/app/reports/aged-stock",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Inventory Value",
     description:
       "What was on the books at the end of any past day, by department or vendor, for one store or all of them, in today's money.",
     href: "/app/reports/inventory-value",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "PO Sell-Thru",
     description:
       "Pick purchase orders by number and see how much of what they delivered has sold — sell-through, margin, and realized retail per frame, windowed from each line's receive date.",
     href: "/app/reports/po-sell-thru",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Top & Bottom Sellers",
     description:
       "Best and worst products by revenue, units, or margin for a date range. Filter by department to focus on merchandise; the margin view surfaces anything sold below cost.",
     href: "/app/reports/top-sellers",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Returns Analysis",
     description:
       "Return rate by department or vendor plus the most-returned products. Shows where merchandise is coming back so you can act on quality or fit issues.",
     href: "/app/reports/returns",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Oversold",
     description:
       "Sales that went through with less free stock than they needed, by product — the orders waiting, and the quickest fix: stock free at another store, units already on a PO, or start a draft PO. Rows close themselves once covered.",
     href: "/app/reports/oversold",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "On hold",
@@ -125,47 +116,40 @@ const ITEMS: CardGridItem[] = [
     description:
       "Everything in a store, a building or any place inside it, grouped by the places in it, place type, department, category, vendor or collection — with the units and each group's share of the measured floor.",
     href: "/app/reports/stock-by",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Transfers",
     description:
       "What moved between stores in a period, by route and one by one, and what is still on its way.",
     href: "/app/reports/transfers",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Unclassified Returns",
     description:
       "Returns booked on the default restock assumption because no Return record classifies them — the accountant's worklist to review and correct any that were actually written off.",
     href: "/app/reports/unclassified-returns",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Unmapped Payments",
     description:
       "Tender types with no GL mapping, so the sales journal drops them with only a warning — how much money is off the books, and the exact mapping rows to add.",
     href: "/app/reports/unmapped-payments",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Open PO Gaps",
     description:
       "Purchase orders missing expected delivery dates or vendor acknowledgement numbers.",
     href: "/app/reports/po-gaps",
-    roles: ["ADMIN"],
   },
   {
     title: "Weekly Summary",
     description: "Visual dashboard of sales vs. goals for the uploaded sales period.",
     href: "/app/reports/weekly-summary",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Detailed Sales Report",
     description: "In-depth, filterable table of all sales data.",
     href: "/app/reports/detailed-sales",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Sales by Salesperson",
@@ -178,117 +162,91 @@ const ITEMS: CardGridItem[] = [
     description:
       "Every campaign ranked by the revenue it generated -- purchases within 30 days of an open or click, broken down by department.",
     href: "/app/reports/mailchimp",
-    roles: ["ADMIN", "MARKETING"],
   },
   {
     title: "Mailchimp Activity Log",
     description: "View detailed subscriber activities.",
     href: "/app/reports/mailchimp/activity",
-    roles: ["ADMIN", "MARKETING"],
   },
   {
     title: "Customer Report",
     description: "Contact list with order history, spend, and credit balances.",
     href: "/app/reports/customers",
-    roles: ["ADMIN", "MARKETING"],
   },
   {
     title: "Tax Summary",
     description: "Tax collected by period and store, sourced from invoices.",
     href: "/app/reports/tax-summary",
-    roles: ["ADMIN"],
   },
   {
     title: "Till Reconciliation",
     description: "Review end-of-day drawer counts and variances.",
     href: "/app/reports/till-reconciliation",
-    roles: ["ADMIN"],
   },
   {
     title: "Wealth Insights",
     description:
       "Customer wealth tiers, lifestyle signals, recent movers, and top customers by net worth.",
     href: "/app/reports/wealth-insights",
-    roles: ["ADMIN", "MARKETING"],
   },
   {
     title: "Consignment Summary",
     description:
       "Inventory counts and vendor obligations across all consignment items by status and vendor.",
     href: "/app/reports/consignment-report",
-    roles: ["ADMIN"],
   },
   {
     title: "Pipeline Opportunity",
     description: "Open quotes and orders by salesperson with conversion rates and pipeline value.",
     href: "/app/reports/pipeline-opportunity",
-    roles: ["MANAGER", "ADMIN"],
   },
   {
     title: "Opportunities",
     description:
       "Customer lists worth emailing this week. Dormant VIPs, big wallets with small baskets, second-home owners, and more.",
     href: "/app/reports/opportunities",
-    roles: ["MARKETING", "ADMIN"],
   },
   {
     title: "Buyers Report",
     description:
       "On hand, on order, and sold for a date range. Pivot by department or by vendor. Merchant decision-making in one screen.",
     href: "/app/reports/buyers",
-    roles: ["ADMIN"],
   },
   {
     title: "Stale Quote Cleanup",
     description:
       "Old quotes needing follow-up or closure. Clean the pipeline and find forgotten opportunities.",
     href: "/app/reports/stale-quotes",
-    roles: ["ADMIN"],
   },
   {
     title: "Balance Due Aging",
     description: "Unpaid balances on open orders by age bucket. Money that needs collection.",
     href: "/app/reports/balance-aging",
-    roles: ["ADMIN"],
   },
   {
     title: "Service KPIs",
     description:
       "Customer-service queue health. Resolution time vs goal, age distribution, top open cases, and how many are blocked waiting on a vendor or customer.",
     href: "/app/reports/service",
-    roles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
   },
   {
     title: "Store Traffic",
     description:
       "Per-store door-counter visitors from Axper. Daily trend by store, busiest-day + busiest-hour KPIs, day-of-week patterns, CSV export. Today is live; history reads from the persisted snapshot.",
     href: "/app/reports/traffic",
-    roles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
+  },
+  {
+    title: "Build Your Own",
+    description:
+      "List or total sales, purchasing, products, customers, consignment, service cases and transfers. Group, pivot and export.",
+    href: "/app/tools/query-builder",
   },
 ];
 
-// Shown only to a holder of staff.commission-pay, the key their screens gate on.
-const COMMISSION_PAY_CARDS = new Set([
-  "/app/reports/pay-period-sales",
-  "/app/admin/reports/commission-tiers?tab=locked",
-]);
-
-// A store grants this one in Roles, so the card follows the key rather than a role.
-const BUILD_YOUR_OWN: CardGridItem = {
-  title: "Build Your Own",
-  description:
-    "List or total sales, purchasing, products, customers, consignment, service cases and transfers. Group, pivot and export.",
-  href: "/app/tools/query-builder",
-};
-
 export default async function ReportsHubPage() {
-  const access = await requirePage(undefined, {
+  const { holds } = await requirePage(undefined, {
     permission: "reporting.read",
-    also: ["reporting.adhoc", COMMISSION_PAY],
+    also: hubCardKeys(ITEMS),
   });
-  const shown = access.holds[COMMISSION_PAY]
-    ? ITEMS
-    : ITEMS.filter((item) => !COMMISSION_PAY_CARDS.has(item.href));
-  const items = access.holds["reporting.adhoc"] ? [...shown, BUILD_YOUR_OWN] : shown;
-  return <CardGrid title="Reports" items={items} />;
+  return <CardGrid title="Reports" items={visibleHubCards(ITEMS, holds)} />;
 }

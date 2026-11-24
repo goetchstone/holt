@@ -4,8 +4,9 @@
 // One-time job (per the SOR plan); subsequent runs are no-ops thanks to
 // the per-customer idempotency check in `backfillCustomerLedger`.
 //
-// ADMIN-only. Returns a summary of the run including drift counts so
-// the operator can decide whether to investigate.
+// Change settings (admin.settings), the key of its one screen,
+// /app/admin/tools/customer-ledger-backfill. Returns a summary of the run
+// including drift counts so the operator can decide whether to investigate.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -13,7 +14,7 @@ import { backfillAllCustomers } from "@/lib/customerLedgerBackfill";
 import { logger, logError } from "@/lib/logger";
 
 export default requirePermission(
-  "accounting.post",
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

@@ -45,8 +45,12 @@ import type { StoreSetup } from "./locations";
 import type { StaffSetup } from "./staff";
 import { toQty } from "@/lib/inventory/quantity";
 import { claimAndReceive, shipTransfer } from "@/lib/inventory/transfers";
+import { isPracticeCopy } from "@/lib/practiceCopy";
 
 const SEED_ACTOR = "seed:demo";
+
+/** The previous system's stock id for the first snapshot product; the rest follow on. */
+const PREVIOUS_SYSTEM_FIRST_STOCK_ID = 30_001;
 
 const RESOLUTIONS = [
   "Found in the back bay, position corrected.",
@@ -97,6 +101,50 @@ export function snapshotMonthStarts(
     out.push({ monthsAgo, snapshotDate });
   }
   return out;
+}
+
+/**
+ * Gives each product the previous system's stock id, counting up from
+ * PREVIOUS_SYSTEM_FIRST_STOCK_ID, and returns product id -> stock id.
+ *
+ * That system's export names products by its own stock id, and the snapshot
+ * import matches them on Product.externalId (lib/inventory/snapshotImport.ts),
+ * so a product with imported snapshots has one. Products made since have none,
+ * like any native product. A practice copy gets none: the store's real products
+ * are imported into it next, and the legacy product import updates whatever
+ * product already holds an incoming externalId (adapters/legacyPos/runners.ts
+ * classifyPrepared), which would merge a real product into a demo product's
+ * history.
+ */
+async function givePreviousSystemStockIds(
+  prisma: PrismaClient,
+  products: readonly CatalogProduct[],
+): Promise<Map<number, number>> {
+  const stockIds = new Map<number, number>();
+  if (isPracticeCopy()) return stockIds;
+  for (const [index, product] of products.entries()) {
+    const externalId = PREVIOUS_SYSTEM_FIRST_STOCK_ID + index;
+    await prisma.product.update({ where: { id: product.id }, data: { externalId } });
+    stockIds.set(product.id, externalId);
+  }
+  return stockIds;
+}
+
+/**
+ * What a snapshot row records of the export it came from, as the importer does:
+ * the export's stock id for the product and its name for the place. A LOCAL
+ * row, or a product with no stock id, records neither (schema.prisma,
+ * InventorySnapshot).
+ */
+function exportProvenance(
+  source: "IMPORT" | "LOCAL",
+  stockId: number | undefined,
+  exportLocation: string,
+): { externalId: number | null; externalStockLocation: string | null } {
+  if (source === "LOCAL" || stockId === undefined) {
+    return { externalId: null, externalStockLocation: null };
+  }
+  return { externalId: stockId, externalStockLocation: exportLocation };
 }
 
 export async function seedInventoryOps(
@@ -359,8 +407,14 @@ export async function seedInventoryOps(
   // One snapshot per month going back a year. One snapshot is a number; a
   // series is the trend the report is actually about.
   const snapshotProducts = products.slice(0, 25);
+  const stockIdByProduct = await givePreviousSystemStockIds(prisma, snapshotProducts);
+  // The export's name for the back stock, one of its seeded aliases (locations.ts).
+  const exportLocation = `${stores[0].code} Back Stock`;
   for (const { monthsAgo, snapshotDate } of snapshotMonthStarts(today, 12)) {
     for (const product of snapshotProducts) {
+      // Older months came from the previous system's export; recent ones
+      // were taken here. Both sources are real deployments.
+      const source = monthsAgo > 6 ? "IMPORT" : "LOCAL";
       await prisma.inventorySnapshot.create({
         data: {
           productId: product.id,
@@ -368,9 +422,8 @@ export async function seedInventoryOps(
           stockLocationId: stores[0].backStockLocationId,
           quantity: randInt(oRng, 0, 6),
           snapshotDate,
-          // Older months came from the previous system's export; recent ones
-          // were taken here. Both sources are real deployments.
-          source: monthsAgo > 6 ? "IMPORT" : "LOCAL",
+          source,
+          ...exportProvenance(source, stockIdByProduct.get(product.id), exportLocation),
         },
       });
       result.snapshotsCreated += 1;

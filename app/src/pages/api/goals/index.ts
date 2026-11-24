@@ -1,8 +1,12 @@
 // /app/src/pages/api/goals/index.ts
+//
+// Company, department and category sales goals: GET lists, POST creates, PUT
+// updates. On the key of Admin > Goals (/app/admin/goals), its only caller:
+// "Change settings" (admin.settings).
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -60,4 +64,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("admin.settings", handler);

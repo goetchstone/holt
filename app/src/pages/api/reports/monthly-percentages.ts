@@ -1,8 +1,15 @@
 // /app/src/pages/api/reports/monthly-percentages.ts
+//
+// How the yearly sales goal splits across the months: GET a year's split, PUT
+// one month's percentage. Its only screen is Monthly Sales Percentages
+// (/app/admin/reports/monthly-percentages), which opens on "Change settings",
+// and the route takes the same key, as /api/goals does for Sales Goals. It was
+// a MANAGER/ADMIN role list, so Managers could reach it by API only; whether
+// goal-setting should get a key Managers hold is the owner's call.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 
 const getMonthOrder = () => {
   const months = [
@@ -70,4 +77,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("admin.settings", handler);

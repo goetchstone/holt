@@ -29,6 +29,7 @@ import {
   getTileById,
   getVisibleTiles,
   buildMissingPiecesWhere,
+  tileOpenTo,
   type TileId,
   type PairingRule,
 } from "@/lib/opportunityTiles";
@@ -59,6 +60,46 @@ describe("opportunityTiles -- shared definitions", () => {
       const b = JSON.stringify(await t.buildWhere(now));
       expect(a).toBe(b);
     }
+  });
+
+  describe("wealth-based tiles (See wealth data)", () => {
+    it("usesWealthData marks exactly the tiles whose filter reads the wealth-data import", async () => {
+      // Missing Pieces with a real rule, so its filter is not the empty set.
+      mockedPairingsFindMany.mockResolvedValue([
+        {
+          fromDepartmentId: 1,
+          fromCategoryId: null,
+          toDepartmentId: 2,
+          toCategoryId: null,
+          windowDays: 90,
+        },
+      ]);
+      const now = new Date("2026-12-15T12:00:00Z"); // every tile visible
+      const readsWealth: string[] = [];
+      for (const t of OPPORTUNITY_TILES) {
+        if (JSON.stringify(await t.buildWhere(now)).includes("windfallEnrichment")) {
+          readsWealth.push(t.id);
+        }
+      }
+      const flagged = OPPORTUNITY_TILES.filter((t) => t.usesWealthData).map((t) => t.id);
+      expect(flagged).toEqual(readsWealth);
+      expect(flagged).toEqual([
+        "big-wallets",
+        "second-home",
+        "landlord",
+        "boat-crowd",
+        "life-event",
+      ]);
+    });
+
+    it("tileOpenTo: a wealth-based tile only with See wealth data, every other tile either way", () => {
+      const wealthy = getTileById("big-wallets")!;
+      const plain = getTileById("single-department")!;
+      expect(tileOpenTo(wealthy, true)).toBe(true);
+      expect(tileOpenTo(wealthy, false)).toBe(false);
+      expect(tileOpenTo(plain, true)).toBe(true);
+      expect(tileOpenTo(plain, false)).toBe(true);
+    });
   });
 
   describe("getTileById", () => {

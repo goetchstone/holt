@@ -467,6 +467,12 @@ secretly insufficient.
   (inactive) `ImportDefinition`
 - `app/__tests__/imports/` — `transforms.test.ts`, `engine.test.ts`,
   `validation.test.ts`, `runnerRegistry.test.ts`, `legacyPosPaymentMode.test.ts`
+- `app/src/app/(dashboard)/app/admin/import/page.tsx` — the Import Tools hub,
+  on Destructive data operations (`admin.data`). Since 2026-11-21 each card
+  follows the key of the page it opens (`lib/auth/hubCards.ts`), so the
+  Windfall Enrichment and Customer Service Sheet cards, which named ADMIN, show
+  to every holder of `admin.data`, the key their pages already took (by
+  default the Owner and the Administrator, as before)
 
 ## Cross-references
 

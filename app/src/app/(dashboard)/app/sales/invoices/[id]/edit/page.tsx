@@ -2,6 +2,7 @@
 //
 // Edit a DRAFT invoice in the shared composer. Server-prefilled so the form
 // opens populated; the composer's update mutation re-validates DRAFT status.
+// "Bill customers directly" (accounting.invoice); 404 when billing is off.
 
 import { notFound } from "next/navigation";
 import { requirePage } from "@/lib/auth/requirePage";
@@ -10,7 +11,7 @@ import { getInvoiceDetail } from "@/lib/billing/invoiceService";
 import { InvoiceComposer } from "../../InvoiceComposer";
 
 export default async function EditInvoicePage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "accounting.invoice" });
   await requireModule("billing");
 
   const { id } = await params;

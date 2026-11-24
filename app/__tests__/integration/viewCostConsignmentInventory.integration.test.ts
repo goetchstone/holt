@@ -98,9 +98,9 @@ beforeAll(async () => {
   await syncBuiltInRoles({ prisma });
   await prisma.organization.create({ data: { name: "Test Co", slug: "test-co" } });
 
-  // A holder, and an ADMIN whose View cost the owner has unticked: ADMIN passes
-  // every gate here (the MANAGER/ADMIN/WAREHOUSE list and the inline
-  // MANAGER/ADMIN check on receiving gaps included).
+  // A holder, and an ADMIN whose View cost the owner has unticked: ADMIN still
+  // holds every key the gates here ask for (the item page's View inventory and
+  // Transfer stock, and View accounting on receiving gaps included).
   await makeStaff("mia", "MANAGER");
   await makeStaff("ada", "ADMIN");
   const admin = await prisma.role.findUniqueOrThrow({ where: { key: "ADMIN" } });

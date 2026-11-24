@@ -105,6 +105,58 @@ The `items/*` actions take a list because they are batch routes. The `PUT` holds
 
 Until 2026-11-06 every button posted to `items/<id>/<action>`, which is no route, with other names for the fields. Real routes and bodies: `__tests__/integration/consignmentItemActions.integration.test.ts`.
 
+## Who opens what
+
+Every consignment screen and route is on a permission key, so who may use it is
+set on the Roles screen. Until 2026-11, PO Management, Credits Owed and
+Receiving Gaps were role lists, and so were the item route and Mark Sold;
+Receiving Gaps' three routes checked the staff role's name on top of their
+keys.
+
+| Screen | Page key | Its routes |
+|---|---|---|
+| Item page | `inventory.read` | `items/[id]`: GET `inventory.read`, PUT `inventory.transfer`. `items/mark-sold`, `mark-approval`, `mark-returned`, `return-from-approval`: `inventory.transfer` |
+| PO Management | `accounting.read` | all `purchasing.write` (see PO Management below) |
+| Credits Owed | `accounting.read` | `credits-owed`: `purchasing.write` |
+| Receiving Gaps | `accounting.read` | `receiving-gaps`: `accounting.read`. Link to Receipt (`bulk-link-receipt`): `purchasing.write`. Assign Location (`bulk-assign-location`): `inventory.adjust` |
+
+- **PO Management, Credits Owed and Receiving Gaps** take View accounting, the
+  key of Payments, Unpaid Sales and Reconciliation. Payments links to the first
+  two, Reconciliation to Receiving Gaps. They were MANAGER/ADMIN role lists;
+  the key adds the General Manager. Every built-in role with View accounting
+  also holds the keys their routes need. A custom role given View accounting
+  alone opens all three and reads the gaps list, but the payout routes, Link to
+  Receipt and Assign Location refuse it.
+- **Receiving Gaps' three routes** also checked that the staff role was MANAGER
+  or ADMIN by name. That refused the Owner (the e2e Owner run listed the page as
+  a known failure), the General Manager and every custom role. The keys alone
+  decide now. Link to Receipt also admits Buyer and Data Entry, who already
+  create receipts through Receive Shipment's manifest import on the same key,
+  and who cannot open Receiving Gaps.
+- **The item page's GET** was a MANAGER/ADMIN/WAREHOUSE role list, so Buyer,
+  Designer, Register, Department Head, Data Entry and General Manager, whom the
+  page admits, got 403 loading a rug. They now see it, including the sale and
+  approval customer names, the sales order number and the payment batch's date,
+  check number and paid flag. Its cost still follows View cost. PUT (Mark
+  Missing, Found) and Mark Sold take Transfer stock, like the page's other
+  status actions; that adds the General Manager.
+
+Tested by `__tests__/integration/inventoryPurchasingGates.integration.test.ts`,
+which asks every built-in role and a custom role holding one key.
+
+**Left open (owner questions and follow-ups):**
+
+- The payout routes are on Write purchase orders, so Buyer and Data Entry can
+  create payment batches and mark them paid (`payments/[id]` PUT `isPaid`)
+  through the API, although the payout pages are View accounting.
+- The item PUT also takes tag-price, barcode, vendor, product and rug-number
+  edits that no screen sends, under Transfer stock.
+- The consignment list's route (`items/index.ts`) is `purchasing.receive` while
+  its page is `inventory.read`, so Department Head, Data Entry, Designer and
+  Register open a list that refuses them.
+- PO Management's assign endpoint does not check that the selected rugs share a
+  vendor (see PO Management below).
+
 ## PO Management (Manual Workflow)
 
 The PO management page at `/inventory/consignment/po-management` provides a manual workflow for linking SOLD rugs to payment batches, preparing for post-the POS handoff.
@@ -113,11 +165,12 @@ The PO management page at `/inventory/consignment/po-management` provides a manu
 
 **API endpoints** (`pages/api/consignment/po-management/`):
 
-- `purchase-orders.ts` -- list the consignor POs with batch status
+- `purchase-orders.ts` -- list the consignor POs with batch status (no screen calls it)
 - `unassigned-sold.ts` -- SOLD items without a payment batch
 - `assign-to-batch.ts` -- create payment batch from selected items
+- `apply-credits.ts` -- apply credit-owed rugs to an existing payment batch
 
-All endpoints require MANAGER or ADMIN role. The assign endpoint validates all items are SOLD, same vendor, no existing batch.
+Every endpoint is on `purchasing.write` (Write purchase orders); the page is on `accounting.read` (see Who opens what). The assign endpoint refuses a sold rug that is not SOLD or already has a batch, and a credit rug without `creditOwed`. It does not check that the rugs share a vendor: the batch takes the vendor of whichever selected rug it reads first.
 
 ## Credits Owed
 
@@ -174,4 +227,4 @@ No new code paths since last verification need adding. Refresh below is just a d
 
 ---
 
-Last verified: 2026-11-21 (the missing-vendor 404 and its callers; Cost visibility 2026-10-01; the rest as of 2026-05-20)
+Last verified: 2026-11-21 (Who opens what, PO Management's endpoints, and the missing-vendor 404 and its callers); 2026-10-01 (Cost visibility); the rest as of 2026-05-20

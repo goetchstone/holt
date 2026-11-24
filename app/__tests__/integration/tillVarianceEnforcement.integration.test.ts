@@ -11,8 +11,8 @@
 // functions directly against the real `prisma` client (same pattern as
 // pages/api/accounting/journal-entries/[id]/reconcile.ts's
 // handleReconcile) with a fake req/res pair -- this bypasses
-// getServerSession/requireAuthWithRole (which need real cookies), so role
-// enforcement itself stays covered by __tests__/roleDecision.test.ts.
+// getServerSession/requirePermission (which need real cookies), so permission
+// enforcement itself stays covered by __tests__/permissionDecision.test.ts.
 //
 // Till reconciliation previously had "no real-DB equivalent" per
 // docs/domains/pos.md's test-coverage table.

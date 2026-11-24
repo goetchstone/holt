@@ -529,12 +529,14 @@ describe("the customer's agreement", () => {
   it("shows whether the number replied STOP, on the customer's record", async () => {
     const { customer } = await sale();
     const session = { user: { id: "nobody", email: "x@example.com" } } as unknown as Session;
+    // What the GET gate's `also` answers for someone holding neither key.
+    const access = { holds: { "customer.wealth": false, "marketing.read": false } };
     const res = makeRes();
-    await customerRoute.GET(request("GET", { id: String(customer.id) }), res, session);
+    await customerRoute.GET(request("GET", { id: String(customer.id) }), res, session, access);
     expect(res.body).toMatchObject({ textableNumber: PHONE, smsOptedOutAt: null });
     await prisma.smsOptOut.create({ data: { phone: PHONE, source: "REPLY" } });
     const after = makeRes();
-    await customerRoute.GET(request("GET", { id: String(customer.id) }), after, session);
+    await customerRoute.GET(request("GET", { id: String(customer.id) }), after, session, access);
     expect(after.body.smsOptedOutAt).not.toBeNull();
   });
 });

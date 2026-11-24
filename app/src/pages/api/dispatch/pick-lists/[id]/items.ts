@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { toQty } from "@/lib/inventory/quantity";
@@ -81,4 +81,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);
+// Ticking a line picked — same capability as the pick list's own status
+// (pick-lists/[id].ts) and the rest of dispatch.
+export default requirePermission("warehouse.operate", handler);

@@ -4,15 +4,16 @@
 //   POST (public)  -- create a booking from the public /book flow. Rate-limited,
 //                     validated via parseBookingInput, with a race guard that
 //                     rejects a slot already taken by another booking.
-//   GET  (ADMIN)   -- list bookings newest-first for the back-office.
+//   GET  (staff)   -- list bookings newest-first for Admin > Bookings, on that
+//                     page's key: "Change settings" (admin.settings).
 //
 // The two methods have different auth surfaces (public create vs. admin list),
-// so method dispatch happens at the top: GET is delegated to the requireAuthWithRole
+// so method dispatch happens at the top: GET is delegated to the requirePermission
 // wrapper; POST runs through the public rate limiter. The create logic lives in
 // createBooking so the POST handler stays thin (CLAUDE.md rule 14).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID, getAppSettings } from "@/lib/appSettings";
 import { rateLimit } from "@/lib/rateLimit";
@@ -28,8 +29,8 @@ import { getEmailChrome } from "@/lib/email/wordingSettings";
 // Booking submissions should be infrequent per visitor.
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 10 }, "bookings");
 
-const listBookings = requireAuthWithRole(
-  ["ADMIN"],
+const listBookings = requirePermission(
+  "admin.settings",
   async (_req: NextApiRequest, res: NextApiResponse) => {
     const bookings = await prisma.booking.findMany({
       where: { organizationId: DEFAULT_ORG_ID },
