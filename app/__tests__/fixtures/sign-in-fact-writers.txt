@@ -29,7 +29,8 @@ src/pages/api/staff/index.ts | guarded | - | POST: a sign-in email on a new memb
 src/pages/api/admin/staff/[id]/set-password.ts | guarded | - | the password and the login link go through signInChangeRefusal(..., 'password') with the row locked; it creates or reuses the member's User
 src/server/trpc/routers/account.ts | self | - | My Account: the caller's own row by session userId (password after proving the current one, PIN, follow-up email, tag print mode)
 src/lib/auth/passwordReset.ts | token | - | sets passwordHash only for the holder of an unused, unexpired emailed token whose member is still active
-src/pages/api/auth/[...nextauth].ts | identity-proof | - | links userId on the provider-proven first sign-in, stamps lastLoginAt/lastSeenAt; the PrismaAdapter writes User and Account rows after signIn admits
+src/pages/api/auth/[...nextauth].ts | identity-proof | - | links userId on the provider-proven first sign-in, stamps lastLoginAt/lastSeenAt; its adapter is signInAccounts.ts's
+src/lib/auth/signInAccounts.ts | identity-proof | - | the NextAuth adapter (PrismaAdapter): writes User and Account rows after signIn admits a provider-proven identity, and refuses to link an account onto a User that already has a linked StaffMember (SIGN_IN_LINK_REFUSED)
 src/pages/api/staff/seed.ts | no-sign-in-fact | displayName, defaultStore, role | creates email-less rows nobody can sign in as until an admin adds an email (tracked: the USE-02 role-write sweep, for the role it writes)
 src/pages/api/staff/active-store.ts | no-sign-in-fact | activeStoreLocationId | the caller's own working store
 src/pages/api/admin/roles/[id].ts | no-sign-in-fact | roleId | deleting a role moves its holders to another role, judged by the roles API's own rule (roleEditRefusalFor)

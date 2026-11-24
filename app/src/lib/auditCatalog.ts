@@ -56,6 +56,11 @@ export const AUDIT_EVENTS = {
   PASSWORD_SET: { label: "Password set by an admin", group: "access" },
   PIN_CHANGED: { label: "Manager PIN changed", group: "access" },
   IMPERSONATION: { label: "Viewed the app as another role", group: "access" },
+  SIGN_IN_LINKED: { label: "Google, Okta or Azure sign-in linked", group: "access" },
+  SIGN_IN_LINK_REFUSED: {
+    label: "Sign-in refused: account would join someone else's",
+    group: "access",
+  },
 
   SETTINGS_SAVED: { label: "Store settings saved", group: "settings" },
   CREDENTIAL_CHANGED: { label: "Integration key changed", group: "settings" },
