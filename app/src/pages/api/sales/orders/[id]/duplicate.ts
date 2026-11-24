@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { logError } from "@/lib/logger";
 import { getAppSettings } from "@/lib/appSettings";
 import { DeliveryFeeError } from "@/lib/delivery/deliveryFee";
@@ -25,9 +26,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   try {
     const settings = await getAppSettings();
     const copy = await prisma.$transaction(async (tx) => {
-      const staff = email
-        ? await tx.staffMember.findFirst({ where: { email }, select: { displayName: true } })
-        : null;
+      const staff = await sessionStaffMember(session, { displayName: true }, tx);
       return duplicateOrder(tx, {
         orderId,
         actor: { email, displayName: staff?.displayName ?? null },

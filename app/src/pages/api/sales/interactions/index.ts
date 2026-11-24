@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { isCashSaleCustomer } from "@/lib/pipelineClient";
 import { parseSalesInteractionBody } from "@/lib/salesInteractionBody";
@@ -60,8 +61,9 @@ async function resolveTarget(
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  // requirePermission guarantees a session; it does NOT guarantee an email, and this route
-  // uses email as the StaffMember lookup key.
+  // requirePermission guarantees a session; it does NOT guarantee an email, which this
+  // route writes as the interaction's createdBy label. Who the caller IS comes from the
+  // session's User id (sessionStaffMember), never from this email.
   const email = session.user?.email;
   if (!email) return res.status(401).json({ error: "Unauthorized" });
 
@@ -69,9 +71,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   const { salesOrderId, customerId, source, notes, nextFollowUpDate } = parsed.value;
 
-  const staff = await prisma.staffMember.findUnique({
-    where: { email },
-    select: { id: true, defaultStore: true, activeStoreLocation: { select: { name: true } } },
+  const staff = await sessionStaffMember(session, {
+    id: true,
+    defaultStore: true,
+    activeStoreLocation: { select: { name: true } },
   });
 
   if (!staff) return res.status(400).json({ error: "No staff record found for this user" });

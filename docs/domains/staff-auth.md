@@ -702,6 +702,64 @@ pages.
 
 The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens. Their scripts run only because `pages/_document.tsx` passes the request's nonce to `<Head>` and `<NextScript>`: every page carries a nonce Content-Security-Policy (`src/proxy.ts`, `docs/DECISIONS.md` entry 62), Next stamps the Pages Router's scripts from those props alone, and without them every script on the sign-in screens is blocked and nobody can sign in. The browser page sweep opens the three screens signed out (`e2e/pages.spec.ts`).
 
+## Who the caller is (2026-11-21)
+
+A route that needs the caller's own staff row (to record who opened a till, to
+show "my" pipeline, to set "my" active store) gets it from
+`sessionStaffMember(session, select, db?)` in `lib/auth/roleAssignment.ts`: the
+**active** row whose `userId` is the session's User id, or null when the session
+carries no id or no active row is linked to it. That is how every gate resolves
+the caller (`permissionResolver.ts`), so a route can no longer act as a
+different row than the one its gate admitted. `callerStaffRole` is the same
+lookup, selecting `role`. Pass a transaction as `db` when the lookup belongs in
+one (`create-from-cart`, `duplicate`, opening a service case, the till routes'
+injected client).
+
+**Never by email.** Until 2026-11-21 thirteen routes found the caller with
+`staffMember.findFirst/findUnique({ where: { email: <session email> } })`, with
+no `userId` and no `isActive` filter: `interactions/active.ts`,
+`sales/interactions/index.ts`, `sales/clients/index.ts`,
+`sales/pipeline/index.ts`, `sales/pipeline/[id].ts`,
+`sales/orders/create-from-cart.ts`, `sales/orders/[id]/duplicate.ts`,
+`registers/[id]/tills/open.ts`, `tills/[id]/close.ts`, `service/dashboard.ts`,
+`service/cases/index.ts`, `service/cases/[id]/notes.ts` and
+`staff/active-store.ts`. Anyone holding `staff.manage` can write a staff
+member's email (People Operations, the General Manager), so they chose whose row
+those routes acted as: a General Manager who gave the Owner's row their own
+session email opened tills as the Owner, saw the Owner's pipeline and archived
+quotes under the Owner's scope, and moved the Owner's active store. A deactivated
+row was matched too. And where the session had no email, five lookups (both till
+routes, open and close, and the service-note, service-case and service-dashboard
+lookups) passed `email: undefined`, which Prisma drops from the filter, so they
+matched whichever staff row came first. The warehouse transfer request found its
+requester the same way on `User` (`user.findUnique` by the session email); it now
+takes the session's User id.
+
+The session's email is still written where it is only a label (`createdBy`,
+`updatedBy`, the order's `salesperson` fallback, the duplicated quote's actor
+email); a label decides nothing.
+
+Only four lookups in three files may still find a staff member by email,
+because there is no session yet: in `authProviders.ts`, local sign-in checking
+the typed email (`authorizeLocal`) and the OAuth sign-in allowlist admitting a
+provider-verified email only if an active staff row holds it
+(`findActiveStaffByEmail`); a password-reset request (`passwordReset.ts`); and
+first sign-in linking an unlinked row to the User the identity provider verified
+(`[...nextauth].ts`). Two more look up by email without deciding who the caller
+is: the staff routes' collision check, whether an address being written is already
+another row's (`staff/[id].ts` and `staff/index.ts`, case-insensitively).
+`__tests__/staffEmailLookupRatchet.test.ts` fails on any
+other `staffMember` call whose `where` names `email`, and on a listed exception
+that has gone. It cannot see a `where` built in a variable and passed by name
+(three such sites exist, none keyed by email), a `user` lookup, or a screen: the
+Service screen's "My Cases" tab and the Interactions screen still pick the
+caller out of the staff list by email in the browser (tracked).
+Behaviour: `__tests__/integration/sessionStaffIdentity.integration.test.ts`
+gives the Owner's row the General Manager's session email (and the GM's row
+another address), and asserts the pipeline, opening a till and setting the
+active store act as the General Manager; and that a warehouse transfer records
+the session's own User when its email belongs to another User row.
+
 ## A session whose user is gone (2026-10-17)
 
 A session is a signed JWT carrying a user id, and it outlives the `User` row it
@@ -979,6 +1037,9 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `lib/auth/sessionToken.ts` -- the session JWT's encoder: expiry from the last activity
 - `components/auth/IdleLogoff.tsx` -- the browser's idle timer, warning and sign-out
 - `lib/auth/endSession.ts` -- every sign-out, and the sign-in screen's check that it held
+- `lib/auth/freshOAuthSignIn.ts` -- an OAuth sign-in never sees the session cookie, so it can't link onto whoever is signed in
+- `lib/auth/signInAccounts.ts` -- the NextAuth adapter: `linkAccount` refused onto an existing staff member's User, and recorded
+- `lib/auth/roleAssignment.ts` -- who may assign a role, set a password or edit a role; `sessionStaffMember`, the one way a route finds the caller's own staff row (see "Who the caller is")
 - `lib/auth/roleAdmin.ts` -- wire types + serialization shared by the Roles GUI and its API
 - `lib/auth/secretsEqual.ts` -- the one constant-time comparison for a secret a request presents (`timingSafeEqual` always over the expected secret's length, then the lengths must match; no hashing, which CodeQL read as a weak password hash; an empty expected secret never matches). Used by the scheduler's service key (`lib/automations/guardAutomation.ts`) and the bookings feed token (`pages/api/bookings/feed.ics.ts`); `automationKeyTripwire.test.ts` fails on a `Bearer` header compared with `===` or `!==`
 - `server/trpc/trpc.ts` -- `roleProcedure` / `permissionProcedure`
@@ -1049,6 +1110,71 @@ still that origin, and rebuilt as `origin + path`. Anything else lands on
 redirect and, for a `javascript:` value, a script sink (CodeQL #6, #9;
 `__tests__/safeCallbackUrl.test.ts`). NextAuth's own `redirect` callback is the
 default (same-origin only), which covers the server side.
+
+## OAuth sign-in is always a fresh sign-in (2026-11-21)
+
+Source read for this section, 2026-11-21: `pages/api/auth/[...nextauth].ts`,
+`lib/auth/freshOAuthSignIn.ts`, `lib/auth/signInAccounts.ts`,
+`lib/auth/authProviders.ts`, and in the installed next-auth 4.24.15
+`core/lib/callback-handler.js`, `core/routes/callback.js`,
+`core/lib/cookie.js` (SessionStore) and `next/index.js`.
+
+**The hole.** On an OAuth callback NextAuth decodes the session cookie and takes
+the signed-in user from it. When the incoming Google/Okta/Azure account is linked
+to nobody, it calls the adapter's `linkAccount` onto _that_ user. The `signIn`
+callback sees only the incoming identity and admits it when its email belongs to
+any active staff member (`findActiveStaffByEmail`). So any active staff member at
+a browser where the Owner or an Administrator was signed in could finish consent
+with their own account and leave an `Account` row pointing at the Owner's User;
+every later sign-in with that account was the Owner. A password reset did not
+undo it, and nothing in Holt lists or removes `Account` rows.
+
+**Layer 1, the request (`lib/auth/freshOAuthSignIn.ts`).** The `[...nextauth]`
+handler hides the session cookie (every cookie whose name starts with
+`next-auth.session-token`, either prefix, by the rule NextAuth itself reads the
+session with: its numbered pieces and any variant name) from NextAuth on
+`signin/<provider>` and `callback/<provider>` for
+every provider except `credentials`, so NextAuth takes its not-signed-in branch:
+the sign-in is as whoever the OAuth identity belongs to. On the callback the old
+cookie is also expired in the reply, ahead of the new one NextAuth appends, since
+NextAuth can only clean up the pieces it saw. Other cookies (state, PKCE, CSRF,
+callback URL) are untouched.
+
+- Hiding, not refusing, keeps a shared register working: the next person signs in
+  with their own Google account and the register becomes theirs, with no
+  sign-out first.
+- A callback that ends in a refusal or a cancelled consent leaves that browser
+  signed out, not still signed in as the person before.
+- The password callback is left alone: it never reads the session
+  (`core/routes/callback.js`), and a mistyped password should not sign out
+  whoever is at the register. An unknown provider id gets the fresh sign-in.
+
+**Layer 2, the write (`lib/auth/signInAccounts.ts`).** `authOptions.adapter` is
+`PrismaAdapter` with `linkAccount` refused onto any User a staff member already
+signs in as (`StaffMember.userId`). A first sign-in still links: NextAuth creates
+the User and links it in the same callback, before the jwt callback joins a staff
+member to it, so that User has no staff member yet. NextAuth renames any error an
+adapter method throws (`core/errors.js`, `adapterErrorHandler`), so a refusal
+reaches the browser as NextAuth's generic `error=Callback`; it is logged and
+recorded as `SIGN_IN_LINK_REFUSED`, which is where it says what happened.
+
+**Recorded.** `events.linkAccount` writes `SIGN_IN_LINKED` (actor: the incoming
+identity's email; details: provider, provider account id, User id). NextAuth 4
+never calls `unlinkAccount`, and nothing in Holt does.
+
+**What this does not change.** A staff member whose User row already exists (for
+example one an admin gave a password, `admin/staff/[id]/set-password.ts` creates
+the User) and who has no `Account` cannot start signing in with Google: NextAuth
+finds the User by email and, with `allowDangerousEmailAccountLinking` off, refuses
+with `OAuthAccountNotLinked`. That was already true signed out; signing in with a
+password first and then with Google used to link Google onto that person, and now
+does not. Joining a second sign-in to someone needs a deliberate admin flow, which
+does not exist yet.
+
+Real-DB proof: `__tests__/integration/oauthLinkNeedsFreshSignIn.integration.test.ts`
+drives the real `[...nextauth]` handler, NextAuth core and Prisma adapter; only the
+identity provider's token and userinfo answers are local. The request rewrite's
+cases are in `__tests__/freshOAuthSignIn.test.ts`.
 
 ## Password reset + my-account (2026-06-10)
 

@@ -478,7 +478,12 @@ configurations"), and a duplicate is priced at today's prices. `docs/DECISIONS.m
     BACKORDERED, more than zero, not given back on an exchange, not the delivery
     fee; rules 31 and 33) with their options, fulfilment and notes; the
     customer, store and delivery method and address. The one copying it is its
-    salesperson, as at the register.
+    salesperson, as at the register. Both routes take that person's name from
+    the caller's own active staff row, found by the session's User id
+    (`sessionStaffMember`; staff-auth.md "Who the caller is"), as do the
+    Pipeline (`sales/pipeline/index.ts`, `[id].ts`) and My Clients
+    (`sales/clients/index.ts`). Until 2026-11-21 all five found it by the
+    session's email.
   - **Today's prices.** A catalog item at its retail now, or at the price the
     customer's trade tier entitles them to today, which the line records
     (`catalogLinePolicies`, GAP-06 part C). A custom or configured item is its
