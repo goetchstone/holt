@@ -87,6 +87,10 @@ presets:
           - sales.discount
           - customer.read
           - customer.write
+          # "Edit customer addresses": the delivery address on a quote. Every
+          # role a store had built was granted it when the key arrived; leave
+          # it out and the apply revokes it.
+          - customer.address
           - catalog.read
           - inventory.read
           - staff.read
@@ -112,8 +116,14 @@ presets:
         permissions:
           - sales.read
           - sales.write
+          # "Work leads": the Leads board and the Pipeline, where designers
+          # follow up their open quotes. Leave it out and the apply revokes it.
+          - sales.lead
           - customer.read
           - customer.write
+          # "Edit customer addresses": designers add the delivery address
+          # when they write a quote. Leave it out and the apply revokes it.
+          - customer.address
           - catalog.read
           - inventory.read
           - purchasing.read

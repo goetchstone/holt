@@ -13,7 +13,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { RefundError, RefundProcessorError, retryProcessorRefund } from "@/lib/paymentService";
 import { isRefundDestination, refundReturn } from "@/lib/returns/refundReturn";
@@ -135,9 +135,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   }
 }
 
-// Issuing a refund moves money. Register (till), Warehouse (returns desk),
-// Manager, and Admin only.
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"],
-  handler,
-);
+// Issuing a refund moves money. "Refund payment" (payment.refund) covers it, and
+// so does "Refund returns" (payment.return-refund), the narrower key for staff
+// who pay out returns and no other refund: by default Register (till),
+// Warehouse (returns desk) and Manager, the roles the list it replaced admitted.
+export default requirePermission({ anyOf: ["payment.refund", "payment.return-refund"] }, handler);

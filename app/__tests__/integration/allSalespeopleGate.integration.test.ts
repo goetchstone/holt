@@ -28,13 +28,12 @@ const MIGRATION_SQL = readFileSync(
   "utf8",
 );
 
-/** The reports router as a signed-in caller. `tokenRole` is the staff enum in
- *  the session token, which no longer decides anything here. */
-function reportsAs(userId: string, tokenRole: string) {
+/** The reports router as a signed-in caller. The context carries no role: the
+ *  gate and the salesperson scope read the caller's staff row. */
+function reportsAs(userId: string) {
   const ctx: TrpcContext = {
     userId,
     userEmail: `${userId}@example.com`,
-    tokenRole,
     impersonate: null,
     headers: new Headers(),
   };
@@ -104,38 +103,38 @@ afterAll(async () => {
 describe("who may pick a salesperson follows reporting.all-salespeople", () => {
   it("a holder gets the salesperson they asked for", async () => {
     await makeStaff("mia", "MANAGER");
-    const data = await reportsAs("mia", "MANAGER").monthlyPerformance({ salesperson: "ana" });
+    const data = await reportsAs("mia").monthlyPerformance({ salesperson: "ana" });
     expect(data.salesperson).toBe("ana");
   });
 
   it("holding the key is what counts, not the staff enum in the token", async () => {
     // Enum DESIGNER (which the old check refused) on a role that holds the key.
     await makeCustomRoleStaff("hal", ["reporting.read", KEY]);
-    const data = await reportsAs("hal", "DESIGNER").monthlyPerformance({ salesperson: "ana" });
+    const data = await reportsAs("hal").monthlyPerformance({ salesperson: "ana" });
     expect(data.salesperson).toBe("ana");
   });
 
   it("a caller with View reports but not the key gets only their own record, whoever they ask for", async () => {
     // The Designer built-in holds reporting.read and not the key.
-    const own = await reportsAs("ana", "DESIGNER").monthlyPerformance({ salesperson: "admin" });
+    const own = await reportsAs("ana").monthlyPerformance({ salesperson: "admin" });
     expect(own.salesperson).toBe("ana");
-    const detail = await reportsAs("ana", "DESIGNER").salespersonDetail({ salesperson: "admin" });
+    const detail = await reportsAs("ana").salespersonDetail({ salesperson: "admin" });
     expect(detail.salesperson).toBe("ana");
 
     // Enum MANAGER in the token (which the old check trusted), key not ticked.
     await makeCustomRoleStaff("kim", ["reporting.read"], "MANAGER");
-    const kim = await reportsAs("kim", "MANAGER").monthlyPerformance({ salesperson: "ana" });
+    const kim = await reportsAs("kim").monthlyPerformance({ salesperson: "ana" });
     expect(kim.salesperson).toBe("kim");
   });
 
   it("a caller without View reports is refused", async () => {
     await makeStaff("reg", "REGISTER");
-    await expect(
-      reportsAs("reg", "REGISTER").monthlyPerformance({ salesperson: "ana" }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(
-      reportsAs("reg", "REGISTER").salespersonDetail({ salesperson: "ana" }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(reportsAs("reg").monthlyPerformance({ salesperson: "ana" })).rejects.toMatchObject(
+      { code: "FORBIDDEN" },
+    );
+    await expect(reportsAs("reg").salespersonDetail({ salesperson: "ana" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
   });
 });
 

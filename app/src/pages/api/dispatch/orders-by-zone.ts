@@ -5,7 +5,7 @@
 // go to the same address in one delivery.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { computeBalance } from "@/lib/paymentService";
@@ -55,8 +55,10 @@ export interface DispatchCustomer {
   totalBalanceDue: number;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "WAREHOUSE"],
+// The dispatch board's unassigned orders — same capability as the board's runs
+// and vehicles and the rest of dispatch.
+export default requirePermission(
+  "warehouse.operate",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       return res.status(405).json({ error: "Method not allowed" });

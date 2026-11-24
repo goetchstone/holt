@@ -16,11 +16,7 @@ export interface KnownFailure {
   reason: string;
 }
 
-/** Why each of these fails, once. */
-const OWNER_REFUSED_BY_ROLE_LIST =
-  "a data API behind this page checks the staff enum for MANAGER or ADMIN by name, so the Owner, who holds every permission, gets 403; to become a permission in the hardcoded role-gate sweep, local roadmap, Health audit 2026-11-18";
-
-export const KNOWN_FAILURES: Record<string, KnownFailure> = {
-  "/app/inventory/consignment/receiving-gaps": { as: "owner", reason: OWNER_REFUSED_BY_ROLE_LIST },
-  "/app/leads": { as: "owner", reason: OWNER_REFUSED_BY_ROLE_LIST },
-};
+// Empty since the 2026-11 role-list sweep: the receiving-gaps and leads pages
+// failed for the Owner because a data API behind each checked the staff enum
+// for MANAGER or ADMIN by name, and both APIs now take permission keys.
+export const KNOWN_FAILURES: Record<string, KnownFailure> = {};

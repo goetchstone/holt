@@ -93,10 +93,12 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   AvailabilityWindow: { status: "seeded", seeder: "demo" },
   BlogComment: { status: "todo", tranche: "crm-pipeline" },
   Booking: { status: "seeded", seeder: "demo" },
-  BuyerDraftBuy: { status: "todo", tranche: "buying-consignment" },
-  BuyerDraftItem: { status: "todo", tranche: "buying-consignment" },
-  BuyerDraftPoRealPoLink: { status: "todo", tranche: "buying-consignment" },
-  BuyerDraftPurchaseOrder: { status: "todo", tranche: "buying-consignment" },
+  // One closed buy, rebuilt from received stock orders through
+  // lib/historicalPoImport.ts (demo/buyerDrafts.ts), so its performance page opens.
+  BuyerDraftBuy: { status: "seeded" },
+  BuyerDraftItem: { status: "seeded" },
+  BuyerDraftPoRealPoLink: { status: "seeded" },
+  BuyerDraftPurchaseOrder: { status: "seeded" },
   CalendarBlock: { status: "seeded", seeder: "demo" },
   CampaignTarget: { status: "todo", tranche: "crm-pipeline" },
   Category: { status: "seeded" },
@@ -177,7 +179,9 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   InventorySnapshot: { status: "seeded", seeder: "demo" },
   InventoryTransfer: { status: "seeded", seeder: "demo" },
   Invoice: { status: "seeded" },
-  InvoiceLineItem: { status: "todo", tranche: "money-detail" },
+  // The lines of the one authored draft invoice (demo/authoredInvoices.ts). The
+  // seeded order invoices still carry none.
+  InvoiceLineItem: { status: "seeded" },
   JournalEntry: { status: "seeded" },
   JournalEntryLine: { status: "seeded" },
   LabelTemplate: { status: "seeded", seeder: "demo" },

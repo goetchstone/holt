@@ -233,7 +233,15 @@ Gaps acknowledged: no real-DB tests for the manual products-import path (the ups
 - Not every route under `pages/api/automations/` is an import.
   `expire-quote-holds` (hourly) puts back on sale the stock of quotes whose holds
   have ended (`docs/domains/sales-orders.md`, "Quote holds";
-  `docs/OPERATIONS.md`, "Expire Quote Holds").
+  `docs/OPERATIONS.md`, "Expire Quote Holds"). `customer-level-recalc` (weekly)
+  recalculates customer levels and lifetime spend
+  (`docs/domains/customer-intelligence.md`). Since 2026-11-21 it goes through
+  `guardAutomation` like the rest, so a person running it by hand needs "Run
+  scheduled jobs" (`admin.automations`); it used to take a Manager's session too, and
+  Managers now recalculate from the Customers list. `mailchimp-customer-sync` pushes
+  new customers to the email audience; a deployment without its key or audience
+  gets a `400` that says which to set, not a 500 (`docs/domains/mailchimp.md`,
+  "Audience sync").
 
 ---
 Last verified: 2026-05-21

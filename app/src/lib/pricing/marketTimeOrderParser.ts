@@ -76,7 +76,11 @@ const ORDER_DATE = /(?:Order Date:\s*(\d{2}\/\d{2}\/\d{4})|(\d{2}\/\d{2}\/\d{4})
 const SHIP_DATE = /(?:Ship Date:\s*(\d{2}\/\d{2}\/\d{4})|(\d{2}\/\d{2}\/\d{4})\s*Ship Date:)/;
 const SUBTOTAL = /^\$([\d,]+\.\d{2})$/;
 const SKUS_UNITS = /^(\d+)\s*Skus\s*\|\s*(\d+)\s*Units/i;
-const AVAIL = /\(Avail:([^)]*)\)/i;
+// Bounded: it runs over an item's whole name, joined from every line before its
+// money line, which the per-line cut does not bound. Unbounded, each "(Avail:"
+// with no ")" after it scanned to the end of the name: 4.9 s for 200 lines of them
+// (Node 24). A real marker is a date ("(Avail:07/10/26)").
+const AVAIL = /\(Avail:([^)]{0,80})\)/i;
 const SPECIAL_INSTRUCTIONS = /^Special Instructions:\s*(.+?)\s*$/;
 const HOLD_WORDS = /\b(hold|quote)\b/i;
 // Fallback vendor source: the MFR line only prints on a continuation page, so a
@@ -97,8 +101,11 @@ const QTY_ITEM = /^(\d{1,4})([A-Za-z][A-Za-z0-9\-/.]*)$/;
 const NUMERIC_ITEM_HEADER = /^\d{12,}$/;
 
 // A loose "does this line end in money?" test, used only to detect that a line
-// starts a new item (the exact split is done by iterating UPC lengths).
-const MONEY_TAIL = /\d{11,14}[\d,]+\.\d{2}(?:\d*[A-Za-z]+)?\$[\d,]+\.\d{2}$/;
+// starts a new item (the exact split is done by iterating UPC lengths). It may
+// start only at the first digit of a run: any match that starts inside a run
+// also matches from the run's start, and trying every digit made a 1000-digit
+// line cost about 4 ms, 0.2 s over the fuzz test's 50 such lines (Node 24).
+const MONEY_TAIL = /(?<!\d)\d{11,14}[\d,]+\.\d{2}(?:\d*[A-Za-z]+)?\$[\d,]+\.\d{2}$/;
 
 // UPC + unit price + [optional UQ + UOM] + $line total, all concatenated.
 // Graf & Lantz's dialect omits the UQ/UOM columns ("...84.00$84.00"); other
@@ -125,6 +132,9 @@ interface PriceParts {
  * rather than picking the plausible-looking one.
  */
 export function splitUpcPriceTotal(line: string, qty: number): PriceParts | null {
+  // A quantity of 0 settles nothing: every reading with a $0 total satisfies
+  // 0 x price == total, so the first length tried would win.
+  if (!(qty > 0)) return null;
   const match = UPC_PRICE_TOTAL.exec(line);
   if (!match) return null;
 
@@ -281,9 +291,13 @@ function tryConcatenatedItem(line: string): MarketTimeItem | null {
   // Try each UPC length; the greedy single match grabs too many digits (a
   // 14-digit UPC leaving a 1-digit-short price), so the qty x price == total
   // check, plus "the prefix reads qty + that same UPC", is what settles it.
+  // (?<!\d) changes no match: a match that starts after a digit also matches
+  // one digit earlier, so it is never the leftmost. It stops the engine trying
+  // every digit of a long run, which cost about 2 ms per 1000-digit line for
+  // the three lengths together (Node 24).
   for (let len = 14; len >= 12; len--) {
     const money = new RegExp(
-      String.raw`(\d{${len}})([\d,]+\.\d{2})(?:\d*[A-Za-z]+)?\$([\d,]+\.\d{2})$`,
+      String.raw`(?<!\d)(\d{${len}})([\d,]+\.\d{2})(?:\d*[A-Za-z]+)?\$([\d,]+\.\d{2})$`,
     );
     const m = money.exec(line);
     if (!m || m.index === 0) continue;
@@ -331,25 +345,43 @@ function isNewItemStart(line: string): boolean {
   return QTY_ITEM.test(line) || NUMERIC_ITEM_HEADER.test(line) || MONEY_TAIL.test(line);
 }
 
+/** A line inside an open qty+item block: its money line closes the block, a
+ *  name line extends it, and the start of another item abandons it, with a
+ *  warning. True when the line was used up. */
+function readPendingItemLine(
+  line: string,
+  scan: Scan,
+  order: MarketTimeOrder,
+  warnings: string[],
+): boolean {
+  const parts = splitUpcPriceTotal(line, scan.pendingQty as number);
+  if (parts) {
+    flush(scan, parts, order);
+    return true;
+  }
+  if (!isNewItemStart(line)) {
+    scan.nameLines.push(line);
+    return true;
+  }
+  // A quantity of 0 is a cancelled line, left out with its block (rule 31);
+  // its money line ends the block like any other.
+  const zeroQty = !((scan.pendingQty as number) > 0);
+  warnings.push(
+    zeroQty
+      ? `Item ${scan.pendingItem}: quantity ${scan.pendingQty} -- skipped.`
+      : `Item ${scan.pendingItem}: no price line was found before the next item -- skipped.`,
+  );
+  scan.pendingItem = null;
+  scan.nameLines = [];
+  return zeroQty && MONEY_TAIL.test(line);
+}
+
 /** One line of an item block. The scan is mid-item once a qty+item line has
  *  been seen; the block ends at its money line. */
 function readItemLine(line: string, scan: Scan, order: MarketTimeOrder, warnings: string[]): void {
   // Mid-item: the money line closes the block.
   if (scan.pendingItem !== null) {
-    const parts = splitUpcPriceTotal(line, scan.pendingQty as number);
-    if (parts) {
-      flush(scan, parts, order);
-      return;
-    }
-    if (!isNewItemStart(line)) {
-      scan.nameLines.push(line);
-      return;
-    }
-    warnings.push(
-      `Item ${scan.pendingItem}: no price line was found before the next item -- skipped.`,
-    );
-    scan.pendingItem = null;
-    scan.nameLines = [];
+    if (readPendingItemLine(line, scan, order, warnings)) return;
   } else if (scan.pendingRaw !== null) {
     // A held numeric header: its money line reveals qty + item.
     const resolved = resolveDeferredNumeric(scan.pendingRaw, line);

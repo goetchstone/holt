@@ -1,9 +1,14 @@
 // /app/src/pages/api/diagnostics/lookup-test.ts
+//
+// The Diagnostic Lookup Tool's UPC / product-number lookup, returning the raw
+// Product row. On the key of its page (/app/admin/diagnostics/lookup-test), its
+// only caller: "Change settings" (admin.settings). The scan and POS screens
+// look products up through /api/products/find-by-identifier (catalog.read).
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-import { getErrorMessage } from "@/lib/toastError";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -65,9 +70,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     results.error = "No match found for the given identifier in UPCs or Product Numbers.";
     return res.status(404).json(results);
   } catch (error: unknown) {
-    results.error = `An unexpected database error occurred: ${getErrorMessage(error, "unknown error")}`;
+    // A 500 says what failed; why goes to the log (rule 11). This put the
+    // database's own message into the body and logged nothing.
+    logError("Lookup test failed", error, { searchType: results.searchType });
+    results.error = "An unexpected database error occurred.";
     return res.status(500).json(results);
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("admin.settings", handler);

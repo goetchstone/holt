@@ -11,7 +11,10 @@
 // a REST download (a browser file download can't ride tRPC), so it
 // parses its own query. The session comes from requirePermission
 // ("reporting.read", the page's key: reporting.export would 403 the HR
-// users this export exists for).
+// users this export exists for). Which salespeople the file covers is the
+// screen's decision, answered at the same gate from the same keys
+// (salesBySalespersonSeesEveryone), so the file never scopes differently
+// from the report it was downloaded from.
 
 import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
@@ -24,6 +27,10 @@ import { formatMarginPct } from "@/lib/marginMath";
 import { csvRow } from "@/lib/csvExport";
 import { getAppSettings } from "@/lib/appSettings";
 import { parseStandardQuery } from "@/lib/salesBySalesperson";
+import {
+  salesBySalespersonSeesEveryone,
+  WITH_SALES_BY_SALESPERSON_EVERYONE,
+} from "@/lib/reports/salespersonScope";
 import {
   getSalesBySalesperson,
   getSalesBySalespersonItems,
@@ -134,13 +141,14 @@ function buildFilename(level: Level, groupBy: string, startDate: string, endDate
 }
 
 /**
- * resolveSalesPersonFilter (inside the report lib) reads `session.role` and
- * `session.user.id`. getServerSession surfaces both via the next-auth callbacks
- * in this app, so pull them off here for the lib's auth param.
+ * Who is asking, as the report lib needs it: whether they may see every
+ * salesperson, answered by this route's gate from the same keys the screen
+ * asks (never the token's role, which outlives a demotion), and the signed-in
+ * user, whose own staff record scopes anyone who may not.
  */
-function sessionAuth(session: Session): SalesBySalespersonAuth {
+function callerScope(session: Session, access: CallerAccess): SalesBySalespersonAuth {
   return {
-    role: (session as { role?: string }).role,
+    seesEveryone: salesBySalespersonSeesEveryone(access),
     userId: (session.user as { id?: string } | undefined)?.id,
   };
 }
@@ -163,7 +171,7 @@ async function handler(
     const endDate = (req.query.endDate as string) || "";
 
     const parsed = parseStandardQuery(req);
-    const auth = sessionAuth(session);
+    const auth = callerScope(session, access);
     const showCost = canViewCost(access);
 
     const settings = await getAppSettings();
@@ -204,10 +212,12 @@ async function handler(
     return res.status(200).send(csv);
   } catch (err) {
     logError("sales-by-salesperson/export failed", err);
-    const message = err instanceof Error ? err.message : "Export failed";
-    return res.status(500).json({ error: message });
+    return res.status(500).json({ error: "Export failed" });
   }
 }
 
-// Cost, margin and margin % columns only for a holder of "View cost".
-export default requirePermission("reporting.read", handler, WITH_COST);
+// Cost, margin and margin % columns only for a holder of "View cost"; every
+// salesperson only for a caller the screen would show them to.
+export default requirePermission("reporting.read", handler, {
+  also: [...WITH_COST.also!, ...WITH_SALES_BY_SALESPERSON_EVERYONE.also!],
+});

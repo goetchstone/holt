@@ -1,4 +1,10 @@
 // /app/src/pages/api/sales/import-hd-proposal.ts
+//
+// Parses a Hunter Douglas proposal PDF and writes it as a quote in one request.
+// The quote is written as read; the parser's warnings (a line cut short, an
+// amount that overflowed and read as 0) come back on `proposal.warnings`, and
+// the import page shows them with the quote. Whether warnings should refuse the
+// import is the owner's open question.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
@@ -6,6 +12,7 @@ import { parseHDProposal } from "@/lib/pricing/hdProposalParser";
 import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
 import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -276,8 +283,8 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      return res.status(500).json({ error: message });
+      logError("HD proposal import failed", err);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

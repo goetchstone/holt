@@ -166,6 +166,16 @@ describe("parseWendoverOrderText", () => {
     expect(odd.warnings.some((w) => w.includes("does not divide evenly"))).toBe(true);
   });
 
+  it("reads a line total too large to count in cents as a unit cost of 0, never Infinity", () => {
+    // 308 digits still read as a number; x 100 to cents does not, and
+    // Infinity x 3 equals Infinity, so no "divide evenly" warning fired either.
+    const huge = parseWendoverOrderText(
+      ["Your Order #5", "Big One", "SKU: A1", `3$${"9".repeat(308)}.00`].join("\n"),
+    );
+    expect(huge.items[0].unitPrice).toBe(0);
+    expect(huge.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
+  });
+
   it("warns when an item never receives a price", () => {
     const orphan = parseWendoverOrderText(
       ["Your Order #5", "Nameless", "SKU: A1", "Medium", "Canvas"].join("\n"),

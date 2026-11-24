@@ -41,6 +41,24 @@ export interface OpportunityTile {
   // Rough per-customer revenue estimate for the tile's "potential" subline.
   // Not exact math; deliberately coarse so nobody treats it as a forecast.
   avgEstPerCustomer: number;
+  // True when the segment is chosen by the wealth-data import
+  // (windfallEnrichment): who it lists, and how many, is wealth data. Such a
+  // tile is only for a holder of "See wealth data" (see tileOpenTo).
+  // __tests__/opportunityTiles.test.ts fails when this and buildWhere disagree.
+  usesWealthData?: true;
+}
+
+/**
+ * May a caller see this tile, its count and its list? A tile built from
+ * wealth data only with "See wealth data" (customer.wealth); every other tile
+ * for anyone the Opportunities page admits. The counts and the drill both ask
+ * this, so a list is never offered to someone it would then be refused to.
+ */
+export function tileOpenTo(
+  tile: Pick<OpportunityTile, "usesWealthData">,
+  canSeeWealth: boolean,
+): boolean {
+  return !tile.usesWealthData || canSeeWealth;
 }
 
 // Helpers ---------------------------------------------------------------------
@@ -137,6 +155,7 @@ export function buildMissingPiecesWhere(
 export const OPPORTUNITY_TILES: OpportunityTile[] = [
   {
     id: "big-wallets",
+    usesWealthData: true,
     title: "Big wallets, small baskets",
     description:
       "Wealthy customers who have barely bought anything from us. The biggest untapped pool.",
@@ -149,6 +168,7 @@ export const OPPORTUNITY_TILES: OpportunityTile[] = [
   },
   {
     id: "second-home",
+    usesWealthData: true,
     title: "They have a second home",
     description:
       "Multi-property owners who haven't let us furnish the other house yet. Bedroom, outdoor, accessories.",
@@ -160,6 +180,7 @@ export const OPPORTUNITY_TILES: OpportunityTile[] = [
   },
   {
     id: "landlord",
+    usesWealthData: true,
     title: "Landlord special",
     description: "Rental property owners. Think durable bedroom + living room sets, bulk orders.",
     avgEstPerCustomer: 900,
@@ -170,6 +191,7 @@ export const OPPORTUNITY_TILES: OpportunityTile[] = [
   },
   {
     id: "boat-crowd",
+    usesWealthData: true,
     title: "Boat and lake house crowd",
     description:
       "Existing customers who own a boat. Outdoor furniture, entertaining pieces, rugs for the cabin.",
@@ -203,6 +225,7 @@ export const OPPORTUNITY_TILES: OpportunityTile[] = [
   },
   {
     id: "life-event",
+    usesWealthData: true,
     title: "Something big changed in their life",
     description:
       "Recent mover, new mortgage, or cashed out an asset. People in transition buy furniture.",

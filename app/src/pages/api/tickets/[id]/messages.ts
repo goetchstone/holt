@@ -3,10 +3,11 @@
 // Add a staff message to a ticket. A message is either a public reply
 // (isInternal false -- visible on the customer's token view) or an internal
 // note (isInternal true -- staff-only). The author is resolved from the session
-// to the StaffMember so the thread shows who replied.
+// to the StaffMember so the thread shows who replied. Replying updates the
+// ticket, so "Work service" (service.write).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID, getAppSettings } from "@/lib/appSettings";
 import { parseTicketMessageInput } from "@/lib/tickets/requestBody";
@@ -16,8 +17,8 @@ import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 import { getEmailChrome } from "@/lib/email/wordingSettings";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "ADMIN", "MANAGER"],
+export default requirePermission(
+  "service.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

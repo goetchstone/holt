@@ -1,11 +1,12 @@
 // /app/src/app/(dashboard)/app/admin/setup/page.tsx
 //
-// Setup Tools hub -- App Router port of the legacy admin/setup/index. MANAGER /
-// ADMIN (mirrors the legacy withAuth roles). Cards self-filter by role via
-// CardGrid; hrefs are unchanged so existing links keep working. Chrome from the
-// (dashboard) layout.
+// Setup Tools hub -- App Router port of the legacy admin/setup/index, on Manage
+// configuration. A card shows only to a viewer holding the key of the page it
+// opens (lib/auth/hubCards.ts); hrefs are unchanged so existing links keep
+// working. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -93,7 +94,6 @@ const ITEMS: CardGridItem[] = [
     title: "Database Backup",
     description: "Download a database backup or restore from a previous backup file.",
     href: "/app/admin/setup/database",
-    roles: ["ADMIN"],
   },
   {
     title: "Service Settings",
@@ -125,7 +125,6 @@ const ITEMS: CardGridItem[] = [
     description:
       "Create roles and choose what each one can do. Clone a role that already works, then take away what it should not have.",
     href: "/app/admin/setup/roles",
-    roles: ["ADMIN"],
   },
   {
     title: "Trade Tiers",
@@ -137,11 +136,13 @@ const ITEMS: CardGridItem[] = [
     description:
       "Define which product categories belong together. Powers the Missing Pieces tile on the Opportunities hub.",
     href: "/app/admin/setup/product-pairings",
-    roles: ["ADMIN", "MARKETING"],
   },
 ];
 
 export default async function SetupToolsHubPage() {
-  await requirePage(undefined, { permission: "admin.config" });
-  return <CardGrid title="Setup Tools" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "admin.config",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="Setup Tools" items={visibleHubCards(ITEMS, holds)} />;
 }

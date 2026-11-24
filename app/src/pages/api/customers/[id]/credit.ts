@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { getBalance } from "@/lib/customerCredit";
+import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -51,8 +52,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       })),
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Internal server error";
-    return res.status(500).json({ error: msg });
+    logError("GET /customers/[id]/credit error", err);
+    return res.status(500).json({ error: "Couldn't load the customer's credit." });
   }
 }
 

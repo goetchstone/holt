@@ -41,7 +41,11 @@ export const AUDIENCE_TAG_NEW_CUSTOMER = "Customer";
 // ensureConfig(). Module-scoped so the existing BASE_URL / authHeader /
 // MAILCHIMP_AUDIENCE_ID references keep working after resolution.
 let MAILCHIMP_AUDIENCE_ID = "";
-import { mailchimpDatacenter, mailchimpBaseUrl } from "@/lib/mailchimp/baseUrl";
+import {
+  MAILCHIMP_NOT_CONFIGURED,
+  mailchimpDatacenter,
+  mailchimpBaseUrl,
+} from "@/lib/mailchimp/baseUrl";
 
 let BASE_URL = "";
 let authHeader = { headers: { Authorization: "" } };
@@ -51,22 +55,25 @@ const RATE_LIMIT_DELAY_MS = 5000;
 const INTER_REQUEST_DELAY_MS = 200;
 const MAX_RATE_LIMIT_RETRIES = 2;
 
+/** What the sync says when the key is usable but no audience is set. */
+export const MAILCHIMP_AUDIENCE_NOT_CONFIGURED =
+  "Mailchimp audience not configured: set the Audience ID in Settings > Integrations " +
+  "or the MAILCHIMP_AUDIENCE_ID environment variable.";
+
+/**
+ * The deployment has no usable API key, or no audience, so the sync cannot run.
+ * Thrown by ensureConfig before any work, with a message that says what to set:
+ * the route answers it as a 400, as the campaign sync routes answer theirs
+ * (lib/mailchimp/baseUrl.ts), never as a fault.
+ */
+export class MailchimpNotConfiguredError extends Error {}
+
 async function ensureConfig(): Promise<void> {
   const apiKey = await resolveCredential("mailchimp", "apiKey", "MAILCHIMP_API_KEY");
   const datacenter = mailchimpDatacenter(apiKey);
-  if (!apiKey || !datacenter) {
-    throw new Error(
-      "Mailchimp not configured: set the Mailchimp API key (format <key>-<datacenter>, " +
-        "e.g. xxx-us18) in Settings > Integrations or the MAILCHIMP_API_KEY environment variable.",
-    );
-  }
+  if (!apiKey || !datacenter) throw new MailchimpNotConfiguredError(MAILCHIMP_NOT_CONFIGURED);
   const audienceId = await resolveCredential("mailchimp", "audienceId", "MAILCHIMP_AUDIENCE_ID");
-  if (!audienceId) {
-    throw new Error(
-      "Mailchimp audience not configured: set the Audience ID in Settings > Integrations " +
-        "or the MAILCHIMP_AUDIENCE_ID environment variable.",
-    );
-  }
+  if (!audienceId) throw new MailchimpNotConfiguredError(MAILCHIMP_AUDIENCE_NOT_CONFIGURED);
   MAILCHIMP_AUDIENCE_ID = audienceId;
   BASE_URL = mailchimpBaseUrl(datacenter);
   authHeader = { headers: { Authorization: `apikey ${apiKey}` } };

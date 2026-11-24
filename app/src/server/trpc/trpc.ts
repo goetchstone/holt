@@ -26,9 +26,39 @@ import {
 } from "@/lib/auth/permissionResolver";
 import { assertKnownKeys, type GateOptions } from "@/lib/auth/gateOptions";
 import { SESSION_ENDED_MESSAGE, sessionAccountEnded } from "@/lib/auth/sessionEnded";
+import { INTERNAL_ERROR_MESSAGE } from "@/lib/apiResponse";
 import type { TrpcContext } from "./context";
 
-const t = initTRPC.context<TrpcContext>().create({ transformer: superjson });
+/**
+ * Whether tRPC made `error` out of a throw that was not a TRPCError: a Prisma
+ * error, a bug, a thrown string. @trpc/server 11 wraps such a throw
+ * (getTRPCErrorFromUnknown) as INTERNAL_SERVER_ERROR with the throw as its cause
+ * and no message of its own, so it takes the cause's. A TRPCError thrown on
+ * purpose reaches the formatter as it was thrown, with the message its thrower
+ * chose, whatever its code.
+ */
+export function isWrappedUnexpectedError(error: TRPCError): boolean {
+  const { cause } = error;
+  return (
+    error.code === "INTERNAL_SERVER_ERROR" &&
+    cause !== undefined &&
+    !(cause instanceof TRPCError) &&
+    error.message === String(cause.message)
+  );
+}
+
+const t = initTRPC.context<TrpcContext>().create({
+  transformer: superjson,
+  // A 500 says what failed, never why (CLAUDE.md rule 11). tRPC's default shape
+  // answers an unexpected throw with the throw's own message (Prisma's model,
+  // column and constraint names), which screens show; it is the fault's fixed
+  // message instead, as REST's handleError answers. The route's onError
+  // (app/api/trpc/[trpc]/route.ts) logs the original with logError. Every
+  // TRPCError thrown on purpose keeps its message: BAD_REQUEST, FORBIDDEN,
+  // NOT_FOUND, CONFLICT, and an INTERNAL_SERVER_ERROR given a message of its own.
+  errorFormatter: ({ shape, error }) =>
+    isWrappedUnexpectedError(error) ? { ...shape, message: INTERNAL_ERROR_MESSAGE } : shape,
+});
 
 export const router = t.router;
 export const createCallerFactory = t.createCallerFactory;
@@ -39,10 +69,17 @@ export const publicProcedure = t.procedure;
  * so __tests__/trpcProcedureAuthorization.test.ts can classify every mounted
  * procedure from `_def.middlewares` (a procedure's own input and resolver steps
  * are middlewares too, so counting them cannot tell the tiers apart).
+ * `roleLists` holds roleProcedure's gates alone, so the same test can hold the
+ * routers at no role lists, where the 2026-11 role-list sweep left them.
  */
-export const authMiddlewareMarkers: { session: unknown; gates: WeakSet<object> } = {
+export const authMiddlewareMarkers: {
+  session: unknown;
+  gates: WeakSet<object>;
+  roleLists: WeakSet<object>;
+} = {
   session: undefined,
   gates: new WeakSet<object>(),
+  roleLists: new WeakSet<object>(),
 };
 
 function lastMiddleware(proc: unknown): unknown {
@@ -89,6 +126,7 @@ export function roleProcedure(allowedRoles: string[], options?: GateOptions) {
     return next({ ctx: { ...ctx, role: result.effectiveUserRole, holds: result.holds } });
   });
   authMiddlewareMarkers.gates.add(lastMiddleware(gated) as object);
+  authMiddlewareMarkers.roleLists.add(lastMiddleware(gated) as object);
   return gated;
 }
 

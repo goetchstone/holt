@@ -79,6 +79,9 @@ async function main(): Promise<void> {
   const { seedPriceChanges } = await import("./priceChanges");
   const { seedSales } = await import("./sales");
   const { seedTradePricing } = await import("./tradePricing");
+  const { seedBuyerDrafts } = await import("./buyerDrafts");
+  const { seedAuthoredInvoices } = await import("./authoredInvoices");
+  const { seedReturnLink } = await import("./returnLinks");
   const { ORG_SLUG } = await import("./org");
 
   // Hashed here only to fail before --reset wipes anything: no password chosen for
@@ -313,6 +316,13 @@ async function main(): Promise<void> {
   // Trade tiers on a few trade customers, and quotes at their tier (GAP-06 part C).
   // Last, with no RNG draws.
   const tradeResult = await seedTradePricing(prisma, window.now);
+  // The rows the browser page sweep opens (docs/testing/page-sweep.md): a
+  // closed buy rebuilt from received stock orders, a draft invoice with its
+  // lines, and a return link sent and not yet answered. Last, with no RNG
+  // draws, so nothing above shifts.
+  const buyerDraftResult = await seedBuyerDrafts(prisma, window.now);
+  const draftInvoice = await seedAuthoredInvoices(customers[0].id);
+  const returnLink = await seedReturnLink(prisma, window.now);
   // The job a store runs on a schedule, so a client's lifetime spend and lead tier are real.
   // Last, with no RNG draws, so nothing above shifts.
   const { recalculateCustomerLevels } = await import("@/lib/customerLeveling");
@@ -372,6 +382,12 @@ async function main(): Promise<void> {
   console.log(
     `Vendor merge: "${mergeResult.merged}" merged into ${mergeResult.into} (${mergeResult.moved} ${mergeResult.moved === 1 ? "record" : "records"} moved)`,
   );
+  console.log(
+    `Buyer drafts: ${buyerDraftResult.buys} closed buy from ${buyerDraftResult.draftPos} received ` +
+      `stock orders (${buyerDraftResult.items} items)`,
+  );
+  console.log(`Authored invoices: 1 draft with its lines (invoice ${draftInvoice.id})`);
+  console.log(`Return links: ${returnLink.returnNumber}, sent and not yet answered`);
   console.log(`Orders: ${salesResult.ordersCreated}, Invoices: ${salesResult.invoicesCreated}`);
   console.log(
     `Payments: ${salesResult.paymentsCreated} (refunds: ${salesResult.refundPaymentsCreated}, returns: ${salesResult.returnsCreated}), method mix:`,

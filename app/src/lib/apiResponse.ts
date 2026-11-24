@@ -73,6 +73,9 @@ export function methodNotAllowed(res: NextApiResponse, allowed: string[]): void 
   error(res, 405, `Method not allowed. Use: ${allowed.join(", ")}`, "METHOD_NOT_ALLOWED");
 }
 
+/** What a fault's 500 says, on REST (handleError) and tRPC (server/trpc/trpc.ts) alike. */
+export const INTERNAL_ERROR_MESSAGE = "Internal server error";
+
 // Catches ApiError and unknown errors, sends standardized response.
 // Use as the catch block in API route handlers.
 //
@@ -89,5 +92,5 @@ export function handleError(res: NextApiResponse, err: unknown, context?: string
   }
 
   logError(context ?? "Unhandled API error", err);
-  error(res, 500, "Internal server error", "INTERNAL_ERROR");
+  error(res, 500, INTERNAL_ERROR_MESSAGE, "INTERNAL_ERROR");
 }

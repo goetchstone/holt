@@ -9,8 +9,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
+import { canViewWealth, VIEW_WEALTH } from "@/lib/auth/wealthVisibility";
 import { logError } from "@/lib/logger";
 import { computeBalance } from "@/lib/paymentService";
 import {
@@ -23,24 +23,26 @@ import { getAppSettings } from "@/lib/appSettings";
 import { toE164 } from "@/lib/sms/phone";
 import { ReferralError, readReferral } from "@/lib/customers/referrals";
 
-// Wealth enrichment data (net worth, wealth tier, lifestyle signals)
-// lives on Customer via the `windfallEnrichment` relation. Only ADMIN
-// and MARKETING may see wealth fields — everyone else gets the customer
-// record with the enrichment relation stripped out server-side.
-// SUPER_ADMIN (owner role above ADMIN) sees wealth fields too.
-const WEALTH_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "MARKETING"]);
-
 function customerIdOf(req: NextApiRequest): number | null {
   const id = Number.parseInt(String(req.query.id));
   return Number.isNaN(id) ? null : id;
 }
 
-async function handleGet(req: NextApiRequest, res: NextApiResponse, session: Session) {
+// Wealth enrichment data (net worth, wealth tier, lifestyle signals) lives on
+// Customer via the `windfallEnrichment` relation. Only a holder of "See wealth
+// data" (customer.wealth) gets it; everyone else gets the customer record with
+// the relation left out server-side. Both that answer and "View marketing"
+// (marketing.read, the exact lead score) come from the GET gate's `also`.
+async function handleGet(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  _session: Session,
+  access: CallerAccess,
+) {
   const customerId = customerIdOf(req);
   if (customerId == null) return res.status(400).json({ error: "Invalid customer ID." });
   try {
-    const role = (await activeStaffRole(session as { user?: { id?: string | null } | null })) ?? "";
-    const canSeeWealth = WEALTH_ROLES.has(role);
+    const canSeeWealth = canViewWealth(access);
 
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
@@ -86,6 +88,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, session: Ses
       }),
       textableNumber: phone,
       smsOptedOutAt: optOut?.optedOutAt ?? null,
+      // The customer page hides wealth and the exact lead score from the same
+      // answers that stripped them, rather than guessing from missing fields.
+      wealthVisible: canSeeWealth,
+      scoreVisible: access.holds["marketing.read"] === true,
     });
   } catch (error) {
     logError("Fetch customer details failed", error, { customerId });
@@ -145,7 +151,10 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
 export const handlers = { GET: handleGet, PUT: handlePut };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === "GET") return requirePermission("customer.read", handleGet)(req, res);
+  if (req.method === "GET")
+    return requirePermission("customer.read", handleGet, {
+      also: [VIEW_WEALTH, "marketing.read"],
+    })(req, res);
   if (req.method === "PUT") return requirePermission("customer.write", handlePut)(req, res);
   res.setHeader("Allow", ["GET", "PUT"]);
   return res.status(405).end(`Method ${req.method} Not Allowed`);

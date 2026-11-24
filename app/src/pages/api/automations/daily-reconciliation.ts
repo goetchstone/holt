@@ -32,9 +32,8 @@ async function run(req: NextApiRequest, res: NextApiResponse, session: Session |
     });
     return res.status(200).json(summary);
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
     logError("Daily reconciliation orchestrator failed", err);
-    return res.status(500).json({ error: "Daily reconciliation failed", details: msg });
+    return res.status(500).json({ error: "Daily reconciliation failed" });
   }
 }
 

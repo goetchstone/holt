@@ -37,21 +37,35 @@ function walk(dir: string): string[] {
   return out;
 }
 
+/** A file's code without its comment lines: a comment that names the wrapper
+ *  ("requireAuthWithRole (which needs real cookies)") is not a call to it. */
+function codeOf(src: string): string {
+  return src
+    .split("\n")
+    .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+    .join("\n");
+}
+
+// Any call to requireAuthWithRole, whatever its first argument. Until
+// 2026-11-21 this matched only `requireAuthWithRole([`, so a list passed as a
+// constant (main's tickets route, `requireAuthWithRole(STAFF_ROLES, ...)`)
+// never counted, and a file that also called requirePermission was skipped
+// whole, so a dispatcher could gate one method on a key and another on a list.
 function roleArrayRoutes(): string[] {
   return [join(APP_ROOT, "src", "pages", "api"), join(APP_ROOT, "src", "app", "api")]
     .flatMap(walk)
-    .filter((f) => {
-      const src = readFileSync(f, "utf8");
-      if (/requirePermission|withPermission/.test(src)) return false;
-      return /requireAuthWithRole\(\s*\[/.test(src);
-    })
+    .filter((f) => /\brequireAuthWithRole\s*\(/.test(codeOf(readFileSync(f, "utf8"))))
     .map((f) => relative(APP_ROOT, f))
     .sort();
 }
 
 describe("the role-array backlog is a ratchet", () => {
   it("finds the routes it was written for, so the scan is not silently empty", () => {
-    expect(listed().length).toBeGreaterThan(50);
+    // Was > 50 while the backlog was long. The 2026-11 sweep left two lines, so
+    // the floor is now "the list still parses to something". A broken scan is
+    // still caught: while any line remains, the two checks below fail in
+    // opposite directions if the list and the source disagree.
+    expect(listed().length).toBeGreaterThan(0);
   });
 
   it("adds no route that is not already on the list", () => {
@@ -71,7 +85,10 @@ describe("the role-array backlog is a ratchet", () => {
     // The number that matters. 121 routes were on role arrays; 30 converted
     // with provably identical access; the operating-role model took it to 83;
     // later conversions to 79 (the run-status and stop routes went to
-    // warehouse.operate, like the run and stop-list routes beside them).
-    expect(roleArrayRoutes().length).toBeLessThanOrEqual(79);
+    // warehouse.operate, like the run and stop-list routes beside them). The
+    // 2026-11 role-list sweep converted 64 more, leaving the two house-call
+    // routes, which wait on the owner. Once those convert, delete the fixture
+    // and assert roleArrayRoutes() is empty.
+    expect(roleArrayRoutes().length).toBeLessThanOrEqual(2);
   });
 });

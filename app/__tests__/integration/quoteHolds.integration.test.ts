@@ -566,6 +566,37 @@ describe("a hold ends", () => {
     expect(res.body).toEqual({ archived: 1 });
     expect(await committed(quote.body.id)).toBe(0);
   });
+
+  it("the Owner may archive in bulk, which the old MANAGER/ADMIN name check refused", async () => {
+    const w = await world();
+    await staff("owner", "SUPER_ADMIN");
+    const quote = await ring(w, [{ productId: w.sofa.id, unitPrice: 1000, holdUntil: today() }]);
+    const res = makeRes();
+    await bulkArchiveRoute(
+      request("POST", {}, { before: new Date(Date.now() + 86_400_000).toISOString() }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ archived: 1 });
+    expect(await committed(quote.body.id)).toBe(0);
+  });
+
+  it("archiving in bulk needs Manage client books, which a designer doesn't hold", async () => {
+    const w = await world();
+    // Someone privileged exists, so the refusal is the gate's, not the bootstrap safeguard's.
+    await staff("owner", "SUPER_ADMIN");
+    await staff("pat", "DESIGNER");
+    const quote = await ring(w, [{ productId: w.sofa.id, unitPrice: 1000, holdUntil: today() }]);
+    const res = makeRes();
+    await bulkArchiveRoute(
+      request("POST", {}, { before: new Date(Date.now() + 86_400_000).toISOString() }),
+      res,
+    );
+    expect(res.statusCode).toBe(403);
+    expect(await committed(quote.body.id)).toBe(1);
+    const after = await prisma.salesOrder.findUniqueOrThrow({ where: { id: quote.body.id } });
+    expect(after.pipelineArchivedAt).toBeNull();
+  });
 });
 
 describe("what isn't stocked never raises a shortfall (GAP-21)", () => {

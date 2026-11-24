@@ -269,3 +269,7 @@ beforeAll(async () => {
 This makes the test a literal integration check of the migration file we ship — if the SQL doesn't parse against Postgres, the suite fails before any scenario runs. See `__tests__/integration/paymentDeleteImmutability.integration.test.ts`.
 
 A future improvement is to teach the harness to apply every "pure DDL" migration automatically. Today the per-test pattern is fine because there are only a handful of such migrations.
+
+### Importing a page loads its client view, and the coverage gate counts it
+
+Jest instruments every file a test loads, and the merged coverage gate counts all of them. A static `import Page from "@/app/(dashboard)/.../page"` loads the page's `"use client"` view and everything the view imports. None of it renders in Node, so nearly all of it counts as uncovered, and a test written to hold a page's gate pulls the coverage floors down. A test of what a page decides (its `requirePage` gate, its redirect, the props it hands its view) gets the page from `__tests__/helpers/pageWithoutClientViews.ts` instead, in a `beforeAll` or where it is used. The helper stubs each client module the page imports, so those modules never load. Assert on the element the page returns: its `props` are what the page computed, and its type is the stub, which `jest.requireMock(<the client module>)` returns. `__tests__/pageWithoutClientViews.test.ts` shows the helper at work, on a client view that throws if it ever loads. This applies to unit tests as much as integration ones (`reportingGates.test.ts`, `hubCards.test.ts`).

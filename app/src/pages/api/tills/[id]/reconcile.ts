@@ -1,16 +1,16 @@
 // /app/src/pages/api/tills/[id]/reconcile.ts
 //
-// Manager-or-above approval step: CLOSED -> RECONCILED. Variance itself is
-// computed in close.ts, not here -- this endpoint approves an
-// already-computed variance and (for Phase 0.6 escalation-tier variances)
-// re-affirms the register block. See docs/domains/pos.md "Variance
-// discipline" and src/lib/tillVariance.ts.
+// Approval step: CLOSED -> RECONCILED, on "Adjust till counts"
+// (pos.till.adjust). Variance itself is computed in close.ts, not here -- this
+// endpoint approves an already-computed variance and (for Phase 0.6
+// escalation-tier variances) re-affirms the register block. See
+// docs/domains/pos.md "Variance discipline" and src/lib/tillVariance.ts.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import {
   classifyTillVariance,
@@ -23,12 +23,12 @@ import {
  * Pure(ish) handler body, exported for unit testing against a mocked
  * Prisma client (mirrors pages/api/accounting/journal-entries/[id]/reconcile.ts).
  *
- * The MANAGER/ADMIN role check happens in the requireAuthWithRole wrapper
- * below, using the codebase's existing shared role helper (not reinvented
- * here). That gate already applies to EVERY reconcile regardless of
- * variance size, which is a superset of the Phase 0.6 ">$20 requires
- * manager" rule -- see the PR notes for why this wasn't narrowed to
- * "only >$20 needs a manager."
+ * The permission check happens in the requirePermission wrapper below
+ * ("Adjust till counts", pos.till.adjust: by default the Owner,
+ * Administrators, General Managers and Managers), not reinvented here.
+ * That gate already applies to EVERY reconcile regardless of variance size,
+ * which is a superset of the Phase 0.6 ">$20 requires manager" rule -- see
+ * the PR notes for why this wasn't narrowed to "only >$20 needs a manager."
  */
 export async function handleReconcile(
   req: NextApiRequest,
@@ -116,6 +116,6 @@ export async function handleReconcile(
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("pos.till.adjust", async (req, res, session) => {
   await handleReconcile(req, res, session, prisma);
 });

@@ -1,7 +1,9 @@
 // /app/src/pages/api/billing/invoices/[id]/pdf.ts
 //
 // GET — render an authored invoice as a PDF download. REST (not tRPC) because
-// the response is binary. MANAGER/ADMIN; 404 when the billing feature is off.
+// the response is binary. "Bill customers directly" (accounting.invoice), the
+// key of the invoice screen that links here and of the billing router; 404
+// when the billing feature is off.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -70,4 +72,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requirePermission("accounting.read", handler);
+export default requirePermission("accounting.invoice", handler);

@@ -4,9 +4,10 @@
 //
 // Sales by Salesperson — App Router + tRPC client view. Aggregated by
 // salesperson, department, or customer for a date range, with retail / cost /
-// margin and CSV export. Designers run it for their own data (the procedure
-// enforces the role-based filter; the UI hides the salesperson picker for
-// non-privileged roles).
+// margin and CSV export. Designers run it for their own data: the procedures
+// lock anyone who may not see every salesperson to their own record, and the UI
+// hides the salesperson picker from them (canSeeAllSalespeople, decided by the
+// server page from the same keys the procedures ask).
 //
 // UX (ported verbatim from the Pages version):
 //   - 3 KPI cards above the table
@@ -19,11 +20,10 @@
 //   - CSV export stays a REST download (window.open) so the export route is
 //     untouched during the migration
 //
-// See src/lib/reports/salesBySalespersonReport.ts for the data + role logic.
+// See src/lib/reports/salesBySalespersonReport.ts for the data + scope logic.
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import { format, startOfMonth, subDays, endOfDay } from "date-fns";
 import DateRangeFilter from "@/components/form/DateRangeFilter";
@@ -53,11 +53,6 @@ interface StaffOption {
 
 type SortKey = "groupLabel" | "itemCount" | "retail" | "cost" | "margin" | "marginPct";
 type SortDir = "asc" | "desc";
-
-// Who may pick other salespeople: SUPER_ADMIN sees the same view ADMIN would
-// (owner role above ADMIN). It decides the picker only; cost and margin follow
-// "View cost" on the server.
-const PRIVILEGED_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "MANAGER", "MARKETING"]);
 
 function groupHeaderLabel(groupBy: GroupBy): string {
   if (groupBy === "department") return "Department";
@@ -281,14 +276,17 @@ function SortableTh({
   );
 }
 
-export function SalesBySalespersonView() {
+/**
+ * `canSeeAllSalespeople` decides the salesperson picker and the "showing your
+ * own data" note only; the procedures make the same decision for the data, and
+ * cost and margin follow "View cost" on the server.
+ */
+export function SalesBySalespersonView({
+  canSeeAllSalespeople,
+}: Readonly<{ canSeeAllSalespeople: boolean }>) {
   const money = useMoneyFormatter();
   const fmt = (v: number) => money(v, { whole: true });
   const utils = api.useUtils();
-
-  const { data: session } = useSession();
-  const role = (session as { role?: string } | null)?.role;
-  const isPrivileged = role !== undefined && PRIVILEGED_ROLES.has(role);
 
   const [dateRange, setDateRange] = useState({
     startDate: format(startOfMonth(subDays(new Date(), 30)), "yyyy-MM-dd"),
@@ -312,11 +310,12 @@ export function SalesBySalespersonView() {
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
 
-  // Load filter options (staff list for privileged users; department list
-  // always). These stay REST fetches per the migration convention — simple
-  // option lists served by the existing /api/staff + /api/departments routes.
+  // Load filter options (staff list for a viewer who may see every salesperson;
+  // department list always). These stay REST fetches per the migration
+  // convention — simple option lists served by the existing /api/staff +
+  // /api/departments routes.
   useEffect(() => {
-    if (isPrivileged) {
+    if (canSeeAllSalespeople) {
       fetch("/api/staff?isDesigner=true")
         .then((r) => r.json())
         .then((d: { staff?: StaffOption[] } | StaffOption[]) => {
@@ -332,7 +331,7 @@ export function SalesBySalespersonView() {
         setDepartmentOptions(list.map((x) => x.name).sort((a, b) => a.localeCompare(b)));
       })
       .catch(() => setDepartmentOptions([]));
-  }, [isPrivileged]);
+  }, [canSeeAllSalespeople]);
 
   const queryInput = useMemo(
     () => ({
@@ -626,7 +625,7 @@ export function SalesBySalespersonView() {
       <p className="text-sm text-brand-gray">
         Date-range sales totals{costVisible ? " with retail, cost, and margin" : ""}. Group by
         salesperson, department, or customer. Filter to a subset and export the result.
-        {!isPrivileged && data?.appliedFilters?.designerLockedTo && (
+        {!canSeeAllSalespeople && data?.appliedFilters?.designerLockedTo && (
           <>
             {" "}
             <span className="text-brand-blue">
@@ -687,7 +686,7 @@ export function SalesBySalespersonView() {
               emptyLabel="All departments"
             />
           </div>
-          {isPrivileged && (
+          {canSeeAllSalespeople && (
             <div>
               <p className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
                 Salespeople

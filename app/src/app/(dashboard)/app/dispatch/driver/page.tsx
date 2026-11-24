@@ -1,8 +1,9 @@
 // /app/src/app/(dashboard)/app/dispatch/driver/page.tsx
 //
 // Driver delivery view (focused mobile screen for the active run) -- App Router
-// port. Any signed-in user (matches the legacy bare withAuth() gate). Reads the
-// shared /api/dispatch/* REST endpoints, which stay REST.
+// port. "Operate warehouse" (warehouse.operate), the key of every /api/dispatch
+// route it calls. Reads the shared /api/dispatch/* REST endpoints, which stay
+// REST.
 
 import { requirePage } from "@/lib/auth/requirePage";
 import { DriverView } from "./DriverView";

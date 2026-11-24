@@ -21,7 +21,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import fs from "node:fs";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm } from "@/lib/secureUpload";
+import { createSecureForm, noFileMessage, uploadRefusal } from "@/lib/secureUpload";
 import { parseKKOrderPDF } from "@/lib/pricing/kkOrderParser";
 import { parseWendoverOrderPDF } from "@/lib/pricing/wendoverOrderParser";
 import { parseMarketTimeOrderPDF } from "@/lib/pricing/marketTimeOrderParser";
@@ -112,23 +112,30 @@ export default requirePermission(
       return res.status(400).json({ error: `Unknown vendor format "${formatId}"` });
     }
 
+    const upload = entry.accepts === "csv" ? "CSV_XLSX" : "PDF";
     try {
-      const form = createSecureForm(entry.accepts === "csv" ? "CSV_XLSX" : "PDF");
+      const form = createSecureForm(upload);
       const [, files] = await form.parse(req);
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
       if (!file) {
-        return res.status(400).json({ error: "No file uploaded" });
+        return res.status(400).json({ error: noFileMessage(upload) });
       }
 
       const draft = await parseFor(entry, fs.readFileSync(file.filepath));
       if (!draft?.rows.length) {
-        return res.status(400).json({ error: "No line items found in the uploaded file" });
+        // A line the parser left out is explained only by its warning, so the
+        // warnings go with the refusal and the page lists them.
+        return res.status(400).json({
+          error: "No line items found in the uploaded file",
+          warnings: draft?.warnings ?? [],
+        });
       }
       return res.status(200).json(draft);
     } catch (err) {
+      const refused = uploadRefusal(err, upload);
+      if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("Home accessory order preview parse failed", err);
-      const message = err instanceof Error ? err.message : "Parse failed";
-      return res.status(500).json({ error: message });
+      return res.status(500).json({ error: "Parse failed" });
     }
   },
 );

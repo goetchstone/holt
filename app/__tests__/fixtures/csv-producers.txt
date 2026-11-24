@@ -36,7 +36,7 @@ src/lib/customers/emailList.ts | helper
 src/lib/pricing/standardPriceBook.ts | excluded: reads a download file name from Content-Disposition, builds no CSV
 src/lib/reports/onHold.ts | helper
 src/lib/reports/oversold.ts | helper
-src/lib/secureUpload.ts | excluded: upload accept-list (inbound), not a producer
+src/lib/secureUpload.ts | excluded: upload accept-list (inbound), and sendUploadedFile streams a stored upload byte for byte, naming it in Content-Disposition; builds no CSV
 src/lib/toolFileUtils.ts | excluded: downloadCsv wraps a finished string in a Blob and has no caller; the string is built elsewhere
 src/pages/api/accounting/export-journal.ts | helper
 src/pages/api/accounting/journal-entries/[id]/export.ts | helper
@@ -59,4 +59,3 @@ src/pages/api/reports/on-hold.ts | excluded: emits through lib/reports/onHold.ts
 src/pages/api/reports/oversold.ts | excluded: emits through lib/reports/oversold.ts (listed above)
 src/pages/api/reports/sales-by-salesperson/export.ts | helper
 src/pages/api/reports/traffic/export.ts | helper
-src/pages/api/uploads/[...path].ts | excluded: serves stored uploads as attachments, not a CSV producer

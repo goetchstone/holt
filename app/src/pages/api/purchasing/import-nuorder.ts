@@ -4,6 +4,12 @@
 // per-size breakdowns, creates or matches Products and ProductVariants,
 // and generates a PurchaseOrder. Re-importing the same order number
 // overwrites the existing PO (supports revised orders).
+//
+// It parses and writes in one request, so the PO is written as read and the
+// parser's warnings (a line cut short, an amount that overflowed and read as 0)
+// come back with the result, or with the 400 when no item was read; the preview
+// showed the same warnings before the import. Whether warnings should refuse the
+// import is the owner's open question.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
@@ -12,24 +18,30 @@ import type { File as FormidableFile } from "formidable";
 import fs from "fs";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { createSecureForm } from "@/lib/secureUpload";
+import {
+  createSecureForm,
+  noFileMessage,
+  uploadRefusal,
+  type UploadPresetName,
+} from "@/lib/secureUpload";
 import { pickFormFields } from "@/lib/importFormFields";
 import { logError } from "@/lib/logger";
 import { findOrCreateVendor } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: false } };
 
 const FIELD_NAMES = ["departmentId", "categoryId", "itemCategories"] as const;
+const UPLOAD: UploadPresetName = "PDF";
 
+/** The parsed form. No file when none was sent, or the preset dropped its type. */
 async function parseForm(req: NextApiRequest): Promise<{
-  file: FormidableFile;
+  file: FormidableFile | undefined;
   fields: Record<(typeof FIELD_NAMES)[number], string>;
 }> {
   return new Promise((resolve, reject) => {
-    const form = createSecureForm("PDF");
+    const form = createSecureForm(UPLOAD);
     form.parse(req, (err, rawFields, files) => {
       if (err) return reject(err);
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
-      if (!file) return reject(new Error("No file uploaded"));
       resolve({ file, fields: pickFormFields(rawFields, FIELD_NAMES) });
     });
   });
@@ -42,11 +54,15 @@ export default requirePermission(
 
     try {
       const { file, fields } = await parseForm(req);
+      if (!file) return res.status(400).json({ error: noFileMessage(UPLOAD) });
       const buffer = fs.readFileSync(file.filepath);
       const parsed = await parseNuOrderPDF(buffer);
 
       if (!parsed.items.length) {
-        return res.status(400).json({ error: "No line items found in PDF" });
+        // A line cut short can be why no item was found; the page lists the warnings.
+        return res
+          .status(400)
+          .json({ error: "No line items found in PDF", warnings: parsed.warnings });
       }
 
       // Find or prompt for vendor
@@ -245,8 +261,10 @@ export default requirePermission(
         };
       }, TX_TIMEOUT.LONG);
 
-      return res.status(200).json(result);
+      return res.status(200).json({ ...result, warnings: parsed.warnings });
     } catch (error: unknown) {
+      const refused = uploadRefusal(error, UPLOAD);
+      if (refused) return res.status(refused.status).json({ error: refused.error });
       logError("NuORDER import error", error);
       return res.status(500).json({ error: "Import failed" });
     }

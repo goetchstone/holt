@@ -7,12 +7,13 @@
 // writes the shared /api/sales/orders/:id REST endpoints (status, line-items,
 // salesperson, changelog), plus /api/stripe/send-payment-link and
 // /api/portal/generate-link, which all stay REST. The id arrives as a prop from
-// the server page (params awaited there).
+// the server page (params awaited there), with whether the viewer holds the key
+// each guarded control's route requires, so a control shows exactly when its
+// route would let it through.
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -334,11 +335,27 @@ async function printSoldTag(orderId: number, lineItemId: number) {
 export function OrderDetailView({
   id,
   canUndoHandover = false,
-}: Readonly<{ id: string; canUndoHandover?: boolean }>) {
+  canReassign,
+  canVoidPayment,
+  canSendPaymentLink,
+  canPortalLink,
+  canDeleteQuote,
+}: Readonly<{
+  id: string;
+  /** Undo a handover (sales.undo-handover). */
+  canUndoHandover?: boolean;
+  /** Change salesperson (sales.reassign, sales/orders/[id]/salesperson.ts). */
+  canReassign: boolean;
+  /** Void a pending payment (payment.void, .../payments/[paymentId]/void.ts). */
+  canVoidPayment: boolean;
+  /** Create a payment link (payment.take, stripe/send-payment-link.ts). */
+  canSendPaymentLink: boolean;
+  /** Generate or text a portal link (sales.write, portal/generate-link.ts, text-link.ts). */
+  canPortalLink: boolean;
+  /** Delete a quote with no money on it (sales.cancel, DELETE sales/orders/[id]). */
+  canDeleteQuote: boolean;
+}>) {
   const router = useRouter();
-  const { data: session } = useSession();
-  const userRole = (session as { role?: string } | null)?.role || "DESIGNER";
-  const isManager = userRole === "MANAGER" || userRole === "ADMIN" || userRole === "SUPER_ADMIN";
   const money = useMoneyFormatter();
 
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
@@ -879,7 +896,7 @@ export function OrderDetailView({
               {isQuote ? "Cancel quote" : "Cancel order"}
             </Button>
           )}
-          {isQuote && orderDetails.payments.length === 0 && (
+          {canDeleteQuote && isQuote && orderDetails.payments.length === 0 && (
             <Button variant="secondary" size="sm" onClick={handleDeleteOrder}>
               Delete
             </Button>
@@ -957,7 +974,7 @@ export function OrderDetailView({
                   </span>
                 )}
               </p>
-              {isManager && (
+              {canReassign && (
                 <button
                   onClick={openSalespersonModal}
                   className="p-1 text-brand-gray hover:text-brand-blue transition"
@@ -1033,7 +1050,7 @@ export function OrderDetailView({
                 onApplied={fetchOrder}
               />
             )}
-            {isManager && balanceDue > 0 && (
+            {canSendPaymentLink && balanceDue > 0 && (
               <div className="mt-4 border-t border-brand-gray/20 pt-3">
                 <p className="text-xs text-brand-gray mb-2">Payment Request</p>
                 <div className="flex items-center gap-2 mb-2">
@@ -1093,8 +1110,8 @@ export function OrderDetailView({
         </div>
       </div>
 
-      {/* Customer Portal Link — managers only (test mode) */}
-      {isManager && (
+      {/* Customer Portal Link (test mode), on the key its two routes require */}
+      {canPortalLink && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-3">Customer Portal (Test Mode)</h2>
           <p className="text-xs text-brand-gray mb-3">
@@ -1371,7 +1388,7 @@ export function OrderDetailView({
                 <th className="p-2 border-b">Type</th>
                 <th className="p-2 border-b">Status</th>
                 <th className="p-2 border-b text-right">Amount</th>
-                {isManager && <th className="p-2 border-b" />}
+                {canVoidPayment && <th className="p-2 border-b" />}
               </tr>
             </thead>
             <tbody>
@@ -1386,7 +1403,7 @@ export function OrderDetailView({
                     {/* A refund is money back: shown negative whichever way it was stored. */}
                     {formatCurrency(signedPaymentAmount(payment))}
                   </td>
-                  {isManager && (
+                  {canVoidPayment && (
                     <td className="p-2 border-b text-right">
                       {payment.status === "PENDING" && (
                         <button

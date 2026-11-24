@@ -3,8 +3,14 @@
 // Server-only parser for Hunter Douglas Direct Connect proposal PDFs.
 // Extracts quote metadata, line items with freight/install charges,
 // and totals from the text output of pdf-parse.
+//
+// parseHDProposalText is the pure seam the PDF entry calls and the fuzz tests
+// drive. Lines and numbers are read through parseBoundary.ts (rule 42): a line
+// is cut to MAX_LINE_LENGTH, an amount that overflows reads as 0, and either is
+// reported on `warnings`, which the import route returns with the quote it wrote.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, finiteSum, parseMoney, splitLines } from "./parseBoundary";
 
 export interface HDLineItem {
   itemNumber: number;
@@ -37,19 +43,19 @@ export interface HDProposal {
   msrpTotal: number;
   discountTotal: number;
   clientPrice: number;
-}
-
-function parseNumber(s: string): number {
-  if (!s) return 0;
-  const cleaned = s.replace(/[,$\s]/g, "");
-  const n = Number.parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
+  /** What the parse cut or could not read, in words the user can act on. */
+  warnings: string[];
 }
 
 export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
-  const data = await parsePdf(buffer);
-  const text: string = data.text;
-  const lines: string[] = text.split("\n").map((l: string) => l.trim());
+  return parseHDProposalText((await parsePdf(buffer)).text);
+}
+
+export function parseHDProposalText(raw: string): HDProposal {
+  const warnings: string[] = [];
+  const cut = splitLines(raw, warnings);
+  const text = cut.join("\n");
+  const lines: string[] = cut.map((l: string) => l.trim());
 
   // Valid through date
   let validThrough = "";
@@ -105,11 +111,11 @@ export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
 
   const allFreights: number[] = freightMatches.map((m: string) => {
     const v = m.match(/([\d,.]+)$/);
-    return v ? parseNumber(v[1]) : 0;
+    return v ? parseMoney(v[1]) : 0;
   });
   const allInstalls: number[] = installMatches.map((m: string) => {
     const v = m.match(/([\d,.]+)$/);
-    return v ? parseNumber(v[1]) : 0;
+    return v ? parseMoney(v[1]) : 0;
   });
 
   // Extract qty+MSRP+Each+Extended: PDF renders as "1120.00100.00100.00"
@@ -119,10 +125,10 @@ export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
     const m = line.match(/^(\d)([\d,]+\.\d{2})([\d,]+\.\d{2})([\d,]+\.\d{2})$/);
     if (m) {
       priceMatches.push({
-        qty: Number.parseInt(m[1]),
-        msrp: parseNumber(m[2]),
-        each: parseNumber(m[3]),
-        extended: parseNumber(m[4]),
+        qty: finiteInt(m[1]),
+        msrp: parseMoney(m[2]),
+        each: parseMoney(m[3]),
+        extended: parseMoney(m[4]),
       });
     }
   }
@@ -168,7 +174,7 @@ export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
       // Prefix like "5Pantry" or "6 " or "1Dining"
       const numMatch = prefix.match(/^(\d{1,2})\s*(.*)/);
       if (numMatch) {
-        itemNumber = Number.parseInt(numMatch[1]);
+        itemNumber = finiteInt(numMatch[1]);
         room = numMatch[2].trim();
       }
     } else {
@@ -185,7 +191,7 @@ export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
 
         const numMatch = prev.match(/^(\d{1,2})(.*)/);
         if (numMatch) {
-          const num = Number.parseInt(numMatch[1]);
+          const num = finiteInt(numMatch[1]);
           if (num >= 1 && num <= 99) {
             itemNumber = num;
             const rest = numMatch[2].trim();
@@ -228,14 +234,15 @@ export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
   if (totalsLine) {
     const tm = totalsLine.match(/^([\d,]+\.\d{2})([-][\d,]+\.\d{2})([\d,]+\.\d{2})$/);
     if (tm) {
-      msrpTotal = parseNumber(tm[1]);
-      discountTotal = parseNumber(tm[2]);
-      clientPrice = parseNumber(tm[3]);
+      msrpTotal = parseMoney(tm[1]);
+      discountTotal = parseMoney(tm[2]);
+      clientPrice = parseMoney(tm[3]);
     }
   }
 
-  const totalFreight = allFreights.reduce((sum: number, v: number) => sum + v, 0);
-  const totalInstall = allInstalls.reduce((sum: number, v: number) => sum + v, 0);
+  // Each charge is finite; two 308-digit ones still add up past what a number holds.
+  const totalFreight = finiteSum(allFreights);
+  const totalInstall = finiteSum(allInstalls);
 
   return {
     quoteNumber,
@@ -250,5 +257,6 @@ export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
     msrpTotal,
     discountTotal,
     clientPrice,
+    warnings,
   };
 }

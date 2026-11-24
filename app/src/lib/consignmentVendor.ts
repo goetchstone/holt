@@ -16,9 +16,14 @@
 // genuinely needs a single vendor to write against, it says so and handles the
 // "none configured" case explicitly rather than inventing one.
 
+import type { NextApiResponse } from "next";
 import type { PrismaClient, Prisma } from "@prisma/client";
 
 type Client = PrismaClient | Prisma.TransactionClient;
+
+/** What a consignment route answers when no vendor is flagged as consigning. */
+export const NO_CONSIGNMENT_VENDOR =
+  "No consignment vendor configured. Set isConsignment on the vendor first.";
 
 /** Every consigning vendor. Empty when the deployment does not consign. */
 export async function getConsignmentVendorIds(prisma: Client): Promise<number[]> {
@@ -46,6 +51,25 @@ export async function getConsignmentVendorIds(prisma: Client): Promise<number[]>
 export async function getPrimaryConsignmentVendorId(prisma: Client): Promise<number | null> {
   const ids = await getConsignmentVendorIds(prisma);
   return ids[0] ?? null;
+}
+
+/**
+ * The consigning vendor a route is about to write against, asked before the
+ * route starts work. With none configured it answers 404 with
+ * NO_CONSIGNMENT_VENDOR and returns null, and the route returns at once.
+ *
+ * Every route that needs the vendor asks here (rule 42). Four imports used to
+ * throw that message from inside their transaction, so it reached the caller
+ * only as a 500's body, which carries no error text (rule 11): "Import failed".
+ * A deployment that does not consign is told so, the same way everywhere.
+ */
+export async function consignmentVendorOr404(
+  prisma: Client,
+  res: NextApiResponse,
+): Promise<number | null> {
+  const vendorId = await getPrimaryConsignmentVendorId(prisma);
+  if (vendorId === null) res.status(404).json({ error: NO_CONSIGNMENT_VENDOR });
+  return vendorId;
 }
 
 /** Prisma filter for "products from a consigning vendor". */
