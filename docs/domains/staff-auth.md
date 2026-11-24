@@ -437,28 +437,26 @@ writes email, isActive, userId or passwordHash (rule 65).
 **Still open after the third door** (found in the same review, 2026-11-21; each
 is its own change, highest severity first):
 
-- *Owner-tier admin keys* (takeover, Administrator to Owner): `admin.data`
-  (backup exposes `EmailQueue.html` with live reset links; restore can rewrite
-  any row) and `admin.integrations` (SMTP and Google credentials) are not
-  owner-only. Owner question: add both to `OWNER_ONLY_PERMISSIONS`?
-- *Role-write sweep* (escalation, Administrator to owner-tier keys): `DELETE
-  /api/admin/roles/[id]?reassignToRoleId` checks the destination role only for
-  existence; preset `applyRoles` can grant owner-only keys; `POST
-  /api/staff/seed` writes MANAGER rows on `staff.manage` (delete it, or make it
-  admin-only and write `roleId`); `scripts/create-admin.mjs` writes the enum
-  without `roleId`.
-- *Credential carried across a promotion* (escalation, conditional): a password
+- _Owner-tier admin keys_ (Administrator to Owner): whether `admin.data`
+  (backup and restore) and `admin.integrations` (mail and Google credentials)
+  belong to the owner tier. Owner question: add both to
+  `OWNER_ONLY_PERMISSIONS`?
+- _Role-write sweep_ (Administrator to owner-tier keys): role writes outside
+  `/api/admin/roles` and the staff routes (a role deletion's reassignment, the
+  preset role apply, the staff seed route, `scripts/create-admin.mjs`) do not
+  apply the owner-tier rule yet.
+- _Credential carried across a promotion_ (escalation, conditional): a password
   an Administrator set on an ordinary member still works after the Owner later
   moves that member into the owner tier.
-- *Session revocation* (amplifier): JWT sessions survive a password, email or
+- _Session revocation_ (amplifier): JWT sessions survive a password, email or
   link change; a takeover session outlives the victim's reset.
-- *PIN brute force* (escalation): the discount-approval PIN lockout resets, so
+- _PIN brute force_ (escalation): the discount-approval PIN lockout resets, so
   guessing continues fifteen minutes at a time; no per-caller limit.
-- *Case-variant emails* (denial and ambiguity): `StaffMember.email` is unique
+- _Case-variant emails_ (denial and ambiguity): `StaffMember.email` is unique
   case-sensitively; the app-level check covers new writes only, races between
   two creates, and existing case-variant rows stay ambiguous for sign-in. A
   unique index on `lower(email)` needs a pre-check migration.
-- *Body-supplied actor ids* (low): Up-Board clock-in and clock-out take the
+- _Body-supplied actor ids_ (low): Up-Board clock-in and clock-out take the
   staff id from the body.
 
 **The last-admin guard counts only linked admins** (`wouldRemoveLastAdmin`,
