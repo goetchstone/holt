@@ -1,28 +1,24 @@
 // /app/src/pages/api/sales/pipeline/bulk-archive.ts
 //
-// POST: archive all QUOTE orders created before a given date.
-// Manager-only. Safe to run multiple times — skips already-archived quotes.
+// POST: archive all QUOTE orders created before a given date, across every
+// salesperson. Gated on "Manage client books" (sales.clients.manage), the key
+// that shows every salesperson's Pipeline and its bulk-archive control. Safe to
+// run multiple times — skips already-archived quotes.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { endQuoteHolds } from "@/lib/sales/quoteHolds";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 interface BulkArchiveBody {
   before: string; // ISO date string — archive quotes with quoteDate/orderDate before this
   note?: string;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.clients.manage",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const staff = await prisma.staffMember.findUnique({
-      where: { email: session.user?.email ?? undefined },
-      select: { role: true },
-    });
-    if (staff?.role !== "MANAGER" && staff?.role !== "ADMIN")
-      return res.status(403).json({ error: "Managers only" });
 
     const { before, note } = req.body as BulkArchiveBody;
     if (!before) return res.status(400).json({ error: "before is required" });

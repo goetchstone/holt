@@ -267,7 +267,8 @@ describe("resolvePermissionAccess honours the floor", () => {
 
   it("survives an impersonation down into a role with no grants", async () => {
     roleFindMany.mockResolvedValue([
-      row({ id: 1, key: "ADMIN", rank: 2 }),
+      // Change settings is what lets an Administrator View as at all.
+      row({ id: 1, key: "ADMIN", rank: 2, permissions: [{ permission: "admin.settings" }] }),
       row({ id: 2, key: "FLOOR_LEAD", permissions: [] }),
     ]);
     staffFindFirst.mockResolvedValue({ role: "ADMIN", roleId: 1 });

@@ -12,6 +12,7 @@
 // by hand against some other database, it skips and says why.
 
 import type { PrismaClient } from "@prisma/client";
+import { generateClientPortalToken } from "../src/lib/clientPortalToken";
 import { HELP_ARTICLES } from "../src/lib/help/catalog";
 import { isModuleSettingsRoutable } from "../src/lib/modules";
 import { MODULES } from "../src/lib/modules/registry";
@@ -56,9 +57,15 @@ export const DYNAMIC_ROUTES: Record<string, DynamicRoute> = {
       "slug",
     ),
   },
-  // BuyerDraftBuy.id
+  // BuyerDraftBuy.id, a buy with items to report on
   "/app/admin/buyer-drafts/buy/[id]/performance": {
-    skip: "the demo seed creates no BuyerDraftBuy rows (prisma/seed/demo has no buyer-drafts seed)",
+    find: byId("/app/admin/buyer-drafts/buy/{}/performance", (db) =>
+      db.buyerDraftBuy.findFirst({
+        where: { pos: { some: { items: { some: {} } } } },
+        orderBy: asc,
+        select: { id: true },
+      }),
+    ),
   },
   // Page.id (CMS page)
   "/app/admin/cms/pages/[id]": {
@@ -132,9 +139,19 @@ export const DYNAMIC_ROUTES: Record<string, DynamicRoute> = {
       db.consignmentItem.findFirst({ orderBy: asc, select: { id: true } }),
     ),
   },
-  // Product.externalId (not Product.id)
+  // Product.externalId (not Product.id): the previous system's stock id, which
+  // the page looks the product up by. One with snapshots, so it has counts to show.
   "/app/inventory/product-variance/[externalId]": {
-    skip: "the demo seed leaves Product.externalId null on every product, and the page looks products up by it",
+    find: async (db) => {
+      const product = await db.product.findFirst({
+        where: { externalId: { not: null }, inventorySnapshots: { some: {} } },
+        orderBy: asc,
+        select: { externalId: true },
+      });
+      return product?.externalId == null
+        ? null
+        : `/app/inventory/product-variance/${product.externalId}`;
+    },
   },
   // Product.id
   "/app/inventory/products/[id]": {
@@ -176,7 +193,7 @@ export const DYNAMIC_ROUTES: Record<string, DynamicRoute> = {
   },
   // MailchimpCampaign.id (a string key from Mailchimp)
   "/app/reports/mailchimp/campaigns/[id]": {
-    skip: "the demo seed creates no MailchimpCampaign rows (they come from a Mailchimp sync)",
+    skip: "the demo seed writes no MailchimpCampaign rows: prisma/seed/coverage.ts classifies email campaign results as arriving from a sync, never seeded, and seeding invented campaigns instead waits on the owner's decision",
   },
   // Customer.id
   "/app/sales/customers/[id]": {
@@ -184,18 +201,26 @@ export const DYNAMIC_ROUTES: Record<string, DynamicRoute> = {
       db.customer.findFirst({ orderBy: asc, select: { id: true } }),
     ),
   },
-  // Invoice.id
+  // Invoice.id of an authored invoice with lines. The seeded order invoices
+  // carry none, so the first invoice by id opened an empty page.
   "/app/sales/invoices/[id]": {
     find: byId("/app/sales/invoices/{}", (db) =>
       db.invoice.findFirst({
+        where: { organizationId: ORG, lineItems: { some: {} } },
         orderBy: asc,
         select: { id: true },
       }),
     ),
   },
-  // Invoice.id of a DRAFT (any other status 404s)
+  // Invoice.id of an authored DRAFT (any other status 404s)
   "/app/sales/invoices/[id]/edit": {
-    skip: "the demo seed creates only ISSUED Invoice rows, and the editor 404s on anything but a DRAFT",
+    find: byId("/app/sales/invoices/{}/edit", (db) =>
+      db.invoice.findFirst({
+        where: { organizationId: ORG, status: "DRAFT" },
+        orderBy: asc,
+        select: { id: true },
+      }),
+    ),
   },
   // SalesOrder.id, one with lines
   "/app/sales/orders/[id]": {
@@ -250,15 +275,49 @@ export const DYNAMIC_ROUTES: Record<string, DynamicRoute> = {
       "slug",
     ),
   },
+  // A client-portal token for a customer with tickets, so the portal has
+  // something to list. The token is a stateless JWT keyed from NEXTAUTH_SECRET
+  // (lib/capabilityToken.ts), not a row. It is minted with the production helper
+  // and this process's secret, which must be the running app's: CI's smoke job
+  // sets one for both. Run by hand without it, the route skips; with a different
+  // secret, it fails on the page's 404, because the app really verifies it.
   "/portal/client/[token]": {
-    skip: "the token is a signed JWT (lib/clientPortalToken.ts) minted with the running app's NEXTAUTH_SECRET, not a database row, so the suite cannot make one that a separately-started app accepts",
+    find: async (db) => {
+      if (!process.env.NEXTAUTH_SECRET) return null;
+      const customer = await db.customer.findFirst({
+        where: { tickets: { some: { organizationId: ORG } } },
+        orderBy: asc,
+        select: { id: true },
+      });
+      return customer ? `/portal/client/${generateClientPortalToken(customer.id)}` : null;
+    },
+  },
+  // Return.portalToken of a return still INITIATED, the request page's own case
+  // (once it has moved on, the page only says it was submitted)
+  "/portal/return/[token]": {
+    find: byKey(
+      "/portal/return/{}",
+      (db) =>
+        db.return.findFirst({
+          where: { portalToken: { not: null }, status: "INITIATED" },
+          orderBy: asc,
+          select: { portalToken: true },
+        }),
+      "portalToken",
+    ),
   },
   // Return.portalToken
-  "/portal/return/[token]": {
-    skip: "the demo seed sets no Return.portalToken (a token is minted when staff send the customer a return link)",
-  },
   "/portal/return/status/[token]": {
-    skip: "the demo seed sets no Return.portalToken (a token is minted when staff send the customer a return link)",
+    find: byKey(
+      "/portal/return/status/{}",
+      (db) =>
+        db.return.findFirst({
+          where: { portalToken: { not: null } },
+          orderBy: asc,
+          select: { portalToken: true },
+        }),
+      "portalToken",
+    ),
   },
   // SalesOrder.id (the print view reads /api/print/order/[id])
   "/print/invoice/[id]": {

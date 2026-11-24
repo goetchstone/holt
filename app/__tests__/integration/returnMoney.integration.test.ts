@@ -3,12 +3,22 @@
 // Paying out a native return against real Postgres (ledger plan PR 2b): the
 // return books as its own RETURNED order, refunds go back to the original
 // payment or onto store credit, a restocking fee is kept, and the day's
-// journal reverses the sale exactly -- no Over/Short plug.
+// journal reverses the sale exactly -- no Over/Short plug. The last block calls
+// the route through its permission gate, with next-auth's session the only mock.
+
+jest.mock("next-auth", () => ({
+  __esModule: true,
+  default: jest.fn(),
+  getServerSession: jest.fn(),
+}));
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
+import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { generateSalesJournal } from "@/lib/journalEntry";
 import { businessDayKey } from "@/lib/reports/businessDay";
 import {
@@ -21,7 +31,7 @@ import { refundReturn } from "@/lib/returns/refundReturn";
 import { ReturnMoneyError } from "@/lib/returns/returnMoney";
 import { loadReturnDetail } from "@/lib/returns/returnDetail";
 import { stripeProvider } from "@/lib/payments/stripeProvider";
-import { handler as refundHandler } from "@/pages/api/returns/[id]/refund";
+import refundRoute, { handler as refundHandler } from "@/pages/api/returns/[id]/refund";
 import { handler as statusHandler } from "@/pages/api/returns/[id]/status";
 import { handler as orderHandler } from "@/pages/api/sales/orders/[id]";
 import { handler as lineHandler } from "@/pages/api/sales/orders/[id]/line-items/[lineItemId]";
@@ -566,5 +576,85 @@ describe("paying out a native return (real DB)", () => {
     expect(detail!.money.refunds).toEqual([
       expect.objectContaining({ destination: "STORE_CREDIT", amount: 63.5, status: "COMPLETED" }),
     ]);
+  });
+
+  // The route's own gate. Refund payment covers paying out a return, and so does
+  // Refund returns, the narrower key the Register and Warehouse hold so they keep
+  // doing what the role list it replaced let them. A return that isn't there
+  // answers 404 to anyone the gate lets through, so these calls book nothing.
+  describe("who may pay out a return, through the route's gate", () => {
+    const sessionMock = getServerSession as jest.Mock;
+
+    async function staffMember(userId: string, roleKey: string) {
+      await prisma.user.create({ data: { id: userId, email: `${userId}@example.com` } });
+      const role = await prisma.role.findUniqueOrThrow({ where: { key: roleKey } });
+      await prisma.staffMember.create({
+        data: { userId, displayName: userId, role: roleKey as never, roleId: role.id },
+      });
+    }
+
+    async function customRoleMember(userId: string, permissions: string[]) {
+      await prisma.user.create({ data: { id: userId, email: `${userId}@example.com` } });
+      const role = await prisma.role.create({
+        data: {
+          key: `CUSTOM_${userId.toUpperCase()}`,
+          name: userId,
+          isSystem: false,
+          permissions: { create: permissions.map((permission) => ({ permission })) },
+        },
+      });
+      // The grant table is cached; a role written straight to the database must
+      // invalidate it, or the staff row's DESIGNER grants answer instead.
+      invalidateRoleGrantCache();
+      await prisma.staffMember.create({
+        data: { userId, displayName: userId, role: "DESIGNER", roleId: role.id },
+      });
+    }
+
+    /** POST a refund for a return that isn't there, signed in as `userId`. */
+    async function payOutAs(userId: string): Promise<number> {
+      sessionMock.mockResolvedValue({ user: { id: userId, email: `${userId}@example.com` } });
+      const res = makeRes();
+      await refundRoute(
+        {
+          method: "POST",
+          query: { id: "999999" },
+          body: {},
+          headers: {},
+          cookies: {},
+        } as unknown as NextApiRequest,
+        res,
+      );
+      return res.statusCode;
+    }
+
+    beforeEach(async () => {
+      await syncBuiltInRoles({ prisma });
+      invalidateRoleGrantCache();
+      // Someone privileged exists, so a refusal is the gate's and not the
+      // bootstrap safeguard's.
+      await staffMember("boss", "ADMIN");
+    });
+
+    it.each([
+      ["REGISTER", 404],
+      ["WAREHOUSE", 404],
+      ["MANAGER", 404],
+      // Through Refund payment, which a General Manager holds.
+      ["GENERAL_MANAGER", 404],
+      ["SUPER_ADMIN", 404],
+      ["CUSTOMER_SERVICE", 403],
+      ["DESIGNER", 403],
+    ])("%s gets %i", async (roleKey, status) => {
+      await staffMember("desk", roleKey);
+      expect(await payOutAs("desk")).toBe(status);
+    });
+
+    it("a store's own role pays out returns with Refund returns alone, not with Take returns", async () => {
+      await customRoleMember("kim", ["payment.return-refund"]);
+      expect(await payOutAs("kim")).toBe(404);
+      await customRoleMember("lee", ["sales.return"]);
+      expect(await payOutAs("lee")).toBe(403);
+    });
   });
 });

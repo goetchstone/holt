@@ -2,14 +2,13 @@
 //
 // Shared logic for the sales-by-salesperson report endpoints. Extracted
 // from the API handlers (index.ts, items.ts, export.ts) so each handler
-// stays under cognitive complexity threshold and the role-gate /
+// stays under cognitive complexity threshold and the salesperson-scope /
 // parsing rules live in ONE place. Lives in lib/ rather than under
 // pages/api/ because Next.js Pages Router exposes every .ts file in
 // pages/api/ as a route -- there's no underscore-prefix convention to
 // hide it.
 
 import type { NextApiRequest } from "next";
-import type { Session } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
@@ -45,9 +44,16 @@ const DELIVERY_FREIGHT_MATCH_CLAUSES: Prisma.OrderLineItemWhereInput[] =
     productName: { equals: name, mode: "insensitive" },
   }));
 
-// SUPER_ADMIN strictly more privileged than ADMIN — included in every
-// privileged-role set so the owner sees the same data ADMIN would.
-const PRIVILEGED_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "MANAGER", "MARKETING"]);
+/**
+ * Who is asking, as the salesperson filter needs it. `seesEveryone` is decided
+ * by the caller's gate from permission keys (salesBySalespersonSeesEveryone in
+ * lib/reports/salespersonScope.ts), never from a role name or the session
+ * token; `userId` finds the caller's own staff record when it is false.
+ */
+export interface SalesPersonFilterCaller {
+  seesEveryone: boolean;
+  userId: string | undefined;
+}
 
 export type GroupBy = "salesperson" | "department" | "customer";
 
@@ -152,20 +158,22 @@ export function buildLineItemWhere(
 }
 
 /**
- * Resolve the role-gated salesperson filter. Returns:
+ * Resolve the salesperson filter for a caller. Returns:
  *   - resolvedIds: staffIds the caller is allowed to filter against
  *   - resolvedNames: matching displayNames for those staffIds, used to
  *     match unlinked orders (the POS imports historically left
  *     `salesPersonId` NULL even when `salesperson` is set; nearly all
  *     recent orders are like this -- see `applySalesPersonFilter`).
- *   - designerLockedTo: the auto-locked displayName when the caller is
- *     a designer being forced to self-only.
+ *   - designerLockedTo: the auto-locked displayName when the caller may
+ *     not see every salesperson and is forced to self-only.
  *
- * Returns null if the caller is a non-privileged user with no matching
- * staff record -- caller should respond with empty data.
+ * A caller who may see everyone (`caller.seesEveryone`, decided by the gate)
+ * gets the ids they asked for; anyone else is locked to their own staff
+ * record, whatever ids they sent. Returns null if such a caller has no
+ * matching staff record -- caller should respond with empty data.
  */
 export async function resolveSalesPersonFilter(
-  session: Session,
+  caller: SalesPersonFilterCaller,
   requestedIds: number[],
 ): Promise<{
   resolvedIds: number[];
@@ -173,11 +181,8 @@ export async function resolveSalesPersonFilter(
   designerLockedTo: string | null;
   isPrivileged: boolean;
 } | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (session as any)?.role as string | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const userId = (session.user as any)?.id as string | undefined;
-  const isPrivileged = role !== undefined && PRIVILEGED_ROLES.has(role);
+  const isPrivileged = caller.seesEveryone;
+  const userId = caller.userId;
 
   if (isPrivileged) {
     // Look up displayNames + aliases for the requested staffIds so the

@@ -2,16 +2,19 @@
 //
 // PUT: Update a line item (price, notes, quantity, etc.)
 // DELETE: Remove a line item.
+//
+// Gated on "Work B2B proposals" (sales.proposal), like every /api/proposals
+// route and both proposals pages.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { parseQty } from "@/lib/inventory/qtyInput";
 import { proposalLineForClient } from "@/lib/proposalQty";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.proposal",
   async (req: NextApiRequest, res: NextApiResponse) => {
     const lineId = Number.parseInt(req.query.lineId as string, 10);
     if (Number.isNaN(lineId)) return res.status(400).json({ error: "Invalid line item ID" });

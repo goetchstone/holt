@@ -3,16 +3,23 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { prisma } from "@/lib/prisma";
 import type { ServiceAppointmentStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Changing an appointment is the crews' key, as ./[id].ts PUT takes. */
+const OPERATE = "warehouse.operate";
+
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  _session: Session,
+  access: CallerAccess,
+) {
   if (req.method !== "GET") {
-    const mutationRole = await activeStaffRole(session as { user?: { id?: string | null } | null });
-    if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
+    if (!access.holds[OPERATE]) {
+      return res.status(403).json({ error: "Changing an appointment needs Operate warehouse." });
     }
 
     res.setHeader("Allow", ["GET"]);
@@ -85,8 +92,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // The list behind the same dispatch board as ./[id].ts, and gated the same way:
 // `service.write` admits the board's audience (designers follow their
-// customer's install), while the inline check above keeps every non-GET method
-// to the crews who work the appointment. The inline check is retained, not
-// replaced — it is narrower than this gate, so removing it would widen who may
-// hit the mutation path.
-export default requirePermission("service.write", handler);
+// customer's install), while the check above keeps every non-GET method to
+// holders of "Operate warehouse", the crews who work the appointment. No write
+// exists here yet (every non-GET ends at the 405); the check stays so that one
+// added later inherits the narrower rule instead of this gate's.
+export default requirePermission("service.write", handler, { also: [OPERATE] });

@@ -3,11 +3,19 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { activeStaffRole } from "@/lib/auth/requireAuth";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Changing an appointment is the crews' key, as dispatch/[id]/status.ts takes. */
+const OPERATE = "warehouse.operate";
+
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid appointment ID" });
 
@@ -15,11 +23,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     return handleGet(id, res);
   } else if (req.method === "PUT") {
     // Narrower than the outer gate: designers see the dispatch board (they
-    // want to know when their customer's install is scheduled) but the crews
-    // who actually work the appointment are the only ones who update it.
-    const mutationRole = await activeStaffRole(session as { user?: { id?: string | null } | null });
-    if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
+    // want to know when their customer's install is scheduled), but
+    // rescheduling an appointment and assigning its installer take "Operate
+    // warehouse", the key of the crews who work it.
+    if (!access.holds[OPERATE]) {
+      return res.status(403).json({ error: "Scheduling an appointment needs Operate warehouse." });
     }
 
     return handlePut(id, req, res, session.user?.email || null);
@@ -29,9 +37,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-// GET is open to designers too (they follow their customer's appointment);
-// PUT narrows further inline to warehouse/installer/manager/admin.
-export default requirePermission("service.write", handler);
+// GET is open to every "Work service" holder (designers follow their
+// customer's appointment); PUT also needs "Operate warehouse", answered here.
+export default requirePermission("service.write", handler, { also: [OPERATE] });
 
 async function handleGet(id: number, res: NextApiResponse) {
   try {

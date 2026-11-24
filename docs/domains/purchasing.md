@@ -157,6 +157,34 @@ one function per act, each called by its route:
   acknowledgement, dates, notes) is `purchasing.receive` or `purchasing.write`.
 - The Receive page is `purchasing.receive`, the key its receive route is on.
   It was `purchasing.write`, which kept out the warehouse.
+- Needs Ordering and Receiving Records are `purchasing.receive` (since
+  2026-11), the key their data routes (`/api/purchasing/needs-ordering`,
+  `/api/purchasing/receiving`) were already on. They had been
+  MANAGER/ADMIN/WAREHOUSE role lists; the key adds the General Manager and the
+  Buyer. The hub's `purchasing.read` was not used: it would let Department
+  Head, Data Entry and Designer open pages whose routes refuse them. Needs
+  Ordering's Create PO posts to `/api/sales/orders/[id]/create-po`, which is
+  `sales.write`, so a Buyer or the warehouse sees the queue but cannot raise
+  the PO from it. Whether that route should also take `purchasing.write` is an
+  owner question. Pages tested by
+  `__tests__/integration/inventoryPurchasingGates.integration.test.ts`.
+- Import Order and Import Apparel PO are `purchasing.receive` (since 2026-11),
+  the key of their preview step (`/api/purchasing/preview-nuorder`,
+  `/api/purchasing/preview-zsupply`). They had been MANAGER/ADMIN/WAREHOUSE role
+  lists; the key adds the General Manager and the Buyer. Each step keeps its own
+  key: the NuORDER import `purchasing.write`, the Z Supply and wholesale CSV
+  imports `admin.data`, and the department and category lists `catalog.write`.
+  So Data Entry still cannot open them, and only the Administrator and the
+  Owner complete every import; which single key importing should take is an
+  owner question. Pages tested by
+  `__tests__/integration/catalogAdminGates.integration.test.ts`.
+- A vendor's contacts (`/api/vendors/[id]/contacts`, shown in the Vendors
+  list's detail modal) are read on `purchasing.read` or `catalog.write`, and
+  adding or removing one takes `catalog.write` (since 2026-11). It was a
+  DESIGNER/MANAGER/ADMIN/WAREHOUSE role list, so Designers and Warehouse still
+  read contacts but no longer add or remove them, and Buyers, Data Entry,
+  Department Heads and General Managers gain both. Tested by
+  `__tests__/integration/catalogAdminGates.integration.test.ts`.
 
 Tested by `__tests__/integration/stockPurchaseOrders.integration.test.ts`. It
 calls the real routes through their real gates, and email goes over a real

@@ -63,7 +63,7 @@ Tracked as a master-plan checklist item (C8); the plan is not kept in the repo.
 
 ## Return request flow
 
-Staff mint the link: `POST /api/sales/orders/[id]/return-link` (`sales.write`) creates the `Return` in `INITIATED` with a random `portalToken` (a UUID on the row, not a JWT, so it does not expire) and `portalRequestedAt`, and answers with `/portal/return/<portalToken>`. The customer's page (`app/portal/return/[token]/*`) reads `GET /api/portal/returns/[token]` and posts a reason and notes to `POST /api/portal/returns/request`. It attaches no photo and notifies nobody; the return waits in the staff returns list (`docs/domains/returns.md`). `app/portal/return/status/[token]/*` shows its progress from the same GET.
+Staff mint the link: `POST /api/sales/orders/[id]/return-link` (`sales.write`) creates the `Return` in `INITIATED` with a random `portalToken` (a UUID on the row, not a JWT, so it does not expire) and `portalRequestedAt`, and answers with `/portal/return/<portalToken>`. The customer's page (`app/portal/return/[token]/*`) reads `GET /api/portal/returns/[token]` (20 a minute per client) and posts a reason and notes to `POST /api/portal/returns/request`. The form shows only while the return is `INITIATED` with no customer notes; after that the page says the request was submitted. It attaches no photo and notifies nobody; the return waits in the staff returns list (`docs/domains/returns.md`). `app/portal/return/status/[token]/*` shows its progress from the same GET.
 
 The request route is public, so it trusts nothing in the body (fixed 2026-11-21):
 
@@ -78,7 +78,7 @@ The customer cannot approve, inspect, or process the refund — those are staff-
 
 Every order link is built by `portalOrderUrl(orderId, customerId, ttlHours)` in `lib/portalLink.ts`: `<NEXTAUTH_URL>/portal/order?token=<jwt>`, signed for the store's lifetime. It is reached three ways (checked against source 2026-11-21):
 
-- `POST /api/portal/generate-link` takes `{ orderId }` (a number) and answers `{ url, orderno }`: 404 for an unknown order, 400 for one with no customer. Gated `requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"])`. The order page's "Customer Portal (Test Mode)" card calls it from "Generate Portal Link", and that card shows only to MANAGER, ADMIN and SUPER_ADMIN.
+- `POST /api/portal/generate-link` takes `{ orderId }` (a number) and answers `{ url, orderno }`: 404 for an unknown order, 400 for one with no customer. It takes Write orders (`sales.write`), the key `text-link` takes. Until 2026-11-21 it was a DESIGNER/REGISTER/MANAGER/ADMIN role list: General Manager gains it, and staff on a store's own role (who passed as the enum DESIGNER) need the key. The order page's "Customer Portal (Test Mode)" card calls it from "Generate Portal Link", and shows to holders of that key.
 - "Text the link" on the same card (`POST /api/portal/text-link`, `sales.write`) texts a fresh link. Who may get a text: `sms.md`
 - Each automatic customer message (`lib/messages/due.ts`) carries a fresh link when its email or its text is set to include the order link.
 

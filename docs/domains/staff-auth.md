@@ -2,29 +2,35 @@
 
 Role-based access control, permission-derived navigation, up-board staff rotation.
 
-## Permissions: what is and is NOT enforced (2026-08-06)
+## Permissions: what is and is NOT enforced (2026-11-21)
 
-**Read this first.** The permission layer is now the majority of the _guarded_
-API surface: of the 337 Pages Router route files that carry one of the two
-guards, **216 gate on a capability** and **121** still gate on the `StaffRole`
-enum. Nav is derived from permissions. Page gates and hub card filtering still
-name roles, so the enum has not gone away.
+**Read this first.** The permission layer is nearly the whole _guarded_ API
+surface: of the 503 Pages Router route files that carry a guard, **501 gate on
+a capability** (490 through `requirePermission`, 11 through `guardAutomation`)
+and **2**, the house-call routes, still gate on the `StaffRole` enum (counted
+2026-11-21, after the role-list sweep). Nav is derived from permissions, and hub
+cards follow the key of the page each opens (`lib/auth/hubCards.ts`). Every page
+gates on a key apart from three that keep a role list while the owner decides
+who should open them: the Service dispatch board and the two house-call pages.
+So the enum has not gone away.
 
-| Piece                                                              | State                                                                                         |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `PERMISSIONS` / `BUILT_IN_ROLES` (`lib/auth/permissionCatalog.ts`) | Complete — 54 permissions across 14 domains, 15 built-in roles                                |
-| `Role`, `RolePermission`, `StaffMember.roleId`                     | Exist, migrated, backfilled                                                                   |
-| Built-in role seed                                                 | Runs on every deploy                                                                          |
-| `requirePermission()` (Pages Router)                               | **216 route files use it**                                                                    |
-| `permissionProcedure()` (tRPC)                                     | the reports on View reports, `legacyArchive.search`; the rest use `roleProcedure(...)`        |
-| The other **121** Pages Router API routes                          | Still `requireAuthWithRole([...])` on the enum                                                |
-| Nav                                                                | Derived from permissions (`lib/auth/navPermissions.ts`); the `NavPermission` table is dropped |
-| Page-level `requirePage`, card filtering                           | Still the enum, apart from four pages (see Page-Level Auth)                                   |
-| Custom-role admin GUI                                              | Ships at `/app/admin/setup/roles`                                                             |
-| `StaffRole` enum                                                   | Still present, still authoritative for those 121 routes                                       |
+| Piece                                                              | State                                                                                                                                                                                                        |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PERMISSIONS` / `BUILT_IN_ROLES` (`lib/auth/permissionCatalog.ts`) | Complete — 70 permissions across 14 domains, 15 built-in roles                                                                                                                                               |
+| `Role`, `RolePermission`, `StaffMember.roleId`                     | Exist, migrated, backfilled                                                                                                                                                                                  |
+| Built-in role seed                                                 | Runs on every deploy                                                                                                                                                                                         |
+| `requirePermission()` (Pages Router)                               | **490 route files use it**, and 11 more through `guardAutomation`                                                                                                                                            |
+| `permissionProcedure()` (tRPC)                                     | Every gated procedure. `reports`, `billing` and `clientPortal` were the last routers on `roleProcedure(...)`; `billing.*` and `clientPortal.generateLink` are Bill customers directly (`accounting.invoice`) |
+| The other **2** Pages Router API routes                            | `service/house-calls/index.ts` and `[id].ts`, still `requireAuthWithRole([...])` on the enum                                                                                                                 |
+| Nav                                                                | Derived from permissions (`lib/auth/navPermissions.ts`); the `NavPermission` table is dropped                                                                                                                |
+| Page-level `requirePage`, card filtering                           | Pages: a key, apart from three (see Page-Level Auth). Cards: the destination page's key in `PAGE_ACCESS`, plus `CARD_KEY_OVERRIDES` (`lib/auth/hubCards.ts`)                                                 |
+| Custom-role admin GUI                                              | Ships at `/app/admin/setup/roles`                                                                                                                                                                            |
+| `StaffRole` enum                                                   | Still present, still authoritative for those 2 routes and 3 pages                                                                                                                                            |
 
 `sales.clients.manage` (GAP-36) opens other salespeople's client books and the Follow-Ups
-report, and assigns clients no one owns. Built in for Manager and General Manager, and for admins. Seeing what a salesperson
+report, and assigns clients no one owns. Since 2026-11-21 it is also every salesperson's
+Pipeline, and archiving or restoring anyone's quotes, one at a time or in bulk, which were
+MANAGER/ADMIN name checks. Built in for Manager and General Manager, and for admins. Seeing what a salesperson
 keeps on a client takes `customer.write` or `sales.lead`, so Warehouse, Dispatch, Installer
 and Marketing can read a customer without it. `docs/domains/sales-orders.md` has the table.
 
@@ -171,7 +177,12 @@ deployment built, so a **migration** grants it to those. It has to be a
 migration, not a seed step: a seed step runs on every deploy and would grant
 the key again after the owner unticks it. Also add it to the roles in
 `config/example.yaml`: a `kind: roles` preset replaces a role's grants, so a key
-it leaves out is revoked when the preset is applied.
+it leaves out is revoked when the preset is applied. `__tests__/config/presets.test.ts`
+holds the example to this: its built-in roles may leave out only the keys the
+test lists as deliberate revocations (the Designer's View reports and View
+cost), and its own roles must hold every key a migration granted every role a
+store built (`reporting.traffic`, `customer.address`). The example Designer had
+silently dropped Work leads, and Floor Lead lacked Edit customer addresses.
 
 The second key added this way, `inventory.locations.manage` ("Set up stores and
 stock locations", SEC-15), shows the other half of "nothing changes on day one".
@@ -187,6 +198,67 @@ DESIGNER, so none of them had passed the hardcoded check. One gap: that check
 read the staff enum, the migration reads `Role.key`, so staff whose enum and
 `roleId` drifted apart before USE-02 are not covered.
 
+**The 2026-11 role-list sweep** moved 64 of the 66 API routes still on a role
+list, the role-name checks inside other routes, 57 pages and the `reports`,
+`billing` and `clientPortal` routers onto keys. Most went to keys that already
+existed. Eleven keys are new, added the same way: each starts
+on exactly the built-in roles its lists let through, plus ADMIN by derivation
+and the Owner by wildcard. General Manager holds none of them.
+
+| Key                       | Label                                 | Built in for (besides ADMIN and the Owner) | Replaced the role lists on                                                                            |
+| ------------------------- | ------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `sales.proposal`          | Work B2B proposals                    | Manager                                    | the two B2B proposal pages and the eight `/api/proposals` routes                                      |
+| `customer.trade`          | Set trade accounts and tax exemptions | Manager                                    | `/api/customers/[id]/trade`                                                                           |
+| `customer.address`        | Edit customer addresses               | Manager, Designer, Warehouse, Marketing    | `/api/customers/[id]/addresses`                                                                       |
+| `customer.wealth`         | See wealth data                       | Marketing                                  | Wealth Insights, Opportunities, and the wealth on the customer page, the Pipeline and the Leads board |
+| `payment.return-refund`   | Refund returns                        | Manager, Register, Warehouse               | `/api/returns/[id]/refund`, which also takes Refund payment                                           |
+| `accounting.invoice`      | Bill customers directly               | Manager                                    | the four Invoices pages, the `billing` router, `clientPortal.generateLink` and the invoice PDF        |
+| `accounting.chart.manage` | Set up the chart of accounts          | Manager                                    | the writes on the five chart-of-accounts routes                                                       |
+| `service.setup`           | Set up service                        | Manager                                    | the delivery-zone, installer, case-setting and email-template writes                                  |
+| `reporting.management`    | View management reports               | Manager                                    | 17 management reports, page and procedure                                                             |
+| `reporting.financial`     | View financial reports                | none                                       | Balance Due Aging, Stale Quote Cleanup, Consignment Summary and Open PO Gaps                          |
+| `marketing.lists`         | See customer lists                    | Marketing                                  | the Customer Report and Opportunities, and choosing any salesperson on Sales by Salesperson           |
+
+Migration `20261121120000_grant_role_list_keys` grants them, idempotently, to
+the built-in rows by role key, so an edited (`grantsCustomized`) role gets them
+too, and grants `customer.address` to every custom role as well: custom-role
+staff carry the enum DESIGNER, which the address list admitted. No other key
+goes to a custom role, and General Manager gets nothing. The known gap is the
+one above: staff whose enum and linked role disagree are now decided by the
+linked role. `permissionCatalog.test.ts` pins each key's holders, and
+`roleListKeysMigration.integration.test.ts` the migration.
+
+Manager also gains **Post journals** (`accounting.post`), which it needs only for
+`journal-entries/[id]` PUT and DELETE (post an entry, mark it exported, delete a
+draft), a MANAGER/ADMIN list until then. The grant opens nothing else: the
+date-range journal export (`accounting/export-journal.ts`) and the
+customer-ledger backfill (`admin/customer-ledger/backfill.ts`,
+`customer-ids.ts`) moved from Post journals to Change settings
+(`admin.settings`), their screens' key, and the invoice PDF moved from View
+accounting to Bill customers directly.
+
+The same migration grants **Manage client books** (`sales.clients.manage`) to
+the edited Manager and Administrator rows. It is not new: it entered the
+catalog in #96 (2026-11-05) with no migration, so a Manager or Administrator
+edited before then never had it. The Pipeline's all-staff view, one
+salesperson's board, search across every open quote and archiving or
+bulk-archiving anyone's quotes checked the staff enum against MANAGER/ADMIN
+until this sweep and now ask for this key, so without the grant those roles
+would have lost them. It was the only such key. A key in the catalog at the
+first commit existed when every role was created, so an edited role without it
+had it unticked; of the seven added since, `reporting.all-salespeople` already
+had its migration (`20261118120000`), and the other five gate nothing the sweep
+converted. The cost: a Manager or Administrator role an owner unticked it on
+after 2026-11-05 gets it back, and a row edited before then also gains the
+client-book actions an unedited Manager already has.
+
+Set up service and Set up the chart of accounts cover writes that a
+MANAGER/ADMIN list let Managers make by API while their screens stayed on Change
+settings or Manage configuration. Each route takes the new key or the screen's
+key (`{ anyOf: ["service.setup", "admin.settings"] }`, for example), so whoever
+can open the screen can use it. Moving the screens onto the new keys is the
+owner's call.
+
 Rules preserved from `requireAuthWithRole`, by construction rather than by
 copy: `decidePermissionAccess` and `decideRoleAccess` both call the same
 `resolveEffectiveRole()` and `applyBootstrapSafeguard()` in `roleDecision.ts`.
@@ -195,8 +267,12 @@ copy: `decidePermissionAccess` and `decideRoleAccess` both call the same
   `isActive`) is read per request. A session's role is stale the moment someone
   is re-roled and says nothing about `isActive`.
 - **No active staff row means no access** — not a default of DESIGNER.
-- **Impersonation** is honoured only for a real SUPER_ADMIN/ADMIN and only ever
-  _reduces_ privilege. An ADMIN impersonating SUPER_ADMIN is an ADMIN.
+- **Impersonation (View as)** is honoured only for a real role holding
+  Impersonate (`admin.impersonate`) or Change settings (`admin.settings`):
+  `IMPERSONATE` in `roleDecision.ts`, by default SUPER_ADMIN and ADMIN. It only
+  ever _reduces_ privilege. Permission gates count a key only when both roles
+  hold it, and role lists (`decideRoleAccess`) also require the real role to
+  pass the list. An ADMIN impersonating SUPER_ADMIN is an ADMIN.
 - **Bootstrap safeguard** still fires: a denied check passes while NO active,
   linked privileged staff (SUPER_ADMIN/ADMIN/MANAGER) exist, so a new
   deployment's first user is not locked out. It does NOT let them promote
@@ -216,7 +292,9 @@ The legacy role-list gates make one decision too:
 `requirePage([...])` all call `resolveRoleListAccess()` in
 `permissionResolver.ts`. It applies the same rules, matched against the
 `StaffRole` enum. All three take `{ also }` (e.g. `WITH_COST`), answered from
-the caller's Role grants beside the enum decision.
+the caller's Role grants beside the enum decision. Since 2026-11-21 they guard
+only the two house-call routes and three pages, and no router calls
+`roleProcedure`.
 
 Until 2026-10-01 the tRPC and page gates read the staff row themselves, without
 `isActive`, and turned a missing row into DESIGNER. So a deactivated MANAGER
@@ -293,14 +371,29 @@ instead (helpdesk.md, "Ticket attachments").
 
 ### Not done yet (each is its own change)
 
-- Sweeping the last 121 routes onto `requirePermission`. Only some are blocked
-  on a missing capability — the buyer-drafts workbench is purchasing work behind
-  an ADMIN-only guard, and every `purchasing.*` key admits MANAGER, so none is
-  admissible. Others are simply unswept: the `api/accounting/*` and
-  `api/service/*` routes sit on `requireAuthWithRole(["MANAGER", "ADMIN"])` and
-  the capabilities they want (`accounting.read`/`accounting.post`,
-  `service.read`/`service.write`) already exist.
-- **Card** filtering inside a hub still uses `roles` arrays. Nav no longer does.
+- The last role lists. Of `api/service/*`, only `house-calls/index.ts` and
+  `house-calls/[id].ts` are still role lists, waiting on the owner's house-call
+  decision, as are the Service dispatch board and the two house-call pages. The
+  rest moved to keys on 2026-11-21 (service-dispatch.md, "Who may use the
+  service routes"), and so did `api/accounting/*`: the five chart routes gate
+  per method, writes on `{ anyOf: ["admin.config", "accounting.chart.manage"] }`
+  and reads adding `accounting.read` (the account-group reads also
+  `catalog.write`), and `journal-entries/[id]` is `accounting.read` for GET and
+  `accounting.post` for PUT and DELETE (accounting.md).
+- Assigning roles (USE-02: `lib/auth/roleAssignment.ts`, `lib/auth/adminLockout.ts`
+  and the staff page's role picker) still decides on role names. It moves to a
+  key after #136.
+- `roleProcedure` has no caller outside tests. `requireAuthWithRole` loses its
+  last callers when the two house-call routes convert, and `requirePage`'s role
+  list when the Service dispatch board and the two house-call pages do; then
+  the three and `decideRoleAccess` can go. Until then tripwires hold each at what
+  the sweep left: `trpcProcedureAuthorization.test.ts` fails on any mounted
+  procedure built with `roleProcedure` (its gates are marked in
+  `authMiddlewareMarkers.roleLists`); `apiRolePermissionRatchet.test.ts` counts
+  every `requireAuthWithRole(` call in an API route, whatever its first argument
+  (it once matched only a literal `[`, so a list passed as a constant escaped
+  it); and `pagePermissions.test.ts` fails if a `widensFrom` page stops calling
+  `requirePage` with exactly the roles its entry records.
 - Dropping the `StaffRole` enum.
 
 ## Roles
@@ -311,16 +404,16 @@ shipped in `BUILT_IN_ROLES`, asserted item-for-item in `navPermissions.test.ts`;
 a deployment that edits those grants changes the menu, and a disabled feature
 module hides its item on top.
 
-| Role        | Nav Access (from the shipped grants)                                                    | Notes                                                                                                                                                                                                                   |
-| ----------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SUPER_ADMIN | Every item                                                                              | Owner-only tier above ADMIN. Sees `/app/admin/reports/commission-tiers` (rate schedule the owner pays per salesperson). Auto-promotes through any ADMIN gate. Holds every permission through the `"*"` wildcard.        |
-| ADMIN       | Every item                                                                              | Granted every permission in the catalog EXCEPT `OWNER_ONLY_PERMISSIONS` (`admin.impersonate`, `staff.commission-pay`) — an explicit grant list, not a bypass. Database backup, roles and query builder are ADMIN-gated. |
-| MANAGER     | Sales, Service, Purchasing, Warehouse, Inventory, Reports, Helpdesk, Time, Admin, Tools | Hub page card filtering still applies, and many `/app/admin/*` sub-pages gate on `["ADMIN"]` alone (see Card Filtering below).                                                                                          |
-| DESIGNER    | Sales, Service, Purchasing, Inventory, Reports, Helpdesk, Time, Tools                   | Lands on `/app` like everyone else; the home page shows what its keys allow (see Home page below). On the Reports hub, sees only the 2 cards that carry no `roles` filter.                                              |
-| REGISTER    | Sales, Inventory, Time, Tools                                                           | POS, till, gift cards, returns                                                                                                                                                                                          |
-| WAREHOUSE   | Sales, Service, Purchasing, Warehouse, Inventory, Helpdesk, Time, Tools                 | No Reports, no Admin. Service and Helpdesk are deliberate — WAREHOUSE holds `service.read`/`service.write`.                                                                                                             |
-| MARKETING   | Sales, Reports, Time, Tools                                                             | Holds `customer.read` and not `sales.read`; Sales is there because Customers lives under it.                                                                                                                            |
-| INSTALLER   | Sales, Service, Warehouse, Helpdesk, Time                                               | Used to sign in to an empty menu (no `NavPermission` default existed); its grants now produce one.                                                                                                                      |
+| Role        | Nav Access (from the shipped grants)                                                    | Notes                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SUPER_ADMIN | Every item                                                                              | Owner-only tier above ADMIN. Sees `/app/admin/reports/commission-tiers` (rate schedule the owner pays per salesperson). Auto-promotes through any ADMIN gate. Holds every permission through the `"*"` wildcard.                                                                                                                                                                |
+| ADMIN       | Every item                                                                              | Granted every permission in the catalog EXCEPT `OWNER_ONLY_PERMISSIONS` (`admin.impersonate`, `staff.commission-pay`) — an explicit grant list, not a bypass. Database backup, roles and query builder are ADMIN-gated.                                                                                                                                                         |
+| MANAGER     | Sales, Service, Purchasing, Warehouse, Inventory, Reports, Helpdesk, Time, Admin, Tools | Hub cards show only the pages its keys open (see Card Filtering below).                                                                                                                                                                                                                                                                                                         |
+| DESIGNER    | Sales, Service, Purchasing, Inventory, Reports, Helpdesk, Time, Tools                   | Lands on `/app` like everyone else; the home page shows what its keys allow (see Home page below). On the Reports hub, sees a card for each report View reports opens: Designer Dashboard, Sales by Salesperson, On hold, Referrals, Oversold, Stock and Space, Transfers, Weekly Summary, Detailed Sales Report, Tax Summary, Till Reconciliation, and both Mailchimp reports. |
+| REGISTER    | Sales, Inventory, Time, Tools                                                           | POS, till, gift cards, returns                                                                                                                                                                                                                                                                                                                                                  |
+| WAREHOUSE   | Sales, Service, Purchasing, Warehouse, Inventory, Helpdesk, Time, Tools                 | No Reports, no Admin. Service and Helpdesk are deliberate — WAREHOUSE holds `service.read`/`service.write`.                                                                                                                                                                                                                                                                     |
+| MARKETING   | Sales, Reports, Time, Tools                                                             | Holds `customer.read` and not `sales.read`; Sales is there because Customers lives under it.                                                                                                                                                                                                                                                                                    |
+| INSTALLER   | Sales, Service, Warehouse, Helpdesk, Time                                               | Used to sign in to an empty menu (no `NavPermission` default existed); its grants now produce one.                                                                                                                                                                                                                                                                              |
 
 ## Giving someone a role (USE-02, 2026-09-23)
 
@@ -340,13 +433,14 @@ by the owner:
 - **Only a SUPER_ADMIN assigns the owner tier**: SUPER_ADMIN, or any role that
   grants every permission. It is the same tier impersonation already keeps an
   ADMIN out of.
-- **What an assignment writes**: `roleId`, and the legacy `role` enum that most
-  routes still gate on. A built-in role writes its own key; a custom role writes
+- **What an assignment writes**: `roleId`, and the legacy `role` enum, which the
+  two house-call routes and three pages still gate on. A built-in role writes its own key; a custom role writes
   **DESIGNER**, the least-privileged value. So a custom role never carries more
   enum-gated access than intended, and demoting an ADMIN to one really demotes
   them. The last-admin guard judges the new enum value.
-- Custom-role holders get only DESIGNER on enum-gated routes until PERM-01 moves
-  the pages onto permissions. That is the owner's chosen trade-off.
+- Custom-role holders get only DESIGNER on the enum-gated routes and pages that
+  are left (the house-call routes, the Service dispatch board and the house-call
+  pages). That is the owner's chosen trade-off.
 
 **The same rule decides two other doors to the same power** (2026-11-20). Both
 sat behind `staff.manage` alone, which People Operations and the General
@@ -492,11 +586,11 @@ Key invariants:
 
 - **Auto-promotion over ADMIN gates** — any `["ADMIN"]` check passes for SUPER_ADMIN. The live logic is `decideRoleAccess()` in `lib/auth/roleDecision.ts`, which appends SUPER_ADMIN to any allow-list naming ADMIN. No need to spell SUPER_ADMIN out everywhere; ADMIN is implied. There is deliberately NO equivalent case on the PERMISSION path — SUPER_ADMIN holds everything through the wildcard instead.
 - **PRIVILEGED_ROLES sets** — when an API needs "any privileged role," it lists `["SUPER_ADMIN", "ADMIN", "MANAGER"]` explicitly. See the one privileged-count query, `countPrivilegedStaff()` in `lib/auth/permissionResolver.ts`, feeding the bootstrap safeguard in `roleDecision.ts` for every gate.
-- **Impersonation** — SUPER_ADMIN can impersonate too (same path as ADMIN); both `lib/auth/roleDecision.ts:resolveEffectiveRole()` and `api/admin/impersonate.ts` accept either role.
-- **Card filtering** — `CardGrid` (and the unused Pages-Router `CardGridPageLayout`) has a SUPER_ADMIN bypass (`if (effectiveRole === "SUPER_ADMIN") return true;`) so any hub card is visible without needing to be listed explicitly.
-- **Owner-only report** — `app/(dashboard)/app/admin/reports/commission-tiers/page.tsx` calls `requirePage(["SUPER_ADMIN"])` (not promoted from ADMIN). Direct-URL only; not surfaced in any hub.
+- **Impersonation** — decided on keys (`IMPERSONATE` in `roleDecision.ts`). SUPER_ADMIN holds both through the wildcard; ADMIN holds Change settings. `pages/api/admin/impersonate.ts` gates on the same `{ anyOf: ["admin.impersonate", "admin.settings"] }`, and `impersonateGate.test.ts` pins the two equal.
+- **Card filtering** — no bypass: the Owner holds every key, so sees every hub card.
+- **Owner-only report** — `app/(dashboard)/app/admin/reports/commission-tiers/page.tsx` calls `requirePage(undefined, { permission: "staff.commission-pay" })`, a key in `OWNER_ONLY_PERMISSIONS`. The Reports hub's Commission card follows it.
 
-When adding a new SUPER_ADMIN-only feature: gate on `["SUPER_ADMIN"]` exactly (no auto-promotion FROM ADMIN). When adding a new ADMIN-only feature: list `["ADMIN"]` and rely on the auto-promotion to cover SUPER_ADMIN.
+When adding a new owner-only feature: gate it on a key in `OWNER_ONLY_PERMISSIONS`, as the commission screens do, never on a role list. Anything else takes the key of its screen ("Which key a route takes", above).
 
 ## SUPER_ADMIN vs ADMIN vs MANAGER
 
@@ -525,15 +619,17 @@ refuses a role change away from an ADMIN or SUPER_ADMIN target when
 
 ## Impersonation
 
-SUPER_ADMIN and ADMIN users can temporarily view the app as any other role via the "View as..." dropdown in the top nav. This sets a cookie (`holt-impersonate`) that is read on every authorization path — `requirePage`, `requireAuthWithRole`, `requirePermission`/`permissionProcedure`, `roleProcedure`, the nav (`TopNav`/`AppNav`), and `CardGrid`. An amber banner shows the active impersonation with a "Stop Impersonating" button.
+A role holding Impersonate (`admin.impersonate`) or Change settings (`admin.settings`) may View as another role: by default the Owner and the Administrator. `POST /api/admin/impersonate` sets the 4-hour `holt-impersonate` cookie, or clears it. No back-office screen offers a picker: the top nav's "View as..." menu was unreachable, since no live route rendered `TopNav`, and was deleted on 2026-11-21 with `TopNav`, `AppNav`, `MainLayout`, `StandardListPage` and `CardGridPageLayout`. The amber Stop banner (`components/ImpersonationBanner.tsx`) renders only on the Pages Router `/auth/*` screens, through `_app.tsx`. The cookie is read by `requirePage`, `requireAuthWithRole`, `requirePermission`/`permissionProcedure`, `roleProcedure`, the sidebar menu (`AppSidebar`, through `useEffectiveRole`) and the hub cards (through `requirePage`).
 
-- API endpoint: `POST /api/admin/impersonate` (sets or clears cookie; accepts both SUPER_ADMIN and ADMIN as the real role). It only accepts six roles — DESIGNER, REGISTER, MANAGER, WAREHOUSE, INSTALLER, MARKETING (`pages/api/admin/impersonate.ts` `VALID_ROLES`) — so ADMIN and SUPER_ADMIN cannot be impersonated at all.
+- API endpoint: `POST /api/admin/impersonate` (sets or clears the cookie), gated on `IMPERSONATE`. It only accepts six roles — DESIGNER, REGISTER, MANAGER, WAREHOUSE, INSTALLER, MARKETING (`pages/api/admin/impersonate.ts` `VALID_ROLES`) — so ADMIN and SUPER_ADMIN cannot be impersonated at all.
 - Hook: `useEffectiveRole()` in `lib/hooks/useEffectiveRole.ts` (reads cookie client-side)
 - Cookie expires after 4 hours automatically
-- The impersonation checks the user's real DB role is SUPER_ADMIN or ADMIN before applying -- it cannot be spoofed by setting the cookie manually
+- Every gate checks that the real role, read from the database, holds a key of `IMPERSONATE` before honouring the cookie -- it cannot be spoofed by setting the cookie manually -- and `useEffectiveRole` applies the same rule to the session's keys
 - Impersonation affects: nav items, card filtering, page access (server redirects), and API role checks
-- Viewing as another role only ever narrows. Permission gates and keys answered beside a gate (`{ also }`, e.g. View cost) count a key only when both the real role and the viewed role hold it (`decidePermissionAccess` in `roleDecision.ts`), as the nav does on the real-role side (the nav reads the viewed role's built-in grants, not edited ones: F14a). Before 2026-10-02 gates decided on the viewed role's keys alone, so an admin whose role the owner had edited to drop a key got it back by viewing as a role that held it (F12a). Role-list gates (`roleProcedure`, `requirePage([...])`) still decide on the viewed role; SEC-16 moves them to keys.
+- Viewing as another role only ever narrows. Permission gates and keys answered beside a gate (`{ also }`, e.g. View cost) count a key only when both the real role and the viewed role hold it (`decidePermissionAccess` in `roleDecision.ts`), as the nav does on the real-role side (the nav reads the viewed role's built-in grants, not edited ones: F14a). Before 2026-10-02 gates decided on the viewed role's keys alone, so an admin whose role the owner had edited to drop a key got it back by viewing as a role that held it (F12a). Role-list gates also require the real role to pass the list (narrow-only since 2026-11-21; before, the viewed role alone decided).
 - Impersonation never escalates by rank either (`resolveEffectiveRole` in `roleDecision.ts`), and the endpoint's allow-list names neither ADMIN nor SUPER_ADMIN, so there is no way to view the commission-tiers report by impersonating up
+- The endpoint refuses (400, saying why) a target every gate would ignore: one ranked above the caller's own role, or any target for a role that may not View as (`viewAsIgnored` in `permissionResolver.ts`, ranked as a permission gate ranks: the linked Role, from the grant table). The client cannot rank, so before 2026-11-21 a store role holding Change settings (rank 0 by default) could set MANAGER and read "Viewing as MANAGER" over screens every gate still decided as its own role. `impersonateTarget.test.ts` pins it.
+- Known gap, older than 2026-11: while viewing as a role that holds neither key, `POST /api/admin/impersonate` is refused, because `requirePermission` honours the cookie. Stopping still works, since the banner also clears the cookie in the browser, but no "Stopped viewing" audit row is written.
 - The cookie value is client-set, so `grantContext` (`permissionResolver.ts`) treats it strictly as a role KEY: own-key lookups and a `Map`, never a plain-object index. Before 2026-10-15 a cookie of `constructor` or `__proto__` resolved to an `Object.prototype` member, the decision threw, and every gated request from that admin was a 500 until the cookie cleared (CodeQL #23; `permissionResolver.test.ts` "the View-as cookie is a role KEY"). Such a value now behaves as an undefined role: baseline grants only.
 
 ## Navigation
@@ -557,6 +653,16 @@ procedure that is `publicProcedure` or session-only `protectedProcedure` unless
 it is in the test's `ALLOWED` map with a written reason; it also fails on an
 `ALLOWED` entry that no longer exists or is now gated.
 
+`apiRouteAuthorization.test.ts` also reads every route whose default export
+dispatches on `req.method`: each `if (req.method === "X") return ...` branch,
+and, since 2026-11-21, the last statement, which runs for every method no branch
+took, must return through a gate or answer 405. In `if (GET) return readGate(...);
+return writeGate(...);` that line is the whole write path, and a bare handler
+there passed every check (seen on `service/settings/statuses.ts`). Which gate it
+takes is behavioural: `serviceRouteKeys.integration.test.ts` and
+`accountingBillingGates.test.ts` refuse each such route a write by a role that
+passes its read gate.
+
 To add a procedure: use `permissionProcedure("<key>")` with the key of the screen
 that calls it (that page's `requirePage(undefined, { permission })`, or a sibling
 API route), not a new key. Only a truly self-scoped or public procedure goes in
@@ -568,9 +674,31 @@ through `WITH_ALL_SALESPEOPLE` like `WITH_COST`. It replaced a hardcoded
 MANAGER/ADMIN/SUPER_ADMIN set; known gap as in `inventory.locations.manage`:
 staff whose enum is MANAGER but whose role is another lose it.
 
+Since 2026-11-21 every gated procedure is a `permissionProcedure`. `reports`,
+`billing` and `clientPortal` were the last routers on `roleProcedure`, and their
+role constants (`MANAGER_ADMIN`, `PIPELINE_ROLES`, `ADMIN_MARKETING`,
+`WEALTH_ROLES`, `BILLING_ROLES`, `PORTAL_ROLES` and the rest) are gone.
+
 ## Page-Level Auth
 
-Every App Router page calls `await requirePage()` (`lib/auth/requirePage.ts`) in its server component. Most gate on a capability via `requirePage(undefined, { permission })`: 176 page files did on 2026-10-29. The rest pass a POSITIONAL role list, `requirePage(["MANAGER", "ADMIN"])`. Which key each page answers to is the page access manifest `PAGE_ACCESS` in `lib/auth/pagePermissions.ts`, one entry per page; `__tests__/pagePermissions.test.ts` fails on a page with no entry, or one whose entry disagrees with the guard the page calls. (This paragraph said "four pages" until 2026-10-29, long after the manifest moved most of them.) Settings → Payment Types (`admin/setup/payment-types`) answers to `admin.settings`, the key its API `/api/tenders` writes with. The purchase-order list and detail pages left their role list (MANAGER/ADMIN/WAREHOUSE) for `purchasing.read` on 2026-10-30 (GAP-01), the key their routes were already on, so a Buyer can open the POs they write. The same day, Receive moved from `purchasing.write` to `purchasing.receive`, the key its receive route uses (`docs/domains/purchasing.md`). `requirePage` resolves through the same `decideRoleAccess`/`resolvePermissionAccess` helpers as the API guards. The bootstrap safeguard skips role enforcement until at least one active signed-in privileged user (SUPER_ADMIN/ADMIN/MANAGER) exists.
+Every App Router page calls `await requirePage()` (`lib/auth/requirePage.ts`) in its server component. Most gate on a capability via `requirePage(undefined, { permission })`: 258 of the 263 page files on 2026-11-21. Two are open to every signed-in staff member (`/app` and `/app/scan`, each with a reason in the manifest), and three pass a POSITIONAL role list, `requirePage(["MANAGER", "ADMIN", "DESIGNER"])`. Which key each page answers to is the page access manifest `PAGE_ACCESS` in `lib/auth/pagePermissions.ts`, one entry per page; `__tests__/pagePermissions.test.ts` fails on a page with no entry, or one whose entry disagrees with the guard the page calls. (This paragraph said "four pages" until 2026-10-29, long after the manifest moved most of them.) Settings → Payment Types (`admin/setup/payment-types`) answers to `admin.settings`, the key its API `/api/tenders` writes with. The purchase-order list and detail pages left their role list (MANAGER/ADMIN/WAREHOUSE) for `purchasing.read` on 2026-10-30 (GAP-01), the key their routes were already on, so a Buyer can open the POs they write. The same day, Receive moved from `purchasing.write` to `purchasing.receive`, the key its receive route uses (`docs/domains/purchasing.md`). `requirePage` resolves through the same `decideRoleAccess`/`resolvePermissionAccess` helpers as the API guards. The bootstrap safeguard skips role enforcement until at least one active signed-in privileged user (SUPER_ADMIN/ADMIN/MANAGER) exists.
+
+The 2026-11 role-list sweep moved 57 pages off their role lists, each onto the
+key of the data routes it loads, so a page opens exactly when its data does. The
+warehouse and dispatch pages left their MANAGER/ADMIN/WAREHOUSE list for their
+data routes' keys: dispatch on `warehouse.operate`; the warehouse dashboards,
+positions, locations and transfers on `inventory.transfer`; Inbound on
+`purchasing.receive`; Pickups and Returns on `sales.return` (inventory.md,
+service-dispatch.md). Needs Ordering, Receiving Records, Import Order and Import
+Apparel PO are on `purchasing.receive`; the consignment Credits Owed, PO
+Management and Receiving Gaps pages on `accounting.read`; Freeze on
+`inventory.count`; a helpdesk ticket on `service.read`; the reports that were
+role lists on `reporting.management`, `reporting.financial`, `marketing.lists`
+or `customer.wealth` (reporting.md); the Invoices pages on `accounting.invoice`;
+and the B2B proposal pages on `sales.proposal`. Three keep a role list, with
+`widensFrom` in `PAGE_ACCESS`, because their mapped keys would widen access the
+owner has not confirmed: the Service dispatch board and the two house-call
+pages.
 
 The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens. Their scripts run only because `pages/_document.tsx` passes the request's nonce to `<Head>` and `<NextScript>`: every page carries a nonce Content-Security-Policy (`src/proxy.ts`, `docs/DECISIONS.md` entry 62), Next stamps the Pages Router's scripts from those props alone, and without them every script on the sign-in screens is blocked and nobody can sign in. The browser page sweep opens the three screens signed out (`e2e/pages.spec.ts`).
 
@@ -602,8 +730,7 @@ some sort of config"). The rules live in `lib/auth/idleLogoff.ts`.
 
 **What counts as activity.** Only a person at the screen counts: typing,
 tapping, the mouse, scrolling. A screen refreshing itself does not, so neither
-TopNav's notification poll, the home dashboard nor the Up Board keeps a session
-alive.
+the home dashboard nor the Up Board keeps a session alive by refreshing itself.
 
 **The browser** (`components/auth/IdleLogoff.tsx`, mounted once in
 `AppShell`, so on every back-office screen):
@@ -675,17 +802,29 @@ real database), `__tests__/lib/auth/idleLogoff.test.ts` and
 
 ## Card Filtering
 
-`CardGrid` supports a `roles` prop (and an optional `feature` key) on each card item. Cards without `roles` are visible to all authenticated users.
+A hub page filters its cards on the server (2026-11-21). `lib/auth/hubCards.ts`
+takes each card's destination page key from `PAGE_ACCESS`, the manifest that
+`pagePermissions.test.ts` binds to each page's `requirePage` literal. Where a
+page opens wider than its data, the card also needs the key in
+`CARD_KEY_OVERRIDES`: Pipeline `sales.lead`, Interactions `customer.write`,
+Sales Returns `sales.return`, Import HD Proposal `admin.data`, Till
+`pos.till.manage`, Mailchimp Activity Log `customer.read`. House Calls shows on
+`admin.settings` while its page waits on the owner. The hub asks for those keys
+through `requirePage(..., { also: hubCardKeys(ITEMS) })`, View as applied, and
+passes `CardGrid` only the held cards (`visibleHubCards`). `CardGrid` applies
+only feature modules. A card to a page the manifest does not list, or to a
+pending page with no override, never shows. `__tests__/hubCards.test.ts` is the
+tripwire and runs every hub; it also fails on an override without a reason, one
+no card links to, or one equal to its page's key. Delete an override once its
+page and its data settle on one key.
 
-Currently restricted:
-
-- Sales hub: only Customers is visible to all. Pipeline, Quotes, Orders (ADMIN/MANAGER/DESIGNER). Invoices, B2B Proposals (ADMIN/MANAGER). POS, Till (ADMIN/REGISTER). New Quote, Returns, House Calls, Interactions, Leads, HD Import (ADMIN only).
-- Order detail: Payment links and Customer Portal hidden from DESIGNER (MANAGER/ADMIN only).
-- Warehouse hub: Overview, Receiving, Transfers, Returns (ADMIN/WAREHOUSE only — hidden from MANAGER).
-- Reports hub: 10 of the 29 cards are (ADMIN/MANAGER), including Pipeline Opportunity; Opportunities is (ADMIN/MARKETING). Tax Summary, Till Reconciliation (ADMIN only). Mailchimp Campaign + Activity (ADMIN/MARKETING only). **Wealth Insights (ADMIN/MARKETING only — not MANAGER).**
-- Admin hub: Import Tools, Gift Cards, System Tools, Data Exports (ADMIN only). Setup, Vendor Pricing, Sales Goals, Monthly Pct, Salesperson Corrections visible to MANAGER.
-- Setup page: Database Backup and Roles (ADMIN only)
-- Tools page: Query Builder (ADMIN). The Reports hub also has a card for whoever holds `reporting.adhoc`
+Before, each card carried a `roles` array and SUPER_ADMIN saw every card. No
+built-in role lost a card to a page it can open. The Warehouse hub's Overview,
+Receiving, Transfers and Returns Queue cards now show to MANAGER and
+GENERAL_MANAGER, who were hidden from them; the Reports hub shows every report
+reader the reports their keys open; and cards to pages that would redirect the
+viewer (Inventory's Create New Product, Mass Price Change and Sales for
+Designer, Register and Warehouse, for example) no longer show.
 
 ## Cost Visibility ("View cost")
 
@@ -719,12 +858,13 @@ prevent.
   report's values (`consignmentSummaryForCaller`, applied in the server page).
   A caller without the key can still create a batch and apply credits: the
   server totals stored cost, and the response carries counts only;
-- management reports on the MANAGER/ADMIN role list: Gross Margin's cost,
-  margin and margin % (rows ordered by revenue without the key, since margin
-  order would give the ranking away), Top & Bottom Sellers' margin columns (a
-  margin ranking is answered by revenue, and the response's `metric` says so)
-  and Sales Explorer's cost and margin at every level. Their procedures keep
-  their role list: `roleProcedure(MANAGER_ADMIN, WITH_COST)`;
+- management reports on View management reports (`reporting.management`, a
+  MANAGER/ADMIN role list until 2026-11-21): Gross Margin's cost, margin and
+  margin % (rows ordered by revenue without the key, since margin order would
+  give the ranking away), Top & Bottom Sellers' margin columns (a margin ranking
+  is answered by revenue, and the response's `metric` says so) and Sales
+  Explorer's cost and margin at every level, through
+  `permissionProcedure("reporting.management", WITH_COST)`;
 - stock and buying reports: Inventory Health's cost value, dead-stock cost,
   dead % and uncosted units (rows ordered by retail value without the key);
   PO Sell-Through's margin per frame and overall (frames keep only
@@ -733,8 +873,9 @@ prevent.
   classifies it); the Buyers
   Report's sold cost and margin, on screen and in its CSV (its dead-money list
   is ordered by units on hand without the key), through
-  `roleProcedure(PIPELINE_ROLES, WITH_COST)`; and Open PO Gaps' PO cost
-  (`poGapsForCaller` in the server page, `requirePage(["ADMIN"], WITH_COST)`).
+  `permissionProcedure("reporting.management", WITH_COST)`; and Open PO Gaps'
+  PO cost (`poGapsForCaller` in the server page, which asks View financial
+  reports with `WITH_COST`).
 
 Other screens still show cost under their own key and move under this switch
 one change at a time: products, proposals, purchase-order imports, the vendor order tools and the buyer
@@ -777,19 +918,36 @@ A role created or edited later has whatever its View cost box says, and each
 change that moves another screen under the key says so in its release notes.
 `permissionCatalog.test.ts` holds the rule and the lists equal.
 
-Wealth data, below, is the same kind of decision still made by role name. It
-should become a key the same way.
+Wealth data, below, is the same kind of decision, and became a key the same
+way on 2026-11-21: See wealth data (`customer.wealth`).
 
 ## Wealth Data Visibility
 
-Wealth data (net worth, tier, signals) is **ADMIN and MARKETING only**. MANAGER does NOT see wealth data.
+Wealth data (net worth, tier, signals) is **See wealth data** (`customer.wealth`,
+sensitive): the Owner, Administrators and Marketing by default. MANAGER does NOT
+hold it by default. Until 2026-11-21 it was decided by role name: ADMIN/MARKETING
+lists on the server, and ADMIN/SUPER_ADMIN checks in the customer page, the
+Pipeline and the Leads board.
 
-Enforcement must be at BOTH layers (a page-level check alone is insufficient — the data would still leak via network inspector):
+Enforcement is at BOTH layers (a page-level check alone is insufficient — the
+data would still leak via network inspector):
 
-1. **Page/card auth**: `["ADMIN", "MARKETING"]` on `requirePage`, report cards, and conditional UI
-2. **API response shape**: omit `wealthTier` (and related fields) from the response body when session role is not ADMIN/MARKETING. See `api/sales/pipeline/index.ts` for the pattern.
+1. **A page whose whole content is wealth requires the key**: Wealth Insights,
+   page and `reports.wealthInsights` alike.
+2. **A route that serves wealth beside other data asks the key in its gate's
+   `also`** (`WITH_WEALTH` / `VIEW_WEALTH`) and leaves wealth out via
+   `canViewWealth(access)` (`lib/auth/wealthVisibility.ts`, which throws when the
+   gate did not ask). It says `wealthVisible` in the response, and the screen
+   shows wealth only from that: `api/customers/[id]` GET, `api/sales/pipeline`,
+   `api/leads`. The Opportunities lists (`reports.opportunityTiles` and
+   `opportunityDrill`, on See customer lists) ask `WITH_WEALTH` too: without the
+   key the wealth-based tiles are left out of the counts and answer NOT_FOUND as
+   lists, and no row carries `wealthTier`.
 
-Designers and managers can see the **lead score tier** (HOT/WARM/COOL/NEW) — safe because it reveals no wealth details even when wealth data contributed to the score. See `lib/leadScore.ts`.
+The lead score tier (HOT/WARM/COOL/NEW) stays visible to everyone — safe because
+it reveals no wealth details even when wealth data contributed to the score. See
+`lib/leadScore.ts`. The exact score is View marketing (`marketing.read`); the
+customer GET and the leads API say `scoreVisible`.
 
 ## Home page (no role redirect)
 
@@ -799,7 +957,7 @@ Every staff member lands on `/app` (owner decision Q5, 2026-09-24; F1). Until th
 - **Designer Rotation (Up Board):** needs its module (`staff.self`, so everyone). Its Sign In panel reads `/api/upboard/roster` (id, name and role of active staff, on `staff.self` like `clock-in` itself), not `/api/staff`, which is "Manage staff".
 - **A notice** says whether an empty page means the modules are off or that nothing on it is part of this role.
 
-`uiRoleNameBranches.test.ts` scans every file under `src/app` and `src/components`. Any role-name branch outside its declared, reasoned debt list fails CI (hub cards, the order and till action buttons, wealth and cost columns, and staff pickers that filter on the role enum are on it, for PERM-01 / SEC-14).
+`uiRoleNameBranches.test.ts` scans every file under `src/app` and `src/components`. Any role-name branch outside its declared, reasoned debt list fails CI. Since 2026-11-21 the list holds the staff page's role picker (USE-02) and the staff pickers that filter on the role enum, which should move to the `isDesigner` flag; hub cards, the order, till and lead buttons, and the wealth columns left it for keys.
 
 ## Up-Board
 
@@ -812,6 +970,9 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `lib/auth/builtInRoles.ts` -- idempotent built-in role seed + orphan-key check
 - `lib/auth/roleDecision.ts` -- pure decisions; impersonation + bootstrap rules
 - `lib/auth/navPermissions.ts` -- the nav vocabulary; menu derived from permissions
+- `lib/auth/pagePermissions.ts` -- `PAGE_ACCESS`, the page access manifest: each page's key
+- `lib/auth/hubCards.ts` -- which hub cards a viewer sees (the destination page's key, plus `CARD_KEY_OVERRIDES`)
+- `lib/auth/wealthVisibility.ts` -- See wealth data, answered beside a gate like View cost (`WITH_WEALTH`, `canViewWealth`)
 - `lib/auth/requireAuth.ts` -- API auth wrappers (`requireAuthWithRole`, `requirePermission`)
 - `lib/auth/requirePage.ts` -- App Router page gate (positional role list, or a capability)
 - `lib/auth/idleLogoff.ts` -- automatic sign-out's rules (what a store may set, warning, expiry)
@@ -822,18 +983,18 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `lib/auth/secretsEqual.ts` -- the one constant-time comparison for a secret a request presents (`timingSafeEqual` always over the expected secret's length, then the lengths must match; no hashing, which CodeQL read as a weak password hash; an empty expected secret never matches). Used by the scheduler's service key (`lib/automations/guardAutomation.ts`) and the bookings feed token (`pages/api/bookings/feed.ics.ts`); `automationKeyTripwire.test.ts` fails on a `Bearer` header compared with `===` or `!==`
 - `server/trpc/trpc.ts` -- `roleProcedure` / `permissionProcedure`
 - `__tests__/trpcProcedureAuthorization.test.ts` -- the tRPC manifest (see "tRPC procedure manifest")
-- `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role
-- `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie
+- `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role; who may View as is `mayImpersonate` over the session's keys
+- `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie, gated on `IMPERSONATE`; refuses a target the gates would ignore (`viewAsIgnored`)
 - `pages/api/admin/roles/` -- Roles GUI's REST contract, gated on `staff.manage`; its writes also take `roleEditRefusalFor` (admins only; owner-only keys by an owner)
 - `lib/upboard.ts` -- up-board rotation logic
-- `app/(dashboard)/app/admin/setup/roles/` -- build and edit roles (page gate: ADMIN)
+- `app/(dashboard)/app/admin/setup/roles/` -- build and edit roles (page gate: Manage configuration, `admin.config`)
 
 ## Verification Checklist
 
 - [ ] `npm test -- navPermissions` passes
 - [ ] Every page calls `requirePage()` (or explains why not)
-- [ ] New pages pass a `roles` list, or a `permission`, if restricted
-- [ ] New report cards have `roles` prop set
+- [ ] New pages pass a `permission` and get a `PAGE_ACCESS` entry, never a role list
+- [ ] A new hub card links to a page with a `PAGE_ACCESS` key (`hubCards.test.ts`); cards carry no roles
 - [ ] A new nav destination has an entry in `NAV_ITEMS` naming a real permission
 - [ ] `/app` shows each section only to the keys that allow it (`homeSections.test.ts`), and no UI file outside the declared debt branches on a role name (`uiRoleNameBranches.test.ts`)
 
@@ -875,7 +1036,7 @@ Behavior was identical to the prior monolith. If you're working on auth-related 
 
 ---
 
-Last verified: 2026-10-01 (Cost Visibility, Impersonation, the role-list gates and the status table; the rest as of 2026-05-20)
+Last verified: 2026-11-21 (the status table, Adding a key, Not done yet, Impersonation, Card Filtering, Cost Visibility, Wealth Data Visibility, Page-Level Auth and the tRPC note); 2026-10-01 for the role-list gates; the rest as of 2026-05-20
 
 ## Sign-in redirect (`?callbackUrl=`)
 

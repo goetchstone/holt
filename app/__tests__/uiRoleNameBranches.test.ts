@@ -37,37 +37,16 @@ const ROLE_NAME_BRANCH = new RegExp(
 /** Declared debt: role-name decisions still in the UI, and why each is here. */
 const ROLE_NAME_DEBT: Record<string, string> = {
   // By design: these mirror a rule the server enforces by role, by owner decision.
-  "components/navigation/TopNav.tsx":
-    "the 'View as' menu is offered to a real SUPER_ADMIN/ADMIN, the same rule as resolveEffectiveRole (roleDecision.ts)",
   "app/(dashboard)/app/admin/staff/StaffView.tsx":
     "the role picker, the sign-in email field and the on/off toggle mirror lib/auth/roleAssignment.ts: only admins assign roles or change how someone signs in, only the owner the owner tier (USE-02)",
-  // Debt: access decided by name while the route uses a key (PERM-01 / F6 / SEC-14).
-  "components/layout/CardGrid.tsx":
-    "hub cards filter by role arrays and SUPER_ADMIN sees all; cards should carry their destination's key (PERM-01)",
-  "components/layout/CardGridPageLayout.tsx":
-    "same SUPER_ADMIN shortcut as CardGrid for the hub layout (PERM-01)",
-  "app/(dashboard)/app/sales/orders/[id]/OrderDetailView.tsx":
-    "change-salesperson and void-payment buttons by MANAGER/ADMIN name; the routes use sales.reassign / payment.void",
-  "app/(dashboard)/app/sales/till/[id]/TillDetailView.tsx":
-    "the Reconcile button by MANAGER/ADMIN name, mirroring reconcile.ts's role list (F6)",
-  "app/(dashboard)/app/leads/LeadsView.tsx":
-    "manager-only lead actions by role name rather than the lead keys",
-  "app/(dashboard)/app/sales/pipeline/PipelineView.tsx":
-    "wealth data shown to ADMIN/MARKETING by name (the Wealth Data Visibility precedent); should be a key (SEC-14)",
-  "app/(dashboard)/app/sales/customers/CustomersListView.tsx":
-    "wealth columns and manager actions by role name; should be keys (SEC-14)",
-  "app/(dashboard)/app/sales/customers/[id]/CustomerDetailView.tsx":
-    "wealth data and manager actions by role name; should be keys (SEC-14)",
-  "app/(dashboard)/app/reports/sales-by-salesperson/SalesBySalespersonView.tsx":
-    "the salesperson picker for PRIVILEGED_ROLES by name (who sees others' sales: F3); cost and margin already follow View cost on the server",
-  "app/(dashboard)/app/reports/designer-dashboard/DesignerDashboardView.tsx":
-    "the 'see every designer' view and the salesperson list by role name; should be a reporting key and isDesigner",
-  "app/(dashboard)/app/reports/monthly-performance/MonthlyPerformanceView.tsx":
-    "the salesperson list by role name; should filter on the admin-set isDesigner flag",
-  "app/(dashboard)/app/reports/salesperson-detail/SalespersonDetailView.tsx":
-    "the salesperson list and manager view by role name; should be isDesigner and a reporting key",
   // Debt: data filters on the role enum (custom roles show up as designers).
   "app/(dashboard)/app/admin/sales/goals/SalesGoalsView.tsx":
+    "picks salespeople by DESIGNER/MANAGER enum; should filter on the admin-set isDesigner flag",
+  "app/(dashboard)/app/reports/designer-dashboard/DesignerDashboardView.tsx":
+    "picks salespeople by DESIGNER/MANAGER enum; should filter on the admin-set isDesigner flag",
+  "app/(dashboard)/app/reports/monthly-performance/MonthlyPerformanceView.tsx":
+    "picks salespeople by DESIGNER/MANAGER enum; should filter on the admin-set isDesigner flag",
+  "app/(dashboard)/app/reports/salesperson-detail/SalespersonDetailView.tsx":
     "picks salespeople by DESIGNER/MANAGER enum; should filter on the admin-set isDesigner flag",
   "app/(dashboard)/app/service/house-calls/HouseCallsView.tsx":
     "picks designers for house calls by role enum; should filter on isDesigner",

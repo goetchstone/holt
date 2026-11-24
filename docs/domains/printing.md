@@ -62,7 +62,8 @@ Place and box labels choose their template and printer with `routeContextLabel(c
 |---|---|---|
 | `GET /api/printers/list` | List configured printers | none |
 | `POST /api/printers/create`, `[id]/*` | Admin CRUD on printer rows | ADMIN-gated |
-| `GET /api/labels` | List label templates | — |
+| `GET`/`POST`/`PUT`/`DELETE /api/labels` | List, create, change and delete label templates | `admin.settings` |
+| `GET /api/templates`, `GET`/`PUT`/`DELETE /api/templates/[id]` | List label templates; read, change or delete one (the Label Templates screen) | `admin.settings` |
 | `POST /api/print-label/batch` | Print N price tags in one call (`storeLocationId` keeps them to that store's printers). An optional `kind` (`PRODUCT`, `SALE` or `LAW`) prints that tag for every item as the single print does (`printProductTag`); without it, auto-route by category as before | **10 req/min**, max 50 items, 10 copies per item; `purchasing.receive` or `warehouse.operate` |
 | `POST /api/print-label` | Print one product's tag (`kind`, `storeLocationId`, `copies` up to 10), or a named template on a named printer. Answers with what it did, never the rendered label, which can carry the real cost | **30 req/min**; `purchasing.receive` or `warehouse.operate` |
 | `POST /api/sales/orders/[id]/sold-tag` | A line's sold tag | `sales.write` or `warehouse.operate` |
@@ -71,6 +72,12 @@ Place and box labels choose their template and printer with `routeContextLabel(c
 | `POST /api/scan/box-labels` | A PO line's box labels, printed before a multi-box product is received | `purchasing.receive` or `warehouse.operate` |
 
 ADMIN-only for printer-config CRUD.
+
+The label-template routes all take "Change settings" (`admin.settings`);
+`/api/templates/[id]` was an ADMIN role list until 2026-11-21, which admitted the same
+roles. The Label Templates page (`/app/admin/setup/labels`) opens on "Manage
+configuration" (`admin.config`) instead. Both keys start on the Administrator and the
+Owner only, so the split shows only for a store role given one key and not the other.
 
 ### Batch caps
 

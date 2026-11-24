@@ -1,11 +1,12 @@
 // /app/src/app/(dashboard)/app/inventory/page.tsx
 //
-// Inventory hub — App Router port of the legacy inventory/index. Any signed-in
-// user (cards self-filter by role via CardGrid; legacy had none). Gated on the
-// "warehousing" feature module, matching the legacy withAuth feature option.
-// Chrome from the (dashboard) layout.
+// Inventory hub — App Router port of the legacy inventory/index, on View
+// inventory. A card shows only to a viewer holding the key of the page it opens
+// (lib/auth/hubCards.ts). Gated on the "warehousing" feature module, matching
+// the legacy withAuth feature option. Chrome from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -64,6 +65,10 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function InventoryIndexPage() {
-  await requirePage(undefined, { permission: "inventory.read", feature: "warehousing" });
-  return <CardGrid title="Inventory" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "inventory.read",
+    feature: "warehousing",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="Inventory" items={visibleHubCards(ITEMS, holds)} />;
 }

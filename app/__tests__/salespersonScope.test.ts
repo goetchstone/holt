@@ -2,9 +2,14 @@
 import {
   ALL_SALESPEOPLE,
   canSeeAllSalespeople,
+  SALES_BY_SALESPERSON_EVERYONE,
+  salesBySalespersonSeesEveryone,
   salespersonForCaller,
+  WITH_SALES_BY_SALESPERSON_EVERYONE,
 } from "@/lib/reports/salespersonScope";
 import { isPermissionKey } from "@/lib/auth/permissionCatalog";
+
+const LISTS = "marketing.lists";
 
 describe("salespersonForCaller", () => {
   it("lets a holder pick any salesperson", () => {
@@ -45,5 +50,46 @@ describe("canSeeAllSalespeople", () => {
   });
   it("names a real catalog key", () => {
     expect(isPermissionKey(ALL_SALESPEOPLE)).toBe(true);
+  });
+  it("is not opened by See customer lists: Marketing does not gain the three salesperson reports", () => {
+    expect(canSeeAllSalespeople({ holds: { [ALL_SALESPEOPLE]: false, [LISTS]: true } })).toBe(
+      false,
+    );
+  });
+});
+
+describe("salesBySalespersonSeesEveryone (Sales by Salesperson only)", () => {
+  it("opens every salesperson to a holder of either key", () => {
+    for (const [all, lists, expected] of [
+      [true, false, true],
+      [false, true, true],
+      [true, true, true],
+      [false, false, false],
+    ] as const) {
+      expect({
+        all,
+        lists,
+        seesEveryone: salesBySalespersonSeesEveryone({
+          holds: { [ALL_SALESPEOPLE]: all, [LISTS]: lists },
+        }),
+      }).toEqual({ all, lists, seesEveryone: expected });
+    }
+  });
+  it("throws unless the gate asked for both keys, so a holder is never scoped by omission", () => {
+    expect(() => salesBySalespersonSeesEveryone({ holds: {} })).toThrow(
+      /WITH_SALES_BY_SALESPERSON_EVERYONE/,
+    );
+    // Asked only the three siblings' key: a See customer lists holder would read as "no".
+    expect(() => salesBySalespersonSeesEveryone({ holds: { [ALL_SALESPEOPLE]: true } })).toThrow(
+      /WITH_SALES_BY_SALESPERSON_EVERYONE/,
+    );
+    expect(() => salesBySalespersonSeesEveryone({ holds: { [LISTS]: true } })).toThrow(
+      /WITH_SALES_BY_SALESPERSON_EVERYONE/,
+    );
+  });
+  it("asks exactly those two catalog keys, through the gate option the report's gates pass", () => {
+    expect([...SALES_BY_SALESPERSON_EVERYONE]).toEqual([ALL_SALESPEOPLE, LISTS]);
+    expect(WITH_SALES_BY_SALESPERSON_EVERYONE.also).toEqual(SALES_BY_SALESPERSON_EVERYONE);
+    for (const key of SALES_BY_SALESPERSON_EVERYONE) expect(isPermissionKey(key)).toBe(true);
   });
 });

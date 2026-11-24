@@ -2,12 +2,14 @@
 //
 // Opportunities hub: per-tile customer counts + per-tile drilldown rows.
 // Extracted from the Pages API so the App Router page + tRPC procedures share one
-// source of truth. Role-aware wealth visibility is decided by the caller (the
-// tRPC procedure) and passed in as canSeeWealth. Tile definitions live in
-// lib/opportunityTiles.ts.
+// source of truth. Whether the caller may see wealth data ("See wealth data",
+// customer.wealth) is decided by the tRPC procedure's gate and passed in as
+// canSeeWealth: without it the tiles built from wealth data are left out of the
+// counts and refused as lists (tileOpenTo), and no row carries a wealth tier.
+// Tile definitions live in lib/opportunityTiles.ts.
 
 import type { PrismaClient } from "@prisma/client";
-import { getVisibleTiles, getTileById, type TileId } from "@/lib/opportunityTiles";
+import { getVisibleTiles, getTileById, tileOpenTo, type TileId } from "@/lib/opportunityTiles";
 import { calculateLeadScore, type LeadTier } from "@/lib/leadScore";
 import { buildDaysSinceLastSentMap } from "@/lib/campaignDedup";
 
@@ -54,9 +56,16 @@ export interface OpportunityDrillResult {
   count: number;
 }
 
-export async function getOpportunityTiles(prisma: PrismaClient): Promise<OpportunitiesResult> {
+export interface OpportunityTilesParams {
+  canSeeWealth: boolean;
+}
+
+export async function getOpportunityTiles(
+  prisma: PrismaClient,
+  params: OpportunityTilesParams,
+): Promise<OpportunitiesResult> {
   const now = new Date();
-  const tiles = getVisibleTiles(now);
+  const tiles = getVisibleTiles(now).filter((tile) => tileOpenTo(tile, params.canSeeWealth));
 
   const results = await Promise.all(
     tiles.map(async (tile) => {
@@ -96,7 +105,11 @@ export async function getOpportunityDrill(
   params: OpportunityDrillParams,
 ): Promise<OpportunityDrillResult> {
   const tile = getTileById(params.tileId);
-  if (!tile) throw new OpportunityTileNotFound("Unknown tile");
+  // A tile built from wealth data reads, to a caller without "See wealth
+  // data", the same as one that does not exist: its counts left it out too.
+  if (!tile || !tileOpenTo(tile, params.canSeeWealth)) {
+    throw new OpportunityTileNotFound("Unknown tile");
+  }
 
   const now = new Date();
   const dedup = params.dedup !== false; // default true

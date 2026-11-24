@@ -9,9 +9,9 @@
 // requireAuthWithRole reads StaffMember with `isActive: true` on every request;
 // reading the role off the session reopens the hole one route at a time.
 //
-// Use requirePermission, requireAuthWithRole, or activeStaffRole() -- all three
-// read the database. activeStaffRole exists for routes that also accept a
-// machine Bearer token for cron and so cannot simply be wrapped.
+// Use requirePermission or requireAuthWithRole -- both read the database. A
+// route that also accepts a machine Bearer token for cron goes through
+// guardAutomation, which wraps requirePermission.
 
 import { readdirSync, readFileSync, statSync } from "fs";
 import { join, relative } from "path";
@@ -31,8 +31,6 @@ const APP_ROOT = join(__dirname, "..");
 const ALLOWED: Record<string, string> = {
   "src/pages/api/auth/[...nextauth].ts":
     "The token issuer. It writes the role onto the JWT at sign-in; it is the source, not a consumer making an authorization decision.",
-  "src/pages/api/reports/sales-by-salesperson/export.ts":
-    "Passes session.role into resolveSalesPersonFilter for the DESIGNER self-lock, which RESTRICTS what the caller sees rather than granting access. A stale role here can only narrow the result set, never widen it. Tracked for migration with the rest of the report lib.",
 };
 
 function walk(dir: string): string[] {
@@ -62,7 +60,6 @@ function readsSessionRole(src: string): boolean {
       (line) =>
         /\bsession\b/.test(line) &&
         /\brole\b/.test(line) &&
-        !/activeStaffRole/.test(line) &&
         !/staff\?\.role|staff\.role/.test(line),
     );
 }

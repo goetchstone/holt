@@ -1858,10 +1858,18 @@ describe("deleting", () => {
     expect(res.body.error).toContain("invoiced");
   });
 
-  it("is still only for a manager", async () => {
+  it("is still only for a holder of Cancel orders, which the register is not", async () => {
     const { order } = await makeOrder({ status: "QUOTE" });
-    expect((await remove(order.id, "till")).status).toBe(403);
+    const res = await remove(order.id, "till");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("Cancel orders");
     expect(await prisma.salesOrder.count({ where: { id: order.id } })).toBe(1);
+  });
+
+  it("lets the Owner delete one, which the old MANAGER/ADMIN name check refused", async () => {
+    const { order } = await makeOrder({ status: "QUOTE" });
+    expect((await remove(order.id, "owner")).status).toBe(204);
+    expect(await prisma.salesOrder.count({ where: { id: order.id } })).toBe(0);
   });
 
   it("answers plainly for one that isn't there", async () => {

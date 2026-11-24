@@ -1,12 +1,13 @@
 // /app/src/app/(dashboard)/app/purchasing/page.tsx
 //
-// Purchasing hub -- App Router port of the legacy purchasing/index.
-// MANAGER / ADMIN / WAREHOUSE (mirrors the legacy withAuth roles) and the
-// "purchasing" feature module must be enabled. Cards self-filter by role via
-// CardGrid; hrefs are unchanged so existing links keep working. Chrome from the
+// Purchasing hub -- App Router port of the legacy purchasing/index, on View
+// purchasing, and the "purchasing" feature module must be enabled. A card shows
+// only to a viewer holding the key of the page it opens (lib/auth/hubCards.ts);
+// hrefs are unchanged so existing links keep working. Chrome from the
 // (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { hubCardKeys, visibleHubCards } from "@/lib/auth/hubCards";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
 
 const ITEMS: CardGridItem[] = [
@@ -43,6 +44,10 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function PurchasingHubPage() {
-  await requirePage(undefined, { permission: "purchasing.read", feature: "purchasing" });
-  return <CardGrid title="Purchasing" items={ITEMS} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "purchasing.read",
+    feature: "purchasing",
+    also: hubCardKeys(ITEMS),
+  });
+  return <CardGrid title="Purchasing" items={visibleHubCards(ITEMS, holds)} />;
 }

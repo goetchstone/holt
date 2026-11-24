@@ -409,7 +409,12 @@ describe("resolvePermissionAccess — { also } answers further keys from the sam
         id: 1,
         key: "ADMIN",
         rank: 90,
-        permissions: [{ permission: "inventory.read" }, { permission: "catalog.cost" }],
+        permissions: [
+          { permission: "inventory.read" },
+          { permission: "catalog.cost" },
+          // Change settings is what lets an Administrator View as.
+          { permission: "admin.settings" },
+        ],
       }),
       row({ id: 2, key: "COUNTER", permissions: [{ permission: "inventory.read" }] }),
     ]);
@@ -433,7 +438,12 @@ describe("resolvePermissionAccess — { also } answers further keys from the sam
     // for the key narrows to what both roles hold. Otherwise any such admin
     // gets cost back by viewing as a role that has it.
     roleFindMany.mockResolvedValue([
-      row({ id: 1, key: "ADMIN", rank: 90, permissions: [{ permission: "inventory.read" }] }),
+      row({
+        id: 1,
+        key: "ADMIN",
+        rank: 90,
+        permissions: [{ permission: "inventory.read" }, { permission: "admin.settings" }],
+      }),
       row({
         id: 2,
         key: "MANAGER",
@@ -455,6 +465,7 @@ describe("resolvePermissionAccess — { also } answers further keys from the sam
     expect((await as(null)).holds["catalog.cost"]).toBe(false);
     const viewing = await as("MANAGER");
     expect(viewing.allowed).toBe(true);
+    expect(viewing.effectiveUserRole).toBe("MANAGER");
     expect(viewing.holds["catalog.cost"]).toBe(false);
 
     const list = await resolveRoleListAccess({
@@ -464,6 +475,7 @@ describe("resolvePermissionAccess — { also } answers further keys from the sam
       also: ["catalog.cost"],
     });
     expect(list.allowed).toBe(true);
+    expect(list.effectiveUserRole).toBe("MANAGER");
     expect(list.holds).toEqual({ "catalog.cost": false });
 
     // It only narrows: an owner viewing as that MANAGER still sees what MANAGER sees.
@@ -484,7 +496,12 @@ describe("resolvePermissionAccess — the View-as cookie is a role KEY, not a pr
     "an admin viewing as %s holds only the baseline, and nothing throws",
     async (cookie) => {
       roleFindMany.mockResolvedValue([
-        row({ id: 1, key: "ADMIN", rank: 90, permissions: [{ permission: "inventory.read" }] }),
+        row({
+          id: 1,
+          key: "ADMIN",
+          rank: 90,
+          permissions: [{ permission: "inventory.read" }, { permission: "admin.settings" }],
+        }),
       ]);
       staffFindFirst.mockResolvedValue({ role: "ADMIN", roleId: 1 });
 
@@ -556,5 +573,95 @@ describe("resolveRoleListAccess — { also }", () => {
     expect(r.allowed).toBe(true);
     expect(r.holds).toEqual({});
     expect(roleFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("who may View as is decided on the real role's keys, on both paths", () => {
+  // Role names used to decide this (a real SUPER_ADMIN or ADMIN). Now it is
+  // IMPERSONATE: Impersonate or Change settings, read from the caller's own
+  // Role, so the owner can take View as away from Administrator, or give it to
+  // a role of the store's own, in Roles.
+  const roles = (adminPermissions: string[]) => [
+    row({
+      id: 1,
+      key: "ADMIN",
+      rank: 90,
+      permissions: adminPermissions.map((permission) => ({ permission })),
+    }),
+    row({ id: 2, key: "WAREHOUSE", permissions: [{ permission: "inventory.read" }] }),
+    row({
+      id: 3,
+      key: "FLOOR_LEAD",
+      permissions: [{ permission: "inventory.read" }, { permission: "admin.settings" }],
+    }),
+  ];
+
+  it("an Administrator whose role lost Change settings is no longer let View as", async () => {
+    roleFindMany.mockResolvedValue(roles(["inventory.read", "catalog.cost"]));
+    staffFindFirst.mockResolvedValue({ role: "ADMIN", roleId: 1 });
+
+    const gate = await resolvePermissionAccess({
+      userId: "a1",
+      permission: "inventory.read",
+      impersonate: "WAREHOUSE",
+      also: ["catalog.cost"],
+    });
+    expect(gate.effectiveUserRole).toBe("ADMIN");
+    expect(gate.holds["catalog.cost"]).toBe(true);
+
+    const list = await resolveRoleListAccess({
+      userId: "a1",
+      allowedRoles: ["ADMIN"],
+      impersonate: "WAREHOUSE",
+    });
+    expect(list.effectiveUserRole).toBe("ADMIN");
+    expect(list.allowed).toBe(true);
+  });
+
+  it("an Administrator holding Change settings is, and the cookie narrows both gates", async () => {
+    roleFindMany.mockResolvedValue(roles(["inventory.read", "admin.settings"]));
+    staffFindFirst.mockResolvedValue({ role: "ADMIN", roleId: 1 });
+
+    const list = await resolveRoleListAccess({
+      userId: "a1",
+      allowedRoles: ["ADMIN"],
+      impersonate: "WAREHOUSE",
+    });
+    expect(list.effectiveUserRole).toBe("WAREHOUSE");
+    expect(list.allowed).toBe(false);
+  });
+
+  it("a store's own role holding Change settings may View as, and never past its own list", async () => {
+    // Custom-role staff carry the enum DESIGNER; their Role is FLOOR_LEAD.
+    roleFindMany.mockResolvedValue(roles(["admin.settings"]));
+    staffFindFirst.mockResolvedValue({ role: "DESIGNER", roleId: 3 });
+
+    const viewAs = (allowedRoles: string[]) =>
+      resolveRoleListAccess({ userId: "f1", allowedRoles, impersonate: "WAREHOUSE" });
+
+    // A list the viewed role is on but the real one is not: refused.
+    const borrowed = await viewAs(["MANAGER", "ADMIN", "WAREHOUSE"]);
+    expect(borrowed.effectiveUserRole).toBe("WAREHOUSE");
+    expect(borrowed.allowed).toBe(false);
+    // Both on it: admitted, as the viewed role.
+    const both = await viewAs(["DESIGNER", "WAREHOUSE"]);
+    expect(both.allowed).toBe(true);
+    expect(both.effectiveUserRole).toBe("WAREHOUSE");
+  });
+
+  it("a role list reads the grant table when a View-as cookie comes with the request", async () => {
+    roleFindMany.mockResolvedValue(roles(["admin.settings"]));
+    staffFindFirst.mockResolvedValue({ role: "MANAGER", roleId: null });
+
+    const r = await resolveRoleListAccess({
+      userId: "m1",
+      allowedRoles: ["MANAGER"],
+      impersonate: "WAREHOUSE",
+    });
+
+    // MANAGER holds neither key, so the cookie changes nothing.
+    expect(r.effectiveUserRole).toBe("MANAGER");
+    expect(r.allowed).toBe(true);
+    expect(roleFindMany).toHaveBeenCalledTimes(1);
   });
 });

@@ -2,14 +2,15 @@
 
 // /app/src/app/(dashboard)/app/reports/salesperson-detail/SalespersonDetailView.tsx
 //
-// Client view for the salesperson detail report. Managers pick a salesperson;
-// everyone else is scoped to their own record server-side. Data via tRPC; the
-// server procedure resolves the effective salesperson from the session, so the
-// client name is only a hint the manager controls. Month -> customer -> order
-// -> line-item drilldown with bespoke expand/collapse state.
+// Client view for the salesperson detail report. A viewer who may see every
+// salesperson (canSeeAllSalespeople, decided by the server page from "See every
+// salesperson's numbers") picks one; everyone else is scoped to their own record
+// server-side. Data via tRPC; the server procedure resolves the effective
+// salesperson from the session, so the client name is only a hint that viewer
+// controls. Month -> customer -> order -> line-item drilldown with bespoke
+// expand/collapse state.
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import { Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
@@ -212,12 +213,10 @@ function CustomerDrilldownRow({
   );
 }
 
-export function SalespersonDetailView() {
+export function SalespersonDetailView({
+  canSeeAllSalespeople,
+}: Readonly<{ canSeeAllSalespeople: boolean }>) {
   const money = useMoneyFormatter();
-
-  const { data: session } = useSession();
-  const role = (session as { role?: string } | null)?.role;
-  const isManager = role === "MANAGER" || role === "ADMIN" || role === "SUPER_ADMIN";
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [selectedName, setSelectedName] = useState("");
@@ -227,7 +226,7 @@ export function SalespersonDetailView() {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (isManager) {
+    if (canSeeAllSalespeople) {
       fetch("/api/staff")
         .then((r) => r.json())
         .then((d) => {
@@ -242,7 +241,7 @@ export function SalespersonDetailView() {
           setStaff(list);
         })
         .catch(() => {});
-    } else if (session) {
+    } else {
       fetch("/api/staff/me")
         .then((r) => r.json())
         .then((d) => {
@@ -250,10 +249,11 @@ export function SalespersonDetailView() {
         })
         .catch(() => {});
     }
-  }, [session, isManager]);
+  }, [canSeeAllSalespeople]);
 
-  // Managers must pick a name first; non-managers are resolved server-side.
-  const enabled = isManager ? !!selectedName : !!session;
+  // A viewer who may see everyone picks a name first; anyone else is resolved
+  // server-side (the page that rendered this view has already signed them in).
+  const enabled = canSeeAllSalespeople ? !!selectedName : true;
   const query = api.reports.salespersonDetail.useQuery(
     { salesperson: selectedName, year },
     { enabled },
@@ -310,7 +310,7 @@ export function SalespersonDetailView() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-4">
-        {isManager && (
+        {canSeeAllSalespeople && (
           <div>
             <label
               htmlFor="salesperson-detail-name"
@@ -367,7 +367,7 @@ export function SalespersonDetailView() {
         </div>
       )}
 
-      {!loading && isManager && !selectedName && (
+      {!loading && canSeeAllSalespeople && !selectedName && (
         <p className="py-8 text-center text-sm text-brand-gray">Select a salesperson.</p>
       )}
 

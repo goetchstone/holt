@@ -51,16 +51,23 @@ existing deployments keep working with zero config. Gated by the existing
 
 ## API
 
+The admin routes take "Change settings" (`admin.settings`), the key Admin >
+Scheduling and Admin > Bookings open on. `/api/services`, `/api/services/[id]`
+and the bookings list were role lists admitting the Owner and Administrators
+until 2026-11-21: the same audience by default, but now a role the store grants
+Change settings can use them too.
+
 | Route | Method | Auth | Purpose |
 |---|---|---|---|
-| `/api/services` | GET / POST | ADMIN | List / create services (slug from name) |
-| `/api/services/[id]` | PATCH / DELETE | ADMIN | Edit / remove (bookings keep history via SetNull) |
+| `/api/services` | GET / POST | `admin.settings` | List / create services (slug from name) |
+| `/api/services/[id]` | PATCH / DELETE | `admin.settings` | Edit / remove (bookings keep history via SetNull) |
 | `/api/services/public` | GET | public | Public+active services for the /book picker |
-| `/api/scheduling/windows` | GET / POST | ADMIN | List / add availability windows |
-| `/api/scheduling/windows/[id]` | DELETE | ADMIN | Remove a window |
-| `/api/scheduling/blocks` | GET / POST | ADMIN | List / add time off |
-| `/api/scheduling/blocks/[id]` | DELETE | ADMIN | Remove time off |
+| `/api/scheduling/windows` | GET / POST | `admin.settings` | List / add availability windows |
+| `/api/scheduling/windows/[id]` | DELETE | `admin.settings` | Remove a window |
+| `/api/scheduling/blocks` | GET / POST | `admin.settings` | List / add time off |
+| `/api/scheduling/blocks/[id]` | DELETE | `admin.settings` | Remove time off |
 | `/api/bookings/availability` | GET | public | `?serviceId` → window slots; else flat. Subtracts bookings + blocks |
+| `/api/bookings` | GET | `admin.settings` | The bookings list on Admin > Bookings |
 | `/api/bookings` | POST | public | Accepts `serviceId`; derives end from the service duration + uses its name as the label |
 | `/api/bookings/feed.ics` | GET | `?token=` | The bookings calendar feed for a calendar app to subscribe to. 404 when `BOOKING_FEED_TOKEN` is unset or the token does not match; the token is compared in constant time (`lib/auth/secretsEqual.ts`, since 2026-11-20) |
 

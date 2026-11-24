@@ -1,14 +1,21 @@
 // /app/src/app/(dashboard)/app/reports/salesperson-detail/page.tsx
 //
-// Salesperson Detail — App Router + tRPC port. Visible to any signed-in user
-// (matches the legacy session-only gate); the tRPC procedure scopes non-managers
-// to their own record. Filter-driven, so the server page just gates and renders
-// the client view. Chrome from the (dashboard) layout.
+// Salesperson Detail — App Router + tRPC port. Gated on "View reports", as its
+// tRPC procedure is. Whether the viewer may pick any salesperson ("See every
+// salesperson's numbers") is answered here, from the same staff read as the
+// gate, and handed to the view for its picker; the procedure makes the same
+// decision and scopes everyone else to their own record. Filter-driven, so the
+// server page just gates and renders the client view. Chrome from the
+// (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { canSeeAllSalespeople, WITH_ALL_SALESPEOPLE } from "@/lib/reports/salespersonScope";
 import { SalespersonDetailView } from "./SalespersonDetailView";
 
 export default async function SalespersonDetailPage() {
-  await requirePage(undefined, { permission: "reporting.read" });
-  return <SalespersonDetailView />;
+  const access = await requirePage(undefined, {
+    permission: "reporting.read",
+    ...WITH_ALL_SALESPEOPLE,
+  });
+  return <SalespersonDetailView canSeeAllSalespeople={canSeeAllSalespeople(access)} />;
 }

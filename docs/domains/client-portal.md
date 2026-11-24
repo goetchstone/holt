@@ -36,9 +36,11 @@ by expiry; a fresh link supersedes nothing and invalidates nothing.
   stays payable at the processor; if it is paid anyway the webhook raises an
   ops alert (`reportUntrackedCheckoutPaid`, see `docs/domains/pos.md`).
 - **Staff link generation** — tRPC `clientPortal.generateLink`
-  (MANAGER/ADMIN, feature-gated): returns
-  `{NEXTAUTH_URL}/portal/client/<token>`. Surfaced as "Copy Portal Link" on
-  the invoice detail action bar.
+  (feature-gated): returns `{NEXTAUTH_URL}/portal/client/<token>`. Surfaced as
+  "Copy Portal Link" on the invoice detail action bar, its only caller, so it
+  takes that screen's key, "Bill customers directly" (`accounting.invoice`),
+  like the billing router. That is the Owner, Administrator and Manager by
+  default, the audience of the `PORTAL_ROLES` list it replaced (2026-11-21).
 
 ## Data assembly (`lib/clientPortal.ts`)
 

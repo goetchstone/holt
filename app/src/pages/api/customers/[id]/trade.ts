@@ -5,13 +5,15 @@
 // C), so it is given through lib/customers/tradeTierAssignment.ts: only an
 // active tier, and each change recorded, in the same transaction as the save.
 //
-// Still on the MANAGER/ADMIN role array (__tests__/fixtures/role-array-api-routes.txt):
-// no permission covers both what it sets -- a standing discount and a tax
-// exemption -- and choosing one is a decision about who may do either.
+// Gated on its own key, "Set trade accounts and tax exemptions" (customer.trade),
+// because what it sets -- a standing discount and a tax exemption -- is more
+// than Edit customers. It replaced the MANAGER/ADMIN role list, and by default
+// exactly those roles (and the Owner) hold it; a store grants it to its own
+// roles in Admin > Roles.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { auditActor } from "@/lib/audit";
 import { logError } from "@/lib/logger";
@@ -21,7 +23,7 @@ import {
 } from "@/lib/customers/tradeTierAssignment";
 
 /** Exported for integration tests, which call it with a fake session -- the
- *  role gate needs real cookies. Same pattern as create-from-cart.ts. */
+ *  permission gate needs real cookies. Same pattern as create-from-cart.ts. */
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
     res.setHeader("Allow", "PUT");
@@ -36,7 +38,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   return handlePut(customerId, req, res, session);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("customer.trade", handler);
 
 async function handlePut(
   customerId: number,
