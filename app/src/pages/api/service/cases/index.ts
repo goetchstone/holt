@@ -7,6 +7,7 @@ import type { Prisma } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { computeLastActionAt, summarizeNoteText } from "@/lib/serviceCaseLastAction";
 import { logError } from "@/lib/logger";
@@ -173,9 +174,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         });
 
         if (initialNote?.trim()) {
-          const staff = await tx.staffMember.findFirst({
-            where: { email: session.user?.email },
-          });
+          const staff = await sessionStaffMember(session, { id: true }, tx);
 
           await tx.serviceCaseNote.create({
             data: {

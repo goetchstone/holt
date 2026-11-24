@@ -4,6 +4,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { calculateTillExpected } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
@@ -53,9 +54,7 @@ export async function handleClose(
       return;
     }
 
-    const staff = await client.staffMember.findFirst({
-      where: { email: session.user?.email },
-    });
+    const staff = await sessionStaffMember(session, { id: true }, client);
     if (!staff) {
       res.status(403).json({ error: "Staff member not found" });
       return;

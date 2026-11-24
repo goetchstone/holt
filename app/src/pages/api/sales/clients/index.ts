@@ -9,6 +9,7 @@ import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { getAppSettings } from "@/lib/appSettings";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { businessDayKey } from "@/lib/reports/businessDay";
@@ -69,12 +70,14 @@ export async function handler(
   access: { holds: Record<string, boolean> },
 ) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  if (!session.user?.email) return res.status(401).json({ error: "Unauthorized" });
+  if (!session.user?.id) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const viewer = await prisma.staffMember.findUnique({
-      where: { email: session.user.email },
-      select: { id: true, displayName: true, aliases: true, followUpEmailOff: true },
+    const viewer = await sessionStaffMember(session, {
+      id: true,
+      displayName: true,
+      aliases: true,
+      followUpEmailOff: true,
     });
     if (!viewer) return res.status(403).json({ error: "Staff record required" });
 

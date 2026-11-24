@@ -75,7 +75,7 @@ Not all interactions need an outcome — the field is nullable. Outcome is typic
 | Endpoint | Verified shape |
 |---|---|
 | `GET /api/interactions` | List, filterable |
-| `GET /api/interactions/active` | **My active interactions** — returns `CustomerInteraction` rows where `staffMemberId = currentStaff AND isActive = true`. Sorted by `startedAt` desc. Includes joined `customer` + `salesOrder`. |
+| `GET /api/interactions/active` | **My active interactions** — returns `CustomerInteraction` rows where `staffMemberId = currentStaff AND isActive = true`. `currentStaff` here, and the staff member `POST /api/sales/interactions` logs under, is the caller's own active staff row by the session's User id (`sessionStaffMember`; staff-auth.md "Who the caller is"), never by email. Sorted by `startedAt` desc. Includes joined `customer` + `salesOrder`. |
 | `GET /api/interactions/[id]` | Detail |
 | `POST /api/interactions` | Create |
 | `PATCH /api/interactions/[id]` | Update — typically used to set `endedAt` + `outcome` + flip `isActive=false` |

@@ -9,6 +9,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { isQuoteInStaffPipeline } from "@/lib/clientOwnership";
 import { prisma } from "@/lib/prisma";
 import { endQuoteHolds } from "@/lib/sales/quoteHolds";
@@ -64,10 +65,7 @@ async function handler(
     }
   }
 
-  const staff = await prisma.staffMember.findUnique({
-    where: { email: session.user.email },
-    select: { id: true, displayName: true, aliases: true },
-  });
+  const staff = await sessionStaffMember(session, { id: true, displayName: true, aliases: true });
   // Deny when no StaffMember record exists. The earlier `|| !staff`
   // branch granted any Google account without a staff record manager-level
   // privileges on quote archiving.

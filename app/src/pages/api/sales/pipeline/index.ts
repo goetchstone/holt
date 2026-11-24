@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { getAppSettings, getBusinessTimeZone } from "@/lib/appSettings";
 import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { canViewWealth, VIEW_WEALTH } from "@/lib/auth/wealthVisibility";
 import { prisma } from "@/lib/prisma";
 import { calculateLeadScore, leadScoreInputFromCustomer, type LeadTier } from "@/lib/leadScore";
@@ -347,11 +348,13 @@ async function handler(
 ) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
+  if (!session?.user?.id) return res.status(401).json({ error: "Unauthorized" });
 
-  const staff = await prisma.staffMember.findUnique({
-    where: { email: session.user.email },
-    select: { id: true, displayName: true, aliases: true, defaultStore: true },
+  const staff = await sessionStaffMember(session, {
+    id: true,
+    displayName: true,
+    aliases: true,
+    defaultStore: true,
   });
 
   // Deny when no StaffMember record exists. The earlier `|| !staff`
