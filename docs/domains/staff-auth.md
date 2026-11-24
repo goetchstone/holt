@@ -616,23 +616,34 @@ member's email (People Operations, the General Manager), so they chose whose row
 those routes acted as: a General Manager who gave the Owner's row their own
 session email opened tills as the Owner, saw the Owner's pipeline and archived
 quotes under the Owner's scope, and moved the Owner's active store. A deactivated
-row was matched too. And where the session had no email, the till, service-note,
-service-case and service-dashboard lookups passed `email: undefined`, which
-Prisma drops from the filter, so they matched whichever staff row came first.
+row was matched too. And where the session had no email, five lookups (both till
+routes, open and close, and the service-note, service-case and service-dashboard
+lookups) passed `email: undefined`, which Prisma drops from the filter, so they
+matched whichever staff row came first. The warehouse transfer request found its
+requester the same way on `User` (`user.findUnique` by the session email); it now
+takes the session's User id.
 
 The session's email is still written where it is only a label (`createdBy`,
 `updatedBy`, the order's `salesperson` fallback, the duplicated quote's actor
 email); a label decides nothing.
 
-Only three places may still look a staff member up by email, because there is
-no session yet: local sign-in (`authProviders.ts`, twice), a password-reset
-request (`passwordReset.ts`), and first sign-in linking an unlinked row to the
-User the identity provider verified (`[...nextauth].ts`).
-`__tests__/staffEmailLookupRatchet.test.ts` fails on any other `staffMember`
-call whose `where` names `email`, and on a listed exception that has gone.
+Only four lookups in three files may still find a staff member by email,
+because there is no session yet: in `authProviders.ts`, local sign-in checking
+the typed email (`authorizeLocal`) and the OAuth sign-in allowlist admitting a
+provider-verified email only if an active staff row holds it
+(`findActiveStaffByEmail`); a password-reset request (`passwordReset.ts`); and
+first sign-in linking an unlinked row to the User the identity provider verified
+(`[...nextauth].ts`). `__tests__/staffEmailLookupRatchet.test.ts` fails on any
+other `staffMember` call whose `where` names `email`, and on a listed exception
+that has gone. It cannot see a `where` built in a variable and passed by name
+(three such sites exist, none keyed by email), a `user` lookup, or a screen: the
+Service screen's "My Cases" tab and the Interactions screen still pick the
+caller out of the staff list by email in the browser (tracked).
 Behaviour: `__tests__/integration/sessionStaffIdentity.integration.test.ts`
-swaps the General Manager's and the Owner's emails and asserts the pipeline,
-opening a till and setting the active store act as the General Manager.
+gives the Owner's row the General Manager's session email (and the GM's row
+another address), and asserts the pipeline, opening a till and setting the
+active store act as the General Manager; and that a warehouse transfer records
+the session's own User when its email belongs to another User row.
 
 ## A session whose user is gone (2026-10-17)
 

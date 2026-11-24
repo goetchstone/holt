@@ -16,8 +16,11 @@
 // email nobody signed in with yet. It fails in both directions: a listed file
 // whose lookups have gone (or whose count changed) is a stale manifest.
 //
-// What it cannot see: a `where` built in a variable and passed by name. That
-// shape does not occur under src today.
+// What it cannot see: a `where` built in a variable and passed by name (three
+// sites: sales/clients/index.ts findStaffOptions, staff/index.ts handleGet,
+// genericExportRunner; none names email today), a lookup on `user` rather than
+// `staffMember`, and a screen matching the caller by email in the browser (the
+// Service and Interactions screens still do; tracked in staff-auth.md).
 
 import fs from "fs";
 import path from "path";
@@ -33,7 +36,7 @@ const ALLOWED: Record<string, { count: number; reason: string }> = {
   "lib/auth/authProviders.ts": {
     count: 2,
     reason:
-      "Local sign-in: the email typed on the sign-in form is the credential being checked, before any session exists.",
+      "Local sign-in checks the typed email (authorizeLocal), and the OAuth sign-in allowlist admits a provider-verified email only if an active staff row holds it (findActiveStaffByEmail). Both run before any session exists.",
   },
   "lib/auth/passwordReset.ts": {
     count: 1,

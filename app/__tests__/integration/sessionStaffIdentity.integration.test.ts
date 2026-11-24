@@ -29,6 +29,7 @@ import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import pipelineRoute from "@/pages/api/sales/pipeline/index";
 import openTillRoute from "@/pages/api/registers/[id]/tills/open";
 import activeStoreRoute from "@/pages/api/staff/active-store";
+import transfersRoute from "@/pages/api/warehouse/transfers/index";
 
 const sessionMock = getServerSession as jest.Mock;
 
@@ -193,5 +194,44 @@ describe("a route acts as the session's own staff row, whatever the emails say",
     const storeOf = new Map(rows.map((r) => [r.id, r.activeStoreLocationId]));
     expect(storeOf.get(gm.id)).toBe(store.id);
     expect(storeOf.get(owner.id)).toBeNull();
+  });
+
+  it("POST /api/warehouse/transfers records the session's own User as the requester", async () => {
+    // The same shape on User: the session's email now belongs to another User
+    // row. The route used to look the requester up by that email.
+    await prisma.user.update({ where: { id: "owner" }, data: { email: "owner.user@example.com" } });
+    await prisma.user.create({ data: { id: "other", email: "owner@example.com" } });
+    const vendor = await prisma.vendor.create({ data: { name: "V", pricingModel: "FLAT" } });
+    const dept = await prisma.department.create({ data: { name: "Living Room" } });
+    const category = await prisma.category.create({
+      data: { name: "Sofas", departmentId: dept.id, trackInventory: true },
+    });
+    const product = await prisma.product.create({
+      data: {
+        productNumber: "HS-1",
+        name: "Harbour Sofa",
+        vendorId: vendor.id,
+        departmentId: dept.id,
+        categoryId: category.id,
+      },
+    });
+    const from = await prisma.storeLocation.create({
+      data: { name: "Store A", code: "SA", type: "STORE" },
+    });
+    const to = await prisma.storeLocation.create({
+      data: { name: "Store B", code: "SB", type: "STORE" },
+    });
+    signInAs("owner");
+
+    const res = await call(transfersRoute, {
+      method: "POST",
+      body: { productId: product.id, quantity: 1, fromLocationId: from.id, toLocationId: to.id },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const transfer = await prisma.inventoryTransfer.findFirstOrThrow({
+      where: { productId: product.id },
+    });
+    expect(transfer.requestedByUserId).toBe("owner");
   });
 });
