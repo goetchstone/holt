@@ -3,21 +3,18 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { success, unauthorized, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
 
-  // requirePermission guarantees a session and an active staff row; it does NOT
-  // guarantee an email, which is this route's StaffMember lookup key.
-  if (!session.user?.email) return unauthorized(res);
+  // The caller's own row, by the session's User id (never its email).
+  if (!session.user?.id) return unauthorized(res);
 
   try {
-    const staffMember = await prisma.staffMember.findUnique({
-      where: { email: session.user.email },
-      select: { id: true },
-    });
+    const staffMember = await sessionStaffMember(session, { id: true });
 
     if (!staffMember) return notFound(res, "Staff member");
 

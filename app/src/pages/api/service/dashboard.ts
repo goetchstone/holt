@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -13,10 +14,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 
   try {
-    const staff = await prisma.staffMember.findFirst({
-      where: { email: session.user?.email },
-      select: { id: true },
-    });
+    const staff = await sessionStaffMember(session, { id: true });
 
     const now = new Date();
 

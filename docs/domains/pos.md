@@ -94,7 +94,7 @@ Key invariants enforced by `recordPayment()`:
 
 Lifecycle:
 
-1. **Open** (`POST /api/registers/[id]/tills/open` with denomination counts or a raw `openingCash`) → status `OPEN`, opening cash computed from counts. Refused with `409` if the register is variance-blocked (see below).
+1. **Open** (`POST /api/registers/[id]/tills/open` with denomination counts or a raw `openingCash`) → status `OPEN`, opening cash computed from counts. Refused with `409` if the register is variance-blocked (see below). `openedById` (and `closedById` on close) is the caller's own active staff row, found by the session's User id (`sessionStaffMember`, staff-auth.md "Who the caller is"); `403` "Staff member not found" when there is none. Until 2026-11-21 both routes found it by the session's email.
 2. **During shift** → `expectedCash` recomputed live as non-`VOIDED` Payment rows accumulate against the till — `PENDING` and `FAILED` rows are counted in (`tillId` FK on `Payment`, `lib/paymentService.ts:calculateTillExpected`)
 3. **Close** (`POST /api/tills/[id]/close`) → closing denomination counts + counted `actualCash` → variance = actual − expected → status `CLOSED`. This is where variance is actually computed and where the Phase 0.6 thresholds below are enforced.
 4. **Reconcile** (`POST /api/tills/[id]/reconcile`, Adjust till counts, `pos.till.adjust`) → approves the already-computed variance → status `RECONCILED`.

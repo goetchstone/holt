@@ -13,6 +13,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
 import { taxDistrictConfigured } from "@/lib/gettingStarted";
@@ -45,12 +46,12 @@ async function describeStore(
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
-  const email = session.user?.email;
-  if (!email) return badRequest(res, "No email in session");
+  if (!session.user?.id) return badRequest(res, "No user id in session");
 
-  const staff = await prisma.staffMember.findFirst({
-    where: { email },
-    include: { activeStoreLocation: { select: STORE_SELECT } },
+  const staff = await sessionStaffMember(session, {
+    id: true,
+    displayName: true,
+    activeStoreLocation: { select: STORE_SELECT },
   });
 
   if (!staff) return notFound(res, "Staff member");

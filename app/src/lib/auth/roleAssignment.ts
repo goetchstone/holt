@@ -368,14 +368,34 @@ async function findTarget(roleId: unknown, role: unknown, db: Db): Promise<Targe
   return { ...rest, ownerOnlyKeys: permissions.map((p) => p.permission) };
 }
 
+/** A client `sessionStaffMember` can read through: the app's, or a transaction's. */
+export type StaffLookupClient = Pick<Prisma.TransactionClient, "staffMember">;
+
+/**
+ * The signed-in caller's own active staff row: the one linked to the session's
+ * User id, as every gate resolves it. Null when the session carries no id, or
+ * no active row is linked to it.
+ *
+ * Never look the caller up by `StaffMember.email`. Anyone holding staff.manage
+ * can write a staff member's email, so an email-keyed lookup lets them choose
+ * whose row a session acts as -- until 2026-11-21 a General Manager who gave
+ * the Owner's row their own session email opened tills and saw the pipeline
+ * as the Owner. `__tests__/staffEmailLookupRatchet.test.ts` fails on a new one.
+ */
+export async function sessionStaffMember<S extends Prisma.StaffMemberSelect>(
+  session: Session | null | undefined,
+  select: S,
+  db: StaffLookupClient = prisma,
+): Promise<Prisma.StaffMemberGetPayload<{ select: S }> | null> {
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  if (!userId) return null;
+  const staff = await db.staffMember.findFirst({ where: { userId, isActive: true }, select });
+  return staff as Prisma.StaffMemberGetPayload<{ select: S }> | null;
+}
+
 /** The signed-in caller's own staff role, read fresh -- never from the session. */
 export async function callerStaffRole(session: Session, db: Db = prisma): Promise<string | null> {
-  const userId = (session.user as { id?: string } | undefined)?.id;
-  if (!userId) return null;
-  const staff = await db.staffMember.findFirst({
-    where: { userId, isActive: true },
-    select: { role: true },
-  });
+  const staff = await sessionStaffMember(session, { role: true }, db);
   return staff?.role ?? null;
 }
 

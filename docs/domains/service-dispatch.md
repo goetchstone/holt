@@ -265,6 +265,11 @@ And they let every custom role through as enum DESIGNER.
 
 - **Cases.** In `cases/index.ts`, GET (the Service queue) takes View service
   (`service.read`) and POST (New case) takes Work service (`service.write`).
+  A note's author (the new case's first note, and `cases/[id]/notes.ts`) and
+  the dashboard's "My cases" count are the caller's own active staff row, found
+  by the session's User id (`sessionStaffMember`; staff-auth.md "Who the caller
+  is"). Until 2026-11-21 they were found by the session's email, and a session
+  without one matched whichever staff row came first.
   `cases/[id]/tasks.ts` takes Work service, like the case's other routes.
   Register and Marketing hold neither key. They lose the API-only reads of the
   queue and of a case's tasks that their role lists gave them; no screen of

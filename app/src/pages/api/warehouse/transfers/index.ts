@@ -138,12 +138,12 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         return res.status(400).json({ error: "Invalid location ID." });
       }
 
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email! },
-        select: { id: true },
-      });
-
-      if (!user) {
+      // The requester is the session's own User, by its id, never the User an
+      // email points at: whoever can write an email would decide who asked
+      // (staff-auth.md, "Who the caller is"). requirePermission has already
+      // refused a session with no id.
+      const requestedByUserId = (session.user as { id?: string }).id;
+      if (!requestedByUserId) {
         return res.status(400).json({ error: "User record not found." });
       }
 
@@ -173,7 +173,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         // The order this move serves, when it serves one. Validated above, so
         // a bad id is a 400 rather than a transfer silently linked to nothing.
         salesOrderId: salesOrderId ?? null,
-        requestedByUserId: user.id,
+        requestedByUserId,
       };
 
       // "Move now": one movement from a named place to a named place, where
