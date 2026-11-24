@@ -30,9 +30,20 @@ const SRC = path.join(__dirname, "..", "src");
 /**
  * The email-keyed StaffMember lookups that are allowed, by file, with how
  * many each holds. Each matches an address someone is signing in or asking a
- * reset for, before there is a session to resolve by id.
+ * reset for, before there is a session to resolve by id, or asks whether an
+ * address being written is already another row's. None decides who the caller is.
  */
 const ALLOWED: Record<string, { count: number; reason: string }> = {
+  "pages/api/staff/[id].ts": {
+    count: 1,
+    reason:
+      "The sign-in email collision check: is the address being written already another row's (case-insensitively)? The caller is sessionStaffMember's, never this row.",
+  },
+  "pages/api/staff/index.ts": {
+    count: 1,
+    reason:
+      "The same collision check when a member is created with an email. The caller is sessionStaffMember's, never this row.",
+  },
   "lib/auth/authProviders.ts": {
     count: 2,
     reason:

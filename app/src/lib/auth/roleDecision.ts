@@ -26,8 +26,11 @@
 //   - SUPER_ADMIN auto-satisfies any check that lists ADMIN (strictly more
 //     privileged), without ADMIN having to name SUPER_ADMIN explicitly.
 //   - Bootstrap safeguard: if the user's effective role isn't allowed, access
-//     is still granted WHEN no active privileged user exists yet (so the first
-//     user can promote themselves). Once any privileged user exists, deny.
+//     is still granted WHEN no active privileged user exists yet, so a new
+//     deployment's first user is not locked out. That user cannot promote
+//     themselves from Admin > Staff (role and sign-in writes judge the caller's
+//     own staff row); the first admin comes from `npm run create-admin`. Once
+//     any privileged user exists, deny.
 
 /**
  * Privilege ordering, used ONLY to stop impersonation escalating. Roles not
