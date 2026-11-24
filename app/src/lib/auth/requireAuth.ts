@@ -5,8 +5,10 @@
 // requireAuth -- checks that the request has a valid session.
 // requireAuthWithRole -- additionally checks that the user's StaffMember
 //   role is in the allowed list, returning 403 if not. Includes bootstrap
-//   safeguard: if no signed-in MANAGER exists, enforcement is skipped so
-//   the first user can promote themselves via Admin > Staff.
+//   safeguard: if no signed-in privileged staff (SUPER_ADMIN/ADMIN/MANAGER)
+//   exists, enforcement is skipped. That opens the gates, not the Staff
+//   screen's role and sign-in writes, which judge the caller's own staff row;
+//   the first admin comes from `npm run create-admin` on the host.
 // requirePermission -- the same shape, but gating on a CAPABILITY from
 //   lib/auth/permissionCatalog.ts rather than a job title. Since the 2026-11
 //   role-list sweep only the two house-call routes still call

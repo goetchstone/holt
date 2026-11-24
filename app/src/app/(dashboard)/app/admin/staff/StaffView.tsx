@@ -14,6 +14,7 @@ import { Plus, Pencil, UserCheck, UserX, Users, Loader2, X, Save, KeyRound } fro
 import { Button } from "@/components/ui/button";
 import { useStoreLocations } from "@/hooks/useStoreLocations";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
+import { getErrorMessage } from "@/lib/toastError";
 
 // A role a staff member can be given: every Role row, built-in and custom,
 // from /api/admin/roles. This was a hardcoded list of six, so a role built on
@@ -73,6 +74,32 @@ const emptyForm: FormData = {
   commissionPlanId: null,
   protectionCommissionPlanId: null,
 };
+
+// ADMIN and SUPER_ADMIN, by either role column. Mirrors PRIVILEGED_STAFF_ROLES
+// (lib/auth/adminLockout.ts, which this client screen cannot import: it reads
+// the database). Only decides which buttons show; the server decides.
+const PRIVILEGED_ROLE_KEYS = new Set(["ADMIN", "SUPER_ADMIN"]);
+
+/**
+ * May this viewer switch the member on or off from here? An admin, anyone.
+ * Anyone else (staff.manage) may only switch OFF an ordinary member: turning
+ * someone back on, or switching off an admin, takes an admin (USE-02's third
+ * door, pages/api/staff/[id].ts). The server refuses the rest anyway.
+ */
+function canToggleActive(member: StaffMember, isAdmin: boolean): boolean {
+  if (isAdmin) return true;
+  return (
+    member.isActive &&
+    !PRIVILEGED_ROLE_KEYS.has(member.role) &&
+    !PRIVILEGED_ROLE_KEYS.has(member.roleRef?.key ?? "")
+  );
+}
+
+/** A failed response's `{ error }`, thrown so getErrorMessage shows it (rule 11). */
+async function throwResponseError(res: Response, fallback: string): Promise<never> {
+  const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+  throw new Error(typeof body?.error === "string" && body.error.trim() ? body.error : fallback);
+}
 
 function titleCaseRole(role: string): string {
   return role.charAt(0) + role.slice(1).toLowerCase();
@@ -186,17 +213,19 @@ function StaffRow({
               <KeyRound className="w-4 h-4" />
             </button>
           )}
-          <button
-            onClick={() => onToggleActive(member)}
-            className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition rounded ${
-              member.isActive
-                ? "text-brand-gray hover:text-red-500 active:text-red-500"
-                : "text-brand-gray hover:text-green-500 active:text-green-500"
-            }`}
-            title={member.isActive ? "Deactivate" : "Reactivate"}
-          >
-            {member.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-          </button>
+          {canToggleActive(member, isAdmin) && (
+            <button
+              onClick={() => onToggleActive(member)}
+              className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition rounded ${
+                member.isActive
+                  ? "text-brand-gray hover:text-red-500 active:text-red-500"
+                  : "text-brand-gray hover:text-green-500 active:text-green-500"
+              }`}
+              title={member.isActive ? "Deactivate" : "Reactivate"}
+            >
+              {member.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -262,17 +291,19 @@ function StaffCard({
               <KeyRound className="w-5 h-5" />
             </button>
           )}
-          <button
-            onClick={() => onToggleActive(member)}
-            className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition rounded ${
-              member.isActive
-                ? "text-brand-gray active:text-red-500"
-                : "text-brand-gray active:text-green-500"
-            }`}
-            title={member.isActive ? "Deactivate" : "Reactivate"}
-          >
-            {member.isActive ? <UserX className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
-          </button>
+          {canToggleActive(member, isAdmin) && (
+            <button
+              onClick={() => onToggleActive(member)}
+              className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition rounded ${
+                member.isActive
+                  ? "text-brand-gray active:text-red-500"
+                  : "text-brand-gray active:text-green-500"
+              }`}
+              title={member.isActive ? "Deactivate" : "Reactivate"}
+            >
+              {member.isActive ? <UserX className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -418,11 +449,14 @@ function StaffFormModal({
               type="email"
               value={form.email}
               onChange={(e) => onChange({ ...form, email: e.target.value })}
-              className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm"
+              disabled={!isAdmin}
+              className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder="name@company.com"
             />
             <p className="text-xs text-brand-gray mt-1">
-              Used to auto-link with their Google sign-in
+              {isAdmin
+                ? "Used to auto-link with their Google sign-in"
+                : "Only an admin can change a sign-in email."}
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -755,11 +789,12 @@ export function StaffView({
     setSeeding(true);
     try {
       const res = await fetch("/api/staff/seed", { method: "POST" });
+      if (!res.ok) await throwResponseError(res, "Failed to seed staff");
       const data = await res.json();
       toast.success(`Seeded ${data.created} new staff (${data.existing} already existed)`);
       fetchStaff();
-    } catch {
-      toast.error("Failed to seed staff");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to seed staff"));
     } finally {
       setSeeding(false);
     }
@@ -800,7 +835,9 @@ export function StaffView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           displayName: form.displayName.trim(),
-          email: form.email.trim() || null,
+          // A sign-in email is an admin's to give or change; anyone else's
+          // form sends none, so a new member is added without one.
+          ...(isAdmin ? { email: form.email.trim() || null } : {}),
           ...(form.roleId == null ? {} : { roleId: form.roleId }),
           defaultStore: form.defaultStore || null,
           isDesigner: form.isDesigner,
@@ -808,16 +845,12 @@ export function StaffView({
           protectionCommissionPlanId: form.protectionCommissionPlanId,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error || "Save failed");
-        return;
-      }
+      if (!res.ok) await throwResponseError(res, "Save failed");
       toast.success(editingId ? "Staff member updated" : "Staff member created");
       setShowForm(false);
       fetchStaff();
-    } catch {
-      toast.error("Save failed");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Save failed"));
     } finally {
       setSaving(false);
     }
@@ -841,17 +874,13 @@ export function StaffView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: pwValue }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error || "Failed to set password");
-        return;
-      }
+      if (!res.ok) await throwResponseError(res, "Failed to set password");
       toast.success(`Password set for ${pwTarget.displayName}`);
       setPwTarget(null);
       setPwValue("");
       fetchStaff();
-    } catch {
-      toast.error("Failed to set password");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to set password"));
     } finally {
       setPwSaving(false);
     }
@@ -864,16 +893,13 @@ export function StaffView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !member.isActive }),
       });
-      if (res.ok) {
-        toast.success(
-          member.isActive
-            ? `${member.displayName} deactivated`
-            : `${member.displayName} reactivated`,
-        );
-        fetchStaff();
-      }
-    } catch {
-      toast.error("Failed to update status");
+      if (!res.ok) await throwResponseError(res, "Failed to update status");
+      toast.success(
+        member.isActive ? `${member.displayName} deactivated` : `${member.displayName} reactivated`,
+      );
+      fetchStaff();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to update status"));
     }
   };
 

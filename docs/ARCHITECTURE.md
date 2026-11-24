@@ -112,7 +112,7 @@ The `calculatePrice()` and `calculateWoodPrice()` functions in `lib/pricing/pric
 
 Roles (`StaffRole`): SUPER_ADMIN, ADMIN, MANAGER, DESIGNER, REGISTER, WAREHOUSE, INSTALLER, MARKETING. SUPER_ADMIN auto-satisfies ADMIN checks; ADMIN bypasses nav permission checks, other roles respect them.
 
-Bootstrap safeguard: if no privileged (ADMIN/SUPER_ADMIN) user with a linked userId exists, role enforcement fails open so the first user can sign in and promote themselves. A warning is logged when this triggers.
+Bootstrap safeguard: if no active privileged (SUPER_ADMIN/ADMIN/MANAGER) staff member with a linked userId exists, role enforcement fails open so the first user can sign in. They cannot promote themselves from Admin > Staff, since assigning a role and changing how someone signs in judge the caller's own active staff row (`lib/auth/roleAssignment.ts`); the first admin is made on the host with `npm run create-admin`. A warning is logged when this triggers.
 
 ## API errors
 

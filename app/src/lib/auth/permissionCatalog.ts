@@ -628,7 +628,8 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "staff.manage",
     domain: "staff",
     label: "Manage staff",
-    description: "Create staff and assign roles — grants power to others.",
+    description:
+      "Create and edit staff records. Assigning roles and changing how someone signs in (email, active status, password) need an admin.",
     sensitive: true,
   },
   {

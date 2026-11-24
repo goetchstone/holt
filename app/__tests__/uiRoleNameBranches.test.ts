@@ -38,7 +38,7 @@ const ROLE_NAME_BRANCH = new RegExp(
 const ROLE_NAME_DEBT: Record<string, string> = {
   // By design: these mirror a rule the server enforces by role, by owner decision.
   "app/(dashboard)/app/admin/staff/StaffView.tsx":
-    "the role picker mirrors lib/auth/roleAssignment.ts: only admins assign roles, only the owner the owner tier (USE-02)",
+    "the role picker, the sign-in email field and the on/off toggle mirror lib/auth/roleAssignment.ts: only admins assign roles or change how someone signs in, only the owner the owner tier (USE-02)",
   // Debt: data filters on the role enum (custom roles show up as designers).
   "app/(dashboard)/app/admin/sales/goals/SalesGoalsView.tsx":
     "picks salespeople by DESIGNER/MANAGER enum; should filter on the admin-set isDesigner flag",

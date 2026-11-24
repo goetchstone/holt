@@ -8,11 +8,17 @@
 //   would still let them set one — we DO allow reset for any active staff
 //   with the email, so an OAuth-only user can adopt a local password when
 //   the deployment enables it). Voids prior open tokens, stores only the
-//   SHA-256 of the raw token, 1-hour expiry.
+//   SHA-256 of the raw token in PasswordResetToken, 1-hour expiry. (The
+//   reset EMAIL, raw link included, is kept in EmailQueue.html by
+//   lib/email/queue.ts; see docs/domains/staff-auth.md.) The member's row is
+//   locked and re-read before the token is made, so a request that read the
+//   row just before an admin changed its email or switched the member off
+//   makes no token: those writes void open tokens (pages/api/staff/[id].ts)
+//   and must not be outrun.
 //
 //   consumePasswordReset(rawToken, newPassword) — atomically validates
-//   (exists, unexpired, unused), sets the new scrypt hash, and marks the
-//   token used. A second use of the same link fails.
+//   (exists, unexpired, unused, member still active), sets the new scrypt
+//   hash, and marks the token used. A second use of the same link fails.
 
 import { createHash, randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
@@ -41,7 +47,14 @@ export async function requestPasswordReset(email: string): Promise<ResetRequestR
   if (!staff?.email) return null;
 
   const rawToken = randomBytes(32).toString("base64url");
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
+    // Same lock order as the staff routes: the member's row, then its tokens.
+    await tx.$queryRaw`SELECT id FROM "StaffMember" WHERE id = ${staff.id} FOR UPDATE`;
+    const now = await tx.staffMember.findUnique({
+      where: { id: staff.id },
+      select: { email: true, isActive: true, displayName: true },
+    });
+    if (!now?.isActive || (now.email ?? "").trim().toLowerCase() !== normalized) return null;
     await tx.passwordResetToken.updateMany({
       where: { staffMemberId: staff.id, usedAt: null },
       data: { usedAt: new Date() },
@@ -53,8 +66,8 @@ export async function requestPasswordReset(email: string): Promise<ResetRequestR
         expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
       },
     });
+    return { rawToken, email: now.email ?? staff.email ?? "", displayName: now.displayName };
   });
-  return { rawToken, email: staff.email, displayName: staff.displayName };
 }
 
 export async function consumePasswordReset(
@@ -70,21 +83,37 @@ export async function consumePasswordReset(
   }
 
   const tokenHash = hashResetToken(rawToken ?? "");
+  const invalid = { ok: false as const, reason: "This reset link is invalid or has expired" };
   return prisma.$transaction(async (tx) => {
+    const found = await tx.passwordResetToken.findUnique({
+      where: { tokenHash },
+      select: { staffMemberId: true },
+    });
+    if (!found) return invalid;
+    // Lock the member, then re-read the token: an email change or a
+    // deactivation that voided it has committed by now, or waits for us.
+    await tx.$queryRaw`SELECT id FROM "StaffMember" WHERE id = ${found.staffMemberId} FOR UPDATE`;
     const token = await tx.passwordResetToken.findUnique({
       where: { tokenHash },
-      select: { id: true, staffMemberId: true, expiresAt: true, usedAt: true },
+      select: {
+        id: true,
+        staffMemberId: true,
+        expiresAt: true,
+        usedAt: true,
+        staffMember: { select: { isActive: true } },
+      },
     });
-    if (!token || token.usedAt !== null || token.expiresAt < new Date()) {
-      return { ok: false as const, reason: "This reset link is invalid or has expired" };
-    }
+    if (!token || token.usedAt !== null || token.expiresAt < new Date()) return invalid;
+    // A member switched off since the link was sent gets no password.
+    if (!token.staffMember.isActive) return invalid;
+    const used = await tx.passwordResetToken.updateMany({
+      where: { id: token.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (used.count !== 1) return invalid;
     await tx.staffMember.update({
       where: { id: token.staffMemberId },
       data: { passwordHash },
-    });
-    await tx.passwordResetToken.update({
-      where: { id: token.id },
-      data: { usedAt: new Date() },
     });
     return { ok: true as const };
   });
