@@ -172,22 +172,33 @@ function readItems(
   buyerLines: readonly string[],
 ): void {
   let current: BeatrizBallItem | null = null;
+  // A plain-text line directly under an item is a wrapped description. Its lines
+  // are joined onto the name once, when the item ends: collapsing the whole name
+  // again for every line took time growing with the square of the lines (3 s for
+  // 20,000 one-letter lines).
+  let wrapped: string[] = [];
+  const endItem = () => {
+    if (current && wrapped.length > 0) {
+      current.name = `${current.name} ${wrapped.join(" ")}`.replaceAll(/\s+/g, " ").trim();
+    }
+    wrapped = [];
+  };
   for (const line of rawLines) {
     if (isBoilerplate(line, buyerLines)) {
+      endItem();
       current = null;
       continue;
     }
     const item = tryItem(line);
     if (item) {
+      endItem();
       order.items.push(item);
       current = item;
       continue;
     }
-    // A plain-text line directly under an item is a wrapped description.
-    if (current) {
-      current.name = `${current.name} ${line}`.replaceAll(/\s+/g, " ").trim();
-    }
+    if (current) wrapped.push(line);
   }
+  endItem();
 }
 
 function reconcile(order: BeatrizBallOrder): void {

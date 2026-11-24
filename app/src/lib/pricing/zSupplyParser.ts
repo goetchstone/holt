@@ -4,8 +4,15 @@
 // and line items with size and color details. pdf-parse extracts the text
 // with style/color/description concatenated (no spaces), followed by the
 // size grid header, then a line with qty + prices.
+//
+// parseZSupplyText is the pure seam the PDF entry calls and the fuzz tests
+// drive. Lines and numbers are read through parseBoundary.ts (rule 42): a line
+// is cut to MAX_LINE_LENGTH, an amount that overflows reads as 0, and either is
+// reported on `warnings`. A pack count can still read and overflow once it is
+// multiplied out to sizes; that item is left out, with a warning naming it.
 
 import { parsePdf } from "./pdfUtils";
+import { finiteInt, finiteSum, parseMoney, splitLines } from "./parseBoundary";
 
 export interface ZSupplyLineItem {
   styleNumber: string;
@@ -30,13 +37,8 @@ export interface ZSupplyInvoice {
   totalUnits: number;
   totalPrice: number;
   items: ZSupplyLineItem[];
-}
-
-function parseNumber(s: string): number {
-  if (!s) return 0;
-  const cleaned = s.replace(/[,$\s]/g, "");
-  const n = Number.parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
+  /** What the parse cut or could not read, in words the buyer can act on. */
+  warnings: string[];
 }
 
 // Pack codes: each letter in the size grid represents a pre-assorted pack
@@ -52,11 +54,47 @@ const PACK_DEFINITIONS: Record<string, { size: string; qty: number }[]> = {
   // Additional pack codes will be added as Z Supply provides them
 };
 
+/**
+ * One item per size of `pack`, or none, with a warning naming the style, when a
+ * size's units or extension overflow: a 308-digit pack count still reads, and a
+ * size packed two to a pack doubles it past what a number can hold.
+ */
+function expandPack(
+  style: Pick<ZSupplyLineItem, "styleNumber" | "colorCode" | "productName">,
+  pack: readonly { size: string; qty: number }[],
+  packCount: number,
+  unitPrice: number,
+  warnings: string[],
+): ZSupplyLineItem[] {
+  const totalPackUnits = pack.reduce((sum, s) => sum + s.qty, 0);
+  const pricePerUnit = unitPrice / totalPackUnits;
+  const items = pack.map((sizeEntry) => {
+    const qty = sizeEntry.qty * packCount;
+    return {
+      ...style,
+      size: sizeEntry.size,
+      quantity: qty,
+      unitPrice: pricePerUnit,
+      extendedAmount: pricePerUnit * qty,
+    };
+  });
+  if (items.every((i) => Number.isFinite(i.quantity) && Number.isFinite(i.extendedAmount))) {
+    return items;
+  }
+  warnings.push(
+    `Style ${style.styleNumber} (${style.colorCode}): the pack count or price is too large ` +
+      "to be real, so the item was left out — add it by hand.",
+  );
+  return [];
+}
+
 export async function parseZSupplyPDF(buffer: Buffer): Promise<ZSupplyInvoice> {
-  const data = await parsePdf(buffer);
-  const text: string = data.text;
-  const lines: string[] = text
-    .split("\n")
+  return parseZSupplyText((await parsePdf(buffer)).text);
+}
+
+export function parseZSupplyText(raw: string): ZSupplyInvoice {
+  const warnings: string[] = [];
+  const lines: string[] = splitLines(raw, warnings)
     .map((l: string) => l.trim())
     .filter(Boolean);
 
@@ -155,9 +193,9 @@ export async function parseZSupplyPDF(buffer: Buffer): Promise<ZSupplyInvoice> {
     for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
       const priceLine = lines[j].match(/^\s*(\d+)\s+([\d,.]+)\s+([\d,.]+)\s*$/);
       if (priceLine) {
-        packCount = Number.parseInt(priceLine[1], 10);
-        unitPrice = parseNumber(priceLine[2]);
-        extendedAmount = parseNumber(priceLine[3]);
+        packCount = finiteInt(priceLine[1]);
+        unitPrice = parseMoney(priceLine[2]);
+        extendedAmount = parseMoney(priceLine[3]);
         break;
       }
     }
@@ -168,20 +206,15 @@ export async function parseZSupplyPDF(buffer: Buffer): Promise<ZSupplyInvoice> {
     const pack = PACK_DEFINITIONS["B"];
 
     if (packCount > 0 && pack) {
-      const totalPackUnits = pack.reduce((sum, s) => sum + s.qty, 0);
-      const pricePerUnit = unitPrice / totalPackUnits;
-      for (const sizeEntry of pack) {
-        const qty = sizeEntry.qty * packCount;
-        items.push({
-          styleNumber,
-          colorCode,
-          productName,
-          size: sizeEntry.size,
-          quantity: qty,
-          unitPrice: pricePerUnit,
-          extendedAmount: pricePerUnit * qty,
-        });
-      }
+      items.push(
+        ...expandPack(
+          { styleNumber, colorCode, productName },
+          pack,
+          packCount,
+          unitPrice,
+          warnings,
+        ),
+      );
     } else if (packCount > 0) {
       // Unknown pack code -- import as single item
       items.push({
@@ -204,8 +237,8 @@ export async function parseZSupplyPDF(buffer: Buffer): Promise<ZSupplyInvoice> {
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - 20); i--) {
     const totalMatch = lines[i].match(/^\s*(\d+)\s+([\d,.]+)\s*$/);
     if (totalMatch) {
-      totalUnits = Number.parseInt(totalMatch[1], 10);
-      totalPrice = parseNumber(totalMatch[2]);
+      totalUnits = finiteInt(totalMatch[1]);
+      totalPrice = parseMoney(totalMatch[2]);
       break;
     }
   }
@@ -213,16 +246,16 @@ export async function parseZSupplyPDF(buffer: Buffer): Promise<ZSupplyInvoice> {
   // Also check for TOTAL INVOICE line
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - 10); i--) {
     if (/^\s*[\d,.]+\s*$/.test(lines[i]) && totalPrice === 0) {
-      totalPrice = parseNumber(lines[i]);
+      totalPrice = parseMoney(lines[i]);
     }
   }
 
-  // Fallback: sum from items
+  // Fallback: sum from items (each finite; a sum past what a number holds is 0)
   if (totalUnits === 0) {
-    totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+    totalUnits = finiteSum(items.map((item) => item.quantity));
   }
   if (totalPrice === 0) {
-    totalPrice = items.reduce((sum, item) => sum + item.extendedAmount, 0);
+    totalPrice = finiteSum(items.map((item) => item.extendedAmount));
   }
 
   return {
@@ -238,5 +271,6 @@ export async function parseZSupplyPDF(buffer: Buffer): Promise<ZSupplyInvoice> {
     totalUnits,
     totalPrice,
     items,
+    warnings,
   };
 }

@@ -1,8 +1,19 @@
-// The shared parse boundary of the vendor order parsers: a cut or unreadable line
-// is reported on the order, never silent.
-import { MAX_LINE_LENGTH, splitLines, parseMoney, finiteInt } from "@/lib/pricing/parseBoundary";
+// The shared parse boundary of the lib/pricing parsers: a cut or unreadable line
+// is reported on the order, never silent, and no number read is ever Infinity.
+import {
+  MAX_LINE_LENGTH,
+  splitLines,
+  parseMoney,
+  finiteFloat,
+  finiteInt,
+  finiteOrNull,
+  finiteSum,
+} from "@/lib/pricing/parseBoundary";
 import { parseSuperCatOrderText } from "@/lib/pricing/superCatOrderParser";
 import { parseKKOrderText } from "@/lib/pricing/kkOrderParser";
+import { parseNuOrderText } from "@/lib/pricing/nuorderParser";
+import { parseZSupplyText } from "@/lib/pricing/zSupplyParser";
+import { parseHDProposalText } from "@/lib/pricing/hdProposalParser";
 
 describe("splitLines", () => {
   it("returns normal lines untouched and warns of nothing", () => {
@@ -19,7 +30,13 @@ describe("splitLines", () => {
     );
     expect(lines.map((l) => l.length)).toEqual([MAX_LINE_LENGTH, 2, MAX_LINE_LENGTH]);
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toMatch(/^2 lines are longer than 1000 characters/);
+    expect(warnings[0]).toMatch(/^2 lines are longer than 1000 characters and were cut off there/);
+  });
+
+  it("says a single cut line was cut, in the singular", () => {
+    const warnings: string[] = [];
+    splitLines("x".repeat(MAX_LINE_LENGTH + 1), warnings);
+    expect(warnings[0]).toMatch(/^1 line is longer than 1000 characters and was cut off there/);
   });
 
   it("warns of a number with 300 or more digits, and not of a 299-digit one", () => {
@@ -30,6 +47,29 @@ describe("splitLines", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/^1 line has a number of 300 or more digits/);
   });
+
+  it("counts the digits of a number written with thousands commas, as parseMoney reads it", () => {
+    // parseMoney drops the commas before it reads, so these overflow to 0 like a
+    // 400-digit run does, though no run of digits in them is 300 long.
+    const grouped = `9${",999".repeat(110)}.00`; // 331 digits in runs of 3
+    const halves = `${"9".repeat(200)},${"9".repeat(200)}.00`;
+    expect([parseMoney(grouped), parseMoney(halves)]).toEqual([0, 0]);
+    const warnings: string[] = [];
+    // The third line's number has 299 digits once its commas are dropped.
+    splitLines(`$${grouped} 3\n$${halves}\n$9${",999".repeat(99)},9.00`, warnings);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^2 lines have a number of 300 or more digits/);
+  });
+
+  it("says the long number may have been read as 0 or left out, true of every caller", () => {
+    // Past 308 digits a number is read as 0 (an order) or left out (a price book);
+    // a 300-308 digit one still reads, so the warning cannot say it was read as 0.
+    const warnings: string[] = [];
+    splitLines("9".repeat(400), warnings);
+    expect(warnings[0]).toContain(
+      "cannot be a real amount, so it may have been read as 0 or left out",
+    );
+  });
 });
 
 describe("number readers", () => {
@@ -38,6 +78,31 @@ describe("number readers", () => {
     expect(parseMoney("1,234.50")).toBe(1234.5);
     expect(finiteInt("9".repeat(400))).toBe(0);
     expect(finiteInt("42")).toBe(42);
+  });
+
+  it.each([
+    ["a 400-digit run", "9".repeat(400)],
+    ["1e999", "1e999"],
+    ["Infinity", "Infinity"],
+    ["-Infinity", "-Infinity"],
+    ["abc", "abc"],
+    ["a blank", ""],
+  ])("finiteOrNull reads %s as null, where 'not stated' is never 0", (_label, raw) => {
+    expect(finiteOrNull(raw)).toBeNull();
+  });
+
+  it("finiteOrNull reads a real number as itself, and finiteFloat reads null as 0", () => {
+    expect(finiteOrNull("12.50")).toBe(12.5);
+    expect(finiteFloat("12.50")).toBe(12.5);
+    expect(finiteFloat("1e999")).toBe(0);
+  });
+
+  it("finiteSum adds finite amounts, and reads a sum that overflows as 0", () => {
+    const biggest = Number("9".repeat(308)); // still finite on its own
+    expect(Number.isFinite(biggest)).toBe(true);
+    expect(finiteSum([15, 20.5])).toBe(35.5);
+    expect(finiteSum([])).toBe(0);
+    expect(finiteSum([biggest, biggest])).toBe(0);
   });
 });
 
@@ -51,5 +116,94 @@ describe("parsers surface the warning on their order", () => {
   it("K&K: long line warns", () => {
     const r = parseKKOrderText(`Order Number: 1\n${"z".repeat(MAX_LINE_LENGTH + 1)}`);
     expect(r.warnings.some((w) => /longer than 1000 characters/.test(w))).toBe(true);
+  });
+
+  it.each([
+    ["nuORDER", parseNuOrderText],
+    ["Z Supply", parseZSupplyText],
+    ["Hunter Douglas", parseHDProposalText],
+  ])("%s: a long line warns, ordinary text does not", (_name, parse) => {
+    expect(parse("Order #: 1\nTerms: Net 30").warnings).toEqual([]);
+    const long = parse(`Order #: 1\n${"z".repeat(MAX_LINE_LENGTH + 1)}`);
+    expect(long.warnings.some((w) => /longer than 1000 characters/.test(w))).toBe(true);
+  });
+
+  const big = `${"9".repeat(400)}.00`;
+
+  it.each([
+    ["nuORDER", parseNuOrderText, (amt: string) => ["Style #: ET100BLK", `$${amt} 3 $${amt}`]],
+    [
+      "Z Supply",
+      parseZSupplyText,
+      (amt: string) => [
+        "ZT100001BLKEasy Rib Tank Black",
+        "A    B    C    D    E    F   XS    S    M    L   XL",
+        `1  ${amt}     ${amt}`,
+      ],
+    ],
+    [
+      "Hunter Douglas",
+      parseHDProposalText,
+      (amt: string) => ["Hunter Douglas Duette Honeycomb Shades", `Freight Charges : ${amt}`],
+    ],
+  ])(
+    "%s: an amount that overflows once its thousands commas are dropped is reported",
+    (_name, parse, doc) => {
+      const parsed = parse(doc(`9${",999".repeat(110)}.00`).join("\n"));
+      expect(parsed.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
+    },
+  );
+
+  it("nuORDER: a 400-digit price and total read as 0, never Infinity, and are reported", () => {
+    const po = parseNuOrderText(
+      ["Style #: ET100BLK", `$${big} 3 $${big}`, `Total Price: $${big}`].join("\n"),
+    );
+    expect(po.items).toMatchObject([{ styleNumber: "ET100BLK", unitPrice: 0, totalPrice: 0 }]);
+    expect(po.totalPrice).toBe(0);
+    expect(po.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
+  });
+
+  it("Hunter Douglas: an amount that overflows reads as 0, never Infinity, and is reported", () => {
+    // 320 digits overflow a double. The quantity and three such amounts make a
+    // 970-character price line, under the 1000-character cut, so the line is read
+    // whole: the quantity 2 (the default is 1) shows it was.
+    const huge = `${"9".repeat(320)}.00`;
+    const priceLine = `2${huge}${huge}${huge}`;
+    expect(priceLine.length).toBeLessThan(MAX_LINE_LENGTH);
+    const proposal = parseHDProposalText(
+      [
+        "Hunter Douglas Duette Honeycomb Shades",
+        priceLine,
+        `Freight Charges : ${big}`,
+        `Installation Charges : ${big}`,
+      ].join("\n"),
+    );
+    expect(proposal.items).toMatchObject([
+      { qty: 2, msrp: 0, each: 0, extended: 0, freight: 0, install: 0 },
+    ]);
+    expect([proposal.totalFreight, proposal.totalInstall]).toEqual([0, 0]);
+    expect(proposal.warnings.some((w) => /300 or more digits/.test(w))).toBe(true);
+  });
+
+  it("Hunter Douglas: freight charges that each read, but overflow when added, total 0", () => {
+    const huge = `${"9".repeat(308)}.00`;
+    const proposal = parseHDProposalText(
+      [`Freight Charges : ${huge}`, `Freight Charges : ${huge}`].join("\n"),
+    );
+    expect(proposal.totalFreight).toBe(0);
+  });
+
+  it("Z Supply: a pack count that overflows once multiplied leaves the item out, named", () => {
+    // 308 digits still read as a number; a pack of 2 of a size doubles it past 1.8e308.
+    const invoice = parseZSupplyText(
+      [
+        "ZT100001BLKEasy Rib Tank Black",
+        "A    B    C    D    E    F   XS    S    M    L   XL",
+        `${"9".repeat(308)}  48.00     48.00`,
+      ].join("\n"),
+    );
+    expect(invoice.items).toEqual([]);
+    expect(invoice.warnings.some((w) => w.startsWith("Style ZT100001"))).toBe(true);
+    expect([invoice.totalUnits, invoice.totalPrice].every(Number.isFinite)).toBe(true);
   });
 });
