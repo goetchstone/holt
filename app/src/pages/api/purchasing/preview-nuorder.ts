@@ -33,7 +33,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const parsed = await parseNuOrderPDF(buffer);
 
     if (!parsed.items.length) {
-      return res.status(400).json({ error: "No line items found in PDF" });
+      // A line cut short can be why no item was found; the page lists the warnings.
+      return res
+        .status(400)
+        .json({ error: "No line items found in PDF", warnings: parsed.warnings });
     }
 
     return res.status(200).json(parsed);

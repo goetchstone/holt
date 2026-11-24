@@ -148,7 +148,9 @@ interface PendingPrice {
 /** Unit cost from the printed line total. Worked in whole cents; a total
  *  that does not divide evenly by the quantity is reported rather than
  *  silently rounded, because the rounded unit x qty would no longer equal
- *  what the vendor is charging. */
+ *  what the vendor is charging. A total too large to count in cents (a
+ *  308-digit one still reads, and x 100 is Infinity, which "divides evenly"
+ *  since Infinity x qty is Infinity) gives a unit cost of 0, never Infinity. */
 function unitFromLineTotal(
   lineTotal: number,
   qty: number,
@@ -157,6 +159,7 @@ function unitFromLineTotal(
 ): number {
   if (qty <= 0) return 0;
   const totalCents = Math.round(lineTotal * 100);
+  if (!Number.isFinite(totalCents)) return 0;
   const unitCents = Math.round(totalCents / qty);
   if (unitCents * qty !== totalCents) {
     warnings.push(

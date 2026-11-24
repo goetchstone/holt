@@ -504,6 +504,25 @@ named `constructor` shadow the object's members (CodeQL
 js/remote-property-injection, 2026-10-15). A new import route lists its
 fields the same way.
 
+## Parser warnings on the apparel PO import (2026-11-21)
+
+`/app/purchasing/import-apparel` (`ImportApparelView.tsx`) previews a NuORDER or Z Supply
+PDF through `preview-nuorder.ts` and `preview-zsupply.ts`, which now return the parser's
+`warnings`, and lists them above the items: a line cut at 1000 characters, an amount that
+overflowed and read as 0, a Z Supply item left out because its pack count or price overflowed
+(`lib/pricing/parseBoundary.ts`; pricing-catalog.md, "Adding a New Vendor" step 6).
+
+`import-nuorder.ts` and `import-zsupply.ts` parse the file again and write the PO in the same
+request, as read: an amount that overflowed is written at $0, and an item left out is not
+written. They return the same warnings with the result, and the page shows them again under it.
+Whether a warning should refuse the import is the owner's open question.
+
+When the parse reads no item at all, `preview-nuorder.ts`, `import-nuorder.ts` and
+`import-zsupply.ts` answer 400 "No line items found in PDF" with the parser's `warnings` in the
+body, since they are then the only account of why (an item past a cut line, every style left
+out); the page lists them under the upload (`__tests__/orderUploadNoLines.test.ts`).
+`preview-zsupply.ts` has no such refusal and returns its warnings with the empty preview.
+
 ## Upload refusals (since 2026-11-21)
 
 The four PDF routes (`preview-nuorder.ts`, `import-nuorder.ts`,
@@ -626,4 +645,4 @@ The the POS "Daily Quote Temp Purchase Orders" report (formerly named "Prior_Day
 The owner-facing decision for "is this temp PO actionable yet?" is the `status = CONFIRMED` filter that already applies to most operational surfaces. No code changes needed beyond the runner fix itself.
 
 ---
-Last verified: 2026-10-30 (stock POs by hand, landed cost and receipt corrections; sections before them 2026-05-21); tags printed after a receipt 2026-11-21 against source
+Last verified: 2026-10-30 (stock POs by hand, landed cost and receipt corrections; sections before them 2026-05-21); "Parser warnings on the apparel PO import" and tags printed after a receipt 2026-11-21 against source

@@ -39,6 +39,19 @@ per size/part-number) → pick the destination PO's vendor/department/category/s
 single transaction (`pages/api/tools/apparel-order/commit.ts`). From there the buyer curates and
 exports exactly like any other draft via the existing Buyer Drafts workbench.
 
+**Parser warnings**: every PDF format's normalizer passes its parser's `warnings` into the draft,
+and the preview lists them above the rows with a toast. Since 2026-11-21 that includes nuORDER and
+Z Supply (`normalizeNuOrder`, `normalizeZSupply`), which before then had no warnings to pass: a
+line cut at 1000 characters, an amount that overflowed and read as 0, a Z Supply item left out
+because its pack count or price overflowed (`lib/pricing/parseBoundary.ts`; pricing-catalog.md,
+"Adding a New Vendor" step 6). The printout and Frank & Eileen formats already passed theirs.
+The toast counts warnings, not lines: one warning can cover several lines. When the parse yields
+no row at all, both tools' preview routes (`tools/apparel-order/preview.ts`,
+`tools/home-accessory-order/preview.ts`) answer 400 with the draft's `warnings` beside the error,
+since they are then the only account of why (a Simblist row whose cell does not read, a style
+left out), and the page lists them under the upload (`__tests__/orderUploadNoLines.test.ts`,
+2026-11-21).
+
 **Upload refusals** (since 2026-11-21): the PDF preview (`pages/api/tools/apparel-order/preview.ts`)
 answers what the parser refuses with a 4xx from `uploadRefusal()` in `lib/secureUpload.ts`: a file
 over the PDF preset's size limit, or a second file, `413` and the limit; an empty file, `400` "The
@@ -231,4 +244,4 @@ Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and ada
 
 ---
 
-Last verified: 2026-11-07 (Query Builder); 2026-05-20 (the rest)
+Last verified: 2026-11-07 (Query Builder); "Parser warnings" 2026-11-21 against source; 2026-05-20 (the rest)

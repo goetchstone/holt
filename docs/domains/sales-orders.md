@@ -150,6 +150,17 @@ priced at 0% tax says so before it is saved (USE-08, 2026-10-27). The quote is n
 blocked; see `docs/domains/pos.md` "Order creation from cart" for where the fact
 comes from.
 
+## HD proposal import: parser warnings (2026-11-21)
+
+`/app/sales/import-hd` posts the PDF to `import-hd-proposal.ts`, which parses it
+and writes the quote (`HD-{quoteNumber}`) in the same request, as read. The parser
+(`lib/pricing/hdProposalParser.ts`) reads through `lib/pricing/parseBoundary.ts`: a
+line cut at 1000 characters, or a number of 300 or more digits (an overflowing one
+reads as 0, never `Infinity`), puts a warning on `proposal.warnings`. The route
+already returns the `proposal`, and `ImportHdView.tsx` lists its warnings at the top
+of the result, above the quote they describe. Whether a warning should refuse the
+import is the owner's open question.
+
 ## Tax exemption on the order
 
 Every route that creates an order from a resolved tax district writes the

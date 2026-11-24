@@ -138,3 +138,139 @@ export function timeMs(fn: () => unknown): number {
   fn();
   return performance.now() - start;
 }
+
+// ── Mutated vendor documents (the lib/pricing parsers) ───────────────────────
+//
+// A parser starts from a short seed document in its own format; these ops
+// delete, duplicate and insert lines and swap digit runs for hostile numerals.
+// 308 digits is the longest run that still reads as a finite number (a double
+// tops out near 1.8e308), and it overflows once doubled or summed.
+
+/** A hostile replacement for one digit run. */
+export const hostileNumeral = fc.oneof(
+  fc.nat(99_999).map(String),
+  fc.constantFrom(
+    "9".repeat(400),
+    "9".repeat(308),
+    "0",
+    "00",
+    "Infinity",
+    "-Infinity",
+    "1e999",
+    "NaN",
+    "-1",
+    "0.00",
+  ),
+);
+
+/** A hostile replacement for a whole money amount ("1,260.00"). */
+export const hostileAmount = fc.oneof(
+  fc.nat(99_999_999).map((c) => (c / 100).toFixed(2)),
+  fc.constantFrom(
+    `${"9".repeat(400)}.00`,
+    `${"9".repeat(308)}.00`,
+    // 331 digits with thousands commas: no run of 300, but it overflows once
+    // parseMoney drops the commas.
+    `9${",999".repeat(110)}.00`,
+    "Infinity",
+    "-Infinity",
+    "1e999",
+    "NaN",
+    "0.00",
+    "-1.00",
+    "9,99",
+  ),
+);
+
+export type Op =
+  | { kind: "delete"; at: number }
+  | { kind: "duplicate"; at: number }
+  | { kind: "insert"; at: number; text: string }
+  | { kind: "numerals"; at: number; nums: string[] }
+  | { kind: "amounts"; at: number; amount: string };
+
+const op: fc.Arbitrary<Op> = fc.oneof(
+  fc.record({ kind: fc.constant("delete" as const), at: fc.nat() }),
+  fc.record({ kind: fc.constant("duplicate" as const), at: fc.nat() }),
+  fc.record({ kind: fc.constant("insert" as const), at: fc.nat(), text: nastyString(4) }),
+  fc.record({
+    kind: fc.constant("numerals" as const),
+    at: fc.nat(),
+    nums: fc.array(hostileNumeral, { minLength: 1, maxLength: 4 }),
+  }),
+  fc.record({ kind: fc.constant("amounts" as const), at: fc.nat(), amount: hostileAmount }),
+);
+
+/**
+ * Rewrites the `at`-th line (wrapping) that `pattern` matches, if there is one.
+ * The numeral and amount ops aim only at lines that hold something to replace:
+ * aimed at any line, most of them changed nothing, and a parser's overflow went
+ * unfound in some runs and found in others.
+ */
+function rewriteLineWith(
+  lines: string[],
+  pattern: RegExp,
+  at: number,
+  rewrite: (line: string) => string,
+): void {
+  const targets = lines.flatMap((line, i) => (pattern.test(line) ? [i] : []));
+  if (targets.length === 0) return;
+  const t = targets[at % targets.length];
+  lines[t] = rewrite(lines[t]);
+}
+
+/** `seed` with `ops` applied, one line at a time, joined with "\n". */
+export function mutate(seed: readonly string[], ops: readonly Op[]): string {
+  const lines = [...seed];
+  for (const o of ops) {
+    const i = lines.length === 0 ? 0 : o.at % lines.length;
+    if (o.kind === "delete") lines.splice(i, 1);
+    else if (o.kind === "duplicate") lines.splice(i, 0, ...lines.slice(i, i + 1));
+    else if (o.kind === "insert") lines.splice(i, 0, o.text);
+    else if (o.kind === "numerals") {
+      // The first N digit runs, in order, become hostile numerals.
+      let n = 0;
+      const swap = (m: string) => (n < o.nums.length ? o.nums[n++] : m);
+      rewriteLineWith(lines, /\d/, o.at, (line) => line.replace(/\d+/g, swap));
+    } else {
+      // Every money amount on the line (price AND total) becomes the same value.
+      rewriteLineWith(lines, /\d\.\d/, o.at, (line) => line.replace(/\d[\d,]*\.\d+/g, o.amount));
+    }
+  }
+  return lines.join("\n");
+}
+
+/** Documents made from `seed` by up to six ops. */
+export const documentFor = (seed: readonly string[]): fc.Arbitrary<string> =>
+  fc.array(op, { maxLength: 6 }).map((ops) => mutate(seed, ops));
+
+/** Every number anywhere in a parse result, with its path. */
+export function numbersIn(
+  value: unknown,
+  path = "result",
+  out: Array<[string, number]> = [],
+): Array<[string, number]> {
+  if (typeof value === "number") out.push([path, value]);
+  else if (Array.isArray(value)) value.forEach((v, i) => numbersIn(v, `${path}[${i}]`, out));
+  else if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) numbersIn(v, `${path}.${k}`, out);
+  }
+  return out;
+}
+
+export interface MoneyLine {
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+/** The items of a parse result that carry a quantity, a unit price and a line total. */
+export function moneyLines(result: unknown): MoneyLine[] {
+  const items = (result as { items?: unknown[] }).items ?? [];
+  return items.filter(
+    (i): i is MoneyLine =>
+      typeof (i as MoneyLine).qty === "number" &&
+      typeof (i as MoneyLine).unitPrice === "number" &&
+      typeof (i as MoneyLine).lineTotal === "number",
+  );
+}

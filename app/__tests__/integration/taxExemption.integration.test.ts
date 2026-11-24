@@ -411,6 +411,7 @@ describe("staff set a customer's exemption, and every sale records it", () => {
       msrpTotal: 1000,
       discountTotal: 0,
       clientPrice: 1000,
+      warnings: [],
     };
     parseMock.mockResolvedValue(proposal);
     const pdfBase64 = Buffer.from("not parsed").toString("base64");

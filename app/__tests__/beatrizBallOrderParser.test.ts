@@ -60,6 +60,20 @@ describe("parseBeatrizBallOrderText", () => {
     expect(bowl).toMatchObject({ qty: 2, unitPrice: 30, lineTotal: 60, msrp: 75 });
   });
 
+  it("rejoins a description that wraps onto 20,000 lines in well under a second", () => {
+    // Joining each line onto the name collapsed the whole name again, so the
+    // time grew with the square of the lines: 3 s for these 40 kB (Node 24).
+    const text = [
+      "349672.0045.0018.004GLASS Vento Medium Vase (Clear)",
+      ...Array.from({ length: 20_000 }, () => "a"),
+      "Net Order:72.00",
+    ].join("\n");
+    const start = performance.now();
+    const vase = parseBeatrizBallOrderText(text).items[0];
+    expect(performance.now() - start).toBeLessThan(500);
+    expect(vase.name).toBe(`GLASS Vento Medium Vase (Clear)${" a".repeat(20_000)}`);
+  });
+
   it("keeps a free $0 line and reconciles it at zero", () => {
     const placard = order.items.find((i) => i.itemCode === "6644");
     expect(placard).toMatchObject({ qty: 1, unitPrice: 0, lineTotal: 0, msrp: 0 });

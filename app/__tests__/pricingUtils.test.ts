@@ -42,4 +42,15 @@ describe("parseCurrency", () => {
   it("handles multiple commas", () => {
     expect(parseCurrency("$1,234,567")).toBe(1234567);
   });
+
+  // An overflowing price takes the same "no price in this cell" path as N/A, so
+  // every caller's isNaN skip covers it; Infinity passed `isNaN` and `cost > 0`.
+  it.each([
+    ["a 400-digit run", "9".repeat(400)],
+    ["a 400-digit dollar amount", `$${"9".repeat(400)}.00`],
+    ["1e999", "1e999"],
+    ["Infinity", "Infinity"],
+  ])("returns NaN for %s, which is not a real price", (_label, raw) => {
+    expect(parseCurrency(raw)).toBeNaN();
+  });
 });
