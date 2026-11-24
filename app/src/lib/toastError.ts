@@ -28,3 +28,16 @@ export function getErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message.trim()) return err.message;
   return fallback;
 }
+
+/**
+ * The parser warnings a failed upload sent beside its error
+ * (`{ error, warnings }`). When a parse leaves every line out they are the only
+ * account of why, so the page lists them. Takes an axios error or a JSON body a
+ * fetch already read; [] when there are none.
+ */
+export function getErrorWarnings(errOrBody: unknown): string[] {
+  const data = axios.isAxiosError(errOrBody) ? errOrBody.response?.data : errOrBody;
+  const warnings =
+    data && typeof data === "object" ? (data as { warnings?: unknown }).warnings : undefined;
+  return Array.isArray(warnings) ? warnings.filter((w): w is string => typeof w === "string") : [];
+}

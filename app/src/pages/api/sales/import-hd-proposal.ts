@@ -1,4 +1,10 @@
 // /app/src/pages/api/sales/import-hd-proposal.ts
+//
+// Parses a Hunter Douglas proposal PDF and writes it as a quote in one request.
+// The quote is written as read; the parser's warnings (a line cut short, an
+// amount that overflowed and read as 0) come back on `proposal.warnings`, and
+// the import page shows them with the quote. Whether warnings should refuse the
+// import is the owner's open question.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
