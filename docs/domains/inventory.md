@@ -394,6 +394,8 @@ Operational views over the same inventory data:
 
 **Who opens each page (2026-11 role-list sweep).** Every page above was a MANAGER/ADMIN/WAREHOUSE role list. Each now takes its data route's key, because these views turn a 403 into an empty screen. Overview, Dashboard, Outbound, Awaiting delivery, Positions, Locations and Transfers (list, new, detail) are on `inventory.transfer`. Inbound is on `purchasing.receive`, so a Buyer sees the POs coming in; PO totals stay behind View cost. Pickups and Returns are on `sales.return`; the returned-stock routes also admit Transfer stock. The Dispatch queue is on `warehouse.operate`. Set aside (`inventory.read`) and the hub (`warehouse.read`) are unchanged. The one exception to "the data route's key" is Awaiting delivery: its route is on `purchasing.receive`, and the page takes `inventory.transfer` to keep Buyers off a screen of customers' balances (an owner question; the route is unchanged).
 
+**Who asked for a transfer.** `POST /api/warehouse/transfers` records the session's own User id as `requestedByUserId`. Until 2026-11-24 it looked the requester up as the `User` whose email matched the session's, so a session whose email had come to belong to another User row recorded that User (staff-auth.md, "Who the caller is"; `__tests__/integration/sessionStaffIdentity.integration.test.ts`).
+
 **Reading stores and stock locations (SEC-15, 2026-09-30).** Three reads, one per need, all returning `{ locations }`:
 
 | Route | Key | Returns | Used by |
