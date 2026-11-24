@@ -46,6 +46,12 @@ The shapes are bulk deletes and clears, merges, price imports, roles, staff, tax
 operations, exports, settings, integration keys, impersonation, automations, email wording and commission
 plans.
 
+**Sign-in accounts (2026-11-21).** `SIGN_IN_LINKED` and `SIGN_IN_LINK_REFUSED` are recorded by
+`lib/auth/signInAccounts.ts`: the first from NextAuth's `linkAccount` event whenever a Google, Okta or Azure
+account is joined to a User, the second when the adapter refuses to join one to a User a staff member already
+signs in as (staff-auth.md, "OAuth sign-in is always a fresh sign-in"). Neither is a route, so neither is in
+the sensitive shapes; the catalog check covers them.
+
 ## What it never holds
 
 Passwords, PINs, integration key values or a gift card's barcode, since a barcode spends the card. Settings

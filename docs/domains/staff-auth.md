@@ -1037,6 +1037,8 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `lib/auth/sessionToken.ts` -- the session JWT's encoder: expiry from the last activity
 - `components/auth/IdleLogoff.tsx` -- the browser's idle timer, warning and sign-out
 - `lib/auth/endSession.ts` -- every sign-out, and the sign-in screen's check that it held
+- `lib/auth/freshOAuthSignIn.ts` -- an OAuth sign-in never sees the session cookie, so it can't link onto whoever is signed in
+- `lib/auth/signInAccounts.ts` -- the NextAuth adapter: `linkAccount` refused onto an existing staff member's User, and recorded
 - `lib/auth/roleAssignment.ts` -- who may assign a role, set a password or edit a role; `sessionStaffMember`, the one way a route finds the caller's own staff row (see "Who the caller is")
 - `lib/auth/roleAdmin.ts` -- wire types + serialization shared by the Roles GUI and its API
 - `lib/auth/secretsEqual.ts` -- the one constant-time comparison for a secret a request presents (`timingSafeEqual` always over the expected secret's length, then the lengths must match; no hashing, which CodeQL read as a weak password hash; an empty expected secret never matches). Used by the scheduler's service key (`lib/automations/guardAutomation.ts`) and the bookings feed token (`pages/api/bookings/feed.ics.ts`); `automationKeyTripwire.test.ts` fails on a `Bearer` header compared with `===` or `!==`
@@ -1108,6 +1110,71 @@ still that origin, and rebuilt as `origin + path`. Anything else lands on
 redirect and, for a `javascript:` value, a script sink (CodeQL #6, #9;
 `__tests__/safeCallbackUrl.test.ts`). NextAuth's own `redirect` callback is the
 default (same-origin only), which covers the server side.
+
+## OAuth sign-in is always a fresh sign-in (2026-11-21)
+
+Source read for this section, 2026-11-21: `pages/api/auth/[...nextauth].ts`,
+`lib/auth/freshOAuthSignIn.ts`, `lib/auth/signInAccounts.ts`,
+`lib/auth/authProviders.ts`, and in the installed next-auth 4.24.15
+`core/lib/callback-handler.js`, `core/routes/callback.js`,
+`core/lib/cookie.js` (SessionStore) and `next/index.js`.
+
+**The hole.** On an OAuth callback NextAuth decodes the session cookie and takes
+the signed-in user from it. When the incoming Google/Okta/Azure account is linked
+to nobody, it calls the adapter's `linkAccount` onto _that_ user. The `signIn`
+callback sees only the incoming identity and admits it when its email belongs to
+any active staff member (`findActiveStaffByEmail`). So any active staff member at
+a browser where the Owner or an Administrator was signed in could finish consent
+with their own account and leave an `Account` row pointing at the Owner's User;
+every later sign-in with that account was the Owner. A password reset did not
+undo it, and nothing in Holt lists or removes `Account` rows.
+
+**Layer 1, the request (`lib/auth/freshOAuthSignIn.ts`).** The `[...nextauth]`
+handler hides the session cookie (every cookie whose name starts with
+`next-auth.session-token`, either prefix, by the rule NextAuth itself reads the
+session with: its numbered pieces and any variant name) from NextAuth on
+`signin/<provider>` and `callback/<provider>` for
+every provider except `credentials`, so NextAuth takes its not-signed-in branch:
+the sign-in is as whoever the OAuth identity belongs to. On the callback the old
+cookie is also expired in the reply, ahead of the new one NextAuth appends, since
+NextAuth can only clean up the pieces it saw. Other cookies (state, PKCE, CSRF,
+callback URL) are untouched.
+
+- Hiding, not refusing, keeps a shared register working: the next person signs in
+  with their own Google account and the register becomes theirs, with no
+  sign-out first.
+- A callback that ends in a refusal or a cancelled consent leaves that browser
+  signed out, not still signed in as the person before.
+- The password callback is left alone: it never reads the session
+  (`core/routes/callback.js`), and a mistyped password should not sign out
+  whoever is at the register. An unknown provider id gets the fresh sign-in.
+
+**Layer 2, the write (`lib/auth/signInAccounts.ts`).** `authOptions.adapter` is
+`PrismaAdapter` with `linkAccount` refused onto any User a staff member already
+signs in as (`StaffMember.userId`). A first sign-in still links: NextAuth creates
+the User and links it in the same callback, before the jwt callback joins a staff
+member to it, so that User has no staff member yet. NextAuth renames any error an
+adapter method throws (`core/errors.js`, `adapterErrorHandler`), so a refusal
+reaches the browser as NextAuth's generic `error=Callback`; it is logged and
+recorded as `SIGN_IN_LINK_REFUSED`, which is where it says what happened.
+
+**Recorded.** `events.linkAccount` writes `SIGN_IN_LINKED` (actor: the incoming
+identity's email; details: provider, provider account id, User id). NextAuth 4
+never calls `unlinkAccount`, and nothing in Holt does.
+
+**What this does not change.** A staff member whose User row already exists (for
+example one an admin gave a password, `admin/staff/[id]/set-password.ts` creates
+the User) and who has no `Account` cannot start signing in with Google: NextAuth
+finds the User by email and, with `allowDangerousEmailAccountLinking` off, refuses
+with `OAuthAccountNotLinked`. That was already true signed out; signing in with a
+password first and then with Google used to link Google onto that person, and now
+does not. Joining a second sign-in to someone needs a deliberate admin flow, which
+does not exist yet.
+
+Real-DB proof: `__tests__/integration/oauthLinkNeedsFreshSignIn.integration.test.ts`
+drives the real `[...nextauth]` handler, NextAuth core and Prisma adapter; only the
+identity provider's token and userinfo answers are local. The request rewrite's
+cases are in `__tests__/freshOAuthSignIn.test.ts`.
 
 ## Password reset + my-account (2026-06-10)
 
