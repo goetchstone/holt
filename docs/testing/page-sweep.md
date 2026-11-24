@@ -64,6 +64,13 @@ instance), not `npm run dev`: development mode logs React warnings as console
 errors, compiles each page on first visit, and adds `unsafe-eval` to the
 policy, which the policy check fails.
 
+`/portal/client/[token]` needs the running app's `NEXTAUTH_SECRET` exported in
+the shell that runs Playwright. Its token is a signed JWT, not a row
+(`lib/clientPortalToken.ts`), so the suite mints one with that secret. Unset, the
+route skips; set to a different secret, it fails on the page's 404, because the
+app really verifies the token. CI's smoke job gives the app and the suite the
+same one.
+
 ## What decides what is opened
 
 | File | Role |
@@ -91,8 +98,20 @@ nothing to open, and green.
 
 ## Skipped today, and why
 
-Seven dynamic routes have no seeded row to open (`dynamicRoutes.ts` says which
-model is missing): a buyer-draft buy, a product with an `externalId`, a
-Mailchimp campaign, a DRAFT invoice, a return with a portal token (two routes),
-and the client portal, whose token is a signed JWT rather than a row. Each is a
-seed gap tracked in the local roadmap; closing one turns its skip into a `find`.
+One dynamic route: the email campaign results detail,
+`/app/reports/mailchimp/campaigns/[id]`. Its rows arrive from a Mailchimp sync,
+and `prisma/seed/coverage.ts` classifies them as never seeded. Seeding invented
+campaigns would reverse that, which is the owner's decision, not yet made.
+
+Until 2026-11-21 six more were skipped: five for want of a seeded row, and the
+client portal, whose token the suite did not mint. Where each route's row comes
+from now (`docs/domains/seed-data.md`, "Rows the page sweep opens"):
+
+| Route | Row |
+|---|---|
+| `/app/admin/buyer-drafts/buy/[id]/performance` | The one closed buy, rebuilt from received stock orders (`demo/buyerDrafts.ts`) |
+| `/app/inventory/product-variance/[externalId]` | A snapshot product given the previous system's stock id (`demo/inventoryOps.ts`) |
+| `/app/sales/invoices/[id]` | The authored draft invoice, the only invoice with lines (`demo/authoredInvoices.ts`). It took the first invoice by id before, an order invoice with no lines, so the page opened empty |
+| `/app/sales/invoices/[id]/edit` | The same draft |
+| `/portal/return/[token]` and `/portal/return/status/[token]` | The one return with a portal token, sent and not yet answered (`demo/returnLinks.ts`) |
+| `/portal/client/[token]` | No row: a token the suite mints for a customer with tickets (see "Running it") |

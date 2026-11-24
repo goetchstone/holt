@@ -63,7 +63,7 @@ Tracked as a master-plan checklist item (C8); the plan is not kept in the repo.
 
 ## Return request flow
 
-Staff mint the link: `POST /api/sales/orders/[id]/return-link` (`sales.write`) creates the `Return` in `INITIATED` with a random `portalToken` (a UUID on the row, not a JWT, so it does not expire) and `portalRequestedAt`, and answers with `/portal/return/<portalToken>`. The customer's page (`app/portal/return/[token]/*`) reads `GET /api/portal/returns/[token]` and posts a reason and notes to `POST /api/portal/returns/request`. It attaches no photo and notifies nobody; the return waits in the staff returns list (`docs/domains/returns.md`). `app/portal/return/status/[token]/*` shows its progress from the same GET.
+Staff mint the link: `POST /api/sales/orders/[id]/return-link` (`sales.write`) creates the `Return` in `INITIATED` with a random `portalToken` (a UUID on the row, not a JWT, so it does not expire) and `portalRequestedAt`, and answers with `/portal/return/<portalToken>`. The customer's page (`app/portal/return/[token]/*`) reads `GET /api/portal/returns/[token]` (20 a minute per client) and posts a reason and notes to `POST /api/portal/returns/request`. The form shows only while the return is `INITIATED` with no customer notes; after that the page says the request was submitted. It attaches no photo and notifies nobody; the return waits in the staff returns list (`docs/domains/returns.md`). `app/portal/return/status/[token]/*` shows its progress from the same GET.
 
 The request route is public, so it trusts nothing in the body (fixed 2026-11-21):
 
