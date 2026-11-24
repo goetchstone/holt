@@ -151,7 +151,7 @@ The helper also bakes in:
 
 - SUPER_ADMIN auto-grant for ADMIN-required endpoints (it's strictly more privileged)
 - Impersonation-cookie handling (`holt-impersonate`)
-- The first-user bootstrap safeguard (if no privileged user exists, the role check is skipped so the first admin can promote themselves)
+- The first-user bootstrap safeguard (if no privileged user exists, the role check is skipped so a new deployment's first user is not locked out; the first admin itself comes from `npm run create-admin`, see staff-auth.md)
 
 Bug class hit prod 2026-05-28 on `/api/reports/traffic`. Source-text tripwire `__tests__/reportApiAuthShape.test.ts` now walks every file under `pages/api/reports/` and fails the suite if any of them reads `session.user.role` directly OR has no recognizable auth guard (`requirePermission`, `requireAuthWithRole`, `requireAuth`, or bare `getServerSession`).
 

@@ -197,8 +197,15 @@ copy: `decidePermissionAccess` and `decideRoleAccess` both call the same
 - **No active staff row means no access** — not a default of DESIGNER.
 - **Impersonation** is honoured only for a real SUPER_ADMIN/ADMIN and only ever
   _reduces_ privilege. An ADMIN impersonating SUPER_ADMIN is an ADMIN.
-- **Bootstrap safeguard** still fires: a denied check passes while NO active
-  privileged staff exist, so the first user can promote themselves.
+- **Bootstrap safeguard** still fires: a denied check passes while NO active,
+  linked privileged staff (SUPER_ADMIN/ADMIN/MANAGER) exist, so a new
+  deployment's first user is not locked out. It does NOT let them promote
+  themselves from Admin > Staff: assigning a role and changing how someone signs
+  in judge the caller's own active staff row (`lib/auth/roleAssignment.ts`), and
+  they have none. The first admin is made on the host with `npm run
+  create-admin` (`scripts/create-admin.mjs`, docs/DEPLOYMENTS.md). This line
+  said "so the first user can promote themselves" until 2026-11-21, which USE-02
+  had already made false.
 - **Enum fallback**: `roleId = null` resolves under the enum value as a role
   key — the database grant table first, falling back to
   `permissionsForBuiltInRole()` only for a key the table does not carry. This is
@@ -271,8 +278,10 @@ and `POST /api/staff`, go through one rule in `lib/auth/roleAssignment.ts`, set
 by the owner:
 
 - **Only an ADMIN or SUPER_ADMIN assigns roles.** Anyone with `staff.manage`
-  (HR, a GM) may still create staff members; they get the default, DESIGNER,
-  and may edit them with the role unchanged. Before this, `POST` wrote whatever
+  (HR, a GM) may still create staff members WITHOUT a sign-in email; they get
+  the default, DESIGNER, and may edit their name, store, designer flag and
+  plans with the role unchanged. Anything that changes how someone signs in
+  needs an admin (the third door, below). Before this, `POST` wrote whatever
   `role` it was sent, so any `staff.manage` holder could create an ADMIN. The
   `PATCH` check also refused SUPER_ADMIN.
 - **Only a SUPER_ADMIN assigns the owner tier**: SUPER_ADMIN, or any role that
@@ -292,9 +301,11 @@ Manager hold:
 
 - **Setting a password** (`POST /api/admin/staff/[id]/set-password`). With
   local sign-in on, whoever sets a password can sign in as that person, so it
-  is assigning their role: `passwordRefusalFor` admits an ADMIN or SUPER_ADMIN,
-  and a member in the owner tier only to a SUPER_ADMIN. It judges the member's
-  current role (the linked Role row, else the built-in row for their enum).
+  is assigning their role: it admits an ADMIN or SUPER_ADMIN, and a member in
+  the owner tier only a SUPER_ADMIN. Since 2026-11-21 it is one case of the third
+  door below (`signInChangeRefusal(..., 'password')`), so it reads the member's
+  tier strictly, with their row locked. Linking the member to a User that is
+  already another member's login is a 409 (it was a 500).
 - **Changing what a role can do** (`POST /api/admin/roles`, `PUT` and `DELETE
   /api/admin/roles/[id]`). Editing a role's grants reaches everyone who holds
   it, the editor included: `roleEditRefusalFor` admits an ADMIN or SUPER_ADMIN,
@@ -307,15 +318,118 @@ Manager hold:
 - The Roles screen does not yet mark owner-only keys, so an ADMIN who ticks one
   sees the server's refusal, which names it.
 
+**The third door: changing how someone signs in** (2026-11-21). A member's
+sign-in email, their active status, the login their row is linked to, their
+password and, for a member in the owner tier, their role each decide who can
+sign in as them. Until this, `PATCH /api/staff/[id]` and `DELETE` judged none of
+them beyond `staff.manage`: a General Manager could put their own address on the
+Owner's row, ask for a password reset and sign in as the Owner. All of them now
+go through `signInChangeRefusal` (pure core `signInRefusalFor`, in
+`lib/auth/roleAssignment.ts`): **admins only, and a member in the owner tier
+only by an owner.**
+
+- **What counts as the owner tier, read strictly** (`isOwnerTierMember`): the
+  enum says SUPER_ADMIN, or the Role row is the owner tier (SUPER_ADMIN or
+  grants every permission), or the Role holds any `OWNER_ONLY_PERMISSIONS` key.
+  Either column saying Owner is enough, because a row can be split
+  (`scripts/create-admin.mjs` writes the enum only) and `callerStaffRole` reads
+  the enum.
+- **Sign-in email** (PATCH): compared trimmed, so a Save that resends it
+  unchanged is no change and is never refused (the Staff form always sends it).
+  On a change: the refusal first, then a case-insensitive collision with any
+  other row is a 409 (after the 403, so a refused caller learns nothing about
+  which addresses exist), open reset links are voided, and the trimmed address
+  is stored. An unchanged email is left out of the write. The same refusal and
+  collision check apply to `POST /api/staff` with an email, judged against the
+  role the new member is being given (`subjectForAssignment`).
+- **Active status**: turning someone back ON is a sign-in change and takes the
+  full rule. Switching someone OFF is narrower (`deactivationRefusalFor`), since
+  it lets nobody sign in as them: any `staff.manage` holder may switch off an
+  ordinary member, so a departed clerk is not left active until an admin acts;
+  an ADMIN or SUPER_ADMIN member needs an admin, and the owner tier (by the enum
+  or the Role row, not by a held key) needs an owner. Deactivation (PATCH
+  `isActive: false` or `DELETE`) also voids open reset links.
+- **The login link**: the PATCH auto-link (an unlinked row gets the User whose
+  email it carries) runs only when `signInChangeRefusal(..., 'login link')`
+  allows it, and a staff manager's Save skips it silently. Its two guards stay:
+  never repoint an existing link, never take a User that is another active
+  member's login.
+- **A role change on a member in the owner tier** needs an owner, so an
+  Administrator cannot demote the Owner (`resolveRoleAssignment` already keeps
+  anyone but an owner from assigning the tier).
+- **One transaction per request.** When a request can remove someone's admin
+  standing, the active ADMIN/SUPER_ADMIN rows are locked first, in id order
+  (`lockActiveAdmins`), then the member's row (`SELECT ... FOR UPDATE`), and the
+  row is re-read; every check and the write and the audit entry run inside it.
+  A lost race (deadlock or serialization failure, `isWriteConflict` in
+  `lib/errorCode.ts`) answers 409 "Someone else changed this staff member; try
+  again."
+- **Deliberate limits** (owner questions, strict defaults shipped): an
+  Administrator may still change a PEER Administrator's sign-in; the rule judges
+  the member's tier at the moment of the change, so a password an Administrator
+  set while the member was ordinary still works after a later promotion into
+  the owner tier; non-admin staff managers cannot fix a typo in, or replace a
+  placeholder, sign-in email.
+- The Staff screen matches: for a non-admin the email field is disabled ("Only
+  an admin can change a sign-in email.") and its Save sends no email, and the
+  on/off toggle shows only on active rows that are not ADMIN or SUPER_ADMIN.
+  Every refusal the screen gets is shown as the server worded it.
+
+Every file under `app/src` that writes a `StaffMember` or `User` row is listed,
+classified and reasoned in `__tests__/fixtures/sign-in-fact-writers.txt`;
+`__tests__/signInFactWriters.test.ts` fails on an unlisted writer, a stale line,
+a 'guarded' file that never calls the rule, and a 'no-sign-in-fact' file that
+writes email, isActive, userId or passwordHash (rule 65).
+
+**Still open after the third door** (found in the same review, 2026-11-21; each
+is its own change, highest severity first):
+
+- *Owner-tier admin keys* (takeover, Administrator to Owner): `admin.data`
+  (backup exposes `EmailQueue.html` with live reset links; restore can rewrite
+  any row) and `admin.integrations` (SMTP and Google credentials) are not
+  owner-only. Owner question: add both to `OWNER_ONLY_PERMISSIONS`?
+- *Role-write sweep* (escalation, Administrator to owner-tier keys): `DELETE
+  /api/admin/roles/[id]?reassignToRoleId` checks the destination role only for
+  existence; preset `applyRoles` can grant owner-only keys; `POST
+  /api/staff/seed` writes MANAGER rows on `staff.manage` (delete it, or make it
+  admin-only and write `roleId`); `scripts/create-admin.mjs` writes the enum
+  without `roleId`.
+- *Credential carried across a promotion* (escalation, conditional): a password
+  an Administrator set on an ordinary member still works after the Owner later
+  moves that member into the owner tier.
+- *Session revocation* (amplifier): JWT sessions survive a password, email or
+  link change; a takeover session outlives the victim's reset.
+- *PIN brute force* (escalation): the discount-approval PIN lockout resets, so
+  guessing continues fifteen minutes at a time; no per-caller limit.
+- *Case-variant emails* (denial and ambiguity): `StaffMember.email` is unique
+  case-sensitively; the app-level check covers new writes only, races between
+  two creates, and existing case-variant rows stay ambiguous for sign-in. A
+  unique index on `lower(email)` needs a pre-check migration.
+- *Body-supplied actor ids* (low): Up-Board clock-in and clock-out take the
+  staff id from the body.
+
+**The last-admin guard counts only linked admins** (`wouldRemoveLastAdmin`,
+`lib/auth/adminLockout.ts`, SEC-03). An admin row nobody has signed in as
+cannot administer anything. Until 2026-11-21 it counted unlinked admin rows
+while the bootstrap safeguard (`hasNoPrivilegedStaff` / `countPrivilegedStaff`)
+counts only LINKED SUPER_ADMIN/ADMIN/MANAGER rows. With one unlinked admin row
+present, deactivating every linked admin passed the guard and drove the
+bootstrap count to zero, which reopened the bootstrap window: every gate
+allowed, and any identity could sign in. Counting the same way keeps one linked
+admin. The cost: an Owner cannot deactivate themselves while the only other
+admin has not signed in yet.
+
 → `__tests__/integration/staffRoleAssignment.integration.test.ts`,
 `__tests__/integration/ownerTierEscalation.integration.test.ts`,
+`__tests__/integration/staffSignInIdentity.integration.test.ts`,
+`__tests__/integration/staffLastOwner.integration.test.ts`,
 `__tests__/roleAssignment.test.ts`
 
 ## The `isDesigner` flag — report inclusion, not auth (added 2026-05-29)
 
 `StaffMember.isDesigner` (Boolean, default false; the migration history has since been squashed, so the column and its default now live in `0_init`) is **separate from the auth `role`**. It controls who appears on **designer-based sales + commission reports**, so a selling MANAGER can be included and a former designer excluded without changing their login role. It grants no permissions — it's a reporting dimension only.
 
-- Toggle: `/app/admin/staff` edit form ("Show on designer-based sales & commission reports"); persisted via `PATCH /api/staff/[id]`, which is gated on `staff.manage`.
+- Toggle: `/app/admin/staff` edit form ("Show on designer-based sales & commission reports"); persisted via `PATCH /api/staff/[id]`, which is gated on `staff.manage` (its sign-in fields need an admin, see "Giving someone a role").
 - Filter: `GET /api/staff?isDesigner=true` (designer pickers), `listPeriodConfirmationStatus` (pay-period grid), and the Commission Locked Payouts list (`designersOnly` where it asks).
 - See `docs/domains/commission.md` "The `isDesigner` staff flag" for the full surface list.
 
@@ -733,8 +847,21 @@ when `AUTH_LOCAL_ENABLED` is off:
   `POST /api/auth/forgot-password` (rate-limited 5/15min). ALWAYS answers
   `{ ok: true }` — no account enumeration; the reset email only goes out for
   an active staff email. Token model `PasswordResetToken` (migration
-  `20260610c`): only the SHA-256 of the raw token is stored, 1-hour expiry,
-  single-use, and a new request voids prior open tokens.
+  `20260610c`): the token table holds only the SHA-256 of the raw token, 1-hour
+  expiry, single-use, and a new request voids prior open tokens. **The raw link
+  is still stored**: the reset email goes through the durable queue, and
+  `EmailQueue.html` (`lib/email/queue.ts`) keeps the rendered email, link
+  included, after it is sent, so anyone who can read that table or a backup of
+  it can use an unexpired link. This said "only the SHA-256 of the raw token is
+  stored" until 2026-11-21. Tracked, not fixed: keep the reset email's html out
+  of the queue, or redact the link after send, with the owner-tier admin keys
+  unit (backups expose the table).
+- **Open links die with the identity they were sent to** (2026-11-21): an email
+  change or a deactivation through the Staff routes voids the member's open
+  tokens; the request locks the member's row and re-checks the email and
+  active status before making a token, so it cannot outrun those writes; and a
+  reset is refused for a member who is no longer active, however they were
+  switched off.
   `lib/auth/passwordReset.ts`; email template `passwordResetEmail` through
   the durable queue.
 - **Reset page**: `/auth/reset-password?token=...` →

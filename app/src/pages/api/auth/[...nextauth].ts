@@ -64,10 +64,12 @@ export const authOptions: NextAuthOptions = {
       // not merely proving you own an email -- is what grants access.
       //
       // The one exception is the bootstrap window: on a brand-new deployment
-      // with no admin yet, the first sign-in is admitted so the operator can
-      // reach Admin > Staff and promote themselves. requireAuth.ts grants that
-      // page under the identical predicate; the two must agree or the first
-      // user gets a session that can open nothing.
+      // with no admin yet, the first sign-in is admitted, and requireAuth.ts
+      // lets it through the gates under the identical predicate (the two must
+      // agree or the first user gets a session that can open nothing). It
+      // cannot promote itself on the Staff screen, which judges the caller's
+      // own staff row (lib/auth/roleAssignment.ts); the first admin comes from
+      // `npm run create-admin` on the host.
       const staff = await findActiveStaffByEmail(user?.email);
       if (staff) return true;
       if (await hasNoPrivilegedStaff()) {

@@ -451,8 +451,10 @@ export interface RoleListAccessResult extends RoleDecision {
  *   - isActive is part of the decision. Deactivating someone revokes access now.
  *   - No ACTIVE staff row means no role. Only the bootstrap safeguard (no active
  *     privileged staff yet) can still admit, so the first user of a new
- *     deployment can reach Admin > Staff and promote themselves; they do so as
- *     DESIGNER, as before.
+ *     deployment gets through the gates, as DESIGNER. They cannot promote
+ *     themselves from Admin > Staff (role and sign-in writes judge the
+ *     caller's own staff row, lib/auth/roleAssignment.ts); the first admin
+ *     comes from `npm run create-admin` on the host.
  *   - The list is matched against the StaffRole ENUM, not Role.key. Role lists
  *     are legacy gates; new gates use permission keys (PERM-01).
  *   - Impersonation only ever reduces (decideRoleAccess).

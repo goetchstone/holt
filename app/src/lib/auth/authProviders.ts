@@ -84,10 +84,13 @@ export async function findActiveStaffByEmail(
 /**
  * True when no active privileged (admin/manager) staff member is linked to a
  * user yet -- the bootstrap window. In that window the first sign-in is admitted
- * even without a matching StaffMember, so the first operator can reach
- * Admin > Staff and promote themselves; the guard layer (requireAuth.ts) uses
- * the identical predicate to grant that page. Once any admin exists this returns
- * false and the signIn gate admits staff-matched emails only.
+ * even without a matching StaffMember, and the guard layer (requireAuth.ts)
+ * uses the identical predicate to let it through every gate. It cannot make
+ * itself an admin from the Staff screen, though: assigning a role and changing
+ * how someone signs in judge the caller's own active staff row
+ * (lib/auth/roleAssignment.ts), and it has none. The first admin is made on the
+ * host with `npm run create-admin` (docs/DEPLOYMENTS.md). Once any admin exists
+ * this returns false and the signIn gate admits staff-matched emails only.
  *
  * On a DB error this returns FALSE (not the bootstrap window), so a transient
  * failure denies an unknown account rather than opening the door.
