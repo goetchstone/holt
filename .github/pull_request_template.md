@@ -1,74 +1,37 @@
-## Summary
+## What changes, and why
 
-<!-- One or two sentences. Focus on the WHY. -->
+<!-- A sentence or two. Link the issue this closes: "Closes #123". -->
+
+## How it was verified
+
+<!--
+Say what you ran and what you could not run. For a bug fix: the test that
+fails without the change and passes with it.
+-->
+
+- [ ] `cd app && npm run validate && npm test` pass locally
+- [ ] A test covers the new behaviour and fails without the change
+- [ ] Tried the affected screen or flow by hand
+
+Not verified:
 
 ## Trace (Rule 45)
 
 <!--
-Required if any file under lib/importHelpers*, lib/payment*, lib/auth/,
-lib/secureUpload.ts, pages/api/automations/*, or any sales/PO/invoice/
-payment runner is touched. Otherwise leave as N/A.
-
-Either:
-  (a) Surface is disjoint -- paste the grep that proves it:
-      $ grep -rn "TouchedSymbol" src/lib src/pages/api -> 0 hits
-  (b) Surface has dependents -- list each, and how it was tested.
+Only if the change touches code many paths share (auth, payments, uploads,
+import runners, automations): list the callers you checked, or the grep that
+shows there are none. Otherwise N/A.
 -->
 
 N/A
 
-## Reproduction (Rule 46)
+## Checklist
 
-<!--
-For bug fixes only. Required: the query / fixture / failing test that
-reproduced the symptom against real data. The reproduction is the proof
-the fix targets the actual cause and not a plausible-sounding hypothesis.
-For features / refactors, leave as N/A.
--->
-
-N/A
-
-## Config-effect verification (Rule 44)
-
-<!--
-Required if this PR adds or changes a lint or scanner rule, env var, threshold,
-feature flag, or rule-tuning knob. Show before/after of the observable.
-Otherwise N/A.
-
-Example:
-  Before: 234 sonarjs/cognitive-complexity warnings
-  After:  88 (npm run lint output attached)
--->
-
-N/A
-
-## Test plan
-
-- [ ] `npm run validate && npm test` green locally
-- [ ] Manually tested the affected flow
-- [ ] Edge cases considered (null/empty/large-qty/role variations)
-- [ ] If a runner / payment / auth file changed: tripwire test added in `__tests__/*.regression.test.ts` (Rule 43)
-
-## PR purity (Rule 45)
-
-- [ ] Branched off `origin/main`, not another feature branch
-- [ ] `git log --oneline origin/main..HEAD` shows only intended commits
-
-## Docs (Rule 36)
-
-- [ ] CLAUDE.md rules / gotchas updated if applicable
-- [ ] `docs/domains/*.md` runbook(s) updated
-- [ ] ROADMAP.md updated if a roadmap item was shipped
-
-## Security review
-
-- [ ] No change to auth/role gates, OR new gates verified
-- [ ] No secrets or debug logging left in
-- [ ] IDOR guard added if the endpoint takes a nested ID
-- [ ] If touched: `spawn(absolute path)` not bare binary name (Rule 44 / S4036)
-- [ ] If touched: `crypto.randomBytes` not `Math.random` for any value used as a path/token/secret (Rule 44 / S2245)
+- [ ] One change, branched from `main`
+- [ ] Docs updated where this makes them untrue, including the `docs/domains/` runbook for the area (Rule 36)
+- [ ] No change to who may do or see something, or the new gate is tested
+- [ ] No secrets, real customer data or debug logging
 
 ## Scans: lint, Semgrep, OSV, CodeQL (Rule 48)
 
-- [ ] No new findings introduced (or new findings explicitly fixed/tripwired/won't-fixed in this PR)
-- [ ] If a regression caused this PR: failure log entry added to `.claude/skills/post-failure/SKILL.md`
+- [ ] No new findings, or each one is fixed, covered by a test, or explained here as won't-fix

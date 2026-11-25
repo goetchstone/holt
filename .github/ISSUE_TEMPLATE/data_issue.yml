@@ -1,21 +1,23 @@
-name: Data Issue
-description: Wrong data, missing records, import problem
+name: Import or data problem
+description: A price book, order file or other import that fails or reads wrong, or numbers that do not add up
 title: "[Data] "
-labels: ["data"]
+labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **This tracker is public.** Do not attach a vendor's price book, a customer list or anything else you are not free to publish, and leave out real customer names. Describe the file's layout or make a small sample with invented rows instead. If the real file is the only way to show the problem, say so and a maintainer will arrange a private way to send it.
   - type: dropdown
     id: type
     attributes:
-      label: Type
-      description: What kind of data issue?
+      label: What kind of problem?
       options:
-        - Wrong price or cost
-        - Missing product or vendor
-        - Duplicate record
-        - Import failed or incorrect
-        - Inventory count wrong
-        - Customer data incorrect
-        - Order data incorrect
+        - A price book will not import, or imports wrong prices
+        - A purchase order or acknowledgement file reads wrong
+        - A customer, product or order import fails or skips rows
+        - A report or total does not match its detail
+        - Stock counts are wrong
+        - Duplicate records
         - Other
     validations:
       required: true
@@ -23,16 +25,30 @@ body:
     id: description
     attributes:
       label: What is wrong?
-      description: Be specific -- include product numbers, order numbers, customer names, etc.
+      description: What you imported or looked at, what Holt shows, and what it should show. Give the screen's own message if there was one.
       placeholder: |
-        Product ABC123 shows price $500 but should be $450.
-        Order ORD-260320-001 is missing line item for ...
+        The Preview step shows 18 products but the book has 24; the six leather styles are missing.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Where the data came from
+      description: The vendor or system and the file type.
+      placeholder: Vendor price book, PDF, spring 2026 edition
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The commit or release you run (`git rev-parse --short HEAD`).
     validations:
       required: true
   - type: textarea
-    id: screenshot
+    id: sample
     attributes:
-      label: Screenshot
-      description: Paste a screenshot showing the incorrect data
+      label: Sample rows or screenshot
+      description: A few rows with invented values that show the layout, or a screenshot with private details blurred.
     validations:
       required: false
