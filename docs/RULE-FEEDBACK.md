@@ -503,3 +503,141 @@ is a change to *where* it is enforced, not to *what* it says
     `FRAMEWORK.md:194` still says it hard-blocks.
   - `CLAUDE.md`'s "203 files cite rules" and "rule 33 cited 65 times" are stale.
   - The five contested rule numbers in `RULE-PROVENANCE.md` still await the owner.
+
+### 2026-11-21 — improver pass: principle 3 says which set to enumerate
+
+- **Signal:** the session-start report (8 fix-branch PRs merged since 2026-11-18,
+  threshold 8).
+- **Window:** the fix-branch PRs merged since 2026-11-18 (#127, #129, #130, #132,
+  #134, #135, #136, #138), the fix PRs still open (#139, #140, #141), and three
+  observations from the session running the merge train. Readers went through
+  each PR's body and diff, a judge re-checked their load-bearing claims against
+  source, and three skeptics (the bar, redundancy, cost and accuracy) each failed
+  to refute the change and corrected it.
+- **Verdicts:**
+  - **Weak wording, changed in this PR:** #136 and #129 (principle 3). USE-02
+    guarded the paths that write the role column; setting a member's password and
+    editing a role's grants confer the same power behind the same key.
+    `git grep -l '"staff.manage"' fe7df738^ -- app/src/pages/api app/src/server/trpc`
+    lists 7 files, and 2 of them import `roleAssignment`. The REST authorization
+    tripwires walked `src/pages/api`, so five tRPC reads any signed-in user could
+    call sat beside gated screens (#129). Rule 42 already says "every mutation
+    path that needs it", but USE-02's author cited principle 3 and still read
+    "mutation paths" as the paths that write the guarded column, so the principle
+    now says what decides membership. Pre-pr item 6 asks for the property, the
+    command, and each listed member's classification.
+  - **Rule 45, the trace's population (#127):** the trace listed
+    `validateTagCopies`' server callers and never the screens that post to the
+    batch route, and receiving more than 10 of one product prints none of its
+    tags (the fix is in #140, open). Pre-pr item 4 now counts a changed route's
+    screens as its dependents.
+  - **Wrong layer:** #134's coverage floors, the overrides audit and the hook
+    environment (#135), and the shared test database's lock; each has its own
+    entry below. #129 and #140 (open) also moved their own enforcement onto tRPC.
+  - **Held until it merges:** #139 (principle 6, one decision computed twice),
+    whose exposure is still on main.
+  - **Not a rules problem:** #130, #132, #138, #141 (open), CodeQL's file-race
+    finding on #139, and the merge train's cost.
+  - **#122**, which the 2026-11-18 pass asked to watch for a second instance, is
+    a related but different shape: an exact-name blocklist (principle 8). It is
+    not counted here.
+- **The change is persuasive (the principle's text and a skill), with no
+  tripwire.** It was checked by replaying the enumeration it asks for at each
+  incident's pre-fix commit. The narrow set each PR used lists only covered
+  members, and the property-defined set lists the ones it missed:
+  - #136 at `fe7df738^`: 7 files behind `staff.manage`, 3 of them the ones #136
+    closed.
+  - #127 at `da22009c`: `ReceivePOView.tsx:199` and `TagsToChangePanel.tsx:156`
+    post to `/api/print-label/batch`.
+  - #129 at `b5a0b96c^`: `reports.ts:426` and `:550` are `protectedProcedure`,
+    commented "visible to any signed-in user".
+
+  The replay shows the wider search finds them, not that the text makes anyone
+  run it (rule 58).
+- **2026-11-18 leftovers:** the hook matchers are closed (#127, and #135 fixed
+  the hook's root). Still open: a pre-pr item asking for the mutation in the PR
+  body; the pre-commit `fix(` block that cannot fire on prose titles while
+  `FRAMEWORK.md:194` says it hard-blocks; CLAUDE.md's stale citation counts
+  (about 428 files cite a rule now, and rule 33 is cited about 120 times in 76
+  files); the five contested numbers.
+
+### 2026-11-21 — three gates check one direction, or fail into a log
+
+- **Signal:** fix PRs #134, #135 and #132.
+- **What happened:** the coverage floors in `test-coverage.sh`, measured
+  2026-05-01, sat about 15 points under measured coverage on three metrics until
+  #134 ratcheted them, because nothing fails when coverage pulls away from its
+  floor; the ratchet is still a manual step. `audit-overrides.mjs` checks only
+  that an exact pin has an entry: a `pinnedTo` of 2.18.1 sat beside 2.18.2 in
+  `package.json`, a passed review date went unread, and three blanket overrides
+  that break rule 53 sat in the same block until #135. osv-scanner's "unused
+  ignores" warning names dead suppressions only in its log (#132).
+- **Principle:** rule 65 (a check fails in both directions, and its failure
+  reaches someone); rules 53 and 54.
+- **Would a rule have caught it?** Only if enforced differently: a headroom check
+  in `test-coverage.sh`, a `pinnedTo` and review-date check in
+  `audit-overrides.mjs`, and a CVE job that fails on unused ignores. Each is a
+  tripwire, not a text change.
+
+### 2026-11-21 — the hook environment leaked into a test again
+
+- **Signal:** a pre-push unit run failed during #135.
+- **What happened:** `prePrCheckRoot.test.ts` inherited `GIT_DIR` under pre-push
+  and failed; #135 fixed that one file. The 2026-11-05 entry proposed removing
+  `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` for every unit test in
+  `jest.no-database.setup.ts`, and that was never applied. #135 also stopped
+  `pre-pr-check.sh` taking its root from its own path, while
+  `pre-commit-check.sh:25` still does.
+- **Principle:** 3, and rule 49 (sweep the shape).
+- **Would a rule have caught it?** Only if enforced differently: remove the `GIT_*`
+  variables in `app/jest.no-database.setup.ts`, beside the `*DATABASE_URL`
+  removal already there. This second incident confirms the 2026-11-05 proposal.
+
+### 2026-11-21 — the shared test database's lock lives outside the repo
+
+- **Signal:** near miss: two integration runs overlapped on `fbc_test_db`.
+- **What happened:** one integration run at a time is a convention kept in a
+  personal note and in scratch scripts. `run-integration-tests.sh`,
+  `test-coverage.sh` and `jest.integration.setup.ts` take no lock. A lock judged
+  stale was removed by hand while its run was still going, and two integration
+  files failed; the rerun passed. The fix, a lock that records its owner and
+  releases only its own, went into scratch scripts again.
+- **Principle:** 3 (rule 42: one shared guard on every path), for the database
+  rule 59 names.
+- **Would a rule have caught it?** Only if enforced differently: an owner-aware
+  lock in the integration setup every run goes through.
+
+### 2026-11-21 — the rest of the pass's evidence, not rules problems
+
+- **Signal:** #130, #132, #138, #141, CodeQL on #139, the merge train.
+- **What happened:**
+  - #130: CodeQL did not see a bound that was checked but not returned, and
+    main's post-merge analysis kept alert 65 open until the bounded value was
+    returned.
+  - #132: an upstream advisory, handled by a rule-55 sweep with a path-scoped
+    override verified on `npm ci`.
+  - #138: a disclosed, tracked CSP weakness, delivered, plus an embed conflict
+    found by review; embeds in a real browser are still unverified.
+  - #141 (open): the fuzz could not reach regexes over text joined from many
+    lines, or numbers just short of overflow; the rebuilt properties failed
+    against the old parsers.
+  - CodeQL's file-system-race finding failed #139's check, and the fix landed in
+    the same PR.
+  - The merge train still costs every waiting PR one update and one CI run per
+    merge (2026-10-27).
+- **Principle:** 4, 10, 48 and 50 held.
+- **Would a rule have caught it?** No: the rules held, or the cause was outside
+  them (tool behaviour, an upstream advisory, the ruleset).
+
+### 2026-11-21 — guards that fired, for the next retirement argument
+
+- **Signal:** gates that caught something in this window.
+- **What happened:**
+  - The browser sweep (#133) found the Leads board's 500 and the owner-only
+    commission screens, and put two Owner refusals on its ratchet. The role-list
+    sweep (#142, open) fixes them.
+  - The coverage floors #134 ratcheted failed the role-list branch until its
+    page tests stopped counting client views they never ran.
+  - CodeQL failed #139's check on a test walker's file-system race.
+- **Principle:** rule 65 (a manifest and a tripwire); 4.
+- **Would a rule have caught it?** Yes: these are the rules' own gates firing.
