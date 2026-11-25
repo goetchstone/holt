@@ -122,6 +122,9 @@ const stripe = {
 };
 
 jest.mock("@/lib/stripe", () => ({ getStripe: async () => stripe }));
+// A refused reader is logged, and logError records it on a detached write that
+// can outlive the run ("Cannot log after tests are done"). Not under test here.
+jest.mock("@/lib/errorRecorder", () => ({ recordError: jest.fn() }));
 // The steps after a payment (a quote becoming an order, its purchase orders)
 // have their own tests; here they would only need more seed.
 jest.mock("@/lib/serviceDispatchService", () => ({ syncServiceAppointments: jest.fn() }));
