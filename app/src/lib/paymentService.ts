@@ -435,6 +435,12 @@ export async function recordPendingPayment(
     amount: number;
     processorType?: string;
     processorTxnId?: string;
+    /** What the processor row needs to be found again (a reader payment's reader). */
+    processorData?: Record<string, unknown>;
+    /** A payment started at a register (a card reader's) carries where and who. */
+    registerId?: number;
+    tillId?: number;
+    staffMemberId?: number;
     customerId?: number | null;
     createdBy?: string | null;
   },
@@ -463,6 +469,10 @@ export async function recordPendingPayment(
       method: input.method as any,
       processorType: input.processorType,
       processorTxnId: input.processorTxnId,
+      processorData: (input.processorData as object) ?? undefined,
+      registerId: input.registerId,
+      tillId: input.tillId,
+      staffMemberId: input.staffMemberId,
       customerId: input.customerId ?? owner.customerId,
       createdBy: input.createdBy ?? undefined,
     },
@@ -500,6 +510,8 @@ export interface ActivePendingPayment {
   ageMinutes: number;
   /** The processor said it was paid and it hasn't posted yet (`processorConfirmedAt`). */
   paidAtProcessor: boolean;
+  /** A payment out on a register's card reader, not a payment link (lib/payments/cardReaderPayments.ts). */
+  onCardReader: boolean;
 }
 
 /**
@@ -540,6 +552,7 @@ export async function findActivePendingPayment(
     createdAt: pending.paymentDate,
     ageMinutes: Math.max(0, Math.round((Date.now() - pending.paymentDate.getTime()) / 60_000)),
     paidAtProcessor: pending.processorConfirmedAt !== null,
+    onCardReader: (pending.processorData as { cardReader?: unknown } | null)?.cardReader === true,
   };
 }
 
@@ -637,13 +650,17 @@ export class CheckoutAlreadyOpenError extends Error {
   ) {
     const what = "orderId" in target ? "order" : "invoice";
     super(
-      existing.paidAtProcessor
-        ? `The card processor says the $${existing.amount.toFixed(2)} payment on this ${what} ` +
+      existing.onCardReader && !existing.paidAtProcessor
+        ? `A card payment for $${existing.amount.toFixed(2)} is out on a register's card reader ` +
+            `for this ${what} (started ${existing.ageMinutes} min ago). Finish or cancel it at ` +
+            `the register before sending a link, or the customer could pay twice.`
+        : existing.paidAtProcessor
+          ? `The card processor says the $${existing.amount.toFixed(2)} payment on this ${what} ` +
             `went through, but it hasn't been recorded yet (an alert said why). It can't be ` +
             `replaced with a new link: fix what stopped it, and the processor's next try ` +
             `records it. If it isn't recorded within three days, Holt alerts again and this ` +
             `${what} can take a new link.`
-        : `A payment link for $${existing.amount.toFixed(2)} is already open on this ` +
+          : `A payment link for $${existing.amount.toFixed(2)} is already open on this ` +
             `${what} (started ${existing.ageMinutes} min ` +
             `ago). If the customer says it never arrived, retry with force:true to void it and ` +
             `send a new one.`,
@@ -688,7 +705,10 @@ export async function startHostedCheckout(
   const existing = await findActivePendingPayment(input.target);
   if (existing) {
     // A checkout the customer has paid is never voided for a new one: they would pay twice.
-    if (!input.force || existing.paidAtProcessor) {
+    // Nor is a payment out on a card reader: voiding the row would not take it
+    // off the reader, and the customer could still tap. It is cancelled at the
+    // register, which clears the reader too.
+    if (!input.force || existing.paidAtProcessor || existing.onCardReader) {
       throw new CheckoutAlreadyOpenError(existing, input.target);
     }
     await voidPendingPayment(existing.id, {

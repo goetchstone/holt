@@ -3,10 +3,10 @@
 // Square behind the provider seam. Online payments only for this PR (hosted
 // checkout, webhook, refunds, status polling, test connection) -- Terminal
 // (card-present) is a separate follow-up, so `terminal: false` here is an
-// honest capability, not a placeholder. Square's readers ARE server-driven
-// (POST a terminal checkout, poll for the result) and so DO fit this
-// interface's server-driven terminal methods, unlike Stripe's client-driven
-// SDK -- see stripeProvider.ts. That's future work, not this file.
+// honest capability, not a placeholder. Square's readers are server-driven
+// (POST a terminal checkout, poll for the result), as Stripe's are here, so
+// they fit this interface's reader methods -- see stripeProvider.ts. That's
+// future work, not this file.
 //
 // Talks to Square over `fetch` (see lib/square.ts for the SDK-vs-REST
 // decision) rather than the official `square` npm package.
