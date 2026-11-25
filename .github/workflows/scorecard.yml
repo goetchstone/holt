@@ -48,7 +48,11 @@ jobs:
           persist-credentials: false
 
       - name: Run Scorecard
-        uses: ossf/scorecard-action@23f22cd43608bae7a1f1fa2603d7314dee9538a5 # v2.6.0
+        # Held at v2.5.0: v2.6.0 was tagged before its container image was
+        # published, so the digest it pins answers 404 from ghcr and every run on
+        # main failed (2026-11-24; upstream issue ossf/scorecard-action#1748).
+        # Take 2.6.0 again once that image pulls.
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
         with:
           results_file: scorecard.json
           results_format: json
