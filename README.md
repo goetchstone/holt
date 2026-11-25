@@ -23,10 +23,11 @@ rebuilds) at `/`, and the authenticated **back-office** at `/app`. Which modules
 deployment exposes is configured per-organization via feature flags
 (Admin → Settings → Modules).
 
-Holt is **open-core** and runs two ways from a single codebase:
-
-- **Self-hosted** — one organization, one Docker Compose stack you operate.
-- **Managed hosting** — one deployment per business (its own database and container), centrally operated; many businesses means many deployments, never a shared database.
+Holt is **open-core**, and every business runs its own deployment: its own
+database and its own containers, on a cloud account, a VPS or a server on site.
+Many businesses means many deployments, never a shared database. One deployment
+serves a business across all its stores. Where to host it and how big a server
+it needs is in [docs/HOSTING.md](docs/HOSTING.md).
 
 Branding, integration credentials, and import mappings are configured in the
 database through the in-app Settings screens. A deployment is white-labeled and
@@ -34,29 +35,48 @@ wired to its own systems without editing code.
 
 ## What it looks like
 
-The screenshots below are a live instance running the demo seed (`npm run setup`)
-— 6,000 orders, 1,400 customers, 500 products, two showrooms. No mockups.
+The screenshots below are a live instance running the demo seed (`npm run setup`):
+two showrooms and a warehouse, about 500 orders, 180 customers and 220 products
+over eighteen months. No mockups.
 
 ### Storefront
 
-A themeable public site with a built-in block CMS, edited in-app with no rebuild.
+A public site with a built-in block CMS, edited in-app with no rebuild. Its
+colours and type come from the deployment's theme in Admin → Settings.
 
 ![Holt storefront](docs/images/storefront.png)
 
-### Back office
+### Selling
 
-Orders across both showrooms, filterable by status, with the salesperson on
-every row and the store wherever the order was placed at one.
+Each salesperson's pipeline: open quotes with the client's history, what needs
+attention, and the next follow-up.
 
-![Sales orders](docs/images/sales-orders.png)
+![Sales pipeline](docs/images/pipeline.png)
+
+The point of sale scans or searches products at the register; tills, receipts,
+returns and card payments are built in.
+
+![Point of sale](docs/images/point-of-sale.png)
+
+An order shows what is owed and paid and how it gets to the customer, and sends
+them a payment link or a portal link to follow it.
+
+![Sales order](docs/images/order.png)
+
+### Operations
+
+Stock by store and by place within it, transfers in transit, and deliveries
+waiting for dispatch.
+
+![Warehouse overview](docs/images/warehouse.png)
 
 ### Reporting
 
-Sixteen reports covering the money path end to end — margin, sell-through,
-returns, commission, and the reconciliation worklists that surface what is off
-the books.
+More than forty reports cover the money path end to end: margin, sell-through,
+returns, commission, tax, and the reconciliation worklists that surface what is
+off the books. Gross margin by department:
 
-![Reports](docs/images/reports.png)
+![Gross margin report](docs/images/gross-margin.png)
 
 ## Quick Start
 
