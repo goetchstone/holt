@@ -1,61 +1,45 @@
-name: Bug Report
-description: Something is broken or not working as expected
+name: Bug report
+description: Something is broken or does not work as the screen or the docs say
 title: "[Bug] "
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. Two things first:
+
+        - **Security problems do not go here.** Report them privately: see [SECURITY.md](https://github.com/goetchstone/holt/blob/main/SECURITY.md).
+        - **This tracker is public.** Leave out real customer names, addresses, card or bank details, and passwords or keys. Blur them in screenshots.
   - type: dropdown
     id: area
     attributes:
       label: Area
-      description: Which part of the system is affected?
+      description: Which part of Holt is affected?
       options:
         - Sales / POS
         - Quotes / Orders
         - Inventory / Warehouse
-        - Purchasing / POs
-        - Service Cases
-        - Service Dispatch
-        - House Calls
+        - Purchasing / Receiving
+        - Service / Dispatch / Delivery
         - Returns
-        - Reports / Dashboard
-        - Pricing / Import
+        - Reports
+        - Pricing / Price-book import
         - Products / Catalog
         - Customers
-        - Admin / Setup
+        - Storefront / CMS
+        - Admin / Setup / Roles
         - Printing (receipts, labels)
-        - Delivery / Dispatch
-        - Login / Auth
+        - Sign-in / Access
+        - Install / Upgrade / Docker
+        - Documentation
         - Other
-    validations:
-      required: true
-  - type: dropdown
-    id: device
-    attributes:
-      label: Device
-      description: What are you using?
-      options:
-        - iPad Pro
-        - iPad (other)
-        - Desktop / Laptop
-        - Phone
-    validations:
-      required: true
-  - type: dropdown
-    id: severity
-    attributes:
-      label: Severity
-      description: How bad is it?
-      options:
-        - Blocker (cannot work)
-        - Major (workaround exists)
-        - Minor (cosmetic or low impact)
     validations:
       required: true
   - type: textarea
     id: description
     attributes:
       label: What happened?
-      description: Describe the issue. What did you expect vs what actually happened?
+      description: The steps you took, what you expected, and what happened instead.
       placeholder: |
         1. I went to ...
         2. I clicked ...
@@ -63,18 +47,43 @@ body:
         4. Instead: ...
     validations:
       required: true
-  - type: textarea
-    id: screenshot
+  - type: input
+    id: version
     attributes:
-      label: Screenshot
-      description: Paste a screenshot if you can (drag and drop works)
+      label: Version
+      description: The commit or release you run (`git rev-parse --short HEAD` in the checkout), or "the demo seed on main".
+      placeholder: 9ddffeee
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How Holt is run
+      options:
+        - Docker Compose
+        - "npm run dev on my machine"
+        - Other (say how below)
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: iPad Pro, Safari 19 / Windows laptop, Chrome 142
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshot, error message or log
+      description: The message on the screen, a screenshot, or the app log lines from that moment. Drag and drop works.
     validations:
       required: false
   - type: input
     id: url
     attributes:
-      label: Page URL
-      description: Copy the URL from the browser if you can
-      placeholder: https://your-deployment.example.com/...
+      label: Page
+      description: The path of the page, without your domain if you would rather not share it.
+      placeholder: /app/sales/orders
     validations:
       required: false
