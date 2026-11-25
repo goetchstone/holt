@@ -63,6 +63,21 @@ them a payment link or a portal link to follow it.
 
 ![Sales order](docs/images/order.png)
 
+### Special orders
+
+The configurator prices a made-to-order piece on the floor: pick the style, the
+fabric or leather grade and the options, and it shows the retail price worked
+out from the vendor's price book and the store's own markup.
+
+![Product configurator](docs/images/configurator.png)
+
+Those prices come from the vendor's own price book. The import reads a PDF, CSV
+or XLSX: the vendor formats it already knows are read directly, and any other
+vendor's book goes in through a standard layout, one row per style and one
+column per grade. Nothing is written until the parsed book has been previewed.
+
+![Price book import](docs/images/price-book-import.png)
+
 ### Operations
 
 Stock by store and by place within it, transfers in transit, and deliveries
