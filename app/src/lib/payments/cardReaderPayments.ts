@@ -157,6 +157,13 @@ export async function settleReaderPayment(paymentId: number): Promise<ReaderPaym
   return settledState(now, { ...reader, failure: message });
 }
 
+async function assertTillOpen(tillId: number): Promise<void> {
+  const till = await prisma.till.findUnique({ where: { id: tillId }, select: { status: true } });
+  if (till?.status !== "OPEN") {
+    throw new ApiError(409, "This register's till isn't open. Open it before taking a payment.");
+  }
+}
+
 export interface StartReaderPaymentInput {
   amount: number;
   registerId: number;
@@ -207,15 +214,7 @@ export async function startReaderPayment(
     simulated: isSimulatedReader(reader),
   });
 
-  if (input.tillId) {
-    const till = await prisma.till.findUnique({
-      where: { id: input.tillId },
-      select: { status: true },
-    });
-    if (till?.status !== "OPEN") {
-      throw new ApiError(409, "This register's till isn't open. Open it before taking a payment.");
-    }
-  }
+  if (input.tillId) await assertTillOpen(input.tillId);
 
   // One payment in flight per order. A reader payment already out is picked
   // up where it stands instead of sending the reader a second one.

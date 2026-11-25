@@ -56,6 +56,9 @@ function toMinorUnits(amount: number): number {
  */
 export const READER_PAYMENT_FLAG = "holt_reader_payment";
 
+/** Stripe's reader status as a yes or no; anything else is "it does not say". */
+const READER_ONLINE: Record<string, boolean> = { online: true, offline: false };
+
 function toProcessorReader(reader: Stripe.Terminal.Reader): ProcessorReader {
   return {
     id: reader.id,
@@ -64,7 +67,7 @@ function toProcessorReader(reader: Stripe.Terminal.Reader): ProcessorReader {
     serialNumber: reader.serial_number ?? null,
     locationId:
       typeof reader.location === "string" ? reader.location : (reader.location?.id ?? null),
-    online: reader.status === "online" ? true : reader.status === "offline" ? false : null,
+    online: READER_ONLINE[reader.status ?? ""] ?? null,
   };
 }
 
@@ -83,6 +86,33 @@ function cardPresentDetails(intent: Stripe.PaymentIntent): {
 /** Stripe's "no such object" answer, as opposed to a failure to ask. */
 function isMissing(err: unknown): boolean {
   return err instanceof Stripe.errors.StripeError && err.code === "resource_missing";
+}
+
+/**
+ * A reader payment the register did not stay to see finish (the browser
+ * closed, the network dropped): the same completion the register's own ask
+ * would have made. The processor reference is the PaymentIntent's id. Null for
+ * a PaymentIntent Holt did not send to a reader.
+ */
+async function readerPaymentCompletion(
+  intent: Stripe.PaymentIntent,
+): Promise<PaymentCompletion | null> {
+  if (intent.metadata?.[READER_PAYMENT_FLAG] !== "1") return null;
+  const completion: PaymentCompletion = {
+    providerTxnId: intent.id,
+    metadata: (intent.metadata ?? {}) as Record<string, string>,
+    processorData: { paymentIntentId: intent.id, cardReader: true },
+  };
+  // The event's charge is an id; brand and last four are one read away, and
+  // supplementary, as for a checkout.
+  try {
+    const stripe = await getStripe();
+    const full = await stripe.paymentIntents.retrieve(intent.id, { expand: ["latest_charge"] });
+    Object.assign(completion, cardPresentDetails(full));
+  } catch {
+    // Proceed without card details.
+  }
+  return completion;
 }
 
 export const stripeProvider: PaymentProvider = {
@@ -146,29 +176,10 @@ export const stripeProvider: PaymentProvider = {
   },
 
   async extractCompletion(event: VerifiedWebhookEvent): Promise<PaymentCompletion | null> {
-    // A reader payment the register did not stay to see finish (the browser
-    // closed, the network dropped): the same completion the register's own
-    // poll would have made. The processor reference is the PaymentIntent's id.
     if (event.type === "payment_intent.succeeded") {
-      const intent = (event.raw as Stripe.Event).data.object as Stripe.PaymentIntent;
-      if (intent.metadata?.[READER_PAYMENT_FLAG] !== "1") return null;
-      const completion: PaymentCompletion = {
-        providerTxnId: intent.id,
-        metadata: (intent.metadata ?? {}) as Record<string, string>,
-        processorData: { paymentIntentId: intent.id, cardReader: true },
-      };
-      // The event's charge is an id; brand and last four are one read away, and
-      // supplementary, as for a checkout below.
-      try {
-        const stripe = await getStripe();
-        const full = await stripe.paymentIntents.retrieve(intent.id, {
-          expand: ["latest_charge"],
-        });
-        Object.assign(completion, cardPresentDetails(full));
-      } catch {
-        // Proceed without card details.
-      }
-      return completion;
+      return readerPaymentCompletion(
+        (event.raw as Stripe.Event).data.object as Stripe.PaymentIntent,
+      );
     }
 
     if (event.type !== "checkout.session.completed") return null;

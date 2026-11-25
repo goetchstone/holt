@@ -86,6 +86,207 @@ interface ReaderPayment {
 /** How often the register asks how a reader payment went. */
 const READER_POLL_MS = 2000;
 
+interface ReaderState {
+  status: string;
+  amount: number;
+  message?: string;
+}
+
+/**
+ * The register's side of a card reader payment: whether this register has a
+ * reader, the payment out on it, and asking how it went until it is settled.
+ * The server decides everything (lib/payments/cardReaderPayments.ts); this
+ * only starts, asks, cancels and shows.
+ */
+function useCardReader({
+  registerId,
+  orderId,
+  findOpenTill,
+  setBusy,
+  onApproved,
+}: {
+  registerId: number | undefined;
+  orderId: number | undefined;
+  findOpenTill: () => Promise<number | undefined>;
+  setBusy: (busy: boolean) => void;
+  onApproved: (amount: number) => void;
+}) {
+  const [registerReader, setRegisterReader] = useState<RegisterReader | null>(null);
+  const [readerPayment, setReaderPayment] = useState<ReaderPayment | null>(null);
+
+  // Whether this register has a card reader decides what "Card" does: send the
+  // amount to the reader, or only record a payment taken elsewhere.
+  useEffect(() => {
+    if (registerId === undefined) return;
+    let current = true;
+    axios
+      .get(`/api/registers/${registerId}`)
+      .then((res) => {
+        if (current) setRegisterReader(res.data.cardReader ?? null);
+      })
+      .catch(() => {
+        if (current) setRegisterReader(null);
+      });
+    return () => {
+      current = false;
+    };
+  }, [registerId]);
+
+  /** What the reader said: record it on screen, or keep waiting. */
+  const applyState = (state: ReaderState) => {
+    if (state.status === "WAITING") {
+      if (state.message) {
+        setReaderPayment((now) => (now ? { ...now, message: state.message } : now));
+      }
+      return;
+    }
+    setReaderPayment(null);
+    if (state.status === "APPROVED") onApproved(state.amount);
+    else if (state.status === "DECLINED") {
+      toast.error(state.message ?? "The card payment didn't go through");
+    } else toast.info("Card payment cancelled");
+  };
+  const applyStateRef = useRef(applyState);
+  useEffect(() => {
+    applyStateRef.current = applyState;
+  });
+
+  const paymentUrl =
+    orderId !== undefined && readerPayment
+      ? `/api/sales/orders/${orderId}/payments/${readerPayment.paymentId}/card-reader`
+      : null;
+
+  // While a payment is out on the reader, ask how it went every two seconds.
+  // A failed ask is not a failed payment: keep asking.
+  useEffect(() => {
+    if (!paymentUrl) return;
+    const timer = setInterval(() => {
+      axios
+        .get(paymentUrl)
+        .then((res) => applyStateRef.current(res.data))
+        .catch(() => undefined);
+    }, READER_POLL_MS);
+    return () => clearInterval(timer);
+  }, [paymentUrl]);
+
+  /** Send a card payment to this register's reader; the poll above finishes it. */
+  const startReaderPayment = async (amount: number) => {
+    if (orderId === undefined) return;
+    setBusy(true);
+    try {
+      const tillId = await findOpenTill();
+      const res = await axios.post(`/api/sales/orders/${orderId}/card-reader-payment`, {
+        amount,
+        registerId,
+        tillId,
+      });
+      if (res.data.status === "APPROVED") {
+        // One already out on the reader had gone through.
+        onApproved(res.data.amount);
+        return;
+      }
+      setReaderPayment({
+        paymentId: res.data.paymentId,
+        amount: res.data.amount,
+        readerLabel: res.data.readerLabel,
+        simulated: res.data.simulated,
+      });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Couldn't send the payment to the card reader"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelReaderPayment = async () => {
+    if (!paymentUrl) return;
+    try {
+      const res = await axios.delete(paymentUrl);
+      applyState(res.data);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Couldn't cancel the card payment"));
+    }
+  };
+
+  const presentTestCard = async () => {
+    if (!paymentUrl) return;
+    try {
+      await axios.post(paymentUrl);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Couldn't present the test card"));
+    }
+  };
+
+  return {
+    registerReader,
+    readerPayment,
+    startReaderPayment,
+    cancelReaderPayment,
+    presentTestCard,
+  };
+}
+
+/** What the Card tender says under the amount: no reader, ready to send, or waiting. */
+function CardTenderNote({
+  registerReader,
+  readerPayment,
+  fmt,
+  onCancel,
+  onPresentTestCard,
+}: Readonly<{
+  registerReader: RegisterReader | null;
+  readerPayment: ReaderPayment | null;
+  fmt: MoneyFmt;
+  onCancel: () => void;
+  onPresentTestCard: () => void;
+}>) {
+  if (!registerReader) {
+    return (
+      <p className="text-sm text-brand-gray py-2">
+        This register has no card reader, so the payment is only recorded here. Take the card on
+        your own terminal first.
+      </p>
+    );
+  }
+  if (!readerPayment) {
+    return (
+      <p className="text-sm text-brand-gray py-2">
+        The amount is sent to the reader &ldquo;{registerReader.label}&rdquo; for the customer to
+        tap, insert or swipe their card.
+      </p>
+    );
+  }
+  return (
+    <div
+      role="status"
+      className="space-y-3 rounded-lg border border-brand-blue/30 bg-brand-stripe p-4"
+    >
+      <p className="font-semibold text-brand-blue">
+        Waiting for the card on &ldquo;{readerPayment.readerLabel}&rdquo;:{" "}
+        {fmt(readerPayment.amount)}
+      </p>
+      {readerPayment.message && <p className="text-sm text-brand-gray">{readerPayment.message}</p>}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" onClick={onCancel}>
+          Cancel card payment
+        </Button>
+        {readerPayment.simulated && (
+          <Button variant="secondary" onClick={onPresentTestCard}>
+            Present a test card
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The tender button's words: busy, send to the reader, or record. */
+function tenderButtonLabel(busy: boolean, toReader: boolean, choice: string, amount: string) {
+  if (busy) return "Processing...";
+  if (toReader) return `Send ${amount} to the card reader`;
+  return `Record ${choice} Payment -- ${amount}`;
+}
+
 // The shared pricing vocabulary (PERCENT/AMOUNT) -- kept as an alias rather
 // than a second definition so the wire format always matches what the
 // server (and priceCart) expects. See cartPricing.ts.
@@ -312,8 +513,6 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   const [tender, setTender] = useState<OfferedTender | null>(null);
   const [reference, setReference] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [registerReader, setRegisterReader] = useState<RegisterReader | null>(null);
-  const [readerPayment, setReaderPayment] = useState<ReaderPayment | null>(null);
   const [paymentComplete, setPaymentComplete] = useState(false);
   // Deposits and split tender. The register used to send createdOrder.total on
   // every payment, so a furniture store's NORMAL transaction -- take a deposit
@@ -422,25 +621,6 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
       scanRef.current?.focus();
     }
   }, [selectedRegister, showRegisterSelect, createdOrder]);
-
-  // Whether this register has a card reader decides what "Card" does: send the
-  // amount to the reader, or only record a payment taken elsewhere.
-  const selectedRegisterId = selectedRegister?.id;
-  useEffect(() => {
-    if (selectedRegisterId === undefined) return;
-    let current = true;
-    axios
-      .get(`/api/registers/${selectedRegisterId}`)
-      .then((res) => {
-        if (current) setRegisterReader(res.data.cardReader ?? null);
-      })
-      .catch(() => {
-        if (current) setRegisterReader(null);
-      });
-    return () => {
-      current = false;
-    };
-  }, [selectedRegisterId]);
 
   // Priced through the shared module -- see cartPricing.ts. There is no tax
   // rate to price with yet: tax depends on the order's tax district and the
@@ -971,91 +1151,19 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     setPaymentSummary({ method, amount, change, orderno: createdOrder.orderno });
   };
 
-  /** Send a card payment to this register's reader; the poll below finishes it. */
-  const startReaderPayment = async (amount: number) => {
-    if (!createdOrder) return;
-    setPaymentProcessing(true);
-    try {
-      const tillId = await findOpenTill();
-      const res = await axios.post(`/api/sales/orders/${createdOrder.id}/card-reader-payment`, {
-        amount,
-        registerId: selectedRegister?.id,
-        tillId,
-      });
-      if (res.data.status === "APPROVED") {
-        // One already out on the reader had gone through.
-        afterPaymentRecorded(res.data.amount, METHOD_DISPLAY.CARD);
-        return;
-      }
-      setReaderPayment({
-        paymentId: res.data.paymentId,
-        amount: res.data.amount,
-        readerLabel: res.data.readerLabel,
-        simulated: res.data.simulated,
-      });
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Couldn't send the payment to the card reader"));
-    } finally {
-      setPaymentProcessing(false);
-    }
-  };
-
-  /** What the reader said: record it on screen, or keep waiting. */
-  const applyReaderState = (state: { status: string; amount: number; message?: string }) => {
-    if (state.status === "APPROVED") {
-      setReaderPayment(null);
-      afterPaymentRecorded(state.amount, METHOD_DISPLAY.CARD);
-    } else if (state.status === "DECLINED") {
-      setReaderPayment(null);
-      toast.error(state.message ?? "The card payment didn't go through");
-    } else if (state.status === "CANCELED") {
-      setReaderPayment(null);
-      toast.info("Card payment cancelled");
-    } else if (state.message) {
-      setReaderPayment((current) => (current ? { ...current, message: state.message } : current));
-    }
-  };
-  const applyReaderStateRef = useRef(applyReaderState);
-  useEffect(() => {
-    applyReaderStateRef.current = applyReaderState;
+  const {
+    registerReader,
+    readerPayment,
+    startReaderPayment,
+    cancelReaderPayment,
+    presentTestCard,
+  } = useCardReader({
+    registerId: selectedRegister?.id,
+    orderId: createdOrder?.id,
+    findOpenTill,
+    setBusy: setPaymentProcessing,
+    onApproved: (amount) => afterPaymentRecorded(amount, METHOD_DISPLAY.CARD),
   });
-
-  const readerPaymentUrl =
-    createdOrder && readerPayment
-      ? `/api/sales/orders/${createdOrder.id}/payments/${readerPayment.paymentId}/card-reader`
-      : null;
-
-  // While a payment is out on the reader, ask how it went every two seconds.
-  // A failed ask is not a failed payment: keep asking.
-  useEffect(() => {
-    if (!readerPaymentUrl) return;
-    const timer = setInterval(() => {
-      axios
-        .get(readerPaymentUrl)
-        .then((res) => applyReaderStateRef.current(res.data))
-        .catch(() => undefined);
-    }, READER_POLL_MS);
-    return () => clearInterval(timer);
-  }, [readerPaymentUrl]);
-
-  const cancelReaderPayment = async () => {
-    if (!readerPaymentUrl) return;
-    try {
-      const res = await axios.delete(readerPaymentUrl);
-      applyReaderState(res.data);
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Couldn't cancel the card payment"));
-    }
-  };
-
-  const presentTestCard = async () => {
-    if (!readerPaymentUrl) return;
-    try {
-      await axios.post(readerPaymentUrl);
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Couldn't present the test card"));
-    }
-  };
 
   const resetPaymentFlow = () => {
     setPaymentMethod(null);
@@ -1936,41 +2044,14 @@ function TakePaymentPanel({
             </div>
           )}
 
-          {paymentMethod === "CARD" && !registerReader && (
-            <p className="text-sm text-brand-gray py-2">
-              This register has no card reader, so the payment is only recorded here. Take the card
-              on your own terminal first.
-            </p>
-          )}
-          {paymentMethod === "CARD" && registerReader && !readerPayment && (
-            <p className="text-sm text-brand-gray py-2">
-              The amount is sent to the reader &ldquo;{registerReader.label}&rdquo; for the customer
-              to tap, insert or swipe their card.
-            </p>
-          )}
-          {paymentMethod === "CARD" && readerPayment && (
-            <div
-              role="status"
-              className="space-y-3 rounded-lg border border-brand-blue/30 bg-brand-stripe p-4"
-            >
-              <p className="font-semibold text-brand-blue">
-                Waiting for the card on &ldquo;{readerPayment.readerLabel}&rdquo;:{" "}
-                {fmt(readerPayment.amount)}
-              </p>
-              {readerPayment.message && (
-                <p className="text-sm text-brand-gray">{readerPayment.message}</p>
-              )}
-              <div className="flex flex-wrap gap-3">
-                <Button variant="secondary" onClick={onCancelReaderPayment}>
-                  Cancel card payment
-                </Button>
-                {readerPayment.simulated && (
-                  <Button variant="secondary" onClick={onPresentTestCard}>
-                    Present a test card
-                  </Button>
-                )}
-              </div>
-            </div>
+          {paymentMethod === "CARD" && (
+            <CardTenderNote
+              registerReader={registerReader}
+              readerPayment={readerPayment}
+              fmt={fmt}
+              onCancel={onCancelReaderPayment}
+              onPresentTestCard={onPresentTestCard}
+            />
           )}
 
           {paymentMethod === "GIFT_CARD" && (
@@ -2062,11 +2143,12 @@ function TakePaymentPanel({
             fullWidth
             className="h-[60px] text-lg"
           >
-            {paymentProcessing || readerPayment
-              ? "Processing..."
-              : paymentMethod === "CARD" && registerReader
-                ? `Send ${fmt(payingNow)} to the card reader`
-                : `Record ${choiceLabel} Payment -- ${fmt(payingNow)}`}
+            {tenderButtonLabel(
+              paymentProcessing || readerPayment !== null,
+              paymentMethod === "CARD" && registerReader !== null,
+              choiceLabel ?? "",
+              fmt(payingNow),
+            )}
           </Button>
         </div>
       )}
