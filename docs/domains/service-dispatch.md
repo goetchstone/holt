@@ -327,7 +327,7 @@ Held by `serviceRouteKeys.integration.test.ts`.
 - `pages/api/dispatch/` -- dispatch API endpoints (orders-by-zone, ready-to-deliver, delivery-planner, pencil-in, runs, stops, vehicles, assign-order)
 - `app/(dashboard)/app/dispatch/` -- dispatch pages (board, ready-to-deliver, planner, run, pick list, driver), all on `warehouse.operate`
 - `pages/api/service/` -- service appointment API endpoints
-- `pages/api/service/house-calls/index.ts` -- books a house call and the order line that charges for it; the line's cost is the house-call product's cost through `productCost` (landed, else catalog: `docs/domains/sales-orders.md`, "A new line's cost")
+- `pages/api/service/house-calls/index.ts` -- books a house call and the order line that charges for it; the line's cost is the house-call product's cost through `productCost` (landed, else catalog: `docs/domains/sales-orders.md`, "A new line's cost"). The order it opens names the designer as its seller both ways, staff member and name, through `sellerColumns` (since 2026-11-27; it wrote the name and no link before: `docs/domains/sales-orders.md`, "An order written here names its seller both ways")
 - `pages/api/service/purchase-order-lookup.ts` -- the "Link PO" search on a case task: PO number and vendor name only (no totals, cost or notes), gated on `service.write` like the task save it serves. The purchasing list (`purchasing.read`) stays with purchasing
 - `app/service/house-calls/new/NewHouseCallView.tsx` -- the form offers the saved addresses the customer search already returned (`useCustomerSearch`, `addresses`). `GET /api/customers/[id]/addresses` does not exist; that route writes only
 - `pages/service/` -- service pages (dispatch queue, house calls)
