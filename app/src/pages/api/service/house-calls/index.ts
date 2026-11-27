@@ -8,6 +8,7 @@ import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
 import { logError } from "@/lib/logger";
+import { sellerColumns } from "@/lib/sales/orderSeller";
 import { productCost } from "@/lib/purchasing/landedCostShared";
 import {
   catalogLinePolicies,
@@ -114,15 +115,13 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
     const result = await prisma.$transaction(async (tx) => {
       let salesOrderId = orderId ? Number.parseInt(orderId) : null;
 
-      // Resolve designer display name for the sales order salesperson field
-      let designerDisplayName: string | null = null;
-      if (designerId) {
-        const designer = await tx.staffMember.findUnique({
-          where: { id: Number.parseInt(designerId) },
-          select: { displayName: true },
-        });
-        designerDisplayName = designer?.displayName || null;
-      }
+      // The designer is the order's salesperson: their staff row and their name.
+      const designer = designerId
+        ? await tx.staffMember.findUnique({
+            where: { id: Number.parseInt(designerId) },
+            select: { id: true, displayName: true },
+          })
+        : null;
 
       // Auto-create a sales order with the house-call product if no order was provided
       if (!salesOrderId) {
@@ -152,7 +151,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
             orderDate: now,
             status: "QUOTE",
             customerId: Number.parseInt(customerId),
-            salesperson: designerDisplayName || undefined,
+            ...sellerColumns(designer),
             storeLocationId: locationId ? Number.parseInt(locationId) : undefined,
             createdBy,
           },

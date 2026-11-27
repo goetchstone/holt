@@ -344,7 +344,7 @@ describe("duplicating a trade customer's order during a sale", () => {
     return prisma.$transaction((tx) =>
       duplicateOrder(tx, {
         orderId: sold.body.id,
-        actor: { email: "manager@example.com", displayName: "manager" },
+        actor: { email: "manager@example.com", staff: null },
         settings,
       }),
     );
@@ -655,7 +655,7 @@ describe("every writer records whether its list was a sale price", () => {
     const copy = await prisma.$transaction((tx) =>
       duplicateOrder(tx, {
         orderId: atSale.body.id,
-        actor: { email: "manager@example.com", displayName: "manager" },
+        actor: { email: "manager@example.com", staff: null },
         settings,
       }),
     );

@@ -103,6 +103,16 @@ The status derivation logic handles the daily feed going forward. The one-time r
 
 If `SalesOrder.salesPersonId` is set (manual correction from split import or reassignment), the daily sales import skips updating the `salesperson` string field to avoid overwriting the correction. Detected via the `correctedOrders` set in `runSalesImport()` (`lib/adapters/legacyPos/runners.ts:177`). A second set, `lockedOrders` (`runners.ts:190`), suppresses the same write for existing orders dated inside a confirmed (not reopened) commission period, matched by salesperson NAME or FK; either set is enough (`runners.ts:330`).
 
+## An order written here names its seller both ways (2026-11-27)
+
+Who sold an order is two columns: `salesPersonId` (the staff member) and `salesperson` (their name as text). An imported order has only the name, which is why every reader matches either (below). An order written in Holt knows the staff member, and writes both through one function, `sellerColumns` (`lib/sales/orderSeller.ts`).
+
+Four writers wrote half until 2026-11-27. The register (`create-from-cart.ts`), Duplicate order (`lib/sales/duplicateOrder.ts`) and a house call (`service/house-calls/index.ts`) wrote the name and no link; a converted proposal (`proposals/[id]/convert-to-order.ts`) wrote the link and no name. The name alone matches only until the person's display name changes, and the duplicate-quote check, which tells two designers' quotes for one customer apart by the link, could not see those quotes. The link alone left the order "Unassigned" in every list that reads the name. The other writers already wrote both: reassigning (`orders/[id]/salesperson.ts`, `reports/pipeline-reassign.ts`) and a return order (`lib/returns/bookReturn.ts`, copied from its sale). The two importers write the name the document gives.
+
+A register session with no staff row still names its email and links nobody. Orders written before this keep what they had; nothing backfills them (the import's sweep, `lib/salesPersonFkBackfill.ts`, runs only after a sales import).
+
+Tested in `__tests__/integration/orderSeller.integration.test.ts` (six cases through the real routes; four fail on the old writers). No test lists the writers: they were found by searching for writes of `salesperson`, so a fifth would be found the same way.
+
 ## Per-line-item salesperson splits — NOT SUPPORTED (manual workaround required)
 
 **Our schema cannot represent splitting an individual line item between two salespeople.** Verified 2026-05-22 against `schema.prisma`:

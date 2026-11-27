@@ -26,10 +26,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   try {
     const settings = await getAppSettings();
     const copy = await prisma.$transaction(async (tx) => {
-      const staff = await sessionStaffMember(session, { displayName: true }, tx);
+      const staff = await sessionStaffMember(session, { id: true, displayName: true }, tx);
       return duplicateOrder(tx, {
         orderId,
-        actor: { email, displayName: staff?.displayName ?? null },
+        actor: { email, staff },
         settings,
       });
     });

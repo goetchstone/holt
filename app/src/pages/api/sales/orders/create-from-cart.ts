@@ -58,6 +58,7 @@ import {
   findVendorsByName,
 } from "@/lib/vendors/vendorByName";
 import { checkGiftCardLines, type CheckedGiftCardLine } from "@/lib/sales/giftCardLines";
+import { sellerColumns } from "@/lib/sales/orderSeller";
 import {
   GIFT_CARD_LINE,
   isGiftCardCartLine,
@@ -227,7 +228,7 @@ export async function handler(
       const vendorMap = new Map([...found].map(([name, v]) => [name.toLowerCase(), v.id]));
 
       // Resolve salesperson from the session's own staff row (by User id, never email)
-      const staff = await sessionStaffMember(session, { displayName: true }, tx);
+      const staff = await sessionStaffMember(session, { id: true, displayName: true }, tx);
 
       // Resolve the store this sale belongs to BEFORE pricing -- tax
       // resolution needs its taxDistrictId, and inventory allocation
@@ -409,7 +410,7 @@ export async function handler(
           customerId: customerId || null,
           taxDistrictId: taxDistrict.taxDistrictId,
           taxExemptReasonId: taxDistrict.taxExemptReasonId,
-          salesperson: staff?.displayName || session.user?.email || null,
+          ...sellerColumns(staff, session.user?.email ?? null),
           storeLocation: storeLocation || null,
           // The store by id, as resolved above. Everything that taxes this
           // order later -- an added line, a re-rated quote, its delivery fee
