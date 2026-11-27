@@ -404,6 +404,9 @@ export async function handler(
         // summing every row unfiltered.
         status: p.status,
         isRefund: p.isRefund,
+        // Sent to a register's card reader: the order page words its Void
+        // for that (it cancels on the reader, not a link).
+        onCardReader: (p.processorData as { cardReader?: unknown } | null)?.cardReader === true,
       })),
     });
   } catch (error) {

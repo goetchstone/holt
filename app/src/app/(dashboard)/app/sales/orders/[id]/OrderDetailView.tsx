@@ -116,6 +116,8 @@ interface OrderPayment {
   paymentAmount: number;
   status: string | null;
   isRefund: boolean;
+  /** A payment sent to a register's card reader; voiding it cancels it there first. */
+  onCardReader?: boolean;
 }
 
 interface OrderCustomerRef {
@@ -750,24 +752,31 @@ export function OrderDetailView({
   const handleVoidPayment = useCallback(
     async (payment: OrderPayment) => {
       if (!orderDetails) return;
-      if (
-        !confirm(
-          `Void the pending ${formatCurrency(payment.paymentAmount)} payment from ` +
-            `${format(parseLocalDate(payment.paymentDate), "PPP")}? The customer will need a new ` +
-            `payment link if they still owe this amount.`,
-        )
-      ) {
-        return;
-      }
+      // A payment waiting on a card reader is not a link: voiding it clears the
+      // reader, and a card that has already gone through is recorded instead.
+      const amount = formatCurrency(payment.paymentAmount);
+      const question = payment.onCardReader
+        ? `Cancel the ${amount} card payment waiting on the card reader? If the card has ` +
+          `already gone through, the payment is recorded and can't be cancelled here.`
+        : `Void the pending ${amount} payment from ` +
+          `${format(parseLocalDate(payment.paymentDate), "PPP")}? The customer will need a new ` +
+          `payment link if they still owe this amount.`;
+      if (!confirm(question)) return;
       try {
         await axios.post(
           `/api/sales/orders/${encodeURIComponent(String(id))}/payments/${payment.id}/void`,
-          { reason: "Voided from order detail (stuck pending checkout)" },
+          {
+            reason: payment.onCardReader
+              ? "Cancelled from the order while waiting on the card reader"
+              : "Voided from order detail (stuck pending checkout)",
+          },
         );
-        toast.success("Payment voided");
+        toast.success(payment.onCardReader ? "Card payment cancelled" : "Payment voided");
         fetchOrder();
       } catch (err: unknown) {
         toast.error(getErrorMessage(err, "Failed to void payment"));
+        // Refused because it changed meanwhile (the card went through): show what it is now.
+        fetchOrder();
       }
     },
     [orderDetails, id, formatCurrency, fetchOrder],

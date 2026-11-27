@@ -41,6 +41,7 @@ import {
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
+import type { TestCardOutcome } from "@/lib/payments/types";
 import { deliveryPieces } from "@/lib/delivery/deliveryFeeShared";
 import { DeliveryFeeField } from "./DeliveryFeeField";
 import {
@@ -208,10 +209,10 @@ function useCardReader({
     }
   };
 
-  const presentTestCard = async () => {
+  const presentTestCard = async (outcome: TestCardOutcome) => {
     if (!paymentUrl) return;
     try {
-      await axios.post(paymentUrl);
+      await axios.post(paymentUrl, { outcome });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Couldn't present the test card"));
     }
@@ -238,7 +239,7 @@ function CardTenderNote({
   readerPayment: ReaderPayment | null;
   fmt: MoneyFmt;
   onCancel: () => void;
-  onPresentTestCard: () => void;
+  onPresentTestCard: (outcome: TestCardOutcome) => void;
 }>) {
   if (!registerReader) {
     return (
@@ -271,9 +272,14 @@ function CardTenderNote({
           Cancel card payment
         </Button>
         {readerPayment.simulated && (
-          <Button variant="secondary" onClick={onPresentTestCard}>
-            Present a test card
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => onPresentTestCard("approve")}>
+              Present a test card
+            </Button>
+            <Button variant="secondary" onClick={() => onPresentTestCard("decline")}>
+              Present a declined card
+            </Button>
+          </>
         )}
       </div>
     </div>
@@ -1867,7 +1873,7 @@ function TakePaymentPanel({
   /** A card payment out on the reader right now. */
   readerPayment: ReaderPayment | null;
   onCancelReaderPayment: () => void;
-  onPresentTestCard: () => void;
+  onPresentTestCard: (outcome: TestCardOutcome) => void;
   onLookupGiftCard: () => void;
   onRecordPayment: () => void;
   onResetFlow: () => void;

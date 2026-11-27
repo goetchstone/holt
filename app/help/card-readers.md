@@ -41,13 +41,13 @@ Ring up the sale and choose the card tender. At a register with a reader, the bu
 
 While a payment is out on a reader, the order can't be sent a payment link, so the customer can't pay twice. Cancel the card payment first.
 
-Someone who may **Void payment** can also cancel it from the order: voiding the pending payment there cancels it on the reader first.
+Someone who may **Void payment** can also cancel it from the order: **Void** on the pending payment there cancels it on the reader first. If the card had already gone through, the payment is recorded and the order says so.
 
 If a register is closed while a payment is still out on its reader, Holt checks with Stripe before giving up on it: a card that was approved is recorded, and one nobody paid is cancelled.
 
 ## Trying it without a reader
 
-With a Stripe **test** key you can add a simulated reader: use the code **simulated-wpe**. At its register, the waiting screen has a **Present a test card** button that stands in for the customer's card. No money moves in test mode.
+With a Stripe **test** key you can add a simulated reader: use the code **simulated-wpe**. At its register, the waiting screen has two buttons that stand in for the customer's card: **Present a test card**, which is approved, and **Present a declined card**, which shows what a decline looks like. No money moves in test mode.
 
 ## Refunds
 

@@ -449,6 +449,10 @@ payment promotes a quote whatever the setting, and a sale with nothing to pay ca
   invoice goes ahead, and the invoice keeps its old amounts.
 - **Setting a dispatch status to cancelled** (`dispatch.ts`) still only frees the stock. It doesn't cancel the sale.
 
+### Voiding a pending payment from the order (2026-11-27)
+
+The order page lists each payment with a **Void** on a pending one (`payment.void`). `GET /api/sales/orders/[id]` marks a payment that was sent to a register's card reader (`onCardReader`, from the row's `processorData`), and the page words the Void by it: for a reader payment it asks to cancel the card payment waiting on the reader and says a card that has already gone through is recorded instead; for a payment link it says the customer will need a new link. The route (`payments/[paymentId]/void.ts`) cancels a reader payment on the reader first (pos.md, "Card readers"). When the void is refused, the page reloads the order, so it shows what the payment has become.
+
 ## Invoice tools (GAP-07, since 2026-11-03)
 
 Owner, 2026-11-03: flags and disclaimers are the store's own lists ("Yes
