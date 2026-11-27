@@ -49,8 +49,12 @@ Source read for this runbook: `lib/help/catalog.ts`, `lib/help/articles.ts`,
 | Finding who did what | `/app/admin/audit` |
 | Changing many prices at once (GAP-06) | `/app/inventory/mass-price-change` |
 | Scheduling a sale (GAP-06 part B) | `/app/inventory/sales` |
+| Trade pricing (GAP-06 part C) | `/app/admin/setup/trade-tiers` |
+| Card readers (GAP-03) | `/app/admin/setup/card-readers` |
 
-254 screens have none yet: see the fixture.
+252 screens have none yet: see the fixture.
+
+The card readers article opens with a note that readers are not yet proven on a physical reader. It comes out when the first run in `docs/domains/pos.md` ("Card readers") is done.
 
 ## Not done
 
