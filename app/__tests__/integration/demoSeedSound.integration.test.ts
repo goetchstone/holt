@@ -30,13 +30,15 @@ async function seededStaff() {
   return seedStaff(prisma, stores, stores[0].id, 4);
 }
 
+// Once, after every describe in the file: a disconnect inside the first one is
+// undone by the next describe's first query.
+afterAll(async () => {
+  await prisma.$disconnect();
+});
+
 describe("the demo seed's staff", () => {
   beforeEach(async () => {
     await resetTestDb();
-  });
-
-  afterAll(async () => {
-    await prisma.$disconnect();
   });
 
   it("are each on the role their role name says, starting from a database with no roles", async () => {

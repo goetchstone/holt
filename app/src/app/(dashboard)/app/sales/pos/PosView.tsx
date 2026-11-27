@@ -42,6 +42,7 @@ import { onHandByStore } from "@/lib/inventory/onHandSummary";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
 import type { TestCardOutcome } from "@/lib/payments/types";
+import type { OrderToPayResult } from "@/lib/sales/orderToPay";
 import { deliveryPieces } from "@/lib/delivery/deliveryFeeShared";
 import { DeliveryFeeField } from "./DeliveryFeeField";
 import {
@@ -381,11 +382,17 @@ interface GiftCardInfo {
 interface CreatedOrder {
   id: number;
   orderno: string;
-  /** All five come from the server's response -- see the note in handleCreateOrder. */
-  subtotal: number;
-  orderDiscountAmount: number;
-  deliveryFee: number;
-  taxAmount: number;
+  /**
+   * How the total was reached, from the server's response to the sale just
+   * rung (see the note in handleCreateOrder). Null for an order written
+   * earlier and opened here to take a payment: its lines are on the order.
+   */
+  breakdown: {
+    subtotal: number;
+    orderDiscountAmount: number;
+    deliveryFee: number;
+    taxAmount: number;
+  } | null;
   total: number;
   allowSaleWithoutPayment: boolean;
   /** It sells or reloads a gift card, so it's paid in full before it leaves the register. */
@@ -465,8 +472,56 @@ function onHandAt(item: CartItem, locationName: string): number {
   return here?.available ?? 0;
 }
 
-export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | null }>) {
+/**
+ * What the register starts with: nothing, or an order written earlier that it
+ * was opened to take a payment on (or why that order can't take one).
+ */
+function startingPayment(payOrder: OrderToPayResult | null): {
+  order: CreatedOrder | null;
+  paid: number;
+  customer: CustomerResult | null;
+  problem: string | null;
+} {
+  const none = { order: null, paid: 0, customer: null, problem: null };
+  if (!payOrder) return none;
+  if ("problem" in payOrder) return { ...none, problem: payOrder.problem };
+  const earlier = payOrder.order;
+  return {
+    order: {
+      id: earlier.id,
+      orderno: earlier.orderno,
+      breakdown: null,
+      total: earlier.total,
+      allowSaleWithoutPayment: false,
+      holdsGiftCard: earlier.holdsGiftCard,
+    },
+    paid: earlier.paid,
+    customer: earlier.customer,
+    problem: null,
+  };
+}
+
+/** A customer's name as one string, or null when there is none to show. */
+function fullName(customer: CustomerResult | null): string | null {
+  if (!customer) return null;
+  return `${customer.firstName} ${customer.lastName}`.trim() || null;
+}
+
+export function PosView({
+  splitSetup,
+  payOrder,
+}: Readonly<{
+  splitSetup: SplitSaleSetup | null;
+  /** An order sent here from its own page to take a payment on, or why it can't be. */
+  payOrder: OrderToPayResult | null;
+}>) {
   const router = useRouter();
+  // An order written earlier opens straight on the payment screen, with what
+  // has been paid toward it and its customer (for store credit).
+  const [start] = useState(() => startingPayment(payOrder));
+  useEffect(() => {
+    if (start.problem) toast.error(start.problem);
+  }, [start.problem]);
   const fmt = useMoneyFormatter();
   const scanRef = useRef<HTMLInputElement>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -500,7 +555,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   const [editPriceValue, setEditPriceValue] = useState("");
 
   // Created order -- when set, the payment section is shown instead of the cart
-  const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(start.order);
 
   // Payment flow state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | null>(null);
@@ -528,7 +583,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   // recordPayment already accepted any positive amount; only the UI insisted on
   // the full total. paidSoFar tracks this session's tenders so the panel can
   // show what is left and offer it as the default.
-  const [paidSoFar, setPaidSoFar] = useState(0);
+  const [paidSoFar, setPaidSoFar] = useState(start.paid);
   const [payAmount, setPayAmount] = useState("");
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
 
@@ -551,7 +606,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     isSearching: searchingCustomer,
     clear: clearCustomerSearch,
   } = useCustomerSearch({ limit: 5 });
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(start.customer);
   // A trade customer's tier prices the cart's eligible lines (GAP-06 part C).
   const tradeTier = selectedCustomer?.tradeTier ?? null;
   // The tier as of the latest customer pick, for a line added after an await:
@@ -974,10 +1029,12 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
       setCreatedOrder({
         id: data.id,
         orderno: data.orderno,
-        subtotal: data.subtotal ?? 0,
-        orderDiscountAmount: data.orderDiscountAmount ?? 0,
-        deliveryFee: data.deliveryFee ?? 0,
-        taxAmount: data.taxAmount ?? 0,
+        breakdown: {
+          subtotal: data.subtotal ?? 0,
+          orderDiscountAmount: data.orderDiscountAmount ?? 0,
+          deliveryFee: data.deliveryFee ?? 0,
+          taxAmount: data.taxAmount ?? 0,
+        },
         total: data.total,
         allowSaleWithoutPayment: data.allowSaleWithoutPayment === true,
         holdsGiftCard: cardLines.length > 0,
@@ -1183,6 +1240,8 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   };
 
   const handleNewTransaction = () => {
+    // Opened for an order: leave its address, so a reload does not come back to it.
+    if (payOrder) router.replace("/app/sales/pos");
     setCart([]);
     setCardLines([]);
     setCardDraft(null);
@@ -1242,11 +1301,34 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
     );
   }
 
+  // Which register comes first. A sale just rung chose one before it had a
+  // cart; an order opened here to be paid has not, and a payment taken with no
+  // register has no till to land in.
+  if (registersLoading) {
+    return (
+      <div className="max-w-3xl mx-auto py-16 text-center font-serif">
+        <p className="text-brand-gray">Loading registers...</p>
+      </div>
+    );
+  }
+
+  if (needsRegisterSelection) {
+    return (
+      <RegisterSelect
+        registers={allRegisters}
+        showCancel={showRegisterSelect && !!selectedRegister}
+        onSelect={handleSelectRegister}
+        onCancel={() => setShowRegisterSelect(false)}
+      />
+    );
+  }
+
   // Render payment section after order is created
   if (createdOrder) {
     return (
       <TakePaymentPanel
         order={createdOrder}
+        customerName={fullName(selectedCustomer)}
         fmt={fmt}
         balanceDue={round2(createdOrder.total - paidSoFar)}
         paidSoFar={paidSoFar}
@@ -1283,25 +1365,6 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         onResetFlow={resetPaymentFlow}
         onSkip={() => router.push(`/app/sales/orders/${createdOrder.id}`)}
         onProcessUnpaid={handleProcessUnpaid}
-      />
-    );
-  }
-
-  if (registersLoading) {
-    return (
-      <div className="max-w-3xl mx-auto py-16 text-center font-serif">
-        <p className="text-brand-gray">Loading registers...</p>
-      </div>
-    );
-  }
-
-  if (needsRegisterSelection) {
-    return (
-      <RegisterSelect
-        registers={allRegisters}
-        showCancel={showRegisterSelect && !!selectedRegister}
-        onSelect={handleSelectRegister}
-        onCancel={() => setShowRegisterSelect(false)}
       />
     );
   }
@@ -1811,6 +1874,7 @@ function TakePaymentPanel({
   payAmount,
   setPayAmount,
   order,
+  customerName,
   fmt,
   paymentMethod,
   setPaymentMethod,
@@ -1842,6 +1906,8 @@ function TakePaymentPanel({
   onProcessUnpaid,
 }: Readonly<{
   order: CreatedOrder;
+  /** Who the order is for, shown for an order written earlier. */
+  customerName: string | null;
   fmt: MoneyFmt;
   paymentMethod: PaymentMethodType | null;
   setPaymentMethod: Dispatch<SetStateAction<PaymentMethodType | null>>;
@@ -1909,30 +1975,14 @@ function TakePaymentPanel({
             )}
           </div>
         </div>
-        {/* Breakdown from the server's authoritative pricing -- the tax line
-            the cart screen couldn't show, now that the rate is known. */}
-        <div className="text-xs text-brand-gray space-y-0.5 border-t border-brand-gray/10 pt-2 mt-2">
-          <div className="flex justify-between">
-            <span>Subtotal</span>
-            <span>{fmt(order.subtotal)}</span>
-          </div>
-          {order.orderDiscountAmount > 0 && (
-            <div className="flex justify-between text-green-700">
-              <span>Discount</span>
-              <span>-{fmt(order.orderDiscountAmount)}</span>
-            </div>
-          )}
-          {order.deliveryFee > 0 && (
-            <div className="flex justify-between">
-              <span>Delivery</span>
-              <span>{fmt(order.deliveryFee)}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span>Tax</span>
-            <span>{fmt(order.taxAmount)}</span>
-          </div>
-        </div>
+        {order.breakdown ? (
+          <OrderBreakdown breakdown={order.breakdown} fmt={fmt} />
+        ) : (
+          <p className="text-xs text-brand-gray border-t border-brand-gray/10 pt-2 mt-2">
+            {customerName ? `For ${customerName}. ` : ""}
+            Order total {fmt(order.total)}. Its lines are on the order.
+          </p>
+        )}
       </div>
 
       {paymentMethod && (
@@ -2173,6 +2223,40 @@ function TakePaymentPanel({
         fmt={fmt}
         onSkip={onSkip}
       />
+    </div>
+  );
+}
+
+/**
+ * How the sale just rung reached its total, from the server's pricing: the tax
+ * line the cart screen couldn't show, now that the rate is known.
+ */
+function OrderBreakdown({
+  breakdown,
+  fmt,
+}: Readonly<{ breakdown: NonNullable<CreatedOrder["breakdown"]>; fmt: MoneyFmt }>) {
+  return (
+    <div className="text-xs text-brand-gray space-y-0.5 border-t border-brand-gray/10 pt-2 mt-2">
+      <div className="flex justify-between">
+        <span>Subtotal</span>
+        <span>{fmt(breakdown.subtotal)}</span>
+      </div>
+      {breakdown.orderDiscountAmount > 0 && (
+        <div className="flex justify-between text-green-700">
+          <span>Discount</span>
+          <span>-{fmt(breakdown.orderDiscountAmount)}</span>
+        </div>
+      )}
+      {breakdown.deliveryFee > 0 && (
+        <div className="flex justify-between">
+          <span>Delivery</span>
+          <span>{fmt(breakdown.deliveryFee)}</span>
+        </div>
+      )}
+      <div className="flex justify-between">
+        <span>Tax</span>
+        <span>{fmt(breakdown.taxAmount)}</span>
+      </div>
     </div>
   );
 }

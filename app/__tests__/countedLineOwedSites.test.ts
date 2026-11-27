@@ -56,6 +56,8 @@ const OWED: Record<string, string> = {
     "issues the gift cards a sale paid for: it waits for the balance computeBalance owes to reach $0, and issues only a card line still on the order",
   "src/pages/api/dispatch/orders-by-zone.ts":
     "the balance due on each order on the dispatch board; the pieces for the truck are filtered with isCountedItemLine",
+  "src/lib/sales/orderToPay.ts":
+    "asks whether an order opened at the register to be paid still has a gift card line on it (paid in full before it leaves): a card line is what it looks for; the totals are computeBalance's",
 
   // Where the two kinds are defined.
   "src/lib/salesOrderRevenue.ts":

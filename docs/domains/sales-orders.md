@@ -459,6 +459,10 @@ payment promotes a quote whatever the setting, and a sale with nothing to pay ca
   invoice goes ahead, and the invoice keeps its old amounts.
 - **Setting a dispatch status to cancelled** (`dispatch.ts`) still only frees the stock. It doesn't cancel the sale.
 
+### Taking a payment from the order (2026-11-27)
+
+Beside Balance Due the order page offers three ways to be paid: Apply store credit, a payment link, and **Take payment at the register**, which opens the register's payment screen on this order for cash, a check, a gift card or a card on the reader (pos.md, "Taking a payment on an order written earlier"). The last is offered to someone who holds `payment.take` and `pos.operate` while the register module is on, on an order that owes something and is not cancelled. Before it, a balance could only be paid by link or store credit.
+
 ### Voiding a pending payment from the order (2026-11-27)
 
 The order page lists each payment with a **Void** on a pending one (`payment.void`). `GET /api/sales/orders/[id]` marks a payment that was sent to a register's card reader (`onCardReader`, from the row's `processorData`), and the page words the Void by it: for a reader payment it asks to cancel the card payment waiting on the reader and says a card that has already gone through is recorded instead; for a payment link it says the customer will need a new link. The route (`payments/[paymentId]/void.ts`) cancels a reader payment on the reader first (pos.md, "Card readers"). When the void is refused, the page reloads the order, so it shows what the payment has become.

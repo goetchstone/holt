@@ -340,6 +340,7 @@ export function OrderDetailView({
   canReassign,
   canVoidPayment,
   canSendPaymentLink,
+  canTakeAtRegister,
   canPortalLink,
   canDeleteQuote,
 }: Readonly<{
@@ -352,6 +353,8 @@ export function OrderDetailView({
   canVoidPayment: boolean;
   /** Create a payment link (payment.take, stripe/send-payment-link.ts). */
   canSendPaymentLink: boolean;
+  /** Take a payment on this order at the register (payment.take and pos.operate, with the register on). */
+  canTakeAtRegister: boolean;
   /** Generate or text a portal link (sales.write, portal/generate-link.ts, text-link.ts). */
   canPortalLink: boolean;
   /** Delete a quote with no money on it (sales.cancel, DELETE sales/orders/[id]). */
@@ -1058,6 +1061,19 @@ export function OrderDetailView({
                 formatCurrency={formatCurrency}
                 onApplied={fetchOrder}
               />
+            )}
+            {canTakeAtRegister && balanceDue > 0 && orderDetails.status !== "CANCELLED" && (
+              <div className="mt-4 border-t border-brand-gray/20 pt-3">
+                <Button
+                  size="sm"
+                  onClick={() => router.push(`/app/sales/pos?order=${orderDetails.id}`)}
+                >
+                  Take payment at the register
+                </Button>
+                <p className="text-xs text-brand-gray mt-1">
+                  Cash, a check, a gift card, or a card on the register&apos;s reader.
+                </p>
+              </div>
             )}
             {canSendPaymentLink && balanceDue > 0 && (
               <div className="mt-4 border-t border-brand-gray/20 pt-3">
