@@ -84,10 +84,80 @@ exist: `demo` (the default), `cms`, and `roles` — the last because the
 built-in roles are not the demo seed's. The migration that creates
 `Role`/`RolePermission` inserts them, `src/instrumentation.ts` reconciles them
 against `lib/auth/permissionCatalog.ts` every time the server starts, and
-`npm run seed:roles` does the same by hand. `docker-entrypoint.sh` runs no
+`npm run seed:roles` does the same by hand. The demo seed also syncs them
+before it creates staff (since 2026-11-27: a `--reset` empties them, and staff
+were then linked to no role; see "The seed checks what it wrote").
+`docker-entrypoint.sh` runs no
 seeder: the image has no npm, and stage 3 ships no `scripts/`. Getting this wrong does not fail quietly: a model attributed to
 `demo` but populated by another seeder reports as a REGRESSION on any run that
 did not include it.
+
+### The seed checks what it wrote (2026-11-27)
+
+`npm run seed:coverage` asks whether each table has rows. It cannot see a row
+that is there and wrong. Five kinds of those sat in every demo database, found
+by reading a seeded database table by table:
+
+- **Thirty staff on no role.** `npm run seed:all` is `seed:demo -- --reset`, then
+  `seed:roles`. The reset empties `Role`, so the demo seed created its staff with
+  a role name and `roleId` null, and the roles arrived afterwards. Admin › Roles
+  showed nobody on any role (access still worked, through the role-name
+  fallback). `scripts/setup.sh` runs the two the other way round, which is why a
+  fresh clone was right and every re-seed was wrong. `seedStaff` now syncs the
+  built-in roles itself (`syncBuiltInRoles`) before it creates anyone, and stops
+  if a member's role has no row.
+- **Two quotes sold by "seed:demo".** The tier-priced quotes are copies made
+  through Duplicate order, which names whoever copies as the salesperson. They
+  are now copied as the person who sold the original, where that person still
+  works there.
+- **Every delivered order with nothing handed over.** A line's `fulfilledQty`
+  stayed 0 on all of them, so a review invite listed no pieces and a delivered
+  stop showed all its goods still to drop off. Lines of a delivered order are
+  now written handed over in full, as `lib/fulfilment/handover.ts` leaves them.
+- **Stock held for an order that had gone home.** A transfer "raised to fulfil a
+  customer order" took its order from the latest sales whatever their state, and
+  moved up to three units whatever the order bought. One brought two units for a
+  floor sale of one that left the day it was rung. A transfer for an order now
+  serves an order still open and at least three days old, with nothing staged
+  for it yet, and moves no more than it ordered; it is raised the day after the
+  sale.
+- **Delivery orders with nobody to deliver to.** One order in ten has no
+  customer, which is right for a counter sale and wrong for an order that waits
+  for its goods. A delivery order with none drawn is now given one by its place
+  in the plan, with no extra random draw, so the rest of the history is what it
+  was.
+
+`prisma/seed/demo/verify.ts` (`assertSeedIsSound`) runs last in the seed and
+stops it, listing the problems, unless:
+
+1. each staff member is linked to the role their role name says;
+2. each order with a seller names them both ways, the staff member and their
+   name, and the two agree (sales-orders.md, "An order written here names its
+   seller both ways");
+3. each delivered order has its delivered date and all its goods handed over,
+   and each open order has neither;
+4. stock is held only for a quote or an open order, and no more of a product
+   than its lines are waiting for;
+5. each delivery or pickup order names a customer.
+
+It sits beside the older checks at the end of `index.ts` (archived staff stop
+selling well before the end; floor staff sell). The seed runs in CI's setup step
+(`npm run setup`), so all of these run on every pull request, at the full demo
+scale. Add a check there when a wrong-but-present row is found: say what must be
+true of a seeded database, not what the bug was.
+
+Tested in `__tests__/integration/demoSeedSound.integration.test.ts` (eight
+cases; the three on staff fail on the old staff seed). Watched failing: the old
+seed code, run under the new check, stopped with all five kinds listed (30
+staff, 2 quotes, 422 delivered orders, 1 held position, 18 delivery orders, at
+the small scale). The fixed seed passes at both scales.
+
+**Read past the check.** What it does not look at is still unexamined. Known and
+left: every sale is paid in full, so no customer owes anything (the customer
+ledger and open balances are the next seed tranche, `money-detail`); no order
+has a cancelled or replaced line; and the small scale (`seed:all`'s default) has
+every open order waiting on its vendor, so its dispatch board has nothing to
+schedule. Use `--scale=demo` for a database to show someone.
 
 ### Deriving realistic data without copying any
 

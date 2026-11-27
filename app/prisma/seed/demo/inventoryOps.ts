@@ -44,10 +44,24 @@ import type { CatalogProduct } from "./catalog";
 import type { StoreSetup } from "./locations";
 import type { StaffSetup } from "./staff";
 import { toQty } from "@/lib/inventory/quantity";
+import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
 import { claimAndReceive, shipTransfer } from "@/lib/inventory/transfers";
 import { isPracticeCopy } from "@/lib/practiceCopy";
 
 const SEED_ACTOR = "seed:demo";
+const DAY_MS = 86_400_000;
+/**
+ * A transfer for an order is raised the day after the sale and received two
+ * days later, so only an order at least this old can have had one.
+ */
+const ORDER_TRANSFER_DAYS = 3;
+
+/** What an open order is still waiting for of one product. */
+interface Want {
+  orderId: number;
+  orderDate: Date;
+  quantity: number;
+}
 
 /** The previous system's stock id for the first snapshot product; the rest follow on. */
 const PREVIOUS_SYSTEM_FIRST_STOCK_ID = 30_001;
@@ -231,13 +245,49 @@ export async function seedInventoryOps(
     "RECEIVED",
     "CANCELLED",
   ];
-  const orderIds = soldOrders.map((o) => o.id);
-  // The orders that bought each product, so a transfer raised for an order
-  // moves something that order bought.
-  const ordersFor = new Map<number, number[]>();
-  for (const o of soldOrders) {
-    const productId = o.lineItems[0]?.productId;
-    if (productId != null) ordersFor.set(productId, [...(ordersFor.get(productId) ?? []), o.id]);
+  // What each open order is still waiting for, by product. A transfer raised
+  // for an order moves something that order bought and has not had, and no
+  // more of it than it ordered. Until 2026-11-27 the order was drawn from the
+  // latest sales whatever their state, so a transfer brought two units for a
+  // floor sale of one that had gone home the day it was rung, and they stayed
+  // held for a delivered order (verify.ts). An order that already has its
+  // goods staged is not waiting, and one from the last few days has not had
+  // time for a transfer to be raised and received.
+  const waitingOrders = await prisma.salesOrder.findMany({
+    where: {
+      status: "ORDER",
+      deliveredAt: null,
+      orderDate: { lt: new Date(today.getTime() - ORDER_TRANSFER_DAYS * DAY_MS) },
+      inventoryPositions: { none: {} },
+    },
+    select: {
+      id: true,
+      orderDate: true,
+      lineItems: {
+        where: { ...COUNTED_ITEM_LINE, productId: { not: null }, orderedQuantity: { gt: 0 } },
+        select: { productId: true, orderedQuantity: true },
+      },
+    },
+    orderBy: { id: "asc" },
+  });
+  const wantedBy = new Map<number, Want[]>();
+  for (const order of waitingOrders) {
+    const orderDate = order.orderDate;
+    if (orderDate == null) continue;
+    for (const line of order.lineItems) {
+      if (line.productId == null) continue;
+      const wants = wantedBy.get(line.productId) ?? [];
+      const mine = wants.find((w) => w.orderId === order.id);
+      if (mine) mine.quantity += toQty(line.orderedQuantity);
+      else {
+        wants.push({
+          orderId: order.id,
+          orderDate,
+          quantity: toQty(line.orderedQuantity),
+        });
+      }
+      wantedBy.set(line.productId, wants);
+    }
   }
 
   // A transfer is raised for stock that is actually at its source, and the
@@ -271,19 +321,37 @@ export async function seedInventoryOps(
     if (available.length === 0) continue;
     // Half the transfers exist because somebody bought something. That link is
     // what separates "move stock for a customer" from "rebalance the floor",
-    // and reports read them differently. Such a transfer moves a product its
-    // order bought; with none of those here it is a rebalance (until
-    // 2026-10-16 it named a random order, which committed stock to an order
-    // with no line for it).
-    const forOrder = i % 2 === 0 && orderIds.length > 0;
-    const bought = forOrder ? available.filter((r) => ordersFor.has(r.productId)) : [];
+    // and reports read them differently. Such a transfer moves a product an
+    // open order is waiting for; with none of those here it is a rebalance
+    // (until 2026-10-16 it named a random order, which committed stock to an
+    // order with no line for it).
+    const forOrder = i % 2 === 0;
+    const bought = forOrder ? available.filter((r) => wantedBy.has(r.productId)) : [];
     const chosen = pick(oRng, bought.length ? bought : available);
-    const quantity = Math.min(randInt(oRng, 1, 3), Math.floor(chosen.free));
+    const want = bought.length ? pick(oRng, wantedBy.get(chosen.productId)!) : null;
+    const quantity = Math.min(
+      randInt(oRng, 1, 3),
+      Math.floor(chosen.free),
+      want?.quantity ?? Number.POSITIVE_INFINITY,
+    );
     const key = `${from.id}|${chosen.productId}`;
     promised.set(key, (promised.get(key) ?? 0) + quantity);
 
-    const salesOrderId = bought.length ? pick(oRng, ordersFor.get(chosen.productId)!) : null;
-    const raisedAt = new Date(today.getTime() - randInt(oRng, 1, 45) * 86_400_000);
+    const salesOrderId = want?.orderId ?? null;
+    const drawnDaysAgo = randInt(oRng, 1, 45);
+    // Raised the day after the sale it is for, never before it.
+    const raisedAt = want
+      ? new Date(want.orderDate.getTime() + DAY_MS)
+      : new Date(today.getTime() - drawnDaysAgo * DAY_MS);
+    if (want) {
+      // What this transfer brings is no longer waited for.
+      want.quantity -= quantity;
+      if (want.quantity <= 0) {
+        const left = wantedBy.get(chosen.productId)!.filter((w) => w !== want);
+        if (left.length > 0) wantedBy.set(chosen.productId, left);
+        else wantedBy.delete(chosen.productId);
+      }
+    }
 
     const transfer = await prisma.inventoryTransfer.create({
       data: {
@@ -324,7 +392,7 @@ export async function seedInventoryOps(
           status,
           receivedQuantity: status === "RECEIVED" ? quantity : 0,
           shippedAt: status === "DRAFT" ? null : raisedAt,
-          receivedAt: status === "RECEIVED" ? new Date(raisedAt.getTime() + 2 * 86_400_000) : null,
+          receivedAt: status === "RECEIVED" ? new Date(raisedAt.getTime() + 2 * DAY_MS) : null,
           receivedByUserId: status === "RECEIVED" ? actorUserId : null,
         },
       });

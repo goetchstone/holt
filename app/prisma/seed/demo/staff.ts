@@ -13,6 +13,7 @@
 // makes "log in and look around" actually usable.
 
 import type { PrismaClient, StaffRole } from "@prisma/client";
+import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { hashPassword, hashPin } from "@/lib/auth/password";
 import { databaseNameFromUrl, isPracticeDatabaseName } from "@/lib/practiceCopy";
 import { UnsafeSeedTargetError } from "./guard";
@@ -106,21 +107,28 @@ async function upsertStaff(
 
   // Link roleId the way the RBAC migration's backfill does: Role.key === the
   // StaffRole value. Without it every seeded developer lands on
-  // requirePermission's StaffRole fallback and the FK that production staff all
-  // carry is never exercised locally. Null when the built-in roles have not been
-  // seeded yet (`npm run seed:roles`, which scripts/setup.sh runs first) — the
-  // fallback covers that, which is exactly what it exists for.
+  // requirePermission's StaffRole fallback, the FK that production staff all
+  // carry is never exercised locally, and Admin > Roles shows nobody on any
+  // role. seedStaff puts the built-in roles in place first, so a missing row
+  // here is a role the catalog does not have: stop, rather than seed someone
+  // who looks right and is linked to nothing.
   const roleRow = await prisma.role.findUnique({
     where: { key: entry.role },
     select: { id: true },
   });
+  if (!roleRow) {
+    throw new Error(
+      `Demo seed: no Role row for "${entry.role}" (${entry.displayName}). ` +
+        "The built-in roles were just synced, so the permission catalog has no such role.",
+    );
+  }
 
   const staff = await prisma.staffMember.upsert({
     where: { email },
     update: {
       displayName: entry.displayName,
       role: entry.role,
-      roleId: roleRow?.id ?? null,
+      roleId: roleRow.id,
       isDesigner: entry.isDesigner,
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
@@ -132,7 +140,7 @@ async function upsertStaff(
       email,
       displayName: entry.displayName,
       role: entry.role,
-      roleId: roleRow?.id ?? null,
+      roleId: roleRow.id,
       isDesigner: entry.isDesigner,
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
@@ -189,6 +197,12 @@ export async function seedStaff(
   warehouseStoreLocationId: number,
   designerCount: number,
 ): Promise<StaffSetup> {
+  // The roles staff are linked to, before any staff. `npm run seed:all` resets
+  // the database (which empties Role) and only then runs seed:roles, so every
+  // member it seeded had a role name and no role: 30 staff, none on any role in
+  // Admin > Roles (found 2026-11-25). Synced here, the order the scripts run in
+  // can't unlink anyone.
+  await syncBuiltInRoles({ prisma });
   const passwordHash = hashPassword(seededStaffPassword());
   const pinHash = hashPin(DEMO_STAFF_PIN);
   const storeA = stores[0]?.id ?? null;

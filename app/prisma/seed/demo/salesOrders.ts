@@ -289,6 +289,11 @@ export async function seedSalesOrdersAndTills(
             taxDistrictId,
             source: order.isInvoiced ? "FLOOR" : "ORDER",
             fulfillment: order.isInvoiced ? "TAKE" : "DELIVERY",
+            // Handed over in full once delivered, as the handover writes it
+            // (lib/fulfilment/handover.ts). These stayed 0 on every delivered
+            // order, so a review invite listed no pieces and a delivered stop
+            // showed all its goods still to drop off (verify.ts).
+            fulfilledQty: order.deliveredAt ? l.quantity : 0,
           };
         }),
       });
