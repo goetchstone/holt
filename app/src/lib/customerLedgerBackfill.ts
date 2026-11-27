@@ -65,11 +65,11 @@
 //     follows the line items naturally — return orders (accounting-return)
 //     have negative line items and emit a negative-amount SALE entry.
 //
-//   - PAYMENT: one entry per non-VOIDED, non-FAILED Payment with
-//     isRefund=false. Amount = -paymentAmount (customer paid → balance
+//   - PAYMENT: one entry per Payment that is money in hand (not VOIDED,
+//     FAILED or PENDING; lib/paymentBalance.ts) with isRefund=false. Amount = -paymentAmount (customer paid → balance
 //     decreases).
 //
-//   - REFUND_ISSUED: one entry per non-VOIDED, non-FAILED Payment with
+//   - REFUND_ISSUED: one entry per such Payment with
 //     isRefund=true. Amount = +|paymentAmount| (we paid customer back →
 //     balance climbs back up; mirrors computeBalance's refund handling).
 //
@@ -92,17 +92,29 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   computeSourceBalance,
+  lockCustomerForLedger,
   validateAgainstSource,
   type LedgerValidation,
 } from "@/lib/customerLedger";
-import { isCountedLine } from "@/lib/salesOrderRevenue";
+import { isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
+import { isCountedLine, isRevenueStatus } from "@/lib/salesOrderRevenue";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export interface BackfillResult {
   customerId: number;
   status:
-    "skipped-already-backfilled" | "skipped-no-orders" | "backfilled" | "backfilled-with-drift";
+    | "skipped-already-backfilled"
+    | "skipped-no-orders"
+    | "backfilled"
+    | "backfilled-with-drift"
+    /**
+     * The customer has ledger entries the backfill did not write (a payment
+     * taken before it ran) and none of its own. Nothing is written: the
+     * history is not there, and `validation` says how far the stored balance
+     * is from what the orders and payments say.
+     */
+    | "needs-review-forward-entries";
   entriesCreated: number;
   finalBalance: number;
   validation: LedgerValidation;
@@ -140,7 +152,6 @@ interface BackfillEvent {
   reference: string;
 }
 
-const EXCLUDED_PAYMENT_STATUSES = new Set(["VOIDED", "FAILED"]);
 const BACKFILL_CREATED_BY = "ledger-backfill-2026-05-07";
 
 /**
@@ -150,12 +161,13 @@ const BACKFILL_CREATED_BY = "ledger-backfill-2026-05-07";
  */
 /**
  * Compute the SALE amount for an order = sum of (netPrice + vatAmount)
- * over its counted line items (not cancelled or replaced, COUNTED_LINE_STATUSES). Skips wholly-cancelled orders
- * (status='CANCELLED'). Returns 0 if there's no active line; the
- * caller then skips the SALE event entirely.
+ * over its counted line items (not cancelled or replaced, COUNTED_LINE_STATUSES). Only a sale is
+ * owed (SALES_REVENUE_STATUSES): a quote is not, and neither is a cancelled order. It used to skip
+ * only CANCELLED, so every open quote was backfilled as money owed. Returns 0 if there's no active
+ * line; the caller then skips the SALE event entirely.
  */
 function computeSaleAmount(order: OrderRow): number {
-  if (order.status === "CANCELLED") return 0;
+  if (!isRevenueStatus(order.status)) return 0;
   let saleAmount = 0;
   for (const li of order.lineItems) {
     if (!isCountedLine(li.lineItemStatus)) continue;
@@ -166,13 +178,16 @@ function computeSaleAmount(order: OrderRow): number {
 
 /**
  * Build PAYMENT / REFUND_ISSUED events from one order's payments.
- * Filters VOIDED/FAILED, skips zero-amount rows. Sign convention is
- * handled here so the caller stays a flat loop.
+ * Leaves out VOIDED, FAILED and PENDING (isPaymentExcludedFromBalance, the
+ * one list every balance reads) and zero-amount rows. PENDING used to be
+ * ledgered: a payment link nobody had paid yet was written as money received,
+ * and stayed so if the link was later voided. Sign convention is handled here
+ * so the caller stays a flat loop.
  */
 function buildPaymentEvents(order: OrderRow): BackfillEvent[] {
   const events: BackfillEvent[] = [];
   for (const p of order.payments) {
-    if (p.status && EXCLUDED_PAYMENT_STATUSES.has(p.status)) continue;
+    if (isPaymentExcludedFromBalance(p.status)) continue;
     const amt = Number(p.paymentAmount);
     if (amt === 0) continue;
     // Sign: PAYMENT decreases balance owed, REFUND_ISSUED increases it.
@@ -231,9 +246,20 @@ export function buildBackfillEvents(orders: OrderRow[]): BackfillEvent[] {
  */
 export async function backfillCustomerLedger(customerId: number): Promise<BackfillResult> {
   return prisma.$transaction(async (tx) => {
-    // 1. Idempotency — skip if any entries already exist.
-    const existing = await tx.customerLedgerEntry.count({ where: { customerId } });
-    if (existing > 0) {
+    // 0. The customer's row, for the whole backfill (lockCustomerForLedger).
+    // Two backfills of one customer at once each counted no entries and each
+    // wrote the whole history; a payment landing mid-backfill was overwritten
+    // by the total written at the end.
+    await lockCustomerForLedger(tx, customerId);
+
+    // 1. Idempotency: skip a customer this backfill has already written. Only
+    // its own rows say that. "Any entry exists" also skipped a customer whose
+    // one entry was a payment taken before the backfill ran, reported them as
+    // clean, and left their history out for good.
+    const own = await tx.customerLedgerEntry.count({
+      where: { customerId, createdBy: BACKFILL_CREATED_BY },
+    });
+    if (own > 0) {
       const cust = await tx.customer.findUnique({
         where: { id: customerId },
         select: { openArBalance: true },
@@ -252,6 +278,7 @@ export async function backfillCustomerLedger(customerId: number): Promise<Backfi
         },
       };
     }
+    const forward = await tx.customerLedgerEntry.count({ where: { customerId } });
 
     // 2. Load all of the customer's orders + payments + line items.
     const orders = await tx.salesOrder.findMany({
@@ -282,6 +309,25 @@ export async function backfillCustomerLedger(customerId: number): Promise<Backfi
         },
       },
     });
+
+    // 2b. Entries exist that this backfill did not write. Writing the history
+    // around them would double whatever they already cover, so nothing is
+    // written. The customer is handed back for a person to look at, with the
+    // gap between the stored balance and what the orders and payments say.
+    if (forward > 0) {
+      const cust = await tx.customer.findUnique({
+        where: { id: customerId },
+        select: { openArBalance: true },
+      });
+      const stored = round2(Number(cust?.openArBalance ?? 0));
+      return {
+        customerId,
+        status: "needs-review-forward-entries",
+        entriesCreated: 0,
+        finalBalance: stored,
+        validation: validateAgainstSource(stored, computeSourceBalance(orders as OrderRow[])),
+      };
+    }
 
     if (orders.length === 0) {
       return {
@@ -358,6 +404,8 @@ export interface BackfillRunResult {
   customersBackfilled: number;
   customersBackfilledWithDrift: number;
   customersSkipped: number;
+  /** Customers with entries the backfill did not write and none of its own: nothing written. */
+  customersNeedingReview: number;
   customersFailed: number;
   entriesCreated: number;
   totalDriftDollars: number;
@@ -369,6 +417,30 @@ export interface BackfillRunResult {
     diff: number;
   }>;
   errors: Array<{ customerId: number; message: string }>;
+}
+
+/** Add one customer's outcome to the run's totals. */
+function tally(result: BackfillRunResult, r: BackfillResult): void {
+  result.entriesCreated += r.entriesCreated;
+  if (r.status === "backfilled") {
+    result.customersBackfilled++;
+    return;
+  }
+  if (r.status === "skipped-already-backfilled" || r.status === "skipped-no-orders") {
+    result.customersSkipped++;
+    return;
+  }
+  if (r.status === "backfilled-with-drift") result.customersBackfilledWithDrift++;
+  else result.customersNeedingReview++;
+  // A customer needing review is listed whatever the gap, so they are never
+  // read as done; one that happens to tie out shows a diff of 0.
+  result.totalDriftDollars = round2(result.totalDriftDollars + Math.abs(r.validation.diff));
+  result.driftedCustomers.push({
+    customerId: r.customerId,
+    ledgerBalance: r.validation.ledgerBalance,
+    sourceBalance: r.validation.sourceBalance,
+    diff: r.validation.diff,
+  });
 }
 
 /**
@@ -393,6 +465,7 @@ export async function backfillAllCustomers(
     customersBackfilled: 0,
     customersBackfilledWithDrift: 0,
     customersSkipped: 0,
+    customersNeedingReview: 0,
     customersFailed: 0,
     entriesCreated: 0,
     totalDriftDollars: 0,
@@ -410,23 +483,7 @@ export async function backfillAllCustomers(
 
   for (const id of ids) {
     try {
-      const r = await backfillCustomerLedger(id);
-      if (r.status === "backfilled") {
-        result.customersBackfilled++;
-        result.entriesCreated += r.entriesCreated;
-      } else if (r.status === "backfilled-with-drift") {
-        result.customersBackfilledWithDrift++;
-        result.entriesCreated += r.entriesCreated;
-        result.totalDriftDollars = round2(result.totalDriftDollars + Math.abs(r.validation.diff));
-        result.driftedCustomers.push({
-          customerId: id,
-          ledgerBalance: r.validation.ledgerBalance,
-          sourceBalance: r.validation.sourceBalance,
-          diff: r.validation.diff,
-        });
-      } else {
-        result.customersSkipped++;
-      }
+      tally(result, await backfillCustomerLedger(id));
     } catch (err) {
       result.customersFailed++;
       result.errors.push({
@@ -439,6 +496,7 @@ export async function backfillAllCustomers(
         result.customersBackfilled +
           result.customersBackfilledWithDrift +
           result.customersSkipped +
+          result.customersNeedingReview +
           result.customersFailed,
         result.customersTotal,
       );

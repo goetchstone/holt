@@ -37,6 +37,7 @@ interface BackfillResponse {
   customersBackfilled: number;
   customersBackfilledWithDrift: number;
   customersSkipped: number;
+  customersNeedingReview: number;
   customersFailed: number;
   entriesCreated: number;
   totalDriftDollars: number;
@@ -57,6 +58,7 @@ const EMPTY_AGGREGATE: BackfillResponse = {
   customersBackfilled: 0,
   customersBackfilledWithDrift: 0,
   customersSkipped: 0,
+  customersNeedingReview: 0,
   customersFailed: 0,
   entriesCreated: 0,
   totalDriftDollars: 0,
@@ -71,6 +73,7 @@ function mergeResult(acc: BackfillResponse, batch: BackfillResponse): BackfillRe
     customersBackfilledWithDrift:
       acc.customersBackfilledWithDrift + batch.customersBackfilledWithDrift,
     customersSkipped: acc.customersSkipped + batch.customersSkipped,
+    customersNeedingReview: acc.customersNeedingReview + batch.customersNeedingReview,
     customersFailed: acc.customersFailed + batch.customersFailed,
     entriesCreated: acc.entriesCreated + batch.entriesCreated,
     totalDriftDollars: Math.round((acc.totalDriftDollars + batch.totalDriftDollars) * 100) / 100,
@@ -125,6 +128,8 @@ function BackfillSummary({ result, fmt }: Readonly<{ result: BackfillResponse; f
       <dd className="font-mono text-brand-navy">{result.customersBackfilledWithDrift}</dd>
       <dt className="text-brand-gray">Skipped (already done or no orders)</dt>
       <dd className="font-mono text-brand-navy">{result.customersSkipped}</dd>
+      <dt className="text-brand-gray">Left for review (ledger entries from before this ran)</dt>
+      <dd className="font-mono text-brand-navy">{result.customersNeedingReview}</dd>
       <dt className="text-brand-gray">Failed</dt>
       <dd className="font-mono text-brand-navy">{result.customersFailed}</dd>
       <dt className="text-brand-gray">Entries created</dt>

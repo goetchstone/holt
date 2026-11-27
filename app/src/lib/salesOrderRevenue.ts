@@ -39,6 +39,11 @@ export const SALES_REVENUE_STATUSES = ["ORDER", "FULFILLED", "RETURNED"] as cons
 
 export type SalesRevenueStatus = (typeof SALES_REVENUE_STATUSES)[number];
 
+/** True when an order with this status is a sale (see SALES_REVENUE_STATUSES): not a quote, not cancelled. */
+export function isRevenueStatus(status: string): boolean {
+  return (SALES_REVENUE_STATUSES as readonly string[]).includes(status);
+}
+
 // The line-level sister rule (CLAUDE.md rule 33): which OrderLineItem
 // statuses are still owed by the customer.
 //
