@@ -6,11 +6,14 @@
 // send-payment-link}.ts, lib/paymentService.ts::processRefund), including the
 // pinned API version and the two-hop retrieve used to recover card brand/last4.
 //
-// Terminal is declared UNSUPPORTED here on purpose. Stripe Terminal is a
-// client-driven SDK flow (the browser holds the reader connection and asks the
-// server only for a connection token) — it does not fit the server-driven
-// methods on this interface, and pretending otherwise would produce a method
-// that cannot work. Square's readers are server-driven and do fit.
+// Card readers use Stripe Terminal's server-driven integration: the server
+// creates a card_present PaymentIntent and hands it to the reader
+// (readers.processPaymentIntent), then learns the outcome by asking for the
+// PaymentIntent, with the `payment_intent.succeeded` webhook as the backstop
+// for a register that closed mid-payment. Nothing runs in the browser. It
+// works with Stripe's smart readers (S700, WisePOS E and the like), not its
+// Bluetooth mobile readers. NOT YET RUN AGAINST STRIPE OR A READER: see
+// docs/domains/pos.md, "Card readers".
 
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
@@ -21,9 +24,15 @@ import type {
   PaymentCompletion,
   PaymentExpiration,
   PaymentProvider,
+  ProcessorReader,
+  ReaderLocation,
+  ReaderLocationInput,
   RefundRequest,
+  RegisterReaderRequest,
   RefundResult,
   SessionStatus,
+  TerminalCheckoutRequest,
+  TerminalCheckoutResult,
   VerifiedWebhookEvent,
   WebhookVerifyRequest,
 } from "@/lib/payments/types";
@@ -39,10 +48,77 @@ function toMinorUnits(amount: number): number {
   return Math.round(amount * 100);
 }
 
+/**
+ * Marks a PaymentIntent as one Holt sent to a reader. A hosted checkout's
+ * PaymentIntent fires `payment_intent.succeeded` too and must not be read as a
+ * reader payment: Stripe does not copy a Checkout Session's metadata onto its
+ * PaymentIntent, so only the ones created below carry this.
+ */
+export const READER_PAYMENT_FLAG = "holt_reader_payment";
+
+/** Stripe's reader status as a yes or no; anything else is "it does not say". */
+const READER_ONLINE: Record<string, boolean> = { online: true, offline: false };
+
+function toProcessorReader(reader: Stripe.Terminal.Reader): ProcessorReader {
+  return {
+    id: reader.id,
+    label: reader.label,
+    deviceType: reader.device_type ?? null,
+    serialNumber: reader.serial_number ?? null,
+    locationId:
+      typeof reader.location === "string" ? reader.location : (reader.location?.id ?? null),
+    online: READER_ONLINE[reader.status ?? ""] ?? null,
+  };
+}
+
+/** Brand and last four of the card a reader read, off the PaymentIntent's charge. */
+function cardPresentDetails(intent: Stripe.PaymentIntent): {
+  cardLast4?: string;
+  cardBrand?: string;
+} {
+  const charge = intent.latest_charge;
+  if (!charge || typeof charge === "string") return {};
+  const details = charge.payment_method_details;
+  const card = details?.card_present ?? details?.interac_present;
+  return { cardLast4: card?.last4 ?? undefined, cardBrand: card?.brand ?? undefined };
+}
+
+/** Stripe's "no such object" answer, as opposed to a failure to ask. */
+function isMissing(err: unknown): boolean {
+  return err instanceof Stripe.errors.StripeError && err.code === "resource_missing";
+}
+
+/**
+ * A reader payment the register did not stay to see finish (the browser
+ * closed, the network dropped): the same completion the register's own ask
+ * would have made. The processor reference is the PaymentIntent's id. Null for
+ * a PaymentIntent Holt did not send to a reader.
+ */
+async function readerPaymentCompletion(
+  intent: Stripe.PaymentIntent,
+): Promise<PaymentCompletion | null> {
+  if (intent.metadata?.[READER_PAYMENT_FLAG] !== "1") return null;
+  const completion: PaymentCompletion = {
+    providerTxnId: intent.id,
+    metadata: (intent.metadata ?? {}) as Record<string, string>,
+    processorData: { paymentIntentId: intent.id, cardReader: true },
+  };
+  // The event's charge is an id; brand and last four are one read away, and
+  // supplementary, as for a checkout.
+  try {
+    const stripe = await getStripe();
+    const full = await stripe.paymentIntents.retrieve(intent.id, { expand: ["latest_charge"] });
+    Object.assign(completion, cardPresentDetails(full));
+  } catch {
+    // Proceed without card details.
+  }
+  return completion;
+}
+
 export const stripeProvider: PaymentProvider = {
   id: "stripe",
   displayName: "Stripe",
-  capabilities: { hostedCheckout: true, terminal: false, refunds: true },
+  capabilities: { hostedCheckout: true, terminal: true, refunds: true },
 
   async createCheckout(req: CheckoutRequest): Promise<CheckoutResult> {
     const stripe = await getStripe();
@@ -100,6 +176,12 @@ export const stripeProvider: PaymentProvider = {
   },
 
   async extractCompletion(event: VerifiedWebhookEvent): Promise<PaymentCompletion | null> {
+    if (event.type === "payment_intent.succeeded") {
+      return readerPaymentCompletion(
+        (event.raw as Stripe.Event).data.object as Stripe.PaymentIntent,
+      );
+    }
+
     if (event.type !== "checkout.session.completed") return null;
 
     const stripeEvent = event.raw as Stripe.Event;
@@ -150,16 +232,22 @@ export const stripeProvider: PaymentProvider = {
   async refund(req: RefundRequest): Promise<RefundResult> {
     const stripe = await getStripe();
     try {
-      // Holt stores the CHECKOUT SESSION id, but Stripe refunds a payment
-      // intent — that indirection lives here rather than in paymentService, so
-      // callers just hand over whatever the original payment recorded.
-      const session = await stripe.checkout.sessions.retrieve(
-        req.providerTxnId,
-        {},
-        REFUND_REQUEST,
-      );
-      const paymentIntentId =
-        typeof session.payment_intent === "string" ? session.payment_intent : null;
+      // A hosted checkout stores the CHECKOUT SESSION id, but Stripe refunds a
+      // payment intent — that indirection lives here rather than in
+      // paymentService, so callers just hand over whatever the original
+      // payment recorded. A reader payment stored the payment intent itself.
+      let paymentIntentId: string | null;
+      if (req.providerTxnId.startsWith("pi_")) {
+        paymentIntentId = req.providerTxnId;
+      } else {
+        const session = await stripe.checkout.sessions.retrieve(
+          req.providerTxnId,
+          {},
+          REFUND_REQUEST,
+        );
+        paymentIntentId =
+          typeof session.payment_intent === "string" ? session.payment_intent : null;
+      }
       if (!paymentIntentId) return { refundId: null };
 
       const refund = await stripe.refunds.create(
@@ -176,6 +264,141 @@ export const stripeProvider: PaymentProvider = {
       const msg = err instanceof Error ? err.message : "Stripe refund failed";
       throw new Error(`Stripe refund failed: ${msg}`);
     }
+  },
+
+  async createTerminalCheckout(req: TerminalCheckoutRequest): Promise<TerminalCheckoutResult> {
+    const stripe = await getStripe();
+    const intent = await stripe.paymentIntents.create({
+      amount: toMinorUnits(req.amount),
+      currency: (req.currency || "USD").toLowerCase(),
+      payment_method_types: ["card_present"],
+      // One step: an approved card is a taken payment. Nothing in Holt
+      // authorizes now and captures later.
+      capture_method: "automatic",
+      description: req.referenceId,
+      metadata: { ...req.metadata, [READER_PAYMENT_FLAG]: "1" },
+    });
+    try {
+      await stripe.terminal.readers.processPaymentIntent(req.deviceId, {
+        payment_intent: intent.id,
+      });
+    } catch (err) {
+      // The reader never took it (offline, busy, unknown): leave nothing
+      // payable behind, then say why.
+      await stripe.paymentIntents.cancel(intent.id).catch(() => undefined);
+      throw err;
+    }
+    return { providerTxnId: intent.id, status: "PENDING" };
+  },
+
+  async getTerminalCheckout(
+    providerTxnId: string,
+    deviceId?: string,
+  ): Promise<TerminalCheckoutResult> {
+    const stripe = await getStripe();
+    const intent = await stripe.paymentIntents.retrieve(providerTxnId, {
+      expand: ["latest_charge"],
+    });
+    const base = { providerTxnId: intent.id };
+    if (intent.status === "succeeded") {
+      return {
+        ...base,
+        status: "COMPLETED",
+        ...cardPresentDetails(intent),
+        processorData: { paymentIntentId: intent.id, cardReader: true, readerId: deviceId },
+      };
+    }
+    if (intent.status === "canceled") return { ...base, status: "CANCELED" };
+    // A declined card leaves the intent waiting for another card, with why.
+    if (intent.status === "requires_payment_method" && intent.last_payment_error) {
+      return {
+        ...base,
+        status: "FAILED",
+        message: intent.last_payment_error.message ?? "The card was declined.",
+      };
+    }
+    // Otherwise the reader says whether it is still working on this payment.
+    if (deviceId) {
+      const reader = await stripe.terminal.readers.retrieve(deviceId);
+      const action = "deleted" in reader ? null : reader.action;
+      const actionIntent = action?.process_payment_intent?.payment_intent;
+      const actionIntentId = typeof actionIntent === "string" ? actionIntent : actionIntent?.id;
+      if (action && actionIntentId === intent.id && action.status === "failed") {
+        return {
+          ...base,
+          status: "FAILED",
+          message: action.failure_message ?? "The reader could not take the payment.",
+        };
+      }
+    }
+    return { ...base, status: "PENDING" };
+  },
+
+  async cancelTerminalCheckout(providerTxnId: string, deviceId?: string): Promise<void> {
+    const stripe = await getStripe();
+    // Both refuse once a card is being authorized or the payment is taken.
+    // Neither refusal is an error here: the caller reads the outcome next.
+    if (deviceId) {
+      await stripe.terminal.readers.cancelAction(deviceId).catch(() => undefined);
+    }
+    await stripe.paymentIntents.cancel(providerTxnId).catch(() => undefined);
+  },
+
+  async listReaderLocations(): Promise<ReaderLocation[]> {
+    const stripe = await getStripe();
+    const locations = await stripe.terminal.locations.list({ limit: 100 });
+    return locations.data.map((l) => ({ id: l.id, name: l.display_name || l.id }));
+  },
+
+  async createReaderLocation(input: ReaderLocationInput): Promise<ReaderLocation> {
+    const stripe = await getStripe();
+    const location = await stripe.terminal.locations.create({
+      display_name: input.name,
+      address: {
+        line1: input.line1,
+        city: input.city,
+        state: input.state,
+        postal_code: input.postalCode,
+        country: input.country,
+      },
+    });
+    return { id: location.id, name: location.display_name || location.id };
+  },
+
+  async registerReader(req: RegisterReaderRequest): Promise<ProcessorReader> {
+    const stripe = await getStripe();
+    const reader = await stripe.terminal.readers.create({
+      registration_code: req.registrationCode,
+      label: req.label,
+      location: req.locationId,
+    });
+    return toProcessorReader(reader);
+  },
+
+  async getReader(readerId: string): Promise<ProcessorReader | null> {
+    const stripe = await getStripe();
+    try {
+      const reader = await stripe.terminal.readers.retrieve(readerId);
+      return "deleted" in reader ? null : toProcessorReader(reader);
+    } catch (err) {
+      if (isMissing(err)) return null;
+      throw err;
+    }
+  },
+
+  async removeReader(readerId: string): Promise<void> {
+    const stripe = await getStripe();
+    try {
+      await stripe.terminal.readers.del(readerId);
+    } catch (err) {
+      // Already gone at Stripe is the state being asked for.
+      if (!isMissing(err)) throw err;
+    }
+  },
+
+  async simulateCardPresented(readerId: string): Promise<void> {
+    const stripe = await getStripe();
+    await stripe.testHelpers.terminal.readers.presentPaymentMethod(readerId);
   },
 
   async testConnection(): Promise<ConnectionTestResult> {

@@ -81,8 +81,8 @@ Holt and what stops each. A new integration fails it until someone decides.
 **Label printers still work.** They're on the store's own network and only print paper, and
 printing tags is part of what staff practise. A printed price tag doesn't say it's practice.
 
-**At the register**, a card tender is recorded by hand, as it is everywhere until card readers
-(GAP-03). Sending a payment link says it's a practice copy and to record the payment by hand. The
+**At the register**, a card tender is recorded by hand, even at a register that has a card reader
+on the live system (`GET /api/registers/[id]` reports no reader on a practice copy). Sending a payment link says it's a practice copy and to record the payment by hand. The
 customer portal's Pay button fails with its usual error, since nobody is using it here.
 
 **Emails and texts wait in the queue.** They're still queued, so the screens behave as they

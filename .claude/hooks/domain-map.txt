@@ -51,6 +51,7 @@ app/src/app/(dashboard)/app/sales/pos/*|docs/domains/pos.md
 app/src/app/(dashboard)/app/sales/till/*|docs/domains/pos.md
 app/src/pages/api/tills/*|docs/domains/pos.md
 app/src/pages/api/registers/*|docs/domains/pos.md
+app/src/pages/api/card-readers/*|docs/domains/pos.md
 app/src/pages/api/gift-cards/*|docs/domains/pos.md
 app/src/pages/api/stripe/*|docs/domains/pos.md
 app/src/lib/giftCardLedger.ts|docs/domains/pos.md
@@ -341,6 +342,7 @@ app/src/pages/api/tenders/*|docs/domains/pos.md
 app/src/app/(dashboard)/app/payment/*|docs/domains/pos.md
 app/src/app/(dashboard)/app/admin/setup/payment-types/*|docs/domains/pos.md
 app/src/app/(dashboard)/app/admin/setup/registers/*|docs/domains/pos.md
+app/src/app/(dashboard)/app/admin/setup/card-readers/*|docs/domains/pos.md
 app/src/app/(dashboard)/app/admin/setup/gift-cards/*|docs/domains/pos.md
 app/src/components/modals/TenderModal.tsx|docs/domains/pos.md
 app/src/components/modals/GiftCardPresetModal.tsx|docs/domains/pos.md

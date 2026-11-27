@@ -147,6 +147,49 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 - Customer portal exposes a payment link per-order at `/portal/order?token=…`, which posts to `pages/api/portal/pay.ts` (JWT token auth, no login, rate-limited at 5/min per IP).
 - `PaymentProvider.isConfigured()` answers whether the processor's credentials resolve, with no network call: Stripe needs its secret key, Square its access token and location id, each through the same `getStripe()` / `getSquareCredentials()` a payment uses. The Admin hub's getting-started checklist asks it of the active provider; "We take cash and checks only" (Settings → Integrations, `AppSettings.cashOnlyAcknowledgedAt`) satisfies that item instead. Tested in `__tests__/paymentProviderConfigured.test.ts`.
 
+## Card readers (GAP-03, built 2026-11-25, not yet run against Stripe or a reader)
+
+**Status, read this first.** Everything below is built and tested against a stand-in for Stripe. It has **not** been run against Stripe's API, its simulated reader or a physical reader: no Stripe key was available where it was built. The first run with a test key and the simulated reader (steps at the end of this section) is the check that the requests are accepted as written. Until a physical reader has taken a payment, GAP-03 stays open.
+
+A register with a card reader sends a card payment to it; a register without one records a card payment by hand, as before. Readers go through Stripe Terminal's **server-driven** integration: the server creates the payment and hands it to the reader, and nothing runs in the browser. It works with Stripe's smart countertop readers (S700, WisePOS E and the like), not its Bluetooth mobile readers.
+
+**Setup (Admin › Setup › Card readers, `admin.config`).**
+
+- `CardReader` (migration `20261125120000_card_readers`): `label`, `registerId` (unique: one reader per register, nullable), `processorType` (rule 60), `processorReaderId` (unique), `processorLocationId`, `deviceType`, `serialNumber`, `isActive`. Holt keeps the processor's references and nothing about any card (DECISIONS 44).
+- Adding a reader (`addCardReader`, `lib/payments/cardReaders.ts`) takes the code the reader shows, a name, a register and a Stripe location, registers it at Stripe, then records it; if recording fails, the reader is removed at Stripe again. A Stripe location is picked from the account's own, or created from the form. The country is typed, never defaulted (rule 63).
+- The list asks Stripe for each reader's state (online, offline, removed there). Moving a reader to another register, switching it off and removing it (which also removes it at Stripe) are on the same screen. Each change writes `CARD_READER_CHANGED` to the audit trail.
+- Routes: `pages/api/card-readers/{index,[id],locations}.ts`, all `admin.config`. The list returns the active registers too, so the screen does not need `/api/registers` (`pos.operate`).
+
+**Taking a payment (`lib/payments/cardReaderPayments.ts`, routes on `payment.take`).**
+
+- `GET /api/registers/[id]` now says whether the register has an active reader (`cardReader: { label, simulated }`); on a practice copy it always says none, so practice registers record a card by hand.
+- **Start**: `POST /api/sales/orders/[id]/card-reader-payment` → `startReaderPayment`. Refused before anything reaches the reader: an amount over the order's balance, a register with no active reader, a till that is not open, a cancelled order, and an order with a payment link still open. Then `provider.createTerminalCheckout` (a `card_present` PaymentIntent, automatic capture, metadata `orderId` and `holt_reader_payment`, handed to the reader with `readers.processPaymentIntent`) and a `PENDING` `Payment` through `recordPendingPayment`: no ledger entry, `processorTxnId` = the PaymentIntent id, `processorData` = `{ cardReader: true, readerId }`, with the register, till and cashier on it. If the reader refuses (offline, busy), the PaymentIntent is cancelled and no row is written. A second start while one is out returns the one that is out.
+- **Settle**: the register asks `GET …/payments/[paymentId]/card-reader` every two seconds → `settleReaderPayment`. Approved: `completePayment`, the same function a paid link goes through, then `followUpWebhookPayment` (quote promotion, purchase orders). Declined or failed: the PaymentIntent is cancelled at Stripe first (a declined one stays payable there otherwise), then the row is `FAILED` with the reason kept in `processorData.failure`; the next try is a new payment. Still waiting: nothing changes.
+- **Cancel**: `DELETE` on the same route → `cancelReaderPayment`: clears the reader, cancels the PaymentIntent, then asks how it stands. A card that went through first is recorded, not voided. A card being authorized cannot be stopped (Stripe refuses both calls), and the answer is "still waiting" with that said. Otherwise `voidPendingPayment`.
+- **The webhook is the backstop** for a register that closed mid-payment: `stripeProvider.extractCompletion` reads `payment_intent.succeeded` for a PaymentIntent carrying `holt_reader_payment` (a hosted checkout's PaymentIntent does not carry it and is ignored), and `pages/api/stripe/webhook.ts` completes the row as it does a link's. **The Stripe webhook endpoint must be subscribed to `payment_intent.succeeded`** as well as the two checkout events. Both paths can run at once; `completePayment`'s conditional update lets one post.
+- **Two guards on other paths (principle 3).** A payment out on a reader is not voided as a bare row: `payments/[paymentId]/void` goes through `cancelReaderPayment`, and `startHostedCheckout` refuses to replace it with a link even with `force` (`ActivePendingPayment.onCardReader`). Either would leave it payable on the reader.
+- **Refunds**: `stripeProvider.refund` refunds a reader payment by its PaymentIntent id (`pi_…`) directly; a link's Checkout Session is still resolved to its PaymentIntent first.
+- **Test mode**: a reader whose `deviceType` starts `simulated` shows "Present a test card" at the register (`POST` on the settle route → `presentTestCard` → Stripe's `testHelpers.terminal.readers.presentPaymentMethod`). Refused for any other reader.
+- The seam (`lib/payments/types.ts`) carries the reader methods for any processor; Square still declares `terminal: false`.
+
+**Tested**: `__tests__/stripeCardReader.test.ts` (what is sent to Stripe and how its answers are read, 11 cases) and `__tests__/integration/cardReaderPayments.integration.test.ts` (12 cases on the real database: nothing in the books while waiting, posted once under concurrent asks and after the webhook, declined, resumed, cancelled, approved-before-cancel, cannot-stop, each refusal, reader offline, no forced link over a reader payment, test card). Removing the reader guard in `startHostedCheckout`, the cancel-at-Stripe on a decline, or the approved-before-cancel check each fails one of them.
+
+**First run with a Stripe test key (not done yet).**
+
+1. Settings › Integrations: the Stripe test secret key and webhook secret; subscribe the endpoint to `payment_intent.succeeded`.
+2. Admin › Setup › Card readers › Add a reader, code `simulated-wpe`, a new location with the store's address, a register.
+3. At that register, ring up a sale, choose Card, send it to the reader, press "Present a test card". Expect the receipt, and the payment on the order with the card's brand and last four.
+4. Repeat and cancel instead; repeat with a decline (Stripe's test amounts or cards); refund one from the order.
+
+**Left open.**
+
+- **Not run against Stripe** (above). Two things to confirm on that run: Stripe accepts `payment_method_types: ["card_present"]` on the pinned API version (its current guide names `allowed_payment_method_types`; the SDK types accept both), and a card-present refund needs nothing beyond `refunds.create`.
+- The stale sweep (`sweepStalePendingPayments`) fails a reader payment still `PENDING` after 24 hours without asking Stripe how it went. With the webhook subscribed that row was completed long before; without it, a payment approved after the register stopped asking would be failed there with the money taken. Make the sweep settle a reader payment before failing it.
+- Two cashiers sending the same order to a reader in the same instant can both pass the "one in flight" check; the second replaces the first on the reader and the first's row waits until cancelled. The button is disabled while one is out, so this needs two screens on one order.
+- A card surcharge (GAP-03's rider) is not built: where the store's state allows one is the owner's to decide.
+- No screen help article yet (`screens-without-help.txt`).
+- Tipping and receipts on the reader are not used.
+
 ## A product's line price
 
 A scanned or searched product goes onto the cart at its retail price, from
@@ -345,6 +388,7 @@ No auto-print on order confirmation yet (master plan G3 / Phase 1).
 | Till close/reconcile/open/unblock (variance discipline, register block) | Real-DB integration in `__tests__/integration/tillVarianceEnforcement.integration.test.ts`                                                                                                                                                                      |
 | PENDING-payment lifecycle (find-active / void / expire / sweep)         | Real-DB integration in `__tests__/integration/pendingPaymentLifecycle.integration.test.ts`                                                                                                                                                                      |
 | Stripe and Square webhook routes                                        | Real-DB route tests with the provider's verification stubbed: `untrackedCheckoutPaid.integration.test.ts` (no `PENDING` row) and `paymentRaces.integration.test.ts` (two completions at once post once; an invoice's checkout posts whole or not at all, and the retry posts it). Signature verification itself has no route test; `__tests__/stripeProvider.test.ts` covers `extractExpiration` |
+| Card readers                                                            | `stripeCardReader.test.ts` (stand-in Stripe client) and `cardReaderPayments.integration.test.ts` (real DB, stand-in Stripe); see "Card readers". Not run against Stripe |
 
 ## Known gaps (master plan Phase 1)
 
@@ -352,6 +396,7 @@ No auto-print on order confirmation yet (master plan G3 / Phase 1).
 - **G2**: shipped — `lib/inventory/allocation.ts` commits free stock at order creation (`allocate`, inside `create-from-cart`'s transaction), deletes it at `FULFILLED` (`consume`) and returns it at `CANCELLED` (`release`). Overselling is deliberately still allowed: `allocate` records a shortfall and never blocks the sale.
 - **G3**: receipt auto-print on order confirmation
 - **G8**: `CashMovement` model + UI for intra-day non-sale cash flow
+- **Card readers (GAP-03)**: built, not yet run against Stripe or a reader; see "Card readers" for what is left
 - **Split tender UI**: schema supports multiple Payments per order; the POS tenders the whole order total in a single call
 - **C8**: shipped 2026-11-13 — completion idempotency rests on `completePayment`'s conditional `PENDING` → `COMPLETED` update (still no `processorTxnId` unique index), tested with two deliveries at once in `paymentRaces.integration.test.ts`.
 

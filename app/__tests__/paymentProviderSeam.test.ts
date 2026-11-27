@@ -72,11 +72,12 @@ describe("assertCapability", () => {
     expect(() => assertCapability(fakeProvider, "hostedCheckout")).not.toThrow();
   });
 
-  it("real Stripe provider declares no terminal support, per its documented client-driven SDK constraint", () => {
-    expect(() => assertCapability(stripeProvider, "terminal")).toThrow(
-      /Stripe does not support terminal/,
-    );
+  it("Stripe takes card readers and hosted checkout; Square declares no reader support yet", () => {
+    expect(() => assertCapability(stripeProvider, "terminal")).not.toThrow();
     expect(() => assertCapability(stripeProvider, "hostedCheckout")).not.toThrow();
+    expect(() => assertCapability(squareProvider, "terminal")).toThrow(
+      /Square does not support terminal/,
+    );
   });
 });
 

@@ -66,6 +66,7 @@ export const AUDIT_EVENTS = {
   CREDENTIAL_CHANGED: { label: "Integration key changed", group: "settings" },
   AUTOMATION_CHANGED: { label: "Automation changed", group: "settings" },
   TENDER_CHANGED: { label: "Payment type changed", group: "settings" },
+  CARD_READER_CHANGED: { label: "Card reader added, changed or removed", group: "settings" },
   TAX_CHANGED: { label: "Tax setup changed", group: "settings" },
   EMAIL_WORDING_CHANGED: { label: "An email's wording changed", group: "settings" },
 

@@ -4219,8 +4219,10 @@ model Register {
   blockedAt   DateTime?
   blockReason String?
 
-  tills    Till[]
-  payments Payment[]
+  tills      Till[]
+  payments   Payment[]
+  // The card reader that takes this register's card payments, if it has one.
+  cardReader CardReader?
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -4228,6 +4230,37 @@ model Register {
   updatedBy String?
 
   @@unique([storeLocationId, name])
+}
+
+// A card reader the store has registered with its card processor (Stripe
+// Terminal), and the register it sits at (docs/domains/pos.md, "Card
+// readers"). Holt holds only the processor's own references: the reader's id
+// there and the processor location it was registered to. No card data is ever
+// stored (DECISIONS 44). `processorType` is recorded so a reader keeps talking
+// to the processor it was registered with, whichever is active later (rule 60).
+model CardReader {
+  id    Int    @id @default(autoincrement())
+  label String
+
+  // At most one reader per register; a reader with no register is set up but
+  // takes no payments.
+  registerId Int?      @unique
+  register   Register? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+
+  processorType       String
+  processorReaderId   String  @unique
+  processorLocationId String?
+  // As the processor reported them at registration, for the staff to tell
+  // readers apart. A simulated reader's deviceType starts "simulated_".
+  deviceType          String?
+  serialNumber        String?
+
+  isActive Boolean @default(true)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
 }
 
 model Till {
