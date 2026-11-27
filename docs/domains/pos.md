@@ -189,6 +189,7 @@ A register with a card reader sends a card payment to it; a register without one
 - **Not run against Stripe** (above). Two things to confirm on that run: Stripe accepts `payment_method_types: ["card_present"]` on the pinned API version (its current guide names `allowed_payment_method_types`; the SDK types accept both), and a card-present refund needs nothing beyond `refunds.create`.
 - Two cashiers sending the same order to a reader in the same instant can both pass the "one in flight" check; the second replaces the first on the reader and the first's row waits until cancelled. The button is disabled while one is out, so this needs two screens on one order.
 - A card surcharge (GAP-03's rider) is not built: where the store's state allows one is the owner's to decide.
+- The order page's confirmation for voiding a pending payment speaks of a new payment link even when the payment is out on a reader, and sends one fixed reason, "Voided from order detail (stuck pending checkout)" (`OrderDetailView.handleVoidPayment`). The void itself is right: it cancels on the reader first.
 - Tipping and receipts on the reader are not used.
 
 ## A product's line price
