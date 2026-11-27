@@ -10,8 +10,11 @@
 // PENDING with nothing in the ledger, and that exactly one of the register's
 // ask and the webhook posts it. Both are conditional updates and ledger rows.
 
+import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { handler as voidRoute } from "@/pages/api/sales/orders/[id]/payments/[paymentId]/void";
 import {
   cancelReaderPayment,
   presentTestCard,
@@ -21,9 +24,11 @@ import {
 import {
   CheckoutAlreadyOpenError,
   calculateOrderBalance,
+  PENDING_SESSION_LIFETIME_MS,
   completePayment,
   recordPendingPayment,
   startHostedCheckout,
+  sweepStalePendingPayments,
 } from "@/lib/paymentService";
 
 interface FakeIntent {
@@ -45,6 +50,8 @@ const fake = {
   readerOffline: false,
   /** A card being authorized: neither the reader nor the payment can be stopped. */
   authorizing: false,
+  /** The processor cannot be reached at all. */
+  down: false,
   seq: 0,
 };
 
@@ -81,7 +88,10 @@ const stripe = {
       fake.intents.set(intent.id, intent);
       return intent;
     },
-    retrieve: async (id: string) => fake.intents.get(id)!,
+    retrieve: async (id: string) => {
+      if (fake.down) throw new Error("An error occurred with our connection to Stripe.");
+      return fake.intents.get(id)!;
+    },
     cancel: async (id: string) => {
       const intent = fake.intents.get(id)!;
       if (intent.status === "succeeded" || fake.authorizing) {
@@ -122,9 +132,6 @@ const stripe = {
 };
 
 jest.mock("@/lib/stripe", () => ({ getStripe: async () => stripe }));
-// A refused reader is logged, and logError records it on a detached write that
-// can outlive the run ("Cannot log after tests are done"). Not under test here.
-jest.mock("@/lib/errorRecorder", () => ({ recordError: jest.fn() }));
 // The steps after a payment (a quote becoming an order, its purchase orders)
 // have their own tests; here they would only need more seed.
 jest.mock("@/lib/serviceDispatchService", () => ({ syncServiceAppointments: jest.fn() }));
@@ -187,6 +194,7 @@ describe("a card payment on a register's reader (real DB, stand-in Stripe)", () 
     fake.readerAction = null;
     fake.readerOffline = false;
     fake.authorizing = false;
+    fake.down = false;
   });
 
   afterAll(async () => {
@@ -325,12 +333,67 @@ describe("a card payment on a register's reader (real DB, stand-in Stripe)", () 
 
     const state = await cancelReaderPayment(row.id, "cashier@example.com");
     expect(state.status).toBe("CANCELED");
-    expect((await prisma.payment.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(
-      "VOIDED",
-    );
+    const voided = await prisma.payment.findUniqueOrThrow({ where: { id: row.id } });
+    expect(voided.status).toBe("VOIDED");
     expect(fake.intents.get(row.processorTxnId!)!.status).toBe("canceled");
     expect(fake.readerAction).toBeNull();
     expect(await ledgerRows(row.id)).toBe(0);
+    // Still a reader payment on the row, with why it ended, so asking about it
+    // again answers instead of "that isn't a card reader payment".
+    expect(voided.processorData).toEqual({
+      cardReader: true,
+      readerId: "tmr_test_1",
+      voidReason: "Card payment cancelled at the register",
+    });
+    expect((await settleReaderPayment(row.id)).status).toBe("CANCELED");
+  });
+
+  it("is cancelled on the reader when it is voided from the order, and keeps the reason sent with it", async () => {
+    const { order, register } = await seed();
+    const started = await startReaderPayment(order.id, {
+      amount: 200,
+      registerId: register.id,
+      actor: null,
+    });
+    const row = await prisma.payment.findUniqueOrThrow({ where: { id: started.paymentId } });
+
+    let status = 0;
+    const res = {
+      status(code: number) {
+        status = code;
+        return this;
+      },
+      json() {
+        return this;
+      },
+      setHeader() {
+        return this;
+      },
+    } as unknown as NextApiResponse;
+    await voidRoute(
+      {
+        method: "POST",
+        query: { id: String(order.id), paymentId: String(row.id) },
+        body: { reason: "Customer will pay by cheque" },
+      } as unknown as NextApiRequest,
+      res,
+      { user: { email: "mgr@example.com" } } as unknown as Session,
+    );
+
+    expect(status).toBe(200);
+    // Voiding only the row would leave it payable on the reader.
+    expect(fake.intents.get(row.processorTxnId!)!.status).toBe("canceled");
+    expect(fake.readerAction).toBeNull();
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(
+      "VOIDED",
+    );
+    const logged = await prisma.orderChangeLog.findFirstOrThrow({
+      where: { salesOrderId: order.id, changeType: "PAYMENT_VOIDED" },
+    });
+    expect(logged).toMatchObject({
+      reason: "Customer will pay by cheque",
+      changedBy: "mgr@example.com",
+    });
   });
 
   it("records a card that went through before the cancel, instead of voiding it", async () => {
@@ -436,5 +499,95 @@ describe("a card payment on a register's reader (real DB, stand-in Stripe)", () 
     });
     await presentTestCard(started.paymentId);
     expect((await settleReaderPayment(started.paymentId)).status).toBe("APPROVED");
+  });
+});
+
+describe("the stale sweep and a reader payment nobody came back for", () => {
+  beforeEach(async () => {
+    await resetTestDb();
+    fake.intents.clear();
+    fake.readerAction = null;
+    fake.readerOffline = false;
+    fake.authorizing = false;
+    fake.down = false;
+  });
+
+  /** A reader payment started, then left for longer than the sweep waits. */
+  async function abandoned() {
+    const { order, register } = await seed();
+    const started = await startReaderPayment(order.id, {
+      amount: 200,
+      registerId: register.id,
+      actor: null,
+    });
+    const row = await prisma.payment.update({
+      where: { id: started.paymentId },
+      data: { paymentDate: new Date(Date.now() - PENDING_SESSION_LIFETIME_MS - 60_000) },
+    });
+    return { order, row };
+  }
+
+  it("records a card that was approved after the register stopped asking", async () => {
+    const { order, row } = await abandoned();
+    approve(row.processorTxnId!);
+
+    const result = await sweepStalePendingPayments();
+
+    // Not "closed": the money is in the books, not written off.
+    expect(result.swept).toBe(0);
+    const now = await prisma.payment.findUniqueOrThrow({ where: { id: row.id } });
+    expect(now).toMatchObject({ status: "COMPLETED", cardLast4: "4242" });
+    expect(await ledgerRows(row.id)).toBe(1);
+    expect((await calculateOrderBalance(order.id)).totalPaid).toBe(200);
+  });
+
+  it("cancels one still waiting on the reader, there and here", async () => {
+    const { row } = await abandoned();
+
+    const result = await sweepStalePendingPayments();
+
+    expect(result.payments.map((p) => p.id)).toEqual([row.id]);
+    expect(fake.intents.get(row.processorTxnId!)!.status).toBe("canceled");
+    expect(fake.readerAction).toBeNull();
+    const now = await prisma.payment.findUniqueOrThrow({ where: { id: row.id } });
+    expect(now.status).toBe("VOIDED");
+    expect(await ledgerRows(row.id)).toBe(0);
+    // The order's history says the sweep did it, not a cashier at the register.
+    const logged = await prisma.orderChangeLog.findFirstOrThrow({
+      where: { changeType: "PAYMENT_VOIDED" },
+    });
+    expect(logged.changedBy).toBe("system");
+    expect(logged.reason).toMatch(/stale-payment sweep/);
+  });
+
+  it("fails a declined one, and cancels it at the processor first", async () => {
+    const { row } = await abandoned();
+    decline(row.processorTxnId!, "Your card was declined.");
+
+    const result = await sweepStalePendingPayments();
+
+    expect(result.swept).toBe(1);
+    expect(fake.intents.get(row.processorTxnId!)!.status).toBe("canceled");
+    const now = await prisma.payment.findUniqueOrThrow({ where: { id: row.id } });
+    expect(now.status).toBe("FAILED");
+  });
+
+  it("leaves it pending when the processor cannot be asked", async () => {
+    const { row } = await abandoned();
+    approve(row.processorTxnId!);
+    fake.down = true;
+
+    const result = await sweepStalePendingPayments();
+
+    expect(result.swept).toBe(0);
+    const now = await prisma.payment.findUniqueOrThrow({ where: { id: row.id } });
+    expect(now.status).toBe("PENDING");
+
+    // The next sweep, with the processor back, records it.
+    fake.down = false;
+    await sweepStalePendingPayments();
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(
+      "COMPLETED",
+    );
   });
 });

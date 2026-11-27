@@ -33,13 +33,6 @@ import route from "@/pages/api/tools/query-builder";
 import QueryBuilderPage from "@/app/(dashboard)/app/tools/query-builder/page";
 import ReportsHubPage from "@/app/(dashboard)/app/reports/page";
 
-// The failed query below is logged, and logError records it on a detached
-// write (lib/errorRecorder.ts). As the file's last test, that write can outlive
-// the run: Jest then reports "Cannot log after tests are done" and exits 1 with
-// every test passing (seen once in CI, 2026-11-25). The recorder has its own
-// tests; here it only needs to stay out of the way.
-jest.mock("@/lib/errorRecorder", () => ({ recordError: jest.fn() }));
-
 async function ask(who: string, body: object, method = "POST") {
   const session = { user: { id: who, email: `${who}@example.com` } };
   (getServerSession as jest.Mock).mockResolvedValue(session);

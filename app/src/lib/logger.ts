@@ -77,6 +77,12 @@ export const logger = {
 // recorder itself must be able to complain without re-entering (see
 // errorRecorder's recursion rule), and not every error-level line is an
 // incident worth a row.
+/** Every logError still on its way to the recorder. No caller's promise is tied to these. */
+const handingOver = new Set<Promise<void>>();
+
+/** The recorder's own wait, once a logError has loaded it. A test may mock the recorder without one. */
+let recorderSettled: (() => Promise<void>) | undefined;
+
 export function logError(message: string, err: unknown, context?: Record<string, unknown>): void {
   logger.error(message, {
     ...context,
@@ -89,9 +95,26 @@ export function logError(message: string, err: unknown, context?: Record<string,
   // imported the logger. Failure to even load it is swallowed -- logging must
   // not be able to break a request.
   if (typeof window !== "undefined") return;
-  void import("@/lib/errorRecorder")
-    .then(({ recordError }) => recordError({ message, error: err, context }))
+  const handOver = import("@/lib/errorRecorder")
+    .then((recorder) => {
+      recorderSettled = recorder.errorWritesSettled;
+      recorder.recordError({ message, error: err, context });
+    })
     .catch(() => {
       /* stdout above is the fallback; never let recording break the caller */
-    });
+    })
+    .finally(() => handingOver.delete(handOver));
+  handingOver.add(handOver);
+}
+
+/**
+ * Resolves when every error logged before the call has been recorded (or has
+ * failed to be). A request never waits on this, and logError keeps nothing
+ * once the recorder has the error. jest.integration.afterEach.ts waits here,
+ * so a test whose last act logs an error does not leave a write running after
+ * its file has finished.
+ */
+export async function errorRecordingSettled(): Promise<void> {
+  while (handingOver.size > 0) await Promise.all(handingOver);
+  await recorderSettled?.();
 }

@@ -787,7 +787,9 @@ export interface StalePendingSweepResult {
  * `PENDING_SESSION_LIFETIME_MS` (the webhook's `checkout.session.expired`
  * handling should have already caught most of these; this exists because
  * webhooks get missed, and Square's Payment Links API has no expiry event to
- * miss in the first place — see squareProvider.ts). Called from the
+ * miss in the first place — see squareProvider.ts). A payment out on a card
+ * reader is settled with the processor before it is closed
+ * (`closeStaleReaderPayment`). Called from the
  * `expire-stale-pending-payments` automation, on the same Bearer-token-or-
  * session cron pattern as the other jobs in pages/api/automations/*.
  */
@@ -804,13 +806,28 @@ export async function sweepStalePendingPayments(): Promise<StalePendingSweepResu
       paymentDate: { lt: cutoff },
       processorConfirmedAt: null,
     },
-    select: { id: true, salesOrderId: true, paymentAmount: true, paymentDate: true },
+    select: {
+      id: true,
+      salesOrderId: true,
+      paymentAmount: true,
+      paymentDate: true,
+      processorData: true,
+    },
   });
 
   const swept: StalePendingSweepResult["payments"] = [];
   for (const p of stale) {
-    const updated = await expirePendingPayment(p.id);
-    if (!updated) continue; // raced with a completion between the query and the update — leave it alone
+    // A payment sent to a card reader is asked about at the processor first:
+    // the card may have gone through after the register stopped asking, and
+    // failing that row would leave money taken with no record. Imported here
+    // because cardReaderPayments imports this file.
+    if ((p.processorData as { cardReader?: unknown } | null)?.cardReader === true) {
+      const { closeStaleReaderPayment } = await import("@/lib/payments/cardReaderPayments");
+      if (!(await closeStaleReaderPayment(p.id))) continue; // recorded as paid, or left for the next sweep
+    } else {
+      const updated = await expirePendingPayment(p.id);
+      if (!updated) continue; // raced with a completion between the query and the update — leave it alone
+    }
     swept.push({
       id: p.id,
       salesOrderId: p.salesOrderId,

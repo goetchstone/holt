@@ -58,7 +58,8 @@ export function sessionIdleMinutes(session: unknown): number {
  * (the session's own lifetime). Negative once it has run out, so a token
  * re-issued then is born expired -- not at zero, which every reader would still
  * accept for its 15 seconds of clock tolerance. With automatic sign-out off,
- * the ceiling.
+ * the ceiling. For one `lastActiveAt` the answer plus the whole-second now is
+ * the same at every moment, so re-issuing a token does not move its `exp`.
  */
 export function sessionMaxAgeSeconds(args: {
   lastActiveAt: number;
@@ -68,7 +69,13 @@ export function sessionMaxAgeSeconds(args: {
 }): number {
   if (args.idleMinutes === IDLE_LOGOFF_OFF) return args.ceilingSeconds;
   const endsAt = args.lastActiveAt + args.idleMinutes * 60_000 + SERVER_GRACE_MS;
-  const left = Math.floor((endsAt - args.now) / 1000);
+  // Whole seconds on each side, not the difference rounded down. next-auth adds
+  // this to its own whole-second now, so the token's `exp` is the second
+  // `endsAt` falls in, whenever it is issued. Rounding the difference moved
+  // `exp` a second back and forth between re-issues of an unchanged session.
+  const left = Math.floor(endsAt / 1000) - Math.floor(args.now / 1000);
+  // Run out within the same clock second: still born expired, not at zero.
+  if (left === 0 && args.now > endsAt) return -1;
   return Math.min(args.ceilingSeconds, left);
 }
 
