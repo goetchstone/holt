@@ -331,10 +331,11 @@ export interface CommitResult {
 export async function findOverlappingExistingPayouts(
   periodStart: Date,
   periodEnd: Date,
+  db: Pick<Prisma.TransactionClient, "commissionPayout"> = prisma,
 ): Promise<OverlapDetail[]> {
   // Database-side overlap filter, then exact-match exclusion in JS
   // (Prisma can't easily express "NOT both columns equal" inline).
-  const rows = await prisma.commissionPayout.findMany({
+  const rows = await db.commissionPayout.findMany({
     where: {
       periodStart: { lte: periodEnd },
       periodEnd: { gte: periodStart },
@@ -353,6 +354,9 @@ export async function findOverlappingExistingPayouts(
   }));
   return findOverlappingPayoutPeriods(periodStart, periodEnd, candidates);
 }
+
+/** Advisory-lock key space for committing payouts; see STOCK_LOCK_SPACE in inventory/ledger.ts. */
+const COMMISSION_PAYOUT_LOCK_SPACE = 5_461_075;
 
 export interface OverlapDetail {
   id: number;
@@ -392,6 +396,8 @@ export async function commitPayoutsForPeriod(
   overrides: PayoutOverride[],
   opts: CommitPayoutsOptions,
 ): Promise<CommitResult> {
+  // Asked here first so an overlap is refused before the drafts are worked
+  // out; the answer that counts is the one inside the transaction below.
   const overlaps = await findOverlappingExistingPayouts(periodStart, periodEnd);
   if (overlaps.length > 0) throw new OverlappingPeriodError(overlaps);
 
@@ -401,6 +407,15 @@ export async function commitPayoutsForPeriod(
   const result: CommitResult = { created: 0, updated: 0, payoutIds: [] };
 
   await prisma.$transaction(async (tx) => {
+    // One commit at a time. Two at once each passed the check above before
+    // either had written: Nov 1-15 and Nov 1-30 both went in, and that
+    // half-month was paid twice; and a re-commit without a lock, racing one
+    // that locked, read the row unlocked and wrote it unlocked again. Under
+    // the lock the second sees what the first committed.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${COMMISSION_PAYOUT_LOCK_SPACE}::int, 0)`;
+    const overlapsNow = await findOverlappingExistingPayouts(periodStart, periodEnd, tx);
+    if (overlapsNow.length > 0) throw new OverlappingPeriodError(overlapsNow);
+
     for (const d of drafts) {
       const ov = overrideMap.get(d.staffMemberId);
       const finalCommissionAmount = ov?.commissionAmount ?? d.commissionAmount;

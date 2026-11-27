@@ -30,11 +30,11 @@ export default requirePermission(
         ? Number.parseInt(req.query.staffMemberId as string, 10)
         : undefined;
       const includeClean = req.query.includeClean === "true";
-      const rows = await computeLockedPayoutDrift({
+      const report = await computeLockedPayoutDrift({
         staffMemberId: Number.isFinite(staffMemberId) ? staffMemberId : undefined,
         includeClean,
       });
-      return res.status(200).json({ rows });
+      return res.status(200).json(report);
     } catch (err) {
       logError("commission-payouts/drift GET failed", err);
       return res.status(500).json({ error: "Failed to compute payout drift" });

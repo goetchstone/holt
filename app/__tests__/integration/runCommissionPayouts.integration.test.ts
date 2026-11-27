@@ -1074,6 +1074,33 @@ describe("pay-period overlap guard", () => {
     expect(second.created).toBe(1);
   });
 
+  it("two overlapping periods committed at the same moment: one goes in and the other is refused", async () => {
+    const customer = await seedCustomer();
+    const alice = await seedDesigner({ displayName: "Alice" });
+    await seedOrderForDesigner({
+      orderno: "AL-P1",
+      customerId: customer.id,
+      staffId: alice.id,
+      orderDate: new Date("2026-05-05T00:00:00Z"),
+      netPrice: 100_000,
+    });
+
+    const outcomes = await Promise.allSettled([
+      commitPayoutsForPeriod(P1_START, P1_END, [], { lockNow: false, actorEmail: "a@x.com" }),
+      commitPayoutsForPeriod(P1_START, new Date("2026-05-31T00:00:00Z"), [], {
+        lockNow: false,
+        actorEmail: "b@x.com",
+      }),
+    ]);
+
+    // Each used to pass the overlap check before the other had written, and
+    // both went in: May 1-15 was then paid twice.
+    expect(outcomes.map((o) => o.status).sort()).toEqual(["fulfilled", "rejected"]);
+    const refused = outcomes.find((o) => o.status === "rejected") as PromiseRejectedResult;
+    expect(refused.reason).toBeInstanceOf(OverlappingPeriodError);
+    expect(await prisma.commissionPayout.count()).toBe(1);
+  });
+
   it("OverlappingPeriodError.overlaps carries the conflicting payouts (id, designer, dates, lockedAt)", async () => {
     const customer = await seedCustomer();
     const alice = await seedDesigner({ displayName: "Alice" });
