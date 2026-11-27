@@ -617,6 +617,8 @@ drift = sumDesignerSales(yearStart, lockedRow.periodEnd) - lockedRow.ytdSalesAtE
 
 Rows with `|drift| ≤ $0.01` are excluded by default (`includeClean=true` to see them anyway). Banner stays hidden when nothing has drifted.
 
+**The check says how far it looked (2026-11-27).** It reads the newest `DRIFT_CHECK_LIMIT` (1000) locked payouts and returns `checked` and `truncated` with the rows. When older locks went unchecked the banner says so, including when it found no drift ("No drift found. Only the newest 1000 locked payouts were checked."). When the fetch fails the banner says the check could not be made. Before this it hid itself in both cases, which read as "no drift".
+
 **Two valid responses to non-zero drift:**
 
 1. **Accept the variance.** The cash already went out; the chain stays continuous because period N+1's `ytdAtStart` reads from period N's frozen `ytdSalesAtEnd`. Nothing needs to change.
@@ -649,6 +651,10 @@ The check is GLOBAL (every active designer's row scanned), runs **server-side** 
 
 **Why this matters**: without the guard, an overlapping range would write a NEW row that double-counts the overlap days AND breaks the chain-continuity lookup (which expects "most recent locked period BEFORE this one" to be unambiguous). The `@@unique([staffMemberId, periodStart, periodEnd])` index only catches EXACT duplicates — date-range overlap was a separate hole this closes.
 
+**One commit at a time (2026-11-27).** The check above ran before the transaction opened, so two commits at once each passed it before either had written: 5/1–5/15 and 5/1–5/31 both went in, and that half-month was paid twice. A re-commit without a lock, racing one that locked, could also read the row unlocked and write it unlocked again. `commitPayoutsForPeriod` now takes `pg_advisory_xact_lock(COMMISSION_PAYOUT_LOCK_SPACE, 0)` first in its transaction and asks `findOverlappingExistingPayouts(…, tx)` again under it; the check before the transaction stays, so an overlap is still refused before the drafts are worked out. Tested by two overlapping commits started together (one is written, the other gets `OverlappingPeriodError`), and by a locking commit and a re-commit lined up behind a row held from a second connection (the payout stays locked).
+
+Advisory lock key spaces are declared one per lib file (`…_LOCK_SPACE`, 5_461_067 to 5_461_075 today). `__tests__/advisoryLockSpaces.test.ts` fails when two share a number, when a two-key lock uses a bare number, and when a declared space is not used.
+
 ## API contract
 
 ### `GET /api/admin/reports/commission-payouts`
@@ -656,8 +662,11 @@ The check is GLOBAL (every active designer's row scanned), runs **server-side** 
 Query params (all optional): `staffMemberId`, `from` (YYYY-MM-DD),
 `to` (YYYY-MM-DD), `includeDrafts` (default false — locked-only).
 
-Returns `{ payouts: [...] }` sorted by `periodEnd DESC` then
-`commissionAmount DESC`. Capped at 500 rows.
+Returns `{ payouts: [...], truncated, limit }` sorted by `periodEnd DESC` then
+`commissionAmount DESC`. The newest `PAYOUT_LIST_LIMIT` (500) are returned;
+`truncated` is true when older ones were left out, and the Payouts tab then says
+so above the list (2026-11-27; it used to stop at 500 with no sign). Drafts and
+locked payouts share the 500, and the tab has no date filter yet: both left open.
 
 ### `POST /api/admin/reports/commission-payouts?action=preview`
 
@@ -684,7 +693,7 @@ locked row, use the per-row PATCH endpoint.
 ### `GET /api/admin/reports/commission-payouts/drift`
 
 Query params (all optional): `staffMemberId`, `includeClean=true`.
-Returns `{ rows: LockedPayoutDriftRow[] }`. Each row carries
+Returns `{ rows: LockedPayoutDriftRow[], checked, truncated }`. Each row carries
 `payoutId`, `displayName`, `periodStart`, `periodEnd`,
 `lockedYtdAtEnd`, `liveYtdAtEnd`, `drift` (signed), and
 `lockedCommissionAmount`. Banner consumes this directly.

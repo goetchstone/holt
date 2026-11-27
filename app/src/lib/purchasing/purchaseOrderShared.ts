@@ -79,6 +79,43 @@ export function poEditProblem(po: {
   return null;
 }
 
+/**
+ * Why importing a vendor's document again can't replace this PO's lines, or
+ * null when it can. Replaceable means a PO such an import could have written
+ * and nothing has been built on: the document's own vendor, still changeable
+ * (poEditProblem), and not raised for a customer's sale or a consignment
+ * payment, whose lines come from there and not from a document. It lists what
+ * is allowed, so a PO in a state nobody thought of is refused, not replaced.
+ */
+export function poReplaceProblem(
+  po: {
+    poNumber: string;
+    vendorId: number;
+    vendorName: string;
+    status: string;
+    isReturn: boolean;
+    receivedCount: number;
+    /** The PO's own sale, a drop-ship address, or any line ordered for a sale's line. */
+    forSale: boolean;
+    forConsignmentPayment: boolean;
+  },
+  importVendor: { id: number; name: string },
+): string | null {
+  const refused = `PO ${po.poNumber} was not replaced, and nothing was changed`;
+  if (po.vendorId !== importVendor.id) {
+    return `${refused}: that number belongs to a ${po.vendorName} PO, and this document is from ${importVendor.name}.`;
+  }
+  const edit = poEditProblem(po);
+  if (edit) return `${refused}. ${edit}`;
+  if (po.forSale) {
+    return `${refused}: it was raised for a customer's sale, and importing over it would unlink that sale. Change it on the PO itself.`;
+  }
+  if (po.forConsignmentPayment) {
+    return `${refused}: it belongs to a consignment payment.`;
+  }
+  return null;
+}
+
 const isId = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
 
 function parseLine(raw: unknown, n: number): Parsed<PoLineInput> {

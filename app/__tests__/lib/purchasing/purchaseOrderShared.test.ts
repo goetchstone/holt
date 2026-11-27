@@ -7,6 +7,7 @@ import {
   parseNewPo,
   parsePoDraft,
   poEditProblem,
+  poReplaceProblem,
   poLineTotal,
   MAX_PO_NOTES,
 } from "@/lib/purchasing/purchaseOrderShared";
@@ -136,6 +137,54 @@ describe("poEditProblem", () => {
     expect(poEditProblem({ status: "DRAFT", isReturn: true, receivedCount: 0 })).toBe(
       "A vendor return can't be changed here.",
     );
+  });
+});
+
+describe("poReplaceProblem (importing a vendor's document again)", () => {
+  const vendor = { id: 4, name: "Sample Brand" };
+  const own = {
+    poNumber: "70001",
+    vendorId: 4,
+    vendorName: "Sample Brand",
+    status: "CONFIRMED",
+    isReturn: false,
+    receivedCount: 0,
+    forSale: false,
+    forConsignmentPayment: false,
+  };
+
+  it("lets the same vendor's PO be replaced while it can still change", () => {
+    for (const status of ["DRAFT", "SUBMITTED", "CONFIRMED"]) {
+      expect(poReplaceProblem({ ...own, status }, vendor)).toBeNull();
+    }
+  });
+
+  it("refuses another vendor's PO that holds the number, naming both", () => {
+    const problem = poReplaceProblem({ ...own, vendorId: 9, vendorName: "Other Mills" }, vendor);
+    expect(problem).toBe(
+      "PO 70001 was not replaced, and nothing was changed: that number belongs to a Other Mills PO, and this document is from Sample Brand.",
+    );
+  });
+
+  it("refuses whatever the PO editor refuses: received, closed, a vendor return", () => {
+    expect(poReplaceProblem({ ...own, receivedCount: 2 }, vendor)).toMatch(
+      /PO 70001 was not replaced.*goods have been received against it/,
+    );
+    for (const status of ["CANCELLED", "RECEIVED_PARTIAL", "RECEIVED_FULL", "SHORT_CLOSED"]) {
+      expect(poReplaceProblem({ ...own, status }, vendor)).toMatch(/closed and can't be changed/);
+    }
+    expect(poReplaceProblem({ ...own, isReturn: true }, vendor)).toMatch(/vendor return/);
+  });
+
+  it("refuses a PO raised for a sale or belonging to a consignment payment", () => {
+    expect(poReplaceProblem({ ...own, forSale: true }, vendor)).toMatch(/customer's sale/);
+    expect(poReplaceProblem({ ...own, forConsignmentPayment: true }, vendor)).toMatch(
+      /consignment payment/,
+    );
+  });
+
+  it("refuses a status nobody listed, instead of replacing it", () => {
+    expect(poReplaceProblem({ ...own, status: "SOMETHING_NEW" }, vendor)).not.toBeNull();
   });
 });
 

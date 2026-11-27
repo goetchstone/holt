@@ -7,7 +7,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
-import { listCommissionPayouts } from "@/lib/commissionPayoutList";
+import { PAYOUT_LIST_LIMIT, listCommissionPayouts } from "@/lib/commissionPayoutList";
 
 const PS = new Date("2026-05-03T00:00:00Z");
 const PE = new Date("2026-05-16T00:00:00Z");
@@ -53,7 +53,10 @@ describe("listCommissionPayouts — real DB", () => {
     await seedPayout(b, 300, false); // draft → excluded by locked-only
     await seedPayout(c, 900, true); // locked but NOT designer → excluded
 
-    const rows = await listCommissionPayouts({ designersOnly: true, includeDrafts: false });
+    const { payouts: rows } = await listCommissionPayouts({
+      designersOnly: true,
+      includeDrafts: false,
+    });
     expect(rows).toHaveLength(1);
     expect(rows[0].staffMemberId).toBe(a);
   });
@@ -64,7 +67,10 @@ describe("listCommissionPayouts — real DB", () => {
     await seedPayout(a, 300, false); // draft
     await seedPayout(c, 900, true); // locked non-designer
 
-    const rows = await listCommissionPayouts({ designersOnly: false, includeDrafts: true });
+    const { payouts: rows } = await listCommissionPayouts({
+      designersOnly: false,
+      includeDrafts: true,
+    });
     expect(rows).toHaveLength(2);
   });
 
@@ -74,8 +80,44 @@ describe("listCommissionPayouts — real DB", () => {
     await seedPayout(a, 500, true);
     await seedPayout(b, 400, true);
 
-    const rows = await listCommissionPayouts({ staffMemberId: a, designersOnly: true });
+    const { payouts: rows } = await listCommissionPayouts({
+      staffMemberId: a,
+      designersOnly: true,
+    });
     expect(rows).toHaveLength(1);
     expect(rows[0].staffMemberId).toBe(a);
+  });
+
+  it("says when older payouts were left out, and not when they all fit", async () => {
+    const a = await seedStaff("Designer A", true);
+    const day = 24 * 60 * 60 * 1000;
+    // One more one-day period than the list returns.
+    await prisma.commissionPayout.createMany({
+      data: Array.from({ length: PAYOUT_LIST_LIMIT + 1 }, (_, n) => ({
+        staffMemberId: a,
+        periodStart: new Date(PS.getTime() - n * day),
+        periodEnd: new Date(PS.getTime() - n * day),
+        periodSalesAmount: 100,
+        ytdSalesAtStart: 0,
+        ytdSalesAtEnd: 100,
+        tierBreakdown: [],
+        commissionAmount: 5,
+        tierDefinitionSnapshot: [],
+        lockedAt: new Date(),
+      })),
+    });
+
+    const cut = await listCommissionPayouts({ includeDrafts: true });
+    expect(cut.truncated).toBe(true);
+    expect(cut.payouts).toHaveLength(PAYOUT_LIST_LIMIT);
+    // The newest are the ones kept.
+    expect(cut.payouts[0].periodEnd).toEqual(PS);
+
+    const whole = await listCommissionPayouts({
+      includeDrafts: true,
+      from: new Date(PS.getTime() - 10 * day),
+    });
+    expect(whole.truncated).toBe(false);
+    expect(whole.payouts).toHaveLength(11);
   });
 });
