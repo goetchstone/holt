@@ -14,6 +14,8 @@
 // filter, FK + alias OR'd match, split 0.5x, line-item filter, YTD
 // boundaries) line up with the math.
 
+import { type Prisma, PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import {
@@ -952,6 +954,20 @@ describe("chain continuity across locked periods", () => {
 // to generate new data against it."
 // ---------------------------------------------------------------------------
 
+/** Until `n` sessions other than this one are waiting on a lock. */
+async function untilSessionsWait(tx: Prisma.TransactionClient, n: number) {
+  for (let i = 0; i < 200; i++) {
+    // Activity is read once per transaction unless the snapshot is cleared.
+    await tx.$queryRaw`SELECT pg_stat_clear_snapshot()::text AS cleared`;
+    const [{ waiting }] = await tx.$queryRaw<{ waiting: number }[]>`
+      SELECT count(*)::int AS waiting FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`;
+    if (waiting >= n) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Fewer than ${n} session(s) ever waited on a lock.`);
+}
+
 describe("pay-period overlap guard", () => {
   const P1_START = new Date("2026-05-01T00:00:00Z");
   const P1_END = new Date("2026-05-15T00:00:00Z");
@@ -1072,6 +1088,88 @@ describe("pay-period overlap guard", () => {
       { lockNow: false, actorEmail: "admin@x.com" },
     );
     expect(second.created).toBe(1);
+  });
+
+  it("two overlapping periods committed at the same moment: one goes in and the other is refused", async () => {
+    const customer = await seedCustomer();
+    const alice = await seedDesigner({ displayName: "Alice" });
+    await seedOrderForDesigner({
+      orderno: "AL-P1",
+      customerId: customer.id,
+      staffId: alice.id,
+      orderDate: new Date("2026-05-05T00:00:00Z"),
+      netPrice: 100_000,
+    });
+
+    const outcomes = await Promise.allSettled([
+      commitPayoutsForPeriod(P1_START, P1_END, [], { lockNow: false, actorEmail: "a@x.com" }),
+      commitPayoutsForPeriod(P1_START, new Date("2026-05-31T00:00:00Z"), [], {
+        lockNow: false,
+        actorEmail: "b@x.com",
+      }),
+    ]);
+
+    // Each used to pass the overlap check before the other had written, and
+    // both went in: May 1-15 was then paid twice.
+    expect(outcomes.map((o) => o.status).sort()).toEqual(["fulfilled", "rejected"]);
+    const refused = outcomes.find((o) => o.status === "rejected") as PromiseRejectedResult;
+    expect(refused.reason).toBeInstanceOf(OverlappingPeriodError);
+    expect(await prisma.commissionPayout.count()).toBe(1);
+  });
+
+  it("a commit that locks is not undone by a re-commit of the same period racing it", async () => {
+    const customer = await seedCustomer();
+    const alice = await seedDesigner({ displayName: "Alice" });
+    await seedOrderForDesigner({
+      orderno: "AL-P1",
+      customerId: customer.id,
+      staffId: alice.id,
+      orderDate: new Date("2026-05-05T00:00:00Z"),
+      netPrice: 100_000,
+    });
+    const draft = await commitPayoutsForPeriod(P1_START, P1_END, [], {
+      lockNow: false,
+      actorEmail: "admin@x.com",
+    });
+    const payoutId = draft.payoutIds[0];
+
+    // Another connection holds the draft's row, so the two commits can be
+    // lined up: the locking one first, the re-commit behind it. Without one
+    // commit at a time both had read the row unlocked by then, and the
+    // re-commit, writing second, put it back to unlocked.
+    const holder = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL!, max: 1 }),
+    });
+    let locking: Promise<unknown> | undefined;
+    let recommit: Promise<unknown> | undefined;
+    try {
+      await holder.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "CommissionPayout" WHERE id = ${payoutId} FOR UPDATE`;
+          locking = commitPayoutsForPeriod(P1_START, P1_END, [], {
+            lockNow: true,
+            actorEmail: "locks@x.com",
+          });
+          locking.catch(() => undefined); // surfaced by the await below
+          await untilSessionsWait(tx, 1);
+          recommit = commitPayoutsForPeriod(P1_START, P1_END, [], {
+            lockNow: false,
+            actorEmail: "recommits@x.com",
+          });
+          recommit.catch(() => undefined);
+          await untilSessionsWait(tx, 2);
+        },
+        { maxWait: 10000, timeout: 30000 },
+      );
+    } finally {
+      await holder.$disconnect();
+    }
+    await locking;
+    await recommit;
+
+    const row = await prisma.commissionPayout.findUniqueOrThrow({ where: { id: payoutId } });
+    expect(row.lockedAt).not.toBeNull();
+    expect(row.lockedBy).toBe("locks@x.com");
   });
 
   it("OverlappingPeriodError.overlaps carries the conflicting payouts (id, designer, dates, lockedAt)", async () => {

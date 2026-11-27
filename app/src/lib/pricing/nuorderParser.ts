@@ -92,9 +92,15 @@ export function parseNuOrderText(raw: string): NuOrderPO {
   const orderDateMatch = text.match(/Order\s*Date:\s*([A-Z]{3}\s+\d{1,2},\s*\d{4})/i);
   if (orderDateMatch) orderDate = orderDateMatch[1];
 
-  // PO number
+  // PO number: the label "PO" as a word, then "#" or ":" (optionally after
+  // "Number" or "No."), then the number, hyphens included. The label's
+  // punctuation is required: without it "po" inside any earlier word was read
+  // as the label ("Deposit" gave PO "sit", "PO Box 12" gave PO "Box"), and the
+  // import then looked for a PO by that.
   let poNumber = "";
-  const poMatch = text.match(/PO\s{0,20}#?:?\s{0,20}([A-Za-z0-9]+)/i);
+  const poMatch = text.match(
+    /\bPO\s{0,20}(?:(?:Number|No\.?)\s{0,20})?[#:]{1,2}\s{0,20}([A-Za-z0-9][A-Za-z0-9-]{0,39})/i,
+  );
   if (poMatch) poNumber = poMatch[1];
 
   // Delivery dates

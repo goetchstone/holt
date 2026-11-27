@@ -196,6 +196,8 @@ export function PayoutsTab({
   const [error, setError] = useState<string | null>(null);
 
   const [payouts, setPayouts] = useState<StoredPayout[]>([]);
+  /** How many payouts the list stops at, when older ones were left out of it. */
+  const [listCutAt, setListCutAt] = useState<number | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingPayout, setEditingPayout] = useState<StoredPayout | null>(null);
@@ -210,7 +212,10 @@ export function PayoutsTab({
     setLoadingList(true);
     fetch("/api/admin/reports/commission-payouts?includeDrafts=true")
       .then((r) => r.json())
-      .then((d) => setPayouts(d.payouts ?? []))
+      .then((d) => {
+        setPayouts(d.payouts ?? []);
+        setListCutAt(d.truncated ? (d.limit ?? null) : null);
+      })
       .catch(() => setPayouts([]))
       .finally(() => setLoadingList(false));
   }, []);
@@ -433,6 +438,12 @@ export function PayoutsTab({
         <h2 className="mb-2 text-lg font-semibold text-brand-navy">
           {view === "locked" ? "Locked Payouts" : "Draft Payouts"}
         </h2>
+        {listCutAt !== null && (
+          <p className="mb-2 text-sm text-amber-800">
+            Only the newest {listCutAt} payouts are listed, drafts and locked together. Older ones
+            are kept but not shown here.
+          </p>
+        )}
         <PayoutHistory
           view={view}
           loadingList={loadingList}
@@ -1086,17 +1097,27 @@ function DriftBanner({ onEditPayout }: Readonly<{ onEditPayout: (payoutId: numbe
   const money = useMoneyFormatter();
   const [rows, setRows] = useState<DriftRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  /** How many locked payouts were checked, when older ones were not. */
+  const [checkedOnly, setCheckedOnly] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     fetch("/api/admin/reports/commission-payouts/drift")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("drift check failed");
+        return r.json();
+      })
       .then((d) => {
-        if (!cancelled) setRows(d.rows ?? []);
+        if (cancelled) return;
+        setRows(d.rows ?? []);
+        setCheckedOnly(d.truncated ? (d.checked ?? null) : null);
+        setFailed(false);
       })
       .catch(() => {
-        if (!cancelled) setRows([]);
+        // Not an empty list: nothing was checked, and saying nothing reads as "no drift".
+        if (!cancelled) setFailed(true);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -1107,11 +1128,31 @@ function DriftBanner({ onEditPayout }: Readonly<{ onEditPayout: (payoutId: numbe
   }, []);
 
   if (loading) return null;
-  if (rows.length === 0) return null; // quiet when nothing's drifted
+  if (failed) {
+    return (
+      <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        The locked payouts could not be checked for drift. Reload the page to try again.
+      </p>
+    );
+  }
+  const notAllChecked =
+    checkedOnly === null
+      ? null
+      : `Only the newest ${checkedOnly} locked payouts were checked. Older ones were not.`;
+  if (rows.length === 0) {
+    // Quiet when nothing has drifted, unless that is only true of the ones checked.
+    if (!notAllChecked) return null;
+    return (
+      <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        No drift found. {notAllChecked}
+      </p>
+    );
+  }
 
   return (
     <section className="rounded border-2 border-red-300 bg-red-50 p-4">
       <h2 className="mb-2 text-base font-semibold text-red-800">Payout Drift ({rows.length})</h2>
+      {notAllChecked && <p className="mb-2 text-xs font-medium text-red-900">{notAllChecked}</p>}
       <p className="mb-3 text-xs text-red-900">
         These locked payouts had returns, rewrites, cancellations, or salesperson reassignments land
         AFTER they locked. The commission already paid no longer matches the underlying YTD. Edit

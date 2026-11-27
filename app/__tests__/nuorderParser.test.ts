@@ -96,4 +96,29 @@ describe("parseNuOrderText", () => {
     expect([spaced.orderNumber, spaced.poNumber]).toEqual(["7000001", "PON00006"]);
     expect(spaced.items[0].sizes).toEqual([{ size: "M", quantity: 2 }]);
   });
+
+  describe("the PO number", () => {
+    const withHeader = (...lines: string[]) =>
+      parseNuOrderText([...lines, "Style #: A1", "$10.00 1 $10.00"].join("\n")).poNumber;
+
+    it('is read from its label, not from a word that happens to contain "po"', () => {
+      // Each of these came back as the PO number before the label's "#" or ":"
+      // was required: "sit", "Box", "lo", "rt".
+      expect(withHeader("Deposit due on receipt", "PO #: PON00006")).toBe("PON00006");
+      expect(withHeader("PO Box 12, Anytown", "PO #: PON00006")).toBe("PON00006");
+      expect(withHeader("POLO TEE", "Sport Jacket", "PO #: PON00006")).toBe("PON00006");
+    });
+
+    it("reads the label's usual spellings, and a hyphenated number whole", () => {
+      expect(withHeader("PO#: 4471")).toBe("4471");
+      expect(withHeader("PO: 4471")).toBe("4471");
+      expect(withHeader("PO Number: 4471")).toBe("4471");
+      expect(withHeader("PO No.: 4471")).toBe("4471");
+      expect(withHeader("po #: PO-261127-003")).toBe("PO-261127-003");
+    });
+
+    it("is empty when the document has no PO label, so the order number is used", () => {
+      expect(withHeader("Deposit due on receipt", "PO Box 12")).toBe("");
+    });
+  });
 });

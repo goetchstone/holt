@@ -523,6 +523,54 @@ body, since they are then the only account of why (an item past a cut line, ever
 out); the page lists them under the upload (`__tests__/orderUploadNoLines.test.ts`).
 `preview-zsupply.ts` has no such refusal and returns its warnings with the empty preview.
 
+## Importing a vendor's document again (2026-11-27)
+
+`import-nuorder.ts` and `import-zsupply.ts` take the PO number from the document (the PO or
+order number; the invoice number). `PurchaseOrder.poNumber` is unique across every vendor, so
+a second import of a number meets the PO that already holds it.
+
+**Before.** Each route deleted that PO's lines and the PO, then wrote a new one as `CONFIRMED`,
+with no look at whose PO it was or what state it was in. What that did was decided by foreign
+keys: freight and duty charges (`PurchaseOrderCharge`) and the buyer-draft link cascaded away;
+service cases, service tasks and a consignment payment batch lost their link; a line ordered
+for a customer's sale lost it with the line; the ship-to and sale link went with the row; a
+cancelled PO came back confirmed. Another vendor's PO with the same number was replaced the
+same way. Only a PO with receipts survived, because `ReceivingRecord` restricts the delete,
+and the screen then said "Import failed".
+
+**Now** (`lib/purchasing/importedPurchaseOrder.ts`, used by both routes):
+
+- `importReplaceTarget(tx, poNumber, vendor)` runs first in the transaction. It returns the PO
+  to replace, or null when the number is free, or throws `PurchaseOrderError` 409 naming the
+  PO and the reason. The rule is `poReplaceProblem` (`purchaseOrderShared.ts`, pure): the
+  document's own vendor; whatever `poEditProblem` allows (not a vendor return, nothing
+  received, status `DRAFT`, `SUBMITTED` or `CONFIRMED`); not raised for a sale (`salesOrderId`,
+  a drop-ship address, or any line with `orderLineItemId`); not a consignment payment's PO. It
+  lists what is allowed, so a state nobody listed is refused.
+- `writeImportedPo(tx, replaceId, po)` writes a new PO, or replaces the lines of the existing
+  one **in place**: the row and its id stay, so charges, links, ship-to and creator stay. The
+  header takes the document's dates and acknowledgement number and `CONFIRMED`; notes change
+  only when the document carries some. Receipts are counted again at the write, as the PO
+  editor does.
+- The routes answer the 409 with the message; any other failure is still "Import failed".
+
+`import-hd-proposal.ts` (sales-orders.md) had the same shape on a sale's lines and is guarded
+in the same change.
+
+**Every delete of an order, a PO or their lines is listed**, with its guard and why it is safe,
+in `__tests__/fixtures/order-and-po-deletes.txt`; `__tests__/orderAndPoDeletes.test.ts` fails
+on a delete that is not listed, a listed file that no longer deletes, and a guard that has left
+its file (rule 65). Six files today: the PO editor, this writer, the delivery-fee line, quote
+delete, quote line delete, and the proposal import.
+
+Tested in `__tests__/integration/reimportsFailClosed.integration.test.ts`: replaced in place
+with a charge, ship-to and note kept; refused when received against, another vendor's,
+cancelled, or with a line ordered for a sale (each left as it was); the invoice route held to
+the same rule.
+
+Left open: both routes find or create the document's vendor before the transaction, so a
+refused import of a new vendor's document can leave that vendor behind.
+
 ## Upload refusals (since 2026-11-21)
 
 The four PDF routes (`preview-nuorder.ts`, `import-nuorder.ts`,
