@@ -638,6 +638,7 @@ may get a text do. It's listed in the panel above.
 - `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), `voidPendingPayment()` (a payment that is no longer PENDING throws `VoidError`, which the void route answers with 409; `docs/ARCHITECTURE.md`, "API errors"), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`). A pending payment out on a register's card reader is not voided or swept as a bare row: the order's Void (`payments/[paymentId]/void.ts`) cancels it on the reader first through `cancelReaderPayment`, passing its reason, and `sweepStalePendingPayments` asks the processor how it went before closing it (pos.md, "Card readers"). A payment taken with one of the store's own payment types (`tenderId`) is labelled by `lib/payments/tenders.ts`, and its refund goes back to the same tender (pos.md, "Payment types a store sets up")
 - `pages/api/sales/` -- 19 API endpoints
 - `lib/pos/cartPricing.ts` -- `catalogRetailPrice()`: the price a catalog product goes onto a New Quote (or POS) line at. No retail price means the line is refused, never priced from cost (see `docs/domains/pos.md`, "A product's line price")
+- `lib/tillLock.ts` -- `lockOpenTill()`: a payment (`recordPaymentTx`) or refund (`processRefund`) booked against a till holds that till open until it is written, and `calculateTillExpected(tillId, db)` reads through the caller's transaction when given one (pos.md, "Closing under the till's lock")
 
 ## B2B Proposals
 

@@ -28,6 +28,7 @@ import { creditToCard, GiftCardError, spendFromCard } from "@/lib/giftCardLedger
 // A cycle (giftCardLines reads computeBalance from here), safe because neither module uses the
 // other's exports while it loads, only when a payment runs.
 import { issuePaidGiftCards } from "@/lib/sales/giftCardLines";
+import { lockOpenTill, TillNotOpenError } from "@/lib/tillLock";
 import { applyInvoiceCardPayment } from "@/lib/billing/invoiceService";
 
 type Tx = Prisma.TransactionClient;
@@ -278,12 +279,10 @@ export async function recordPaymentTx(
     throw new Error("This order is cancelled, so it can't take a payment.");
   }
 
-  if (input.tillId) {
-    const till = await tx.till.findUniqueOrThrow({ where: { id: input.tillId } });
-    if (till.status !== "OPEN") {
-      throw new Error(`Till ${input.tillId} is not open (status: ${till.status})`);
-    }
-  }
+  // Held to the end of this transaction, so the till can't close around the
+  // payment: a close in progress is waited for and then refuses this, and a
+  // close that starts now waits and counts it (lib/tillLock.ts).
+  if (input.tillId) await lockOpenTill(tx, input.tillId);
 
   const { method, paymentType, tenderId, reference } = await labelPayment(tx, input);
 
@@ -1110,6 +1109,19 @@ export async function processRefund(paymentId: number, input: RefundInput): Prom
       );
     }
     await input.guard?.(tx);
+    // A refund booked against a till comes out of that till's count, so the
+    // till has to be open and stay open until this is written. It used to be
+    // booked against a closed till without a word.
+    if (input.tillId) {
+      try {
+        await lockOpenTill(tx, input.tillId);
+      } catch (err) {
+        if (!(err instanceof TillNotOpenError)) throw err;
+        throw new RefundError(
+          `This register's till is ${err.status.toLowerCase()}, so the refund was not made. Open a till and refund again.`,
+        );
+      }
+    }
 
     // Route by the ORIGINAL payment's processor -- never the currently-active
     // one (rule 60). After an org switches providers, previously captured
@@ -1560,7 +1572,10 @@ async function syncConsignmentSales(
   }
 }
 
-export async function calculateTillExpected(tillId: number): Promise<{
+export async function calculateTillExpected(
+  tillId: number,
+  db: Pick<Prisma.TransactionClient, "till" | "payment"> = prisma,
+): Promise<{
   cash: number;
   card: number;
   check: number;
@@ -1573,14 +1588,14 @@ export async function calculateTillExpected(tillId: number): Promise<{
   total: number;
   expectedCash: number;
 }> {
-  const till = await prisma.till.findUniqueOrThrow({
+  const till = await db.till.findUniqueOrThrow({
     where: { id: tillId },
     select: { openingCash: true },
   });
 
   // Money that moved: not VOIDED, FAILED or PENDING (a PENDING refund has not
   // left the drawer or the card yet). NULL-safe, rule 51.
-  const payments = await prisma.payment.findMany({
+  const payments = await db.payment.findMany({
     where: { tillId, ...countedPaymentWhere() },
     select: { method: true, paymentType: true, paymentAmount: true, isRefund: true },
   });

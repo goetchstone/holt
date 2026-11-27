@@ -95,9 +95,26 @@ Key invariants enforced by `recordPayment()`:
 Lifecycle:
 
 1. **Open** (`POST /api/registers/[id]/tills/open` with denomination counts or a raw `openingCash`) → status `OPEN`, opening cash computed from counts. Refused with `409` if the register is variance-blocked (see below). `openedById` (and `closedById` on close) is the caller's own active staff row, found by the session's User id (`sessionStaffMember`, staff-auth.md "Who the caller is"); `403` "Staff member not found" when there is none. Until 2026-11-21 both routes found it by the session's email.
-2. **During shift** → `expectedCash` recomputed live as non-`VOIDED` Payment rows accumulate against the till — `PENDING` and `FAILED` rows are counted in (`tillId` FK on `Payment`, `lib/paymentService.ts:calculateTillExpected`)
+2. **During shift** → `expectedCash` recomputed live as Payment rows accumulate against the till (`tillId` FK on `Payment`, `lib/paymentService.ts:calculateTillExpected`). It counts money that moved: `VOIDED`, `FAILED` and `PENDING` rows are left out, and a row with no status is counted (`countedPaymentWhere`, `lib/paymentBalance.ts`). This line said the opposite of `PENDING` and `FAILED` until 2026-11-27.
 3. **Close** (`POST /api/tills/[id]/close`) → closing denomination counts + counted `actualCash` → variance = actual − expected → status `CLOSED`. This is where variance is actually computed and where the Phase 0.6 thresholds below are enforced.
 4. **Reconcile** (`POST /api/tills/[id]/reconcile`, Adjust till counts, `pos.till.adjust`) → approves the already-computed variance → status `RECONCILED`.
+
+**Closing under the till's lock (2026-11-27, `lib/tillLock.ts`).** The close adds up what was booked against the till, and nothing used to hold the till while it did:
+
+- the sum was taken before the close's transaction, so a payment landing in between was left out and showed as an overage (over $100, a register blocked for a difference that was not there);
+- a payment read the till as open and could be written against it after the close committed; a refund never checked the till at all;
+- two closes at once both answered 200 and the second replaced the first's count; two reconciles at once both answered 200 and one approval note was written over.
+
+Now two calls, each first in its transaction:
+
+- `lockOpenTill(tx, tillId)`: whatever books money against a till takes its row `FOR SHARE` and checks it is `OPEN`. `recordPaymentTx` and `processRefund` call it. A payment gets the same error text as before ("Till N is not open (status: CLOSED)"); a refund gets a `RefundError` saying to open a till and refund again.
+- `lockTillForChange(tx, tillId)`: `close.ts` and `reconcile.ts` take the row `FOR UPDATE`, then read the till, work out expected cash (`calculateTillExpected(tillId, tx)`), check the note and write, all inside the lock. The checks ahead of the transaction stay as a quick answer; the ones inside decide.
+
+A booking in flight makes a close wait and is counted; a close in progress makes a booking wait and then refuses it. The second of two closes gets 400 "Till is already CLOSED", the second of two reconciles 400 "Till must be CLOSED before reconciliation".
+
+Tested in `__tests__/integration/tillCloseAtomic.integration.test.ts`, with a second connection holding the till's row to line the two sides up.
+
+Left open: a card reader payment is `PENDING` against the till while the reader waits (`recordPendingPayment` does not take the lock), and is not in the close's sum. If it is approved after the till closed it is recorded against that closed till, in its card total. Closing does not yet look for one.
 
 **Variance discipline** (Phase 0.6, shipped — `lib/tillVariance.ts:classifyTillVariance`). Thresholds are named constants (`TILL_VARIANCE_NOTE_THRESHOLD` / `_MANAGER_THRESHOLD` / `_ESCALATION_THRESHOLD`), evaluated against `Math.abs(variance)` — an overage is treated exactly like a shortage of the same size:
 
