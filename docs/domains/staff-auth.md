@@ -816,7 +816,11 @@ the home dashboard nor the Up Board keeps a session alive by refreshing itself.
 - `lastActiveAt` moves only at sign-in and on the browser's report
   (`stampActivity`, `trigger === "update"` with `active: true`), and the time
   stamped is the server's. A background request re-issues the token with its
-  `exp` unchanged.
+  `exp` unchanged: `sessionMaxAgeSeconds` counts whole seconds on each side, so
+  `exp` is the second the end falls in whenever the token is issued. Until
+  2026-11-27 it rounded the time left instead, and `exp` moved a second back
+  and forth between re-issues (harmless, but it failed
+  `idleLogoff.integration.test.ts` now and then).
 - Once the time has run out, a re-issued token is born already expired.
 - The grace is longer than the reporting interval, so the server never ends a
   session before the browser's warning has finished. It also ends one the

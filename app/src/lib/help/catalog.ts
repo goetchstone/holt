@@ -66,6 +66,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
       "Give trade customers a tier that takes a percent off retail, choose which vendors and sale items it covers, and how it prices sales and quotes.",
     screens: ["/app/admin/setup/trade-tiers"],
   },
+  {
+    slug: "card-readers",
+    title: "Card readers",
+    summary:
+      "Put a card reader at a register, take a card on it, cancel a payment that is waiting, and try it all with a test reader.",
+    screens: ["/app/admin/setup/card-readers"],
+  },
 ];
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

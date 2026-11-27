@@ -53,8 +53,20 @@ function makeReq(ip: string): NextApiRequest {
 
 const MINUTE = { windowMs: 60_000, maxRequests: 3 };
 
+// The limiter's windows are fixed to the clock (windowStartFor), so requests
+// that straddled a minute boundary started a new count and the test read
+// [200, 200, 200, 200, ...] (2026-11-24). Every test here assumes its requests
+// share a window, so the clock is held in the middle of one.
+let clock: jest.SpyInstance<number, []>;
+
 beforeEach(async () => {
   await resetTestDb();
+  const midWindow = limiterA.windowStartFor(Date.now(), MINUTE.windowMs) + MINUTE.windowMs / 2;
+  clock = jest.spyOn(Date, "now").mockReturnValue(midWindow);
+});
+
+afterEach(() => {
+  clock.mockRestore();
 });
 
 afterAll(async () => {

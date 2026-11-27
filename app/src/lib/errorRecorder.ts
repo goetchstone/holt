@@ -32,6 +32,20 @@ import { reportOpsAlert } from "@/lib/opsAlert";
 /** Set while recording, so a failure inside recording cannot re-enter. */
 let recording = false;
 
+/** The write under way, if any. Never rejects: recordError catches inside it. */
+let inFlight: Promise<void> | null = null;
+
+/**
+ * Resolves when the write under way (if any) has finished. Nothing in a request
+ * waits on this (rule 2 above). It is for a caller that must not outlive the
+ * write: the integration tests' afterEach, through the logger's
+ * errorRecordingSettled, where a write still running when a test file ends
+ * logs after Jest has finished and fails a green run.
+ */
+export function errorWritesSettled(): Promise<void> {
+  return inFlight ?? Promise.resolve();
+}
+
 /**
  * Alert thresholds. A NEW fingerprint alerts immediately (you want to know
  * about a bug the first time it happens). After that, alerting is
@@ -77,7 +91,7 @@ export function recordError(input: RecordErrorInput): void {
   // cannot re-enter either.
   if (recording) return;
 
-  void (async () => {
+  inFlight = (async () => {
     recording = true;
     try {
       await persist(input);
@@ -91,6 +105,7 @@ export function recordError(input: RecordErrorInput): void {
       );
     } finally {
       recording = false;
+      inFlight = null;
     }
   })();
 }

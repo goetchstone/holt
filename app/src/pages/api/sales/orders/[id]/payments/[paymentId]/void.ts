@@ -49,7 +49,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     // A payment out on a card reader is cancelled at the reader and the
     // processor first: voiding only the row would leave it payable there.
     if ((existing.processorData as { cardReader?: unknown } | null)?.cardReader === true) {
-      const state = await cancelReaderPayment(paymentId, session.user?.email ?? null);
+      const state = await cancelReaderPayment(
+        paymentId,
+        session.user?.email ?? null,
+        reason || undefined,
+      );
       if (state.status !== "CANCELED") {
         return conflict(
           res,

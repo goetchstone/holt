@@ -1205,7 +1205,6 @@ export function PricingImportView() {
             <button type="button" onClick={downloadTemplate} className="text-brand-blue underline">
               Download the template
             </button>
-            .
           </p>
         </div>
       )}
