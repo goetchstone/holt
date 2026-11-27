@@ -38,8 +38,9 @@ let inFlight: Promise<void> | null = null;
 /**
  * Resolves when the write under way (if any) has finished. Nothing in a request
  * waits on this (rule 2 above). It is for a caller that must not outlive the
- * write: the integration tests' afterEach, where a write still running when a
- * test file ends logs after Jest has finished and fails a green run.
+ * write: the integration tests' afterEach, through the logger's
+ * errorRecordingSettled, where a write still running when a test file ends
+ * logs after Jest has finished and fails a green run.
  */
 export function errorWritesSettled(): Promise<void> {
   return inFlight ?? Promise.resolve();

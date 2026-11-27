@@ -10,8 +10,11 @@
 // PENDING with nothing in the ledger, and that exactly one of the register's
 // ask and the webhook posts it. Both are conditional updates and ledger rows.
 
+import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { handler as voidRoute } from "@/pages/api/sales/orders/[id]/payments/[paymentId]/void";
 import {
   cancelReaderPayment,
   presentTestCard,
@@ -330,12 +333,67 @@ describe("a card payment on a register's reader (real DB, stand-in Stripe)", () 
 
     const state = await cancelReaderPayment(row.id, "cashier@example.com");
     expect(state.status).toBe("CANCELED");
-    expect((await prisma.payment.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(
-      "VOIDED",
-    );
+    const voided = await prisma.payment.findUniqueOrThrow({ where: { id: row.id } });
+    expect(voided.status).toBe("VOIDED");
     expect(fake.intents.get(row.processorTxnId!)!.status).toBe("canceled");
     expect(fake.readerAction).toBeNull();
     expect(await ledgerRows(row.id)).toBe(0);
+    // Still a reader payment on the row, with why it ended, so asking about it
+    // again answers instead of "that isn't a card reader payment".
+    expect(voided.processorData).toEqual({
+      cardReader: true,
+      readerId: "tmr_test_1",
+      voidReason: "Card payment cancelled at the register",
+    });
+    expect((await settleReaderPayment(row.id)).status).toBe("CANCELED");
+  });
+
+  it("is cancelled on the reader when it is voided from the order, and keeps the reason sent with it", async () => {
+    const { order, register } = await seed();
+    const started = await startReaderPayment(order.id, {
+      amount: 200,
+      registerId: register.id,
+      actor: null,
+    });
+    const row = await prisma.payment.findUniqueOrThrow({ where: { id: started.paymentId } });
+
+    let status = 0;
+    const res = {
+      status(code: number) {
+        status = code;
+        return this;
+      },
+      json() {
+        return this;
+      },
+      setHeader() {
+        return this;
+      },
+    } as unknown as NextApiResponse;
+    await voidRoute(
+      {
+        method: "POST",
+        query: { id: String(order.id), paymentId: String(row.id) },
+        body: { reason: "Customer will pay by cheque" },
+      } as unknown as NextApiRequest,
+      res,
+      { user: { email: "mgr@example.com" } } as unknown as Session,
+    );
+
+    expect(status).toBe(200);
+    // Voiding only the row would leave it payable on the reader.
+    expect(fake.intents.get(row.processorTxnId!)!.status).toBe("canceled");
+    expect(fake.readerAction).toBeNull();
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(
+      "VOIDED",
+    );
+    const logged = await prisma.orderChangeLog.findFirstOrThrow({
+      where: { salesOrderId: order.id, changeType: "PAYMENT_VOIDED" },
+    });
+    expect(logged).toMatchObject({
+      reason: "Customer will pay by cheque",
+      changedBy: "mgr@example.com",
+    });
   });
 
   it("records a card that went through before the cancel, instead of voiding it", async () => {
@@ -494,6 +552,12 @@ describe("the stale sweep and a reader payment nobody came back for", () => {
     const now = await prisma.payment.findUniqueOrThrow({ where: { id: row.id } });
     expect(now.status).toBe("VOIDED");
     expect(await ledgerRows(row.id)).toBe(0);
+    // The order's history says the sweep did it, not a cashier at the register.
+    const logged = await prisma.orderChangeLog.findFirstOrThrow({
+      where: { changeType: "PAYMENT_VOIDED" },
+    });
+    expect(logged.changedBy).toBe("system");
+    expect(logged.reason).toMatch(/stale-payment sweep/);
   });
 
   it("fails a declined one, and cancels it at the processor first", async () => {

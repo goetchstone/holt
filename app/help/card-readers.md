@@ -1,5 +1,7 @@
 A card reader at a register takes that register's card payments. The cashier sends the amount to the reader, the customer taps, inserts or swipes their card, and the payment goes on the order when the card is approved. Holt keeps the card's brand and last four digits and nothing else about it.
 
+**New, and not yet proven on a physical reader.** Card readers were built to Stripe's instructions and tested against a stand-in for Stripe, not against Stripe itself. Try it in test mode first (see "Trying it without a reader" below) before taking a real card on it.
+
 A register with no reader still takes cards the way it did before: you take the card on your own terminal, then record the payment at the register.
 
 ## What you need
@@ -21,10 +23,10 @@ If the form says a reader can't be added yet, check the Stripe key in **Admin â€
 
 ## The list of readers
 
-Each reader shows its register and how Stripe sees it: online, offline, or removed at Stripe. From the list you can:
+Each reader shows its register and how Stripe sees it: **Online**, **Offline**, or **Removed at Stripe**. From the list you can:
 
 - move a reader to another register, or to no register;
-- switch a reader off without removing it, and on again. A register whose reader is off records card payments by hand;
+- switch a reader off without removing it, and on again, under **In use**. A register whose reader is off records card payments by hand;
 - **Remove** a reader. It is removed from Stripe too, and has to be registered again to be used.
 
 Adding a reader and each of these changes is recorded in the [audit trail](/app/help/audit-trail), under **Settings**, as **Card reader added, changed or removed**.
@@ -34,10 +36,12 @@ Adding a reader and each of these changes is recorded in the [audit trail](/app/
 Ring up the sale and choose the card tender. At a register with a reader, the button reads **Send $â€¦ to the card reader**. Press it, and the screen says it is waiting for the card on that reader.
 
 - **Approved:** the payment is recorded on the order with the card's brand and last four digits, and the sale finishes as usual.
-- **Declined:** the screen says why, and nothing is recorded. You can send it again or take another kind of payment.
+- **Declined:** the screen says why, and no payment is taken. You can send it again or take another kind of payment.
 - **Cancel card payment** clears the reader. If the card went through just before you pressed it, the payment is recorded, not cancelled. If the card is being authorized at that moment it can't be stopped, and the screen keeps waiting for the answer.
 
 While a payment is out on a reader, the order can't be sent a payment link, so the customer can't pay twice. Cancel the card payment first.
+
+Someone who may **Void payment** can also cancel it from the order: voiding the pending payment there cancels it on the reader first.
 
 If a register is closed while a payment is still out on its reader, Holt checks with Stripe before giving up on it: a card that was approved is recorded, and one nobody paid is cancelled.
 

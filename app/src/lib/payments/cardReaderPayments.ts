@@ -290,11 +290,13 @@ export async function startReaderPayment(
 /**
  * Stop a reader payment the customer has not completed. A card that went
  * through first is recorded, and one being authorized can't be stopped: both
- * come back as what they are, never as cancelled.
+ * come back as what they are, never as cancelled. `reason` goes on the order's
+ * history; the default is the register's own Cancel.
  */
 export async function cancelReaderPayment(
   paymentId: number,
   actor: string | null,
+  reason: string = "Card payment cancelled at the register",
 ): Promise<ReaderPaymentState> {
   const { payment, reader } = await loadReaderPayment(paymentId);
   if (payment.status !== "PENDING") return settledState(payment, reader);
@@ -317,9 +319,13 @@ export async function cancelReaderPayment(
     );
   }
   try {
-    const voided = await voidPendingPayment(paymentId, {
-      voidedBy: actor,
-      reason: "Card payment cancelled at the register",
+    await voidPendingPayment(paymentId, { voidedBy: actor, reason });
+    // voidPendingPayment leaves only the reason on the row. Put the reader back
+    // beside it, as a declined payment keeps it: the row still reads as a
+    // reader payment, and asking about it again answers.
+    const voided = await prisma.payment.update({
+      where: { id: paymentId },
+      data: { processorData: { ...reader, voidReason: reason } },
     });
     return settledState(voided, reader);
   } catch (err) {
@@ -341,7 +347,14 @@ export async function cancelReaderPayment(
 export async function closeStaleReaderPayment(paymentId: number): Promise<boolean> {
   try {
     let state = await settleReaderPayment(paymentId);
-    if (state.status === "WAITING") state = await cancelReaderPayment(paymentId, "automations");
+    if (state.status === "WAITING") {
+      // "system", as other changes nobody made by hand are recorded.
+      state = await cancelReaderPayment(
+        paymentId,
+        "system",
+        "Not paid on the card reader after a day; cancelled by the stale-payment sweep",
+      );
+    }
     return state.status === "DECLINED" || state.status === "CANCELED";
   } catch (err) {
     logError("A stale card reader payment could not be settled; it stays pending", err, {
