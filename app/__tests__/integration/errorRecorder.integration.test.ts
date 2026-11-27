@@ -16,6 +16,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { errorRecordingSettled, logError } from "@/lib/logger";
 
 const alerts: Array<{ title: string }> = [];
 
@@ -153,5 +154,24 @@ describe("error recorder (real DB)", () => {
 
     const row = await prisma.errorEvent.findFirstOrThrow();
     expect((row.sample as { orderId: number }).orderId).toBe(2);
+  });
+
+  it("has the row written and the alert raised once errorRecordingSettled resolves", async () => {
+    // What jest.integration.afterEach.ts leans on: no poll, no timer. If the
+    // wait returned early, the row or the alert would be missing here, and a
+    // test file ending on a logged error would still be writing after Jest
+    // had finished.
+    logError("Sweep failed", new Error("Order 7 not found"), { orderId: 7 });
+    await errorRecordingSettled();
+
+    const rows = await prisma.errorEvent.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].message).toContain("Sweep failed: Order 7 not found");
+    expect(alerts).toHaveLength(1);
+  });
+
+  it("resolves at once when nothing is being recorded", async () => {
+    await errorRecordingSettled();
+    expect(await prisma.errorEvent.count()).toBe(0);
   });
 });

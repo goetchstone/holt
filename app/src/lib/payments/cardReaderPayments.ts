@@ -17,7 +17,8 @@
 // The processor's `payment_intent.succeeded` webhook completes the same row
 // when the register is not there to ask (pages/api/stripe/webhook.ts). Both
 // can run at once: completePayment moves the row with one conditional update,
-// so only one of them posts it.
+// so only one of them posts it. A row still PENDING a day later is settled the
+// same way by the stale sweep before it is closed (closeStaleReaderPayment).
 //
 // NOT YET RUN AGAINST STRIPE OR A READER (docs/domains/pos.md, "Card readers").
 
@@ -326,6 +327,27 @@ export async function cancelReaderPayment(
     if (!(err instanceof VoidError)) throw err;
     const now = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
     return now.status === "PENDING" ? settleReaderPayment(paymentId) : settledState(now, reader);
+  }
+}
+
+/**
+ * The stale sweep's turn at a reader payment nobody came back for
+ * (sweepStalePendingPayments). The processor is asked how it went before the
+ * row is given up on: approved is recorded, declined is failed, and one still
+ * waiting is cancelled on the reader. True when the row was closed unpaid.
+ * False when the payment was recorded, or when the processor could not be
+ * asked: the row then stays PENDING for the next sweep, never failed on a guess.
+ */
+export async function closeStaleReaderPayment(paymentId: number): Promise<boolean> {
+  try {
+    let state = await settleReaderPayment(paymentId);
+    if (state.status === "WAITING") state = await cancelReaderPayment(paymentId, "automations");
+    return state.status === "DECLINED" || state.status === "CANCELED";
+  } catch (err) {
+    logError("A stale card reader payment could not be settled; it stays pending", err, {
+      paymentId,
+    });
+    return false;
   }
 }
 
