@@ -288,7 +288,12 @@ describe("a session still inside its idle time", () => {
     expect(read.token).not.toBeNull();
     const after = await claims(read.token as string);
     expect(after.lastActiveAt).toBe(lastActiveAt);
-    expect(after.exp).toBe((await claims(before)).exp);
+    // Within a second, not equal: `exp` is whole seconds, built from next-auth's
+    // now rounded down plus the time left rounded down, so two tokens with one
+    // `lastActiveAt` can land a second apart. It can't add up: every re-issue
+    // starts again from the same `lastActiveAt`.
+    const drift = Math.abs(after.exp - (await claims(before)).exp);
+    expect(drift).toBeLessThanOrEqual(1);
   });
 
   it("restarts when the browser reports someone at the screen", async () => {

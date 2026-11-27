@@ -5,6 +5,8 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorCode } from "@/lib/errorCode";
+import { isSimulatedReader } from "@/lib/payments/cardReaders";
+import { isPracticeCopy } from "@/lib/practiceCopy";
 import {
   success,
   badRequest,
@@ -33,11 +35,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
             take: 1,
             select: { id: true },
           },
+          // So the register knows to send a card payment to its reader.
+          cardReader: { select: { label: true, deviceType: true, isActive: true } },
         },
       });
       if (!register) return notFound(res, "Register");
-      const { tills, ...rest } = register;
-      return success(res, { ...rest, openTillId: tills[0]?.id ?? null });
+      const { tills, cardReader, ...rest } = register;
+      return success(res, {
+        ...rest,
+        openTillId: tills[0]?.id ?? null,
+        // A practice copy reaches no card processor, so its registers record a
+        // card by hand, as a register with no reader does.
+        cardReader:
+          cardReader?.isActive && !isPracticeCopy()
+            ? { label: cardReader.label, simulated: isSimulatedReader(cardReader) }
+            : null,
+      });
     } catch (err) {
       return handleError(res, err, `GET /registers/${id}`);
     }

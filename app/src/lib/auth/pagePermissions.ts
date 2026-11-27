@@ -118,6 +118,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/admin/setup/customer-messages": { permission: "admin.settings" },
   "/app/admin/setup/printers": { permission: "admin.config" },
   "/app/admin/setup/product-pairings": { permission: "admin.config" },
+  "/app/admin/setup/card-readers": { permission: "admin.config" },
   "/app/admin/setup/registers": { permission: "admin.config" },
   "/app/admin/setup/roles": { permission: "admin.config" },
   "/app/admin/setup/service": { permission: "admin.config" },

@@ -101,6 +101,11 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   BuyerDraftPurchaseOrder: { status: "seeded" },
   CalendarBlock: { status: "seeded", seeder: "demo" },
   CampaignTarget: { status: "todo", tranche: "crm-pipeline" },
+  CardReader: {
+    status: "skipped",
+    reason:
+      "a reader is a device registered on the store's own card processor account; a seeded row would name one that does not exist there, and the register would send card payments to nothing",
+  },
   Category: { status: "seeded" },
   Collection: { status: "todo", tranche: "catalog-depth" },
   CommissionPayout: { status: "seeded" },

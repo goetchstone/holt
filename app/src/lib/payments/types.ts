@@ -13,13 +13,13 @@
 //
 // Capabilities, not assumptions
 // -----------------------------
-// Processors differ in kind, not just in API. Square drives its readers from
-// the server (POST a terminal checkout, poll for the result); Stripe Terminal
-// drives them from the client (browser SDK holds the connection). A provider
-// therefore DECLARES what it supports and only implements those methods, and
-// callers check `capabilities` before dispatching. That is what lets a third
-// processor arrive later supporting terminals but not hosted checkout, or the
-// reverse, without reshaping this file.
+// Processors differ in kind, not just in API. A provider therefore DECLARES
+// what it supports and only implements those methods, and callers check
+// `capabilities` before dispatching. That is what lets a third processor arrive
+// later supporting readers but not hosted checkout, or the reverse, without
+// reshaping this file. Card readers are driven from the server on both
+// processors (send the payment to the reader, then ask for the result), so one
+// shape serves them: see "Card-present" below.
 
 /**
  * Registered processors. Adding one means: a new id here, a module implementing
@@ -171,15 +171,14 @@ export interface ConnectionTestResult {
 }
 
 // ---------------------------------------------------------------------------
-// Card-present. Modelled now, deliberately, even though no provider ships it
-// yet: retrofitting terminals onto a checkout-only interface is exactly the
-// reshape this seam exists to avoid.
+// Card-present: a payment sent to a reader at a register, and the reader's own
+// setup (lib/payments/cardReaders.ts is the only caller).
 // ---------------------------------------------------------------------------
 
 export interface TerminalCheckoutRequest {
   amount: number;
   currency: string;
-  /** Processor-side reader identifier, from Register configuration. */
+  /** Processor-side reader identifier, from the register's CardReader row. */
   deviceId: string;
   referenceId?: string;
   metadata?: Record<string, string>;
@@ -190,9 +189,45 @@ export type TerminalCheckoutStatus = "PENDING" | "COMPLETED" | "CANCELED" | "FAI
 export interface TerminalCheckoutResult {
   providerTxnId: string;
   status: TerminalCheckoutStatus;
+  /** FAILED only: why, in words a cashier can read to the customer. */
+  message?: string;
   cardLast4?: string;
   cardBrand?: string;
   processorData?: Record<string, unknown>;
+}
+
+/** A place readers are registered to at the processor (a store's address). */
+export interface ReaderLocation {
+  id: string;
+  name: string;
+}
+
+export interface ReaderLocationInput {
+  name: string;
+  line1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  /** Two-letter country code. Never defaulted: it is the store's own fact. */
+  country: string;
+}
+
+export interface RegisterReaderRequest {
+  /** The code the reader shows on its screen, typed in by the person setting it up. */
+  registrationCode: string;
+  label: string;
+  locationId: string;
+}
+
+/** A reader as the processor knows it. */
+export interface ProcessorReader {
+  id: string;
+  label: string;
+  deviceType: string | null;
+  serialNumber: string | null;
+  locationId: string | null;
+  /** Null when the processor does not say. */
+  online: boolean | null;
 }
 
 /**
@@ -223,9 +258,26 @@ export interface PaymentProvider {
   extractExpiration?(event: VerifiedWebhookEvent): Promise<PaymentExpiration | null>;
   refund?(req: RefundRequest): Promise<RefundResult>;
 
+  /** Send a payment to a reader. Returns at once, PENDING: the customer has yet to present a card. */
   createTerminalCheckout?(req: TerminalCheckoutRequest): Promise<TerminalCheckoutResult>;
-  getTerminalCheckout?(providerTxnId: string): Promise<TerminalCheckoutResult>;
-  cancelTerminalCheckout?(providerTxnId: string): Promise<void>;
+  /** Ask the processor where a reader payment stands. A read: it changes nothing there. */
+  getTerminalCheckout?(providerTxnId: string, deviceId?: string): Promise<TerminalCheckoutResult>;
+  /**
+   * Stop a reader payment: clear the reader and cancel the payment at the
+   * processor. Best effort by nature (a card being authorized cannot be
+   * stopped), so it never throws for "too late": the caller asks
+   * getTerminalCheckout afterwards and believes that.
+   */
+  cancelTerminalCheckout?(providerTxnId: string, deviceId?: string): Promise<void>;
+
+  listReaderLocations?(): Promise<ReaderLocation[]>;
+  createReaderLocation?(input: ReaderLocationInput): Promise<ReaderLocation>;
+  registerReader?(req: RegisterReaderRequest): Promise<ProcessorReader>;
+  /** Null when the processor no longer has the reader. */
+  getReader?(readerId: string): Promise<ProcessorReader | null>;
+  removeReader?(readerId: string): Promise<void>;
+  /** Test mode only: present a test card to a simulated reader. */
+  simulateCardPresented?(readerId: string): Promise<void>;
 
   testConnection(): Promise<ConnectionTestResult>;
   /**

@@ -19,6 +19,7 @@ import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { voidPendingPayment, calculateOrderBalance, VoidError } from "@/lib/paymentService";
+import { cancelReaderPayment } from "@/lib/payments/cardReaderPayments";
 import { badRequest, conflict, methodNotAllowed, notFound, handleError } from "@/lib/apiResponse";
 
 /** Exported for integration tests. */
@@ -39,16 +40,33 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     // notice after the fact.
     const existing = await prisma.payment.findUnique({
       where: { id: paymentId },
-      select: { salesOrderId: true },
+      select: { salesOrderId: true, processorData: true },
     });
     if (!existing || existing.salesOrderId !== orderId) {
       return notFound(res, "Payment");
     }
 
-    const voided = await voidPendingPayment(paymentId, {
-      voidedBy: session.user?.email,
-      reason: reason || undefined,
-    });
+    // A payment out on a card reader is cancelled at the reader and the
+    // processor first: voiding only the row would leave it payable there.
+    if ((existing.processorData as { cardReader?: unknown } | null)?.cardReader === true) {
+      const state = await cancelReaderPayment(paymentId, session.user?.email ?? null);
+      if (state.status !== "CANCELED") {
+        return conflict(
+          res,
+          state.status === "APPROVED"
+            ? "The card went through before it could be cancelled, so the payment is recorded."
+            : (state.message ?? "The card payment could not be cancelled."),
+        );
+      }
+    }
+    const row = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    const voided =
+      row.status === "VOIDED"
+        ? row
+        : await voidPendingPayment(paymentId, {
+            voidedBy: session.user?.email,
+            reason: reason || undefined,
+          });
 
     const balance = await calculateOrderBalance(orderId);
 

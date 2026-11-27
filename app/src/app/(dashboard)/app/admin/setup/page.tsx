@@ -31,6 +31,11 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/setup/registers",
   },
   {
+    title: "Card Readers",
+    description: "Register a card reader and say which register it takes payments at.",
+    href: "/app/admin/setup/card-readers",
+  },
+  {
     title: "Label Templates",
     description: "Design and edit label layouts.",
     href: "/app/admin/setup/labels",

@@ -79,6 +79,7 @@ const ALL_TABLES = [
   "CacheGeneration",
   "CalendarBlock",
   "CampaignTarget",
+  "CardReader",
   "Category",
   "Collection",
   "CommissionPayout",
