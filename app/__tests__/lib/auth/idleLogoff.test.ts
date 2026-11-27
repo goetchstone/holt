@@ -98,6 +98,37 @@ describe("the server's expiry", () => {
     expect(seconds).toBeLessThan(-15);
   });
 
+  it("puts the expiry in the same second whenever the token is re-issued", () => {
+    // next-auth sets `exp` to its own whole-second now plus this. Rounding the
+    // time left instead moved `exp` a second back and forth with the moment of
+    // the re-issue, so a background request could change it (CI, 2026-11-24
+    // and 2026-11-25: one second apart).
+    const lastActiveAt = NOW - 10 * MINUTE + 437;
+    const endsAt = lastActiveAt + 15 * MINUTE + SERVER_GRACE_MS;
+    const expiries = new Set<number>();
+    for (let now = NOW; now < NOW + 3_000; now += 37) {
+      const left = sessionMaxAgeSeconds({
+        lastActiveAt,
+        now,
+        idleMinutes: 15,
+        ceilingSeconds: CEILING,
+      });
+      expiries.add(Math.floor(now / 1000) + left);
+    }
+    expect([...expiries]).toEqual([Math.floor(endsAt / 1000)]);
+  });
+
+  it("is in the past from the millisecond it runs out, not a second later", () => {
+    const lastActiveAt = NOW - 15 * MINUTE - SERVER_GRACE_MS + 200;
+    const endsAt = lastActiveAt + 15 * MINUTE + SERVER_GRACE_MS;
+    const at = (now: number) =>
+      sessionMaxAgeSeconds({ lastActiveAt, now, idleMinutes: 15, ceilingSeconds: CEILING });
+    // The same clock second on both sides of the end.
+    expect(at(endsAt - 1)).toBe(0);
+    expect(at(endsAt + 1)).toBeLessThan(0);
+    expect(at(endsAt + 700)).toBeLessThan(0);
+  });
+
   it("is the session's ceiling when the store has turned it off, and never beyond it", () => {
     const off = { lastActiveAt: NOW - CEILING * 2000, now: NOW, idleMinutes: 0 };
     expect(sessionMaxAgeSeconds({ ...off, ceilingSeconds: CEILING })).toBe(CEILING);

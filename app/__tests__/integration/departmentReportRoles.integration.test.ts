@@ -15,6 +15,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { prisma } from "@/lib/prisma";
+import { resetTestDb } from "@/lib/testing/withTestDb";
 
 const MIGRATION = join(
   __dirname,
@@ -92,7 +93,9 @@ function backfillStatements(): string[] {
 
 describe("department report-role backfill reproduces the old classifiers", () => {
   beforeAll(async () => {
-    await prisma.department.deleteMany({ where: { name: { in: NAMES } } });
+    // Not a delete by name: products an earlier suite left under one of these
+    // names made that fail on the foreign key, and all four tests with it.
+    await resetTestDb();
     for (const name of NAMES) {
       await prisma.department.create({ data: { name } });
     }

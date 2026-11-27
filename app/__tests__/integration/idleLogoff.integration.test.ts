@@ -288,10 +288,9 @@ describe("a session still inside its idle time", () => {
     expect(read.token).not.toBeNull();
     const after = await claims(read.token as string);
     expect(after.lastActiveAt).toBe(lastActiveAt);
-    // Within a second, not equal: `exp` is whole seconds, built from next-auth's
-    // now rounded down plus the time left rounded down, so two tokens with one
-    // `lastActiveAt` can land a second apart. It can't add up: every re-issue
-    // starts again from the same `lastActiveAt`.
+    // The same second (sessionMaxAgeSeconds; its unit test holds it exactly).
+    // The one second allowed here is next-auth's own clock read, a moment
+    // after Holt's: a second ticking over between the two moves `exp` by one.
     const drift = Math.abs(after.exp - (await claims(before)).exp);
     expect(drift).toBeLessThanOrEqual(1);
   });
