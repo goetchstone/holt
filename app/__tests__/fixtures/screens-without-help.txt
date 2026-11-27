@@ -68,7 +68,6 @@
 /app/admin/settings/integrations
 /app/admin/setup
 /app/admin/setup/accounting
-/app/admin/setup/card-readers
 /app/admin/setup/customer-messages
 /app/admin/setup/database
 /app/admin/setup/disclaimers

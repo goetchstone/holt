@@ -16,11 +16,21 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { errorRecordingSettled, logError } from "@/lib/logger";
 
 const alerts: Array<{ title: string }> = [];
 
+/** How long the stand-in alert takes: only the last two tests need a slow one. */
+let alertDelayMs = 0;
+/** Set when a slow stand-in alert finishes. Not cleared between tests. */
+let slowAlertFinished = false;
+
 jest.mock("@/lib/opsAlert", () => ({
   reportOpsAlert: jest.fn(async (a: { title: string }) => {
+    if (alertDelayMs > 0) {
+      await new Promise((r) => setTimeout(r, alertDelayMs));
+      slowAlertFinished = true;
+    }
     alerts.push(a);
   }),
 }));
@@ -78,10 +88,6 @@ describe("error recorder (real DB)", () => {
   beforeEach(async () => {
     await resetTestDb();
     alerts.length = 0;
-  });
-
-  afterAll(async () => {
-    await prisma.$disconnect();
   });
 
   it("groups the same failure on different records into ONE row", async () => {
@@ -154,4 +160,54 @@ describe("error recorder (real DB)", () => {
     const row = await prisma.errorEvent.findFirstOrThrow();
     expect((row.sample as { orderId: number }).orderId).toBe(2);
   });
+
+  it("has the row written and the alert raised once errorRecordingSettled resolves", async () => {
+    // What jest.integration.afterEach.ts leans on: no poll, no timer. If the
+    // wait returned early, the row or the alert would be missing here, and a
+    // test file ending on a logged error would still be writing after Jest
+    // had finished.
+    logError("Sweep failed", new Error("Order 7 not found"), { orderId: 7 });
+    await errorRecordingSettled();
+
+    const rows = await prisma.errorEvent.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].message).toContain("Sweep failed: Order 7 not found");
+    expect(alerts).toHaveLength(1);
+  });
+
+  it("resolves at once when nothing is being recorded", async () => {
+    await errorRecordingSettled();
+    expect(await prisma.errorEvent.count()).toBe(0);
+  });
+});
+
+// jest.integration.afterEach.ts waits for errors still being recorded, so a
+// test whose last act logs one does not leave the write running when its file
+// ends: Jest fails such a run with "Cannot log after tests are done", every
+// test passing. What an afterEach did can only be seen from the test after it,
+// so these two run in order: the first leaves a slow record behind, the second
+// finds it finished. No hook of this file runs between them (the reset above
+// belongs to the other describe), so without the wait the second test would
+// start a few milliseconds after the first, a second before the alert is done.
+describe("the wait after every integration test (jest.integration.afterEach.ts)", () => {
+  beforeAll(() => {
+    alertDelayMs = 1_000;
+  });
+
+  afterAll(() => {
+    alertDelayMs = 0;
+  });
+
+  it("is left an error logged as a test's last act, its alert still on the way", () => {
+    logError("Last act of a test", new Error("still being recorded when the test returns"));
+    expect(slowAlertFinished).toBe(false);
+  });
+
+  it("had finished recording it before the next test began", () => {
+    expect(slowAlertFinished).toBe(true);
+  });
+});
+
+afterAll(async () => {
+  await prisma.$disconnect();
 });
