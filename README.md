@@ -212,6 +212,8 @@ npm run test:coverage  # Unit + integration coverage (gate input)
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — module map, data model, integrations
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — branch/PR workflow and quality gates
+- [SUPPORT.md](./SUPPORT.md) — where to ask a question, report a problem or request
+  a feature
 - [OPERATIONS.md](./OPERATIONS.md) — deployment, monitoring, troubleshooting
 - [docs/HOSTING.md](./docs/HOSTING.md) — where to host Holt, how big a server, and
   running it as more than one process

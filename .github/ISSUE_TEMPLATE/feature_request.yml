@@ -1,57 +1,68 @@
-name: Feature Request
-description: Suggest a new feature or improvement
+name: Feature request
+description: Something Holt should do, or do better
 title: "[Feature] "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Tell us about the work you are trying to get done, not only the screen you would add. A request that describes the day in the store is the one most likely to be built well.
   - type: dropdown
     id: area
     attributes:
       label: Area
-      description: Which part of the system does this relate to?
+      description: Which part of Holt does this relate to?
       options:
         - Sales / POS
         - Quotes / Orders
         - Inventory / Warehouse
-        - Purchasing / POs
-        - Service Cases
-        - Service Dispatch
-        - House Calls
+        - Purchasing / Receiving
+        - Service / Dispatch / Delivery
         - Returns
-        - Reports / Dashboard
-        - Pricing / Import
+        - Reports
+        - Pricing / Price-book import
         - Products / Catalog
         - Customers
-        - Admin / Setup
+        - Storefront / CMS
+        - Admin / Setup / Roles
         - Printing (receipts, labels)
-        - Delivery / Dispatch
-        - New Area
-    validations:
-      required: true
-  - type: dropdown
-    id: priority
-    attributes:
-      label: Priority
-      description: How important is this?
-      options:
-        - Nice to have
-        - Should have (before launch)
-        - Must have (blocking)
+        - Sign-in / Access
+        - Install / Upgrade / Docker
+        - Documentation
+        - Other
     validations:
       required: true
   - type: textarea
-    id: description
+    id: need
     attributes:
-      label: What do you need?
-      description: Describe the feature or improvement you want
+      label: What do you need to do?
+      description: Who needs it, what they are trying to do, and why.
       placeholder: |
-        As a [designer/manager/warehouse], I need to ...
-        so that I can ...
+        As a [salesperson / manager / warehouse lead / bookkeeper], I need to ...
+        so that ...
     validations:
       required: true
   - type: textarea
-    id: context
+    id: today
     attributes:
-      label: Additional context
-      description: How do you do this today? Screenshots of current workflow?
+      label: How do you do it today?
+      description: In Holt, in another system, or on paper. Screenshots help.
     validations:
       required: false
+  - type: dropdown
+    id: importance
+    attributes:
+      label: How much does it matter?
+      options:
+        - Nice to have
+        - It costs us time every week
+        - We cannot use Holt without it
+    validations:
+      required: true
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Would you help?
+      options:
+        - label: I can test this when it is built
+        - label: I would like to work on it myself

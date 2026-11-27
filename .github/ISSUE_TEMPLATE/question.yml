@@ -1,0 +1,23 @@
+name: Question
+description: How to install, configure or use Holt
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [README](https://github.com/goetchstone/holt#readme) and the in-app help (the **?** at the top of every screen) first. Questions here are answered as time allows; see [SUPPORT.md](https://github.com/goetchstone/holt/blob/main/SUPPORT.md) for what to expect.
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+      description: What you want to achieve, what you tried, and where you got stuck.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and how Holt is run
+      placeholder: 9ddffeee, Docker Compose
+    validations:
+      required: false

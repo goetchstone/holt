@@ -1,5 +1,62 @@
 # Contributing to Holt
 
+Thank you for looking. Holt is built in the open, and reports, questions and
+changes from people who run or work in stores are what make it better.
+
+## Ways to take part
+
+- **Report a bug, a bad import or a wrong number.** Open an issue and pick the
+  form that fits. [SUPPORT.md](./SUPPORT.md) lists them.
+- **Ask for a feature.** Describe the work you are trying to get done; that
+  matters more than the screen you would add.
+- **Ask a question.** Use the Question form after checking the README and the
+  in-app help.
+- **Report a security problem privately**, never as an issue:
+  [SECURITY.md](./SECURITY.md).
+- **Change the code or the docs.** See "Sending a change" below.
+
+Everyone taking part is expected to follow the
+[Code of Conduct](./CODE_OF_CONDUCT.md).
+
+The issue tracker is public. Leave out real customer details, card or bank
+details, passwords and keys, and any vendor file you are not free to publish.
+
+## Sending a change
+
+1. **Open an issue first for anything beyond a small fix.** Holt handles money,
+   stock and tax, and many of its rules exist because of a specific past
+   mistake. Agreeing the approach before you write the code saves both sides a
+   rejected pull request.
+2. **Fork, and branch from `main`.** Nothing is pushed to `main` directly; every
+   change arrives as a pull request.
+3. **Keep it to one change.** A fix and an unrelated tidy-up are two pull
+   requests.
+4. **Add a test that fails without your change.** Behaviour behind the database
+   is tested against a real database, not a mock (see `app/__tests__/integration`).
+5. **Run the checks** in "Before Every Commit" below.
+6. **Update the docs your change makes untrue**, including the runbook for the
+   area under `docs/domains/`.
+7. **Open the pull request** and fill in the template. Say what you verified
+   and what you could not.
+
+CI must pass before a merge: lint, typecheck, format, unit and integration
+tests with a coverage floor, a production build with a browser sweep of every
+page, Semgrep, a dependency vulnerability scan and CodeQL. A maintainer reviews
+every pull request; review is done as time allows.
+
+[CLAUDE.md](./CLAUDE.md) holds the project's working rules and the incident
+behind each one. It is written for the AI agents that do much of the work here,
+and it is just as useful to a person: read the principles before changing
+anything that sums money, filters on a nullable column or touches a shared
+guard.
+
+### Licence of contributions
+
+Holt is licensed under the [GNU AGPL v3.0 or later](./LICENSE). By submitting a
+contribution you agree that it is licensed under the same terms, and you
+confirm that you wrote it or otherwise have the right to submit it under that
+licence. There is no contributor licence agreement to sign.
+
 ## Getting Started
 
 ### Prerequisites
@@ -10,36 +67,19 @@
 
 ### Local Development
 
-```bash
-# Clone your fork / repo
-git clone <your-repo-url> holt
-cd holt
-
-# Start database
-docker compose up db
-
-# Install dependencies and set up Prisma
-cd app
-cp ../env.example .env.local
-npm install
-npx prisma generate
-npx prisma db push
-
-# Start dev server
-npm run dev
-```
+Follow the [Quick Start in the README](./README.md#quick-start): it takes a
+fresh clone to a signed-in system with demo data (`npm run setup` migrates and
+seeds), and lists the demo sign-in.
 
 The app runs at `http://localhost:3000`.
 
 ### Environment Variables
 
-Copy `env.example` to `.env` at the repo root (for Docker Compose) and create `app/.env.local` for API keys. Required variables:
-
-- `DATABASE_URL` -- PostgreSQL connection string
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` -- Google OAuth
-- `NEXTAUTH_SECRET` -- Session encryption key
-- `NEXTAUTH_URL` -- Base URL (e.g., `http://localhost:3000`)
-- `APP_ENCRYPTION_KEY` -- key used to encrypt stored integration credentials
+`env.example` (copied to `.env` at the repo root) holds the database
+credentials Docker Compose uses. `app/.env.local.example` (copied to
+`app/.env.local`) holds the app's own settings; the two you must fill in are
+`APP_ENCRYPTION_KEY` (encrypts stored integration credentials) and
+`NEXTAUTH_SECRET` (signs sessions).
 
 All other configuration (branding, integration keys, import mappings) is set at
 runtime via **Admin → Settings**, not through environment variables.
@@ -159,15 +199,20 @@ app/src/
 
 ## Submitting Issues
 
-Use the in-app feedback button (bottom-right corner of every page) to submit issues directly. When a GitHub App integration is configured, this creates a GitHub Issue automatically with the current page URL and browser info.
+Open an issue at <https://github.com/goetchstone/holt/issues> and pick a form:
 
-Alternatively, open an issue in your repository's tracker and pick a template:
+- **Bug report**: something is broken
+- **Import or data problem**: a price book or other import that fails, or
+  numbers that do not add up
+- **Feature request**: something Holt should do, or do better
+- **Question**: installing, configuring or using Holt
 
-- **Bug Report** -- something is broken
-- **Feature Request** -- new feature or improvement
-- **Data Issue** -- wrong prices, missing records, import problems
+Include the commit you run, a screenshot when you can, and the page's path.
 
-Include screenshots when possible. Copy the page URL from the browser.
+A store's own staff can also use the in-app feedback button (bottom-left corner
+of every page). When that deployment has the GitHub App integration configured
+in Admin → Settings → Integrations, it opens an issue in the repository that
+deployment is pointed at, with the page URL and browser details.
 
 ## Commit Messages
 
@@ -187,12 +232,8 @@ A self-hosted deployment runs via Docker Compose on any Docker host:
 git pull origin main && ./scripts/deploy.sh
 ```
 
-Database migrations are applied against the running DB container:
-
-```bash
-docker exec -i <db-container> psql -U <db-user> -d <db-name> \
-  < app/prisma/migrations/<migration_name>/migration.sql
-```
+Pending database migrations are applied when the app container starts
+(`prisma migrate deploy` in `app/docker-entrypoint.sh`).
 
 See [OPERATIONS.md](./OPERATIONS.md) for the full deploy, backup, and migration
 procedures, including notes for NAS-hosted setups.
