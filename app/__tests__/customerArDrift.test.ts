@@ -20,6 +20,7 @@ function order(
   const cancelled = new Set(options.cancelledLineIndices ?? []);
   const refund = new Set(options.refundIndices ?? []);
   return {
+    status: "ORDER",
     lineItems: lineTotals.map((amt, i) => ({
       netPrice: amt,
       vatAmount: 0,
@@ -179,6 +180,7 @@ describe("compareCustomerArBalances", () => {
         storedBalance: 500,
         orders: [
           {
+            status: "ORDER",
             lineItems: [{ netPrice: 500, vatAmount: 0, lineItemStatus: "ACTIVE" }],
             payments: [{ paymentAmount: 200, isRefund: false, status: "VOIDED" }],
           },
@@ -208,7 +210,7 @@ describe("selectCustomersForCheck", () => {
     ]);
   });
 
-  it("returns empty when both are empty (caller decides cold-start fallback)", () => {
+  it("returns empty when both are empty, and the runner then checks no one", () => {
     expect(selectCustomersForCheck({ paymentCustomerIds: [], ledgerCustomerIds: [] })).toEqual([]);
   });
 });

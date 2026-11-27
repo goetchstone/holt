@@ -129,10 +129,10 @@ export function compareCustomerArBalances(inputs: ReadonlyArray<CustomerArInput>
  * (no events happened to invalidate it). The lookback window is
  * configurable so future tuning (e.g. weekly full sweep) can extend it.
  *
- * Returns null when given an empty input — caller defaults to "all
- * customers with non-zero openArBalance" in that case (handles the
- * post-backfill cold start where there's no recent activity yet but
- * thousands of balances were just established).
+ * Returns [] for an empty input, and the runner then reports nothing
+ * checked. There is no cold-start fallback: right after a backfill, when
+ * thousands of balances exist and nothing has happened in the window yet,
+ * no customer is checked unless the run names them (`customerIds`).
  */
 export function selectCustomersForCheck(input: {
   paymentCustomerIds: ReadonlyArray<number>;

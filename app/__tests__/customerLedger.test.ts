@@ -215,6 +215,7 @@ describe("computeSourceBalance", () => {
     // would flag every abandoned checkout as a false "books are wrong."
     const balance = computeSourceBalance([
       {
+        status: "ORDER",
         lineItems: [activeLine(1000)],
         payments: [{ paymentAmount: 1000, isRefund: false, status: "PENDING" }],
       },
@@ -222,9 +223,31 @@ describe("computeSourceBalance", () => {
     expect(balance).toBe(1000);
   });
 
+  it("owes nothing on a quote's lines, and counts the deposit taken on it", () => {
+    const balance = computeSourceBalance([
+      {
+        status: "QUOTE",
+        lineItems: [activeLine(1000)],
+        payments: [{ paymentAmount: 250, isRefund: false, status: "COMPLETED" }],
+      },
+    ]);
+    // It read $750 owed on a quote nobody has accepted.
+    expect(balance).toBe(-250);
+  });
+
+  it("owes nothing on a cancelled order's lines either, whatever status its lines kept", () => {
+    const balance = computeSourceBalance([
+      { status: "CANCELLED", lineItems: [activeLine(400)], payments: [] },
+      { status: "FULFILLED", lineItems: [activeLine(300)], payments: [] },
+      { status: "RETURNED", lineItems: [activeLine(-100)], payments: [] },
+    ]);
+    expect(balance).toBe(200);
+  });
+
   it("still includes REFUNDED payments (the original charge, netted by a separate refund row)", () => {
     const balance = computeSourceBalance([
       {
+        status: "ORDER",
         lineItems: [activeLine(1000)],
         payments: [
           { paymentAmount: 500, isRefund: false, status: "REFUNDED" },
@@ -238,6 +261,7 @@ describe("computeSourceBalance", () => {
   it("includes null-status payments (legacy POS imports) at full weight", () => {
     const balance = computeSourceBalance([
       {
+        status: "ORDER",
         lineItems: [activeLine(500)],
         payments: [{ paymentAmount: 500, isRefund: false, status: null }],
       },
@@ -248,6 +272,7 @@ describe("computeSourceBalance", () => {
   it("excludes CANCELLED line items and VOIDED/FAILED payments, summing across multiple orders", () => {
     const balance = computeSourceBalance([
       {
+        status: "ORDER",
         lineItems: [activeLine(1000), { netPrice: 200, vatAmount: 0, lineItemStatus: "CANCELLED" }],
         payments: [
           { paymentAmount: 400, isRefund: false, status: "COMPLETED" },
@@ -256,6 +281,7 @@ describe("computeSourceBalance", () => {
         ],
       },
       {
+        status: "ORDER",
         lineItems: [activeLine(300)],
         payments: [],
       },
