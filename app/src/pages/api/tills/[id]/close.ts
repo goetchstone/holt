@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { sessionStaffMember } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
 import { calculateTillExpected } from "@/lib/paymentService";
+import { lockTillForChange } from "@/lib/tillLock";
 import { logError } from "@/lib/logger";
 import {
   classifyTillVariance,
@@ -67,24 +68,39 @@ export async function handleClose(
       return;
     }
 
-    const expected = await calculateTillExpected(tillId);
     const parsedActual = round2(Number.parseFloat(actualCash));
-    const variance = round2(parsedActual - expected.expectedCash);
-
-    // Till variance discipline (Phase 0.6, docs/domains/pos.md). Variance is
-    // computed HERE (not in reconcile.ts, which only approves an
-    // already-computed variance) so the mandatory-note check and the
-    // register escalation block both apply at the moment the discrepancy is
-    // first known -- waiting until reconcile would let a new till be opened
-    // on an over-$100 register in the meantime.
-    const classification = classifyTillVariance(variance);
     const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
-    if (classification.requiresNote && !hasVarianceNote(trimmedNotes)) {
-      res.status(400).json({ error: varianceNoteRequiredMessage(variance) });
-      return;
-    }
 
-    const updated = await client.$transaction(async (tx) => {
+    // Everything that decides the close happens under the till's row lock
+    // (lib/tillLock.ts): the till is read again, what it should hold is added
+    // up, and the count is written, with nothing booked against the till in
+    // between. Before, the sum was taken ahead of the transaction, so a payment
+    // landing in that gap was left out of it and showed up as an overage; and
+    // two closes at once both passed the check above, the second replacing the
+    // first's count.
+    const outcome = await client.$transaction(async (tx) => {
+      const locked = await lockTillForChange(tx, tillId);
+      if (!locked) return { refused: { status: 404, error: "Till not found" } } as const;
+      if (locked.status !== "OPEN") {
+        return { refused: { status: 400, error: `Till is already ${locked.status}` } } as const;
+      }
+
+      const expected = await calculateTillExpected(tillId, tx);
+      const variance = round2(parsedActual - expected.expectedCash);
+
+      // Till variance discipline (Phase 0.6, docs/domains/pos.md). Variance is
+      // computed HERE (not in reconcile.ts, which only approves an
+      // already-computed variance) so the mandatory-note check and the
+      // register escalation block both apply at the moment the discrepancy is
+      // first known -- waiting until reconcile would let a new till be opened
+      // on an over-$100 register in the meantime.
+      const classification = classifyTillVariance(variance);
+      if (classification.requiresNote && !hasVarianceNote(trimmedNotes)) {
+        return {
+          refused: { status: 400, error: varianceNoteRequiredMessage(variance) },
+        } as const;
+      }
+
       // Remove existing closing counts if re-closing. Opening counts are
       // preserved -- they belong to the open-till moment, not the close.
       await tx.tillCount.deleteMany({ where: { tillId, isOpening: false } });
@@ -128,14 +144,20 @@ export async function handleClose(
       // register until a manager clears it. Same transaction as the status
       // flip so the block can never lag behind the CLOSED till it came from.
       await applyRegisterVarianceBlock(tx, {
-        registerId: till.registerId,
+        registerId: locked.registerId,
         tillId,
         variance,
         classification,
       });
 
-      return closedTill;
+      return { closedTill, expected, classification };
     });
+
+    if (outcome.refused) {
+      res.status(outcome.refused.status).json({ error: outcome.refused.error });
+      return;
+    }
+    const { closedTill: updated, expected, classification } = outcome;
 
     res.status(200).json({
       ...updated,
