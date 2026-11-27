@@ -161,6 +161,23 @@ already returns the `proposal`, and `ImportHdView.tsx` lists its warnings at the
 of the result, above the quote they describe. Whether a warning should refuse the
 import is the owner's open question.
 
+**Importing the same proposal again (2026-11-27).** The route finds the sale by
+`HD-{quoteNumber}`, deletes its lines and writes the proposal's. That refreshes a
+quote. It used to do the same to a sale in any status: an order with a deposit, a
+delivered or returned one, a cancelled one, each got new `ACTIVE` lines at the
+proposal's prices with nothing fulfilled, and whatever pointed at the old lines (PO
+lines, pick lists, service appointments, returns) was unlinked. Only invoiced lines
+stopped it, as a 500. Now the route looks first, and answers 409 unless the sale is
+still a `QUOTE`: "HD-… is no longer a quote, so the proposal was not imported over it
+and nothing was changed." Listed with the other order and PO deletes in
+`__tests__/fixtures/order-and-po-deletes.txt` (purchasing.md, "Importing a vendor's
+document again"); tested in `reimportsFailClosed.integration.test.ts`.
+
+Left open: a refresh deletes every line of the quote, including one a person added
+on the quote's page, and the route does not call `resyncOrderAllocation`. So stock
+held for a deleted line (`OrderLineItem.holdUntil`, `lib/sales/quoteHolds.ts`) is not
+released by the import. What releases it afterwards: [NEEDS VERIFICATION].
+
 ## Tax exemption on the order
 
 Every route that creates an order from a resolved tax district writes the

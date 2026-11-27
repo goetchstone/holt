@@ -62,22 +62,26 @@ interface LockedPayoutForDrift {
   };
 }
 
+/** The most locked payouts one drift check looks at, newest first. */
+export const DRIFT_CHECK_LIMIT = 1000;
+
 /**
  * Compute drift for every currently-locked payout. Optionally narrow
  * to one designer. Rows with |drift| <= DRIFT_TOLERANCE are excluded
  * unless `includeClean` is true.
  *
- * Reads ALL locked rows in one pass + runs one live-sum query per
- * row. Acceptable until volume gets to thousands of locked rows
- * (then we'd batch). Volume guard: capped at 1000 rows per call.
+ * Reads the newest DRIFT_CHECK_LIMIT locked rows in one pass and runs one
+ * live-sum query per row. `checked` is how many it looked at and `truncated`
+ * whether older locks were left unchecked, so "no drift" is never said about
+ * payouts nobody looked at.
  */
 export async function computeLockedPayoutDrift(opts?: {
   staffMemberId?: number;
   includeClean?: boolean;
   client?: PrismaClient;
-}): Promise<LockedPayoutDriftRow[]> {
+}): Promise<{ rows: LockedPayoutDriftRow[]; checked: number; truncated: boolean }> {
   const client = opts?.client ?? prisma;
-  const locked = (await client.commissionPayout.findMany({
+  const found = (await client.commissionPayout.findMany({
     where: {
       lockedAt: { not: null },
       ...(opts?.staffMemberId ? { staffMemberId: opts.staffMemberId } : {}),
@@ -86,8 +90,9 @@ export async function computeLockedPayoutDrift(opts?: {
       staffMember: { select: { id: true, displayName: true, aliases: true } },
     },
     orderBy: [{ periodEnd: "desc" }, { staffMemberId: "asc" }],
-    take: 1000,
+    take: DRIFT_CHECK_LIMIT + 1,
   })) as unknown as LockedPayoutForDrift[];
+  const locked = found.slice(0, DRIFT_CHECK_LIMIT);
 
   const rows: LockedPayoutDriftRow[] = [];
 
@@ -133,7 +138,7 @@ export async function computeLockedPayoutDrift(opts?: {
     });
   }
 
-  return rows;
+  return { rows, checked: locked.length, truncated: found.length > DRIFT_CHECK_LIMIT };
 }
 
 function round2(n: number): number {

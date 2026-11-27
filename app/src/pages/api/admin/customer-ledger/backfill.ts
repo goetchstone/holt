@@ -46,6 +46,7 @@ export default requirePermission(
         backfilled: result.customersBackfilled,
         backfilledWithDrift: result.customersBackfilledWithDrift,
         skipped: result.customersSkipped,
+        needingReview: result.customersNeedingReview,
         failed: result.customersFailed,
         entriesCreated: result.entriesCreated,
         totalDriftDollars: result.totalDriftDollars,

@@ -180,10 +180,13 @@ Phase 0.5 tooling. One-time backfill driver that walks historical Payment + Sale
 
 UI shows progress + drift detection.
 
-**Idempotency model** (verified against `lib/customerLedgerBackfill.ts` on 2026-05-20):
+**Idempotency model** (verified against `lib/customerLedgerBackfill.ts` on 2026-11-27):
 
-- Customer-level skip, not event-level resume. The contract is: "running on a customer who already has ledger entries is a no-op."
-- First check per customer: if ANY `CustomerLedgerEntry` rows exist for that customer, result is `"skipped-already-backfilled"` and nothing changes.
+- Customer-level skip, not event-level resume. The contract is: "running on a customer the backfill has already written is a no-op."
+- The customer's row is locked for the whole backfill (`lockCustomerForLedger`), so two runs of one customer write the history once, and a payment taken during the run waits and then adds to the balance the run stored.
+- First check per customer: if rows the backfill itself wrote exist (`createdBy` = its marker), the result is `"skipped-already-backfilled"` and nothing changes. Until 2026-11-27 ANY row counted, which skipped a customer whose only entry was a payment taken before the backfill ran, called them clean, and left their history out for good.
+- A customer with entries the backfill did not write, and none of its own, is `"needs-review-forward-entries"`: nothing is written, and they are listed with the gap between their stored balance and what their orders and payments say. The screen counts them as "Left for review". Building the missing history around entries already there is not done.
+- What it writes: a SALE only for a sale (`SALES_REVENUE_STATUSES`; a quote is not owed), and a payment only when it is money in hand (not `VOIDED`, `FAILED` or `PENDING`). Before 2026-11-27 it wrote a quote as owed and an unpaid payment link as received.
 - A partial-failure mid-customer leaves zero entries for that customer (the writes happen as one `createMany` per customer). Re-running picks the customer up fresh, not from the failing event.
 - Bypasses the forward-flow `appendEntry()` (which would do query + insert + update per row) — instead computes the full chronological run in JS and writes via `createMany`. Trades the per-row safety net for speed.
 

@@ -27,7 +27,7 @@ import {
   OverlappingPeriodError,
   type PayoutOverride,
 } from "@/lib/runCommissionPayouts";
-import { listCommissionPayouts } from "@/lib/commissionPayoutList";
+import { PAYOUT_LIST_LIMIT, listCommissionPayouts } from "@/lib/commissionPayoutList";
 import { logError } from "@/lib/logger";
 
 function parseIsoDate(value: string | undefined): Date | null {
@@ -97,13 +97,13 @@ async function handleList(req: NextApiRequest, res: NextApiResponse) {
     const staffMemberId = req.query.staffMemberId
       ? Number.parseInt(req.query.staffMemberId as string)
       : undefined;
-    const payouts = await listCommissionPayouts({
+    const { payouts, truncated } = await listCommissionPayouts({
       staffMemberId,
       from: parseIsoDate(req.query.from as string | undefined),
       to: parseIsoDate(req.query.to as string | undefined),
       includeDrafts: req.query.includeDrafts === "true",
     });
-    return res.status(200).json({ payouts });
+    return res.status(200).json({ payouts, truncated, limit: PAYOUT_LIST_LIMIT });
   } catch (err) {
     logError("commission-payouts GET failed", err);
     return res.status(500).json({ error: "Failed to load payouts" });

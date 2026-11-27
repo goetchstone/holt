@@ -1,0 +1,18 @@
+# Every source file that deletes a purchase order, a sales order, or the lines of
+# either (rule 65). __tests__/orderAndPoDeletes.test.ts scans src/ and fails when
+# this list and the code disagree, in either direction.
+#
+# Orders and POs are cancelled, not deleted, and their lines carry what was
+# paid for, ordered, received and delivered. A delete is right only behind a
+# guard that proves nothing has been built on the rows. Two upload routes
+# deleted whatever PO held a document's number, and a third the lines of
+# whatever sale held its number (found 2026-11-17, fixed 2026-11-27).
+#
+#   <path> | <delete calls> | <guard, as it appears in the file> | <why the delete is safe there>
+#
+src/lib/purchasing/stockPurchaseOrder.ts | 1 | poEditProblem | The PO editor removes the lines left out of a PO it may still change: not a return, nothing received, not closed. Receipts are counted again inside the write.
+src/lib/purchasing/importedPurchaseOrder.ts | 1 | poReplaceProblem | A vendor's document imported again replaces the lines of that vendor's own PO in place, and only while nothing has been built on it. Receipts are counted again inside the write.
+src/lib/delivery/deliveryFee.ts | 1 | feeIsEditable | The delivery fee's own line, removed while the order's fee may still change, with the change logged.
+src/pages/api/sales/orders/[id].ts | 2 | deleteProblem | Only a quote with no payment and no invoice is deleted, with an audit entry. Everything else is cancelled.
+src/pages/api/sales/orders/[id]/line-items/[lineItemId].ts | 1 | order.status !== "QUOTE" | A line is removed only from a quote. On a sale it is cancelled.
+src/pages/api/sales/import-hd-proposal.ts | 1 | existingOrder.status !== "QUOTE" | A proposal imported again replaces the lines of its quote. Once the quote is a sale the import is refused.

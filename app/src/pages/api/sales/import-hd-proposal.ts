@@ -1,6 +1,8 @@
 // /app/src/pages/api/sales/import-hd-proposal.ts
 //
 // Parses a Hunter Douglas proposal PDF and writes it as a quote in one request.
+// Importing the same proposal again refreshes that quote; once the quote has
+// become a sale the import is refused with a 409 (its lines are the sale's).
 // The quote is written as read; the parser's warnings (a line cut short, an
 // amount that overflowed and read as 0) come back on `proposal.warnings`, and
 // the import page shows them with the quote. Whether warnings should refuse the
@@ -12,6 +14,7 @@ import { parseHDProposal } from "@/lib/pricing/hdProposalParser";
 import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { ApiError } from "@/lib/apiResponse";
 import { logError } from "@/lib/logger";
 import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
@@ -68,6 +71,21 @@ export default requirePermission(
 
     try {
       const result = await prisma.$transaction(async (tx) => {
+        // Importing a proposal again refreshes its quote. Once the quote is a
+        // sale its lines are not the proposal's to replace: they carry what was
+        // paid for, ordered, delivered or returned, and the delete below would
+        // put them all back as new lines. Checked before anything is written.
+        const existingOrder = await tx.salesOrder.findUnique({
+          where: { orderno },
+          select: { id: true, status: true },
+        });
+        if (existingOrder && existingOrder.status !== "QUOTE") {
+          throw new ApiError(
+            409,
+            `${orderno} is no longer a quote, so the proposal was not imported over it and nothing was changed. Change the sale on its own page.`,
+          );
+        }
+
         // Find or create Hunter Douglas vendor, by an earlier name too
         // (a vendor merged away).
         const hdVendorId = await findOrCreateVendorId(tx, "Hunter Douglas", {
@@ -163,8 +181,6 @@ export default requirePermission(
           contextLabel: `HD proposal import (${orderno})`,
         });
 
-        // Check for existing order
-        const existingOrder = await tx.salesOrder.findUnique({ where: { orderno } });
         const isUpdate = !!existingOrder;
 
         const orderNotes = [
@@ -283,6 +299,7 @@ export default requirePermission(
 
       return res.status(200).json(result);
     } catch (err) {
+      if (err instanceof ApiError) return res.status(err.statusCode).json({ error: err.message });
       logError("HD proposal import failed", err);
       return res.status(500).json({ error: "Import failed" });
     }

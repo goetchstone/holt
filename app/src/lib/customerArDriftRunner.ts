@@ -130,6 +130,8 @@ export async function runCustomerArDriftCheck(
     },
     select: {
       customerId: true,
+      // computeSourceBalance counts lines as owed only on a sale.
+      status: true,
       lineItems: {
         select: { netPrice: true, vatAmount: true, lineItemStatus: true },
       },
@@ -193,6 +195,7 @@ export async function runCustomerArDriftCheck(
     if (o.customerId === null) continue;
     const list = ordersMap.get(o.customerId) ?? [];
     list.push({
+      status: o.status,
       lineItems: o.lineItems.map((li) => ({
         netPrice: li.netPrice,
         vatAmount: li.vatAmount,

@@ -56,7 +56,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
-import { isCountedLine } from "@/lib/salesOrderRevenue";
+import { isCountedLine, isRevenueStatus } from "@/lib/salesOrderRevenue";
 
 export type CustomerLedgerEntryType =
   | "SALE"
@@ -74,7 +74,28 @@ export type CustomerLedgerEntryType =
  * transaction). Lifted into a type so tests can construct a typed mock
  * if needed.
  */
-type LedgerClient = Pick<Prisma.TransactionClient, "customer" | "customerLedgerEntry">;
+type LedgerClient = Pick<
+  Prisma.TransactionClient,
+  "customer" | "customerLedgerEntry" | "$queryRaw"
+>;
+
+/**
+ * Take a customer's row for the rest of the transaction, before reading the
+ * balance a ledger write starts from. Both ledger writers call it first:
+ * appendEntry below and the backfill (customerLedgerBackfill.ts).
+ *
+ * Each reads `openArBalance`, writes rows that carry it forward, and stores the
+ * new balance. Without the lock two of them read the same starting balance:
+ * two payments for one customer at the same moment left the stored balance
+ * short by one of them, and a payment landing during a backfill was
+ * overwritten by the backfill's total.
+ */
+export async function lockCustomerForLedger(
+  client: Pick<Prisma.TransactionClient, "$queryRaw">,
+  customerId: number,
+): Promise<void> {
+  await client.$queryRaw`SELECT id FROM "Customer" WHERE id = ${customerId} FOR UPDATE`;
+}
 
 export interface AppendEntryInput {
   customerId: number;
@@ -147,6 +168,7 @@ export async function appendEntry(
   }
 
   const exec = async (client: LedgerClient): Promise<LedgerEntrySummary> => {
+    await lockCustomerForLedger(client, input.customerId);
     const customer = await client.customer.findUniqueOrThrow({
       where: { id: input.customerId },
       select: { openArBalance: true },
@@ -332,6 +354,8 @@ export function signForType(type: CustomerLedgerEntryType): 1 | -1 {
 // We DON'T import Prisma types here to keep this file usable from a
 // script context that doesn't have the full Prisma client loaded.
 export interface OrderForLedgerSource {
+  /** SalesOrder.status: only a sale is owed (SALES_REVENUE_STATUSES); a quote's lines are not. */
+  status: string;
   lineItems: ReadonlyArray<{
     netPrice: unknown;
     vatAmount: unknown;
@@ -344,22 +368,36 @@ export interface OrderForLedgerSource {
   }>;
 }
 
+/**
+ * What an order's counted lines come to. Owed from quote to order, not
+ * before: a quote's lines are no debt, and a cancelled order's are none
+ * either. (Their payments still count: a deposit taken on a quote is money
+ * the customer has paid.)
+ */
+function owedOnLines(order: OrderForLedgerSource): number {
+  if (!isRevenueStatus(order.status)) return 0;
+  let due = 0;
+  for (const li of order.lineItems) {
+    // Cancelled and replaced lines aren't owed (COUNTED_LINE_STATUSES, rule 33).
+    if (!isCountedLine(li.lineItemStatus)) continue;
+    due += Number(li.netPrice) + Number(li.vatAmount ?? 0);
+  }
+  return due;
+}
+
+/** Money in hand against an order: refunds come back off, unpaid and voided rows don't count. */
+function paidOn(order: OrderForLedgerSource): number {
+  let paid = 0;
+  for (const p of order.payments) {
+    if (isPaymentExcludedFromBalance(p.status)) continue;
+    const amt = Number(p.paymentAmount);
+    paid += p.isRefund ? -Math.abs(amt) : amt;
+  }
+  return paid;
+}
+
 export function computeSourceBalance(orders: ReadonlyArray<OrderForLedgerSource>): number {
   let total = 0;
-  for (const o of orders) {
-    let due = 0;
-    for (const li of o.lineItems) {
-      // Cancelled and replaced lines aren't owed (COUNTED_LINE_STATUSES, rule 33).
-      if (!isCountedLine(li.lineItemStatus)) continue;
-      due += Number(li.netPrice) + Number(li.vatAmount ?? 0);
-    }
-    let paid = 0;
-    for (const p of o.payments) {
-      if (isPaymentExcludedFromBalance(p.status)) continue;
-      const amt = Number(p.paymentAmount);
-      paid += p.isRefund ? -Math.abs(amt) : amt;
-    }
-    total += due - paid;
-  }
+  for (const o of orders) total += owedOnLines(o) - paidOn(o);
   return round2(total);
 }

@@ -170,7 +170,7 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`.
 ## Verification checklist (before touching returns code)
 
 - [ ] Read this runbook + `docs/domains/sales-orders.md` (RETURNED status, A-suffix detection)
-- [ ] Read the RETURNED-status revenue rule (CLAUDE.md rule 47 / canonical `SALES_REVENUE_STATUSES`)
+- [ ] Read the RETURNED-status revenue rule (CLAUDE.md rule 47 / canonical `SALES_REVENUE_STATUSES`; `isRevenueStatus(status)` asks it of one order, as the customer ledger does)
 - [ ] If touching JE math for returns, read `docs/domains/accounting.md` "returns are sales-in-reverse"
 - [ ] Confirm the gate on the exact route you are touching — most `/api/returns` routes are `requirePermission("sales.return")`; `refund` takes `payment.refund` or `payment.return-refund`
 - [ ] If touching the imported-returns path, remember the `Return` model is empty for historical data — read from `SalesOrder` + `OrderLineItem` instead

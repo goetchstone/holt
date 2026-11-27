@@ -2,8 +2,10 @@
 //
 // Import a NuORDER wholesale order PDF. Parses vendor, line items with
 // per-size breakdowns, creates or matches Products and ProductVariants,
-// and generates a PurchaseOrder. Re-importing the same order number
-// overwrites the existing PO (supports revised orders).
+// and generates a PurchaseOrder. Re-importing the same order number replaces
+// the lines of that vendor's PO in place (a revised order), and is refused
+// with a 409 once the PO has been built on: received against, closed, tied to
+// a sale, or another vendor's (lib/purchasing/importedPurchaseOrder.ts).
 //
 // It parses and writes in one request, so the PO is written as read and the
 // parser's warnings (a line cut short, an amount that overflowed and read as 0)
@@ -27,6 +29,8 @@ import {
 import { pickFormFields } from "@/lib/importFormFields";
 import { logError } from "@/lib/logger";
 import { findOrCreateVendor } from "@/lib/vendors/vendorByName";
+import { importReplaceTarget, writeImportedPo } from "@/lib/purchasing/importedPurchaseOrder";
+import { PurchaseOrderError } from "@/lib/purchasing/stockPurchaseOrder";
 export const config = { api: { bodyParser: false } };
 
 const FIELD_NAMES = ["departmentId", "categoryId", "itemCategories"] as const;
@@ -121,18 +125,11 @@ export default requirePermission(
       type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
       const result = await prisma.$transaction(async (tx: TxClient) => {
-        // Delete existing PO if re-importing
-        const existingPO = await tx.purchaseOrder.findUnique({
-          where: { poNumber },
-          include: { lineItems: true },
-        });
-
-        if (existingPO) {
-          await tx.purchaseOrderItem.deleteMany({
-            where: { purchaseOrderId: existingPO.id },
-          });
-          await tx.purchaseOrder.delete({ where: { id: existingPO.id } });
-        }
+        // Importing a number again replaces the lines of this vendor's own PO,
+        // in place, and only while nothing has been built on it
+        // (lib/purchasing/importedPurchaseOrder.ts). Checked before anything
+        // is written, so a refused import has done nothing.
+        const replaceId = await importReplaceTarget(tx, poNumber, vendor);
 
         let productsCreated = 0;
         let variantsCreated = 0;
@@ -223,41 +220,27 @@ export default requirePermission(
           }
         }
 
-        // Create the PO
-        const po = await tx.purchaseOrder.create({
-          data: {
-            poNumber,
-            vendorId: vendor.id,
-            orderDate: parsed.orderDate ? new Date(parsed.orderDate) : new Date(),
-            expectedDelivery,
-            vendorAckNumber: parsed.orderNumber !== poNumber ? parsed.orderNumber : null,
-            notes: parsed.terms ? `Terms: ${parsed.terms}` : null,
-            status: "CONFIRMED",
-            createdBy: session.user?.email || "system",
-            lineItems: {
-              create: poItems.map((pi) => ({
-                productId: pi.productId,
-                productVariantId: pi.productVariantId,
-                partNo: pi.partNo,
-                productName: pi.productName,
-                orderedQuantity: pi.orderedQuantity,
-                unitCost: pi.unitCost,
-              })),
-            },
-          },
-          include: { lineItems: true },
+        const po = await writeImportedPo(tx, replaceId, {
+          poNumber,
+          vendorId: vendor.id,
+          orderDate: parsed.orderDate ? new Date(parsed.orderDate) : new Date(),
+          expectedDelivery,
+          vendorAckNumber: parsed.orderNumber !== poNumber ? parsed.orderNumber : null,
+          notes: parsed.terms ? `Terms: ${parsed.terms}` : null,
+          lines: poItems,
+          actor: session.user?.email || "system",
         });
 
         return {
           poId: po.id,
           poNumber: po.poNumber,
           vendor: vendor.name,
-          itemCount: po.lineItems.length,
+          itemCount: po.lineCount,
           productsCreated,
           variantsCreated,
           totalUnits: poItems.reduce((sum, pi) => sum + pi.orderedQuantity, 0),
           totalCost: poItems.reduce((sum, pi) => sum + pi.orderedQuantity * pi.unitCost, 0),
-          replaced: !!existingPO,
+          replaced: replaceId !== null,
         };
       }, TX_TIMEOUT.LONG);
 
@@ -265,6 +248,10 @@ export default requirePermission(
     } catch (error: unknown) {
       const refused = uploadRefusal(error, UPLOAD);
       if (refused) return res.status(refused.status).json({ error: refused.error });
+      // The PO holding this number can't be replaced: say which and why.
+      if (error instanceof PurchaseOrderError) {
+        return res.status(error.status).json({ error: error.message });
+      }
       logError("NuORDER import error", error);
       return res.status(500).json({ error: "Import failed" });
     }

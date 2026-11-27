@@ -10,7 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { commitPayoutsForPeriod } from "@/lib/runCommissionPayouts";
-import { computeLockedPayoutDrift } from "@/lib/commissionDrift";
+import { DRIFT_CHECK_LIMIT, computeLockedPayoutDrift } from "@/lib/commissionDrift";
 
 const P1_START = new Date("2026-05-01T00:00:00Z");
 const P1_END = new Date("2026-05-15T00:00:00Z");
@@ -87,7 +87,7 @@ describe("computeLockedPayoutDrift (real DB)", () => {
   });
 
   it("returns empty when no locked payouts exist", async () => {
-    const rows = await computeLockedPayoutDrift();
+    const { rows } = await computeLockedPayoutDrift();
     expect(rows).toEqual([]);
   });
 
@@ -106,7 +106,7 @@ describe("computeLockedPayoutDrift (real DB)", () => {
       actorEmail: "admin@x.com",
     });
 
-    const rows = await computeLockedPayoutDrift();
+    const { rows } = await computeLockedPayoutDrift();
     expect(rows).toEqual([]);
   });
 
@@ -136,7 +136,7 @@ describe("computeLockedPayoutDrift (real DB)", () => {
       status: "RETURNED",
     });
 
-    const rows = await computeLockedPayoutDrift();
+    const { rows } = await computeLockedPayoutDrift();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       payoutId: locked.payoutIds[0],
@@ -176,7 +176,7 @@ describe("computeLockedPayoutDrift (real DB)", () => {
       data: { status: "CANCELLED" },
     });
 
-    const rows = await computeLockedPayoutDrift();
+    const { rows } = await computeLockedPayoutDrift();
     expect(rows).toHaveLength(1);
     expect(rows[0].drift).toBe(-400_000);
     expect(rows[0].lockedYtdAtEnd).toBe(500_000);
@@ -209,7 +209,7 @@ describe("computeLockedPayoutDrift (real DB)", () => {
       netPrice: 60_000,
     });
 
-    const rows = await computeLockedPayoutDrift();
+    const { rows } = await computeLockedPayoutDrift();
     expect(rows).toHaveLength(1);
     expect(rows[0].drift).toBe(60_000);
     expect(rows[0].lockedYtdAtEnd).toBe(500_000);
@@ -254,7 +254,7 @@ describe("computeLockedPayoutDrift (real DB)", () => {
       status: "RETURNED",
     });
 
-    const aliceOnly = await computeLockedPayoutDrift({ staffMemberId: alice.id });
+    const { rows: aliceOnly } = await computeLockedPayoutDrift({ staffMemberId: alice.id });
     expect(aliceOnly).toHaveLength(1);
     expect(aliceOnly[0].displayName).toBe("Alice");
     expect(aliceOnly[0].drift).toBe(-10_000);
@@ -275,7 +275,7 @@ describe("computeLockedPayoutDrift (real DB)", () => {
       actorEmail: "admin@x.com",
     });
 
-    const clean = await computeLockedPayoutDrift({ includeClean: true });
+    const { rows: clean } = await computeLockedPayoutDrift({ includeClean: true });
     expect(clean).toHaveLength(1);
     expect(clean[0].drift).toBe(0);
   });
@@ -303,9 +303,36 @@ describe("computeLockedPayoutDrift (real DB)", () => {
       status: "RETURNED",
     });
 
-    const rows = await computeLockedPayoutDrift();
+    const { rows } = await computeLockedPayoutDrift();
     // Drafts re-compute on next preview/commit; they never "drift"
     // because there's no frozen value to compare against.
     expect(rows).toEqual([]);
   });
+
+  it("says how many locked payouts it checked, and when older ones went unchecked", async () => {
+    const alice = await seedDesigner("Alice");
+    const few = await computeLockedPayoutDrift();
+    expect(few).toMatchObject({ checked: 0, truncated: false });
+
+    const day = 24 * 60 * 60 * 1000;
+    // One more one-day locked period than a check looks at; none has drifted.
+    await prisma.commissionPayout.createMany({
+      data: Array.from({ length: DRIFT_CHECK_LIMIT + 1 }, (_, n) => ({
+        staffMemberId: alice.id,
+        periodStart: new Date(P1_START.getTime() - n * day),
+        periodEnd: new Date(P1_START.getTime() - n * day),
+        periodSalesAmount: 0,
+        ytdSalesAtStart: 0,
+        ytdSalesAtEnd: 0,
+        tierBreakdown: [],
+        commissionAmount: 0,
+        tierDefinitionSnapshot: [],
+        lockedAt: new Date(),
+      })),
+    });
+
+    // "No drift" alone read as every locked payout being clean.
+    const report = await computeLockedPayoutDrift();
+    expect(report).toEqual({ rows: [], checked: DRIFT_CHECK_LIMIT, truncated: true });
+  }, 120_000);
 });

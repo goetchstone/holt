@@ -710,6 +710,17 @@ away from the store-wide default.
    to the first digit of a run with `(?<!\d)` where that changes no match: a
    match that starts after a digit also matches one digit earlier (MarketTime's
    money tails, 2026-11-21)
+8. **A label is matched as a label.** A case-insensitive, unanchored label
+   pattern matches inside any earlier word. nuORDER's PO number was read by
+   `/PO\s{0,20}#?:?\s{0,20}([A-Za-z0-9]+)/i`, with every part of the label after
+   "PO" optional: "Deposit" gave PO "sit", "PO Box 12" gave "Box", and
+   "PO Number: 4471" gave "Number". The import then looked up a PO by that. It
+   now needs `PO` as a word and the label's `#` or `:` (after an optional
+   "Number" or "No."), and takes hyphens, so a number like `PO-261127-003` is
+   read whole; with no label the import uses the order number
+   (`__tests__/nuorderParser.test.ts`, 2026-11-27). The layout these parsers
+   read is described in their comments, not held as sample documents, so a
+   label spelling nobody listed reads as no PO number, never as a wrong one.
 
 ## Verification Checklist
 
