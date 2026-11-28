@@ -18,16 +18,23 @@ export default async function PosPage({
   searchParams: Promise<{ order?: string | string[] }>;
 }) {
   // Splitting a sale moves commission: offered to "Reassign salesperson" (GAP-07).
+  // The lookup finds sales in the orders list, which is "View orders".
   const { userId, holds } = await requirePage(undefined, {
     permission: "pos.operate",
     feature: "pos",
-    also: ["sales.reassign", "payment.take"],
+    also: ["sales.reassign", "payment.take", "sales.read"],
   });
   const { order } = await searchParams;
   return (
     <PosView
+      // A different order on the address is a different screen: the register
+      // starts from that order's balance, not from what it held before (its
+      // own lookup sends it here without leaving the page).
+      key={typeof order === "string" ? order : "sale"}
       splitSetup={await splitSaleSetup(userId, holds["sales.reassign"])}
       payOrder={await orderToPayFromQuery(order, holds["payment.take"])}
+      canTakePayments={holds["payment.take"]}
+      canFindSales={holds["sales.read"]}
     />
   );
 }

@@ -39,7 +39,13 @@ import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import type { Rng } from "./rng";
 import { randFloat, randInt, round2, subRng } from "./rng";
 import { breakdownCash, TILL_OPENING_FLOAT } from "./tillCash";
-import { buildOrderPlans, localTime, type OrderPlan, type PaymentMethodTender } from "./orderPlan";
+import {
+  buildOrderPlans,
+  localTime,
+  paidAtSale,
+  type OrderPlan,
+  type PaymentMethodTender,
+} from "./orderPlan";
 import type { CatalogProduct } from "./catalog";
 import { SEED_TAX_RATE } from "./config";
 import type { SeededCustomer } from "./customers";
@@ -228,6 +234,7 @@ export async function seedSalesOrdersAndTills(
     for (const order of orders) {
       const totalDue = round2(order.lines.reduce((s, l) => s + l.netPrice + l.vatAmount, 0));
       const totalTax = round2(order.lines.reduce((s, l) => s + l.vatAmount, 0));
+      const paidNow = paidAtSale(order, totalDue);
 
       const salesOrder = await prisma.salesOrder.create({
         data: {
@@ -253,7 +260,7 @@ export async function seedSalesOrdersAndTills(
           taxDistrictId,
           taxExemptReasonId: order.taxExemptReasonId,
           totalTax,
-          totalPaid: totalDue,
+          totalPaid: paidNow,
           // Undelivered orders spread across the REAL dispatch pipeline rather
           // than all sitting at SCHEDULED_DELIVERY. A board where every open
           // order is already scheduled has nothing to schedule, so the one
@@ -395,7 +402,8 @@ export async function seedSalesOrdersAndTills(
           salesOrderId: salesOrder.id,
           paymentDate: order.date,
           paymentType,
-          paymentAmount: totalDue,
+          // In full, or the deposit on an order still waiting (paidAtSale).
+          paymentAmount: paidNow,
           status: "COMPLETED",
           method: order.method,
           registerId,
@@ -409,7 +417,7 @@ export async function seedSalesOrdersAndTills(
       });
       result.paymentsCreated += 1;
       result.methodCounts[order.method] = (result.methodCounts[order.method] ?? 0) + 1;
-      payments.push({ method: order.method, amount: totalDue, isRefund: false, time: order.date });
+      payments.push({ method: order.method, amount: paidNow, isRefund: false, time: order.date });
       if (order.date > latestTime) latestTime = order.date;
 
       // --- Same-day refund (invoiced orders only) ----------------------
@@ -430,10 +438,10 @@ export async function seedSalesOrdersAndTills(
         // (journalEntry.ts, the reversesPaymentId guard), so every sampled day
         // with a refund took an Over/Short plug of exactly the refund.
         //
-        // Not bookReturn itself: it also appends to the customer's AR ledger,
-        // and this seed writes no ledger for any sale or payment yet
-        // (coverage.ts: CustomerLedgerEntry is "todo"), so returns alone would
-        // leave those customers looking owed money.
+        // Not bookReturn itself: it appends to the customer's ledger as it
+        // goes, and the seed builds every ledger once, at the end, from the
+        // orders and payments (customerLedgers.ts). An entry written here
+        // first would make that step hand the customer back for review.
         const returnOrder = await prisma.salesOrder.create({
           data: {
             orderno: returnNumber,

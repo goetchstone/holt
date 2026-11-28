@@ -340,6 +340,38 @@ export function buildOrderPlans(
   return plans;
 }
 
+/** The share of an order paid as a deposit the day it is written. */
+export const DEPOSIT_SHARE = 0.5;
+
+/**
+ * What the customer pays the day they order.
+ *
+ * A sale that has gone out is paid in full. Two in three of the orders still
+ * waiting for their goods carry a deposit of half, with the rest owed at
+ * delivery, which is how a furniture order is usually taken. Until 2026-11-28
+ * every order was paid in full the day it was written, so no customer in the
+ * demo owed anything: balance aging, statements, the "balance due" columns on
+ * the dispatch board and the ledger all had nothing to show, and there was no
+ * balance to try "Take payment at the register" on.
+ *
+ * Decided by the order's place in the plan, not drawn, so every draw after it
+ * (and so the rest of the history) is what it was. Card and cash only: a gift
+ * card or store credit is spent against a balance the seed books to the cent.
+ * An order with no customer has no account to owe on.
+ */
+export function paidAtSale(
+  order: Pick<OrderPlan, "index" | "deliveredAt" | "customerId" | "method">,
+  totalDue: number,
+): number {
+  const waiting = order.deliveredAt === null;
+  const onAccount = order.customerId !== null;
+  const byCardOrCash = order.method === "CARD" || order.method === "CASH";
+  if (waiting && onAccount && byCardOrCash && order.index % 3 !== 0) {
+    return round2(totalDue * DEPOSIT_SHARE);
+  }
+  return totalDue;
+}
+
 /**
  * When a delivery order's goods arrive and it goes out, against the as-of day.
  *

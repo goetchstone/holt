@@ -13,11 +13,15 @@
 // setup step (`npm run setup`) runs the seed, so these run on every pull
 // request.
 //
+// The last check is not a bug that was found: it holds the customer ledgers
+// (customerLedgers.ts) to the orders and payments they were built from.
+//
 // Add a check here when a wrong-but-present row is found. Say what must be
 // true, not what the bug was.
 
 import type { PrismaClient } from "@prisma/client";
 import { COUNTED_ITEM_LINE } from "@/lib/salesOrderRevenue";
+import { computeSourceBalance } from "@/lib/customerLedger";
 import { toQty } from "@/lib/inventory/quantity";
 
 /** How many of one kind of problem are spelled out before the rest are counted. */
@@ -168,6 +172,50 @@ async function deliveriesToNobody(prisma: PrismaClient): Promise<string[]> {
   );
 }
 
+/**
+ * What a customer is stored as owing is what their ledger entries add up to,
+ * and what their sales and payments say (computeSourceBalance, the figure the
+ * daily drift check holds the ledger to).
+ */
+async function accountsThatDoNotAddUp(prisma: PrismaClient): Promise<string[]> {
+  const [customers, entries, orders] = await Promise.all([
+    prisma.customer.findMany({
+      orderBy: { id: "asc" },
+      select: { id: true, openArBalance: true },
+    }),
+    prisma.customerLedgerEntry.groupBy({ by: ["customerId"], _sum: { amount: true } }),
+    prisma.salesOrder.findMany({
+      where: { customerId: { not: null } },
+      select: {
+        customerId: true,
+        status: true,
+        lineItems: { select: { netPrice: true, vatAmount: true, lineItemStatus: true } },
+        payments: { select: { paymentAmount: true, status: true, isRefund: true } },
+      },
+    }),
+  ]);
+  const inLedger = new Map(entries.map((e) => [e.customerId, Number(e._sum.amount ?? 0)]));
+  const ordersOf = new Map<number, typeof orders>();
+  for (const order of orders) {
+    if (order.customerId == null) continue;
+    ordersOf.set(order.customerId, [...(ordersOf.get(order.customerId) ?? []), order]);
+  }
+  const cents = (n: number) => Math.round(n * 100);
+  const problems: string[] = [];
+  for (const customer of customers) {
+    const stored = Number(customer.openArBalance);
+    const ledger = inLedger.get(customer.id) ?? 0;
+    const source = computeSourceBalance(ordersOf.get(customer.id) ?? []);
+    if (cents(stored) !== cents(ledger) || cents(stored) !== cents(source)) {
+      problems.push(
+        `Customer ${customer.id} is stored as owing ${stored.toFixed(2)}; their ledger adds up to ` +
+          `${ledger.toFixed(2)} and their orders and payments to ${source.toFixed(2)}.`,
+      );
+    }
+  }
+  return problems;
+}
+
 export async function seedProblems(prisma: PrismaClient): Promise<string[]> {
   const checks = [
     staffOffTheirRole,
@@ -175,6 +223,7 @@ export async function seedProblems(prisma: PrismaClient): Promise<string[]> {
     ordersNotHandedOverAsTheySay,
     stockHeldForNoReason,
     deliveriesToNobody,
+    accountsThatDoNotAddUp,
   ];
   const problems: string[] = [];
   for (const check of checks) problems.push(...listed(await check(prisma)));

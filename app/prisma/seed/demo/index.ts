@@ -82,6 +82,7 @@ async function main(): Promise<void> {
   const { seedBuyerDrafts } = await import("./buyerDrafts");
   const { seedAuthoredInvoices } = await import("./authoredInvoices");
   const { seedReturnLink } = await import("./returnLinks");
+  const { seedCustomerLedgers } = await import("./customerLedgers");
   const { ORG_SLUG } = await import("./org");
 
   // Hashed here only to fail before --reset wipes anything: no password chosen for
@@ -328,10 +329,19 @@ async function main(): Promise<void> {
   const { recalculateCustomerLevels } = await import("@/lib/customerLeveling");
   await recalculateCustomerLevels();
 
+  // Each customer's ledger and what they owe, from every order and payment
+  // written above. After all of them, with no RNG draws.
+  const ledgerResult = await seedCustomerLedgers(prisma);
+
   // Before saying it is done: is what was written right? (verify.ts)
   const { assertSeedIsSound } = await import("./verify");
   await assertSeedIsSound(prisma);
 
+  console.log(
+    `Customer ledgers: ${ledgerResult.customersWithALedger} customers, ` +
+      `${ledgerResult.entriesCreated} entries; ${ledgerResult.customersOwing} owe ` +
+      `$${ledgerResult.totalOwed.toFixed(2)} between them`,
+  );
   console.log(
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
       `(${inventoryResult.committedPositions} committed to orders, ` +

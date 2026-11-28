@@ -28,6 +28,7 @@ import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { computeTotalPaid, signedPaymentAmount } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
+import { PaymentActions } from "./RefundPayment";
 import { DeliveryFeePanel } from "./DeliveryFeePanel";
 import { QuoteLineHold } from "./QuoteLineHold";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
@@ -118,6 +119,10 @@ interface OrderPayment {
   isRefund: boolean;
   /** A payment sent to a register's card reader; voiding it cancels it there first. */
   onCardReader?: boolean;
+  /** For the Refund action (RefundPayment.tsx): how it was paid, and what is left to refund. */
+  method?: string | null;
+  viaProcessor?: boolean;
+  refundable?: number;
 }
 
 interface OrderCustomerRef {
@@ -339,6 +344,7 @@ export function OrderDetailView({
   canUndoHandover = false,
   canReassign,
   canVoidPayment,
+  canRefundPayment,
   canSendPaymentLink,
   canTakeAtRegister,
   canPortalLink,
@@ -351,6 +357,8 @@ export function OrderDetailView({
   canReassign: boolean;
   /** Void a pending payment (payment.void, .../payments/[paymentId]/void.ts). */
   canVoidPayment: boolean;
+  /** Refund a completed payment (payment.refund, sales/orders/[id]/refunds.ts). */
+  canRefundPayment: boolean;
   /** Create a payment link (payment.take, stripe/send-payment-link.ts). */
   canSendPaymentLink: boolean;
   /** Take a payment on this order at the register (payment.take and pos.operate, with the register on). */
@@ -1413,7 +1421,7 @@ export function OrderDetailView({
                 <th className="p-2 border-b">Type</th>
                 <th className="p-2 border-b">Status</th>
                 <th className="p-2 border-b text-right">Amount</th>
-                {canVoidPayment && <th className="p-2 border-b" />}
+                <th className="p-2 border-b" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -1428,18 +1436,17 @@ export function OrderDetailView({
                     {/* A refund is money back: shown negative whichever way it was stored. */}
                     {formatCurrency(signedPaymentAmount(payment))}
                   </td>
-                  {canVoidPayment && (
-                    <td className="p-2 border-b text-right">
-                      {payment.status === "PENDING" && (
-                        <button
-                          onClick={() => handleVoidPayment(payment)}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          Void
-                        </button>
-                      )}
-                    </td>
-                  )}
+                  <td className="p-2 border-b text-right">
+                    <PaymentActions
+                      orderId={orderDetails.id}
+                      payment={payment}
+                      canVoid={canVoidPayment}
+                      canRefund={canRefundPayment}
+                      onVoid={() => handleVoidPayment(payment)}
+                      formatCurrency={formatCurrency}
+                      onRefunded={fetchOrder}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

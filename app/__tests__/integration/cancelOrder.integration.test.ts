@@ -2022,4 +2022,71 @@ describe("the order's list of payments", () => {
       ]),
     );
   });
+
+  it("says how each payment was made and what is left to refund on it", async () => {
+    // The order page's Refund action is offered by these: a completed payment,
+    // its amount less the refunds of it that paid out or may still pay out,
+    // wherever those refunds were booked.
+    const { order } = await makeOrder();
+    const other = await prisma.salesOrder.create({
+      data: { orderno: "RET-ELSEWHERE", status: "RETURNED", orderDate: new Date() },
+    });
+    const row = { paymentDate: new Date(), paymentType: "Cash", method: "CASH" as const };
+    const cash = await prisma.payment.create({
+      data: { ...row, salesOrderId: order.id, paymentAmount: 500, status: "COMPLETED" },
+    });
+    const refundOfCash = (
+      paymentAmount: number,
+      status: "COMPLETED" | "PENDING" | "FAILED",
+      salesOrderId = order.id,
+    ) =>
+      prisma.payment.create({
+        data: {
+          ...row,
+          salesOrderId,
+          paymentAmount,
+          status,
+          isRefund: true,
+          originalPaymentId: cash.id,
+        },
+      });
+    await refundOfCash(100, "COMPLETED");
+    await refundOfCash(25, "PENDING");
+    // Did not pay out: not counted.
+    await refundOfCash(50, "FAILED");
+    // A return's refund is booked on the return's own order, and counts all the same.
+    await refundOfCash(75, "COMPLETED", other.id);
+    const card = await prisma.payment.create({
+      data: {
+        salesOrderId: order.id,
+        paymentDate: new Date(),
+        paymentType: "Card",
+        method: "CARD",
+        paymentAmount: 200,
+        status: "COMPLETED",
+        processorType: "STRIPE",
+        processorTxnId: "pi_test_paid",
+      },
+    });
+    const waiting = await prisma.payment.create({
+      data: { ...row, salesOrderId: order.id, paymentAmount: 80, status: "PENDING" },
+    });
+
+    const res = await call(orderRoute, "boss", { method: "GET", query: { id: String(order.id) } });
+
+    expect(res.status).toBe(200);
+    const listed = res.body.payments as {
+      id: number;
+      isRefund: boolean;
+      method: string;
+      viaProcessor: boolean;
+      refundable: number;
+    }[];
+    const of = (id: number) => listed.find((p) => p.id === id);
+    expect(of(cash.id)).toMatchObject({ method: "CASH", viaProcessor: false, refundable: 300 });
+    expect(of(card.id)).toMatchObject({ method: "CARD", viaProcessor: true, refundable: 200 });
+    // Not money in hand yet, and a refund is never refunded.
+    expect(of(waiting.id)).toMatchObject({ refundable: 0 });
+    expect(listed.filter((p) => p.isRefund).map((p) => p.refundable)).toEqual([0, 0, 0]);
+  });
 });

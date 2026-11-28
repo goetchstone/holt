@@ -307,6 +307,30 @@ describe("the pages", () => {
     });
   });
 
+  it("the register's page says whether its lookup may offer a payment, and starts afresh per order", async () => {
+    await settings();
+    await makeStaff("cass", "REGISTER");
+    await makeStaff("ringer", ["pos.operate", "sales.write"]);
+    const sale = await order();
+    const page = (query: { order?: string }) => PosPage({ searchParams: Promise.resolve(query) });
+
+    signIn("cass");
+    expect((await page({})).props.canTakePayments).toBe(true);
+    expect((await page({})).props.canFindSales).toBe(true);
+    // No "Take payment" and no "View orders": the lookup offers neither a
+    // payment nor the sale search, which reads the orders list.
+    signIn("ringer");
+    expect((await page({})).props.canTakePayments).toBe(false);
+    expect((await page({})).props.canFindSales).toBe(false);
+
+    // A different order on the address is a different screen: the lookup sends
+    // the register to an order without leaving the page, and it must not keep
+    // what it held before.
+    signIn("cass");
+    expect((await page({})).key).toBe("sale");
+    expect((await page({ order: String(sale.id) })).key).toBe(String(sale.id));
+  });
+
   it("the order page offers the register to someone who may take payments and operate it", async () => {
     await settings();
     const sale = await order();

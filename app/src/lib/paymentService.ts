@@ -123,10 +123,23 @@ export function computeBalance(
 
 // Pure computation for refundable amount: the original less every refund that
 // paid out or may still pay out (see refundCounts -- a FAILED or VOIDED refund
-// did not). processRefund's cap, and nothing else's.
+// did not). processRefund's cap, and what the order page offers ahead of it
+// (lib/sales/refundablePayments.ts).
 export function computeRefundable(originalAmount: number, previousRefundAmounts: number[]): number {
   const totalRefunded = previousRefundAmounts.reduce((sum, a) => sum + Math.abs(a), 0);
   return round2(originalAmount - totalRefunded);
+}
+
+/**
+ * True when a payment was taken through a card processor, so its refund goes
+ * back through that processor. One taken on the store's own terminal, or in
+ * cash, has no processor to ask: its refund is only recorded.
+ */
+export function isProcessorPayment(payment: {
+  processorType: string | null;
+  processorTxnId: string | null;
+}): boolean {
+  return !!(payment.processorType && payment.processorTxnId);
 }
 
 interface RecordPaymentInput {
@@ -1126,7 +1139,7 @@ export async function processRefund(paymentId: number, input: RefundInput): Prom
     // Route by the ORIGINAL payment's processor -- never the currently-active
     // one (rule 60). After an org switches providers, previously captured
     // payments must still refund through whoever actually took the money.
-    const viaProcessor = !!(original.processorType && original.processorTxnId);
+    const viaProcessor = isProcessorPayment(original);
     const row = await tx.payment.create({
       data: {
         salesOrderId: input.salesOrderId ?? original.salesOrderId,

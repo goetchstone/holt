@@ -32,6 +32,7 @@ import {
   type CatalogSale,
   type DiscountType,
 } from "@/lib/pos/cartPricing";
+import { REGISTER_STORAGE_KEY, cashNeedsTill, registerHas } from "@/lib/pos/registerChoice";
 import {
   priceLineForTier,
   tierFieldsFromLookup,
@@ -59,14 +60,16 @@ import {
   closedCardMessage,
   type GiftCardCartLine,
 } from "@/lib/sales/giftCardLineShared";
-
-const REGISTER_STORAGE_KEY = "pos-register-id";
+import { RegisterLookup } from "./RegisterLookup";
 
 interface Register {
   id: number;
   name: string;
   isActive: boolean;
   storeLocation: { id: number; name: string; code: string };
+  /** For choosing where to take a payment (GET /api/registers). */
+  hasOpenTill?: boolean;
+  hasCardReader?: boolean;
 }
 
 /** The card reader at the chosen register (GET /api/registers/[id]). */
@@ -510,10 +513,16 @@ function fullName(customer: CustomerResult | null): string | null {
 export function PosView({
   splitSetup,
   payOrder,
+  canTakePayments,
+  canFindSales,
 }: Readonly<{
   splitSetup: SplitSaleSetup | null;
-  /** An order sent here from its own page to take a payment on, or why it can't be. */
+  /** An order sent here to take a payment on (from its page or the lookup), or why it can't be. */
   payOrder: OrderToPayResult | null;
+  /** The viewer holds "Take payment": the lookup offers it on a sale that owes. */
+  canTakePayments: boolean;
+  /** The viewer holds "View orders": the lookup searches the orders list, which is gated on it. */
+  canFindSales: boolean;
 }>) {
   const router = useRouter();
   // An order written earlier opens straight on the payment screen, with what
@@ -634,9 +643,11 @@ export function PosView({
     setDeliveryFeeEdited(edited);
   }, []);
 
-  // Load all registers and restore saved selection from localStorage
-  const loadRegisters = useCallback(async () => {
-    setRegistersLoading(true);
+  // Load all registers and restore saved selection from localStorage. `again`
+  // re-reads them behind the screen that is up: a till opened or closed since
+  // the page loaded changes what each register says it has.
+  const loadRegisters = useCallback(async (again?: "again") => {
+    if (!again) setRegistersLoading(true);
     try {
       const res = await axios.get("/api/registers", { params: { limit: 200 } });
       const registers: Register[] = (res.data.registers || []).filter((r: Register) => r.isActive);
@@ -650,14 +661,15 @@ export function PosView({
         }
       }
     } catch {
-      toast.error("Failed to load registers");
+      // Read again and failed: what is on the screen stays, as it was read.
+      if (!again) toast.error("Failed to load registers");
     } finally {
       setRegistersLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadRegisters();
+    void loadRegisters();
   }, [loadRegisters]);
 
   const handleSelectRegister = (register: Register) => {
@@ -675,6 +687,8 @@ export function PosView({
 
   const handleChangeRegister = () => {
     setShowRegisterSelect(true);
+    // The choice is made on which register has a till open, as of now.
+    void loadRegisters("again");
   };
 
   useEffect(() => {
@@ -1165,6 +1179,18 @@ export function PosView({
     setPaymentProcessing(true);
     try {
       const tillId = await findOpenTill();
+      // Cash goes into a till's drawer and count. With none open at this
+      // register it would be in no till's count at all, and the screen now
+      // says which register this is, so it says why instead of taking it.
+      // "Found", not "is": the till read above answers the same when it fails.
+      if (cashNeedsTill(paymentMethod, tillId)) {
+        toast.error(
+          "No open till was found at this register, so cash can't be taken here. Open its till, or change register.",
+        );
+        // The line above the amount may have said otherwise, from when the page loaded.
+        void loadRegisters("again");
+        return;
+      }
 
       const payload: Record<string, unknown> = {
         amount,
@@ -1329,6 +1355,8 @@ export function PosView({
       <TakePaymentPanel
         order={createdOrder}
         customerName={fullName(selectedCustomer)}
+        register={selectedRegister}
+        onChangeRegister={handleChangeRegister}
         fmt={fmt}
         balanceDue={round2(createdOrder.total - paidSoFar)}
         paidSoFar={paidSoFar}
@@ -1423,6 +1451,14 @@ export function PosView({
         storeName={activeStore?.name}
         configured={taxDistrictConfigured}
         className="mb-4"
+      />
+
+      {/* A sale already written, or a gift card, without leaving the register. */}
+      <RegisterLookup
+        canFindSales={canFindSales}
+        canTakePayments={canTakePayments}
+        fmt={fmt}
+        onTakePayment={(saleId) => router.push(`/app/sales/pos?order=${saleId}`)}
       />
 
       {/* Customer */}
@@ -1802,6 +1838,10 @@ function RegisterSelect({
                     className="h-[60px] px-4 text-left bg-white border border-brand-gray/20 rounded-lg shadow-sm hover:border-brand-blue hover:shadow-md transition text-brand-black font-medium text-base"
                   >
                     {r.name}
+                    {/* Which register can take the payment at hand. */}
+                    <span className="block text-xs font-normal text-brand-gray">
+                      {registerHas(r)}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -1868,6 +1908,35 @@ function PaymentCompletePanel({
   );
 }
 
+/**
+ * Which register a payment is being taken at, with the way to another. The
+ * payment screen used whichever register the browser remembered and said
+ * nothing: an order sent here from its own page could land on a register with
+ * no reader and no open till, with no way to change it (owner, 2026-11-28).
+ * No changing while a payment is out on a reader: it belongs to that register.
+ */
+function PaymentRegister({
+  register,
+  locked,
+  onChange,
+}: Readonly<{ register: Register | null; locked: boolean; onChange: () => void }>) {
+  if (!register) return null;
+  // The way to another register sits under the line, not in it: in the line it
+  // wrapped mid-phrase beside the amount once a register had a reader to name.
+  return (
+    <div className="text-xs text-brand-gray mt-1">
+      <p>
+        At {register.name}, {register.storeLocation?.name} ({registerHas(register)})
+      </p>
+      {!locked && (
+        <button onClick={onChange} className="text-brand-blue underline min-h-[44px]">
+          Change register
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TakePaymentPanel({
   balanceDue,
   paidSoFar,
@@ -1875,6 +1944,8 @@ function TakePaymentPanel({
   setPayAmount,
   order,
   customerName,
+  register,
+  onChangeRegister,
   fmt,
   paymentMethod,
   setPaymentMethod,
@@ -1908,6 +1979,9 @@ function TakePaymentPanel({
   order: CreatedOrder;
   /** Who the order is for, shown for an order written earlier. */
   customerName: string | null;
+  /** The register the payment is taken at, and the way to another. */
+  register: Register | null;
+  onChangeRegister: () => void;
   fmt: MoneyFmt;
   paymentMethod: PaymentMethodType | null;
   setPaymentMethod: Dispatch<SetStateAction<PaymentMethodType | null>>;
@@ -1965,6 +2039,11 @@ function TakePaymentPanel({
           <div>
             <h2 className="text-xl font-semibold text-brand-blue">Take Payment</h2>
             <p className="text-sm text-brand-gray mt-1">Order {order.orderno}</p>
+            <PaymentRegister
+              register={register}
+              locked={readerPayment !== null}
+              onChange={onChangeRegister}
+            />
           </div>
           <div className="text-right">
             <span className="text-2xl font-semibold text-brand-black">{fmt(balanceDue)}</span>

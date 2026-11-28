@@ -127,7 +127,11 @@ export async function getBalanceAging(
     // Paid is net of refunds, as every other screen shows it, so Total − Paid = Balance Due.
     const totalPaid = paid - refunds;
     const balanceDue = orderTotal - totalPaid;
-    if (balanceDue <= minBalance) continue;
+    // Compared in whole cents. These are sums of floats, and a figure read
+    // back from the database can carry a fraction of a cent of its own
+    // (6557.90000000000001), so an order paid to the cent could come out a
+    // hair above zero and be listed as owing $0.
+    if (Math.round(balanceDue * 100) <= Math.round(minBalance * 100)) continue;
 
     const ageDays = o.orderDate
       ? Math.floor((now.getTime() - new Date(o.orderDate).getTime()) / (1000 * 60 * 60 * 24))

@@ -133,7 +133,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   CustomerCreditTransaction: { status: "seeded" },
   CustomerExternalId: { status: "todo", tranche: "catalog-depth" },
   CustomerInteraction: { status: "seeded", seeder: "demo" },
-  CustomerLedgerEntry: { status: "todo", tranche: "money-detail" },
+  CustomerLedgerEntry: { status: "seeded" },
   CustomerMessage: {
     status: "skipped",
     reason:
