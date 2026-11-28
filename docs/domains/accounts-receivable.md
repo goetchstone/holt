@@ -76,7 +76,14 @@ payment. A tenant that never applies is balance-forward by behavior.
   tRPC `reports.balanceAging`) buckets unpaid balances on open orders by age.
   Page and procedure gate on "View financial reports" (`reporting.financial`),
   held by default only by the Administrator and the Owner; it was an ADMIN-only
-  role list until 2026-11-21.
+  role list until 2026-11-21. An order is listed when it owes at least a cent
+  (and more than the floor, when one is given), compared in whole cents. Until
+  2026-11-28 it listed any order whose float balance came out above zero, so an
+  order paid to the cent could be listed as owing $0: the sums are floats, and
+  stored money can carry a fraction of a cent of its own (ROADMAP, "Money in
+  DECIMAL columns"). A seeded full-scale database showed 166 orders where 154
+  owed anything. Tested in `balanceAging.integration.test.ts` (the last two
+  cases; both fail on the old comparison).
 
 ## Build order (each its own careful, real-DB-tested change — money code)
 

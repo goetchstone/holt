@@ -317,3 +317,65 @@ describe("balance-aging payments WHERE filter (Phase 0.5.8)", () => {
     expect(total).toBe(900);
   });
 });
+
+describe("an order paid to the cent is not listed as owing", () => {
+  beforeEach(async () => {
+    await resetTestDb();
+  });
+
+  /** An order of two lines and one completed payment. */
+  async function orderOf(orderno: string, lines: [number, number], paid: number) {
+    await prisma.salesOrder.create({
+      data: {
+        orderno,
+        status: "ORDER",
+        orderDate: new Date("2026-04-30"),
+        lineItems: {
+          create: lines.map((netPrice, i) => ({
+            lineNumber: i + 1,
+            partNo: `ITEM-${i + 1}`,
+            netPrice,
+            cost: 0,
+            orderedQuantity: 1,
+            lineItemStatus: "ACTIVE" as const,
+          })),
+        },
+        payments: {
+          create: [
+            {
+              paymentDate: new Date("2026-04-30"),
+              paymentType: "card",
+              paymentAmount: paid,
+              status: "COMPLETED",
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it("whatever fraction of a cent the sums carry, and still lists one that owes a cent", async () => {
+    // 1000 + 202.11 comes to 1202.1100000000001 as floats: a hair over what
+    // was paid. The report listed this order as owing $0, and the demo's
+    // report showed a dozen of them among the orders that really owe.
+    expect(1000 + 202.11).toBeGreaterThan(1202.11);
+    await orderOf("AGE-PAID-TO-THE-CENT", [1000, 202.11], 1202.11);
+    await orderOf("AGE-OWES-A-CENT", [1000, 202.11], 1202.1);
+    await orderOf("AGE-OWES-HALF", [1000, 202.11], 600);
+
+    const result = await getBalanceAging(prisma);
+
+    expect(result.rows.map((r) => r.orderno)).toEqual(["AGE-OWES-HALF", "AGE-OWES-A-CENT"]);
+    expect(result.totals.total).toBe(2);
+  });
+
+  it("applies a floor on the balance in whole cents too", async () => {
+    await orderOf("AGE-OWES-50", [1000, 202.11], 1152.11);
+    await orderOf("AGE-OWES-50-AND-A-CENT", [1000, 202.11], 1152.1);
+
+    const result = await getBalanceAging(prisma, { minBalance: 50 });
+
+    // Exactly $50 is not over a $50 floor; the float sum says 50.00000000000023.
+    expect(result.rows.map((r) => r.orderno)).toEqual(["AGE-OWES-50-AND-A-CENT"]);
+  });
+});
