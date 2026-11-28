@@ -14,6 +14,7 @@ import type { Dispatch, SetStateAction } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useActiveStore } from "@/hooks/useActiveStore";
 import { NoTaxDistrictBanner } from "@/components/sales/NoTaxDistrictBanner";
@@ -33,6 +34,7 @@ import {
   type DiscountType,
 } from "@/lib/pos/cartPricing";
 import { REGISTER_STORAGE_KEY, cashNeedsTill, registerHas } from "@/lib/pos/registerChoice";
+import { readerPanelSays, type ReaderPanelState } from "@/lib/pos/readerPanelShared";
 import {
   priceLineForTier,
   tierFieldsFromLookup,
@@ -78,8 +80,11 @@ interface RegisterReader {
   simulated: boolean;
 }
 
-/** A card payment out on the reader, waiting for the customer's card. */
-interface ReaderPayment {
+/**
+ * A card payment out on the reader, waiting for the customer's card, with what
+ * this screen is doing about it (a press on its way, a test card presented).
+ */
+interface ReaderPayment extends ReaderPanelState {
   paymentId: number;
   amount: number;
   readerLabel: string;
@@ -203,21 +208,35 @@ function useCardReader({
     }
   };
 
+  // A press shows as taken until the server has answered it, so it can't be
+  // made twice: the reader's own answer comes later, with the next ask
+  // (lib/pos/readerPanelShared.ts). Settled payments have no panel to mark.
+  const markReaderPayment = (change: ReaderPanelState) =>
+    setReaderPayment((now) => (now ? { ...now, ...change } : now));
+
   const cancelReaderPayment = async () => {
     if (!paymentUrl) return;
+    markReaderPayment({ busy: "cancelling" });
     try {
       const res = await axios.delete(paymentUrl);
       applyState(res.data);
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Couldn't cancel the card payment"));
+    } finally {
+      // Still out on the reader (it could not be stopped, or the ask failed).
+      markReaderPayment({ busy: undefined });
     }
   };
 
   const presentTestCard = async (outcome: TestCardOutcome) => {
     if (!paymentUrl) return;
+    markReaderPayment({ busy: "presenting" });
     try {
       await axios.post(paymentUrl, { outcome });
+      // One card per payment: the reader answers it within a few seconds.
+      markReaderPayment({ busy: undefined, presented: true });
     } catch (err: unknown) {
+      markReaderPayment({ busy: undefined });
       toast.error(getErrorMessage(err, "Couldn't present the test card"));
     }
   };
@@ -261,31 +280,48 @@ function CardTenderNote({
       </p>
     );
   }
+  const says = readerPanelSays(readerPayment);
   return (
     <div
       role="status"
       className="space-y-3 rounded-lg border border-brand-blue/30 bg-brand-stripe p-4"
     >
-      <p className="font-semibold text-brand-blue">
-        Waiting for the card on &ldquo;{readerPayment.readerLabel}&rdquo;:{" "}
-        {fmt(readerPayment.amount)}
+      <p className="flex items-start gap-2 font-semibold text-brand-blue">
+        {/* Turning for as long as the screen is asking the reader how it went. */}
+        <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin" aria-hidden="true" />
+        <span>
+          Waiting for the card on &ldquo;{readerPayment.readerLabel}&rdquo;:{" "}
+          {fmt(readerPayment.amount)}
+        </span>
       </p>
-      {readerPayment.message && <p className="text-sm text-brand-gray">{readerPayment.message}</p>}
       <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={onCancel}>
+        <Button variant="secondary" onClick={onCancel} disabled={!says.canCancel}>
           Cancel card payment
         </Button>
         {readerPayment.simulated && (
           <>
-            <Button variant="secondary" onClick={() => onPresentTestCard("approve")}>
+            <Button
+              variant="secondary"
+              onClick={() => onPresentTestCard("approve")}
+              disabled={!says.canPresent}
+            >
               Present a test card
             </Button>
-            <Button variant="secondary" onClick={() => onPresentTestCard("decline")}>
+            <Button
+              variant="secondary"
+              onClick={() => onPresentTestCard("decline")}
+              disabled={!says.canPresent}
+            >
               Present a declined card
             </Button>
           </>
         )}
       </div>
+      {/* What is happening goes under the buttons, and their words stay as they
+          are: a line appearing above them moved them down, and a second press
+          then landed on a different button (Cancel) from the one first pressed. */}
+      {says.line && <p className="text-sm font-medium text-brand-blue">{says.line}</p>}
+      {readerPayment.message && <p className="text-sm text-brand-gray">{readerPayment.message}</p>}
     </div>
   );
 }
@@ -295,6 +331,21 @@ function tenderButtonLabel(busy: boolean, toReader: boolean, choice: string, amo
   if (busy) return "Processing...";
   if (toReader) return `Send ${amount} to the card reader`;
   return `Record ${choice} Payment -- ${amount}`;
+}
+
+/** The tender button's face: its words, with a turning mark while the payment is being taken. */
+function TenderButtonFace({
+  busy,
+  toReader,
+  choice,
+  amount,
+}: Readonly<{ busy: boolean; toReader: boolean; choice: string; amount: string }>) {
+  return (
+    <>
+      {busy && <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />}
+      {tenderButtonLabel(busy, toReader, choice, amount)}
+    </>
+  );
 }
 
 // The shared pricing vocabulary (PERCENT/AMOUNT) -- kept as an alias rather
@@ -2278,12 +2329,12 @@ function TakePaymentPanel({
             fullWidth
             className="h-[60px] text-lg"
           >
-            {tenderButtonLabel(
-              paymentProcessing || readerPayment !== null,
-              paymentMethod === "CARD" && registerReader !== null,
-              choiceLabel ?? "",
-              fmt(payingNow),
-            )}
+            <TenderButtonFace
+              busy={paymentProcessing || readerPayment !== null}
+              toReader={paymentMethod === "CARD" && registerReader !== null}
+              choice={choiceLabel ?? ""}
+              amount={fmt(payingNow)}
+            />
           </Button>
         </div>
       )}
