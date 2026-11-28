@@ -33,7 +33,7 @@ Adding a reader and each of these changes is recorded in the [audit trail](/app/
 
 ## Taking a card at the register
 
-Ring up the sale and choose the card tender. At a register with a reader, the button reads **Send $… to the card reader**. Press it, and the screen says it is waiting for the card on that reader.
+Ring up the sale and choose the card tender. At a register with a reader, the button reads **Send $… to the card reader**. Press it, and the screen says it is waiting for the card on that reader, with a turning mark for as long as it waits. The answer takes a few seconds after the card is presented.
 
 - **Approved:** the payment is recorded on the order with the card's brand and last four digits, and the sale finishes as usual.
 - **Declined:** the screen says why, and no payment is taken. You can send it again or take another kind of payment.
@@ -51,7 +51,7 @@ If a register is closed while a payment is still out on its reader, Holt checks 
 
 ## Trying it without a reader
 
-With a Stripe **test** key you can add a simulated reader: use the code **simulated-wpe**. At its register, the waiting screen has two buttons that stand in for the customer's card: **Present a test card**, which is approved, and **Present a declined card**, which shows what a decline looks like. No money moves in test mode.
+With a Stripe **test** key you can add a simulated reader: use the code **simulated-wpe**. At its register, the waiting screen has two buttons that stand in for the customer's card: **Present a test card**, which is approved, and **Present a declined card**, which shows what a decline looks like. Each takes one press. The buttons go grey and the panel says the card was presented; the reader's answer follows a few seconds later. No money moves in test mode.
 
 ## Refunds
 
