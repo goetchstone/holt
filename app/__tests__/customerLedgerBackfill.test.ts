@@ -12,12 +12,14 @@
 //   2. CANCELLED order status suppresses the SALE event entirely.
 //   3. Per-line CANCELLED filter works (matches computeBalance).
 //   4. Zero-amount events are skipped (rule 12 forbids them).
-//   5. VOIDED / FAILED payments are filtered (matches computeBalance).
+//   5. VOIDED / FAILED / PENDING payments are filtered (matches computeBalance).
+//   5b. Only a sale gets a SALE event: a quote does not (owed at submit).
 //   6. Sorting is chronological; ties break by row id deterministically.
 //   7. The full rewrite-chain shape (base + return + rewrite) produces
 //      the right event sequence — same scenario as the integration
 //      test but without DB I/O.
 
+import { computeSourceBalance } from "@/lib/customerLedger";
 import { buildBackfillEvents } from "@/lib/customerLedgerBackfill";
 
 // Minimal type matching `OrderRow` in the source file. We only use the
@@ -204,6 +206,49 @@ describe("buildBackfillEvents — filters", () => {
     const paymentEvents = events.filter((e) => e.type === "PAYMENT");
     expect(paymentEvents).toHaveLength(1);
     expect(paymentEvents[0].paymentId).toBe(1);
+  });
+
+  it("leaves out a PENDING payment: a link nobody has paid is not money received", () => {
+    const orders = [
+      order({
+        id: 1,
+        created: new Date("2024-10-04T10:00:00Z"),
+        lineItems: [line(1000)],
+        payments: [
+          payment({
+            id: 1,
+            paymentAmount: 1000,
+            status: "PENDING",
+            created: new Date("2024-10-04T10:10:00Z"),
+          }),
+        ],
+      }),
+    ];
+    const events = buildBackfillEvents(orders);
+
+    // It was ledgered as PAYMENT -1000: a balance of $0 on $1,000 still owed.
+    expect(events.map((e) => [e.type, e.amount])).toEqual([["SALE", 1000]]);
+    // And the events add up to what the balance check says is owed.
+    expect(events.reduce((sum, e) => sum + e.amount, 0)).toBe(computeSourceBalance(orders));
+  });
+
+  it("writes no SALE for a quote, and still writes the deposit taken on it", () => {
+    const orders = [
+      order({
+        id: 1,
+        status: "QUOTE",
+        created: new Date("2024-10-04T10:00:00Z"),
+        lineItems: [line(1000, 80)],
+        payments: [
+          payment({ id: 1, paymentAmount: 250, created: new Date("2024-10-04T10:10:00Z") }),
+        ],
+      }),
+    ];
+    const events = buildBackfillEvents(orders);
+
+    // A quote was backfilled as $1,080 owed. Owed begins when it becomes an order.
+    expect(events.map((e) => [e.type, e.amount])).toEqual([["PAYMENT", -250]]);
+    expect(events.reduce((sum, e) => sum + e.amount, 0)).toBe(computeSourceBalance(orders));
   });
 
   it("INCLUDES NULL-status payments (legacy POS imports)", () => {

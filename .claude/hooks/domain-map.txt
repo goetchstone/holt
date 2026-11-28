@@ -333,6 +333,7 @@ app/src/lib/sales/discountApproval.ts|docs/domains/pos.md
 app/src/lib/sales/discountPolicyShared.ts|docs/domains/pos.md
 app/src/lib/pos/*|docs/domains/pos.md
 app/src/lib/tillVariance.ts|docs/domains/pos.md
+app/src/lib/tillLock.ts|docs/domains/pos.md
 app/src/lib/openCheckoutPrompt.ts|docs/domains/pos.md
 app/src/lib/paymentMethodDisplay.ts|docs/domains/pos.md
 app/src/lib/payments/*|docs/domains/pos.md

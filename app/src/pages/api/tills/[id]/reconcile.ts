@@ -12,6 +12,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { lockTillForChange } from "@/lib/tillLock";
 import {
   classifyTillVariance,
   hasVarianceNote,
@@ -61,30 +62,43 @@ export async function handleReconcile(
 
     const { notes } = req.body;
     const suppliedNotes = typeof notes === "string" ? notes.trim() : "";
-    const existingNotes = till.notes ?? "";
-    const variance = till.variance ? Number(till.variance) : 0;
-    const classification = classifyTillVariance(variance);
 
-    // Defense-in-depth (CLAUDE.md rule 42: a guard present on one mutation
-    // path and missing on another is no guard at all). close.ts already
-    // refuses to CLOSE a till above the $5 threshold without a note, so in
-    // the normal flow this never fires -- it only matters if a till reaches
-    // CLOSED some other way (legacy rows, a future bulk path) without one.
-    if (
-      classification.requiresNote &&
-      !hasVarianceNote(suppliedNotes) &&
-      !hasVarianceNote(existingNotes)
-    ) {
-      res.status(400).json({ error: varianceNoteRequiredMessage(variance) });
-      return;
-    }
+    // Decided under the till's row lock (lib/tillLock.ts), from the row as it
+    // stands then. Two reconciles at once both passed the check above and both
+    // answered 200; the second wrote its note over the first's, built from the
+    // notes it had read before either had written.
+    const outcome = await client.$transaction(async (tx) => {
+      const locked = await lockTillForChange(tx, tillId);
+      if (!locked) return { refused: { status: 404, error: "Till not found" } } as const;
+      if (locked.status !== "CLOSED") {
+        return {
+          refused: { status: 400, error: "Till must be CLOSED before reconciliation" },
+        } as const;
+      }
+      const existingNotes = locked.notes ?? "";
+      const variance = locked.variance ? Number(locked.variance) : 0;
+      const classification = classifyTillVariance(variance);
 
-    const updated = await client.$transaction(async (tx) => {
+      // Defense-in-depth (CLAUDE.md rule 42: a guard present on one mutation
+      // path and missing on another is no guard at all). close.ts already
+      // refuses to CLOSE a till above the $5 threshold without a note, so in
+      // the normal flow this never fires -- it only matters if a till reaches
+      // CLOSED some other way (legacy rows, a future bulk path) without one.
+      if (
+        classification.requiresNote &&
+        !hasVarianceNote(suppliedNotes) &&
+        !hasVarianceNote(existingNotes)
+      ) {
+        return {
+          refused: { status: 400, error: varianceNoteRequiredMessage(variance) },
+        } as const;
+      }
+
       const reconciled = await tx.till.update({
         where: { id: tillId },
         data: {
           status: "RECONCILED",
-          notes: suppliedNotes ? `${existingNotes}\n${suppliedNotes}`.trim() : till.notes,
+          notes: suppliedNotes ? `${existingNotes}\n${suppliedNotes}`.trim() : locked.notes,
           updatedBy: session.user?.email || null,
         },
       });
@@ -93,14 +107,20 @@ export async function handleReconcile(
       // is the primary path that sets it, this just closes the gap for any
       // till that reached CLOSED without going through close.ts's check.
       await applyRegisterVarianceBlock(tx, {
-        registerId: till.registerId,
+        registerId: locked.registerId,
         tillId,
         variance,
         classification,
       });
 
-      return reconciled;
+      return { reconciled, classification };
     });
+
+    if (outcome.refused) {
+      res.status(outcome.refused.status).json({ error: outcome.refused.error });
+      return;
+    }
+    const { reconciled: updated, classification } = outcome;
 
     res.status(200).json({
       ...updated,
