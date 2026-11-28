@@ -20,6 +20,7 @@ import { getAppSettings } from "@/lib/appSettings";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
 import { toQty } from "@/lib/inventory/quantity";
+import { sellerColumns } from "@/lib/sales/orderSeller";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -44,6 +45,7 @@ export default requirePermission(
               orderBy: { sortOrder: "asc" },
               where: { showInOutput: true },
             },
+            salesPerson: { select: { id: true, displayName: true } },
           },
         });
 
@@ -82,7 +84,7 @@ export default requirePermission(
             taxDistrictId: taxDistrict.taxDistrictId,
             taxExemptReasonId: taxDistrict.taxExemptReasonId,
             customerId: proposal.customerId,
-            salesPersonId: proposal.salesPersonId,
+            ...sellerColumns(proposal.salesPerson),
             storeLocation: "B2B",
             orderNotes: proposal.internalNotes
               ? `B2B Proposal ${proposal.proposalNumber}. ${proposal.internalNotes}`

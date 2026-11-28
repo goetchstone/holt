@@ -374,6 +374,9 @@ describe("each page hands its view what the viewer's keys allow", () => {
       canReassign: false,
       canVoidPayment: false,
       canSendPaymentLink: true,
+      // Takes payments and operates the register: an earlier order's balance
+      // can be taken there (orderToPay.integration.test.ts has the other cases).
+      canTakeAtRegister: true,
       canPortalLink: true,
       canDeleteQuote: false,
     });
@@ -388,6 +391,7 @@ describe("each page hands its view what the viewer's keys allow", () => {
       canReassign: true,
       canVoidPayment: true,
       canSendPaymentLink: true,
+      canTakeAtRegister: true,
       canPortalLink: true,
       canDeleteQuote: true,
     });

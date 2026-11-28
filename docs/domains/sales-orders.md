@@ -103,6 +103,16 @@ The status derivation logic handles the daily feed going forward. The one-time r
 
 If `SalesOrder.salesPersonId` is set (manual correction from split import or reassignment), the daily sales import skips updating the `salesperson` string field to avoid overwriting the correction. Detected via the `correctedOrders` set in `runSalesImport()` (`lib/adapters/legacyPos/runners.ts:177`). A second set, `lockedOrders` (`runners.ts:190`), suppresses the same write for existing orders dated inside a confirmed (not reopened) commission period, matched by salesperson NAME or FK; either set is enough (`runners.ts:330`).
 
+## An order written here names its seller both ways (2026-11-27)
+
+Who sold an order is two columns: `salesPersonId` (the staff member) and `salesperson` (their name as text). An imported order has only the name, which is why every reader matches either (below). An order written in Holt knows the staff member, and writes both through one function, `sellerColumns` (`lib/sales/orderSeller.ts`).
+
+Four writers wrote half until 2026-11-27. The register (`create-from-cart.ts`), Duplicate order (`lib/sales/duplicateOrder.ts`) and a house call (`service/house-calls/index.ts`) wrote the name and no link; a converted proposal (`proposals/[id]/convert-to-order.ts`) wrote the link and no name. The name alone matches only until the person's display name changes, and the duplicate-quote check, which tells two designers' quotes for one customer apart by the link, could not see those quotes. The link alone left the order "Unassigned" in every list that reads the name. The other writers already wrote both: reassigning (`orders/[id]/salesperson.ts`, `reports/pipeline-reassign.ts`) and a return order (`lib/returns/bookReturn.ts`, copied from its sale). The two importers write the name the document gives.
+
+A register session with no staff row still names its email and links nobody. Orders written before this keep what they had; nothing backfills them (the import's sweep, `lib/salesPersonFkBackfill.ts`, runs only after a sales import).
+
+Tested in `__tests__/integration/orderSeller.integration.test.ts` (six cases through the real routes; four fail on the old writers). No test lists the writers: they were found by searching for writes of `salesperson`, so a fifth would be found the same way.
+
 ## Per-line-item salesperson splits — NOT SUPPORTED (manual workaround required)
 
 **Our schema cannot represent splitting an individual line item between two salespeople.** Verified 2026-05-22 against `schema.prisma`:
@@ -448,6 +458,14 @@ payment promotes a quote whatever the setting, and a sale with nothing to pay ca
 - **An invoice doesn't follow a line change when no money moves.** Cancelling a line on a part-paid sale with a live
   invoice goes ahead, and the invoice keeps its old amounts.
 - **Setting a dispatch status to cancelled** (`dispatch.ts`) still only frees the stock. It doesn't cancel the sale.
+
+### Taking a payment from the order (2026-11-27)
+
+Beside Balance Due the order page offers three ways to be paid: Apply store credit, a payment link, and **Take payment at the register**, which opens the register's payment screen on this order for cash, a check, a gift card or a card on the reader (pos.md, "Taking a payment on an order written earlier"). The last is offered to someone who holds `payment.take` and `pos.operate` while the register module is on, on an order that owes something and is not cancelled. Before it, a balance could only be paid by link or store credit.
+
+### Voiding a pending payment from the order (2026-11-27)
+
+The order page lists each payment with a **Void** on a pending one (`payment.void`). `GET /api/sales/orders/[id]` marks a payment that was sent to a register's card reader (`onCardReader`, from the row's `processorData`), and the page words the Void by it: for a reader payment it asks to cancel the card payment waiting on the reader and says a card that has already gone through is recorded instead; for a payment link it says the customer will need a new link. The route (`payments/[paymentId]/void.ts`) cancels a reader payment on the reader first (pos.md, "Card readers"). When the void is refused, the page reloads the order, so it shows what the payment has become.
 
 ## Invoice tools (GAP-07, since 2026-11-03)
 

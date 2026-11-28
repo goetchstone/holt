@@ -559,7 +559,7 @@ describe("every writer that runs the policy applies the tier", () => {
     const copy = await prisma.$transaction((tx) =>
       duplicateOrder(tx, {
         orderId: sale.body.id,
-        actor: { email: "manager@example.com", displayName: "manager" },
+        actor: { email: "manager@example.com", staff: null },
         settings,
       }),
     );

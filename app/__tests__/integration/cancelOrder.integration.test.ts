@@ -1982,3 +1982,44 @@ describe("refunding unused gift cards (Settings)", () => {
     expect(entry.summary).toContain("giftCardsRefundable");
   });
 });
+
+describe("the order's list of payments", () => {
+  it("says which pending payment is waiting on a card reader", async () => {
+    // The order page words its Void by this: a reader payment is cancelled on
+    // the reader, a link is voided and the customer needs a new one.
+    const { order } = await makeOrder();
+    const pending = { salesOrderId: order.id, paymentDate: new Date(), status: "PENDING" as const };
+    await prisma.payment.create({
+      data: {
+        ...pending,
+        paymentType: "Card",
+        method: "CARD",
+        paymentAmount: 200,
+        processorType: "STRIPE",
+        processorTxnId: "pi_test_reader",
+        processorData: { cardReader: true, readerId: "tmr_test_1" },
+      },
+    });
+    await prisma.payment.create({
+      data: {
+        ...pending,
+        paymentType: "Card",
+        method: "CARD",
+        paymentAmount: 300,
+        processorType: "STRIPE",
+        processorTxnId: "cs_test_link",
+      },
+    });
+
+    const res = await call(orderRoute, "boss", { method: "GET", query: { id: String(order.id) } });
+
+    expect(res.status).toBe(200);
+    const payments = res.body.payments as { paymentAmount: number; onCardReader: boolean }[];
+    expect(payments.map((p) => [p.paymentAmount, p.onCardReader])).toEqual(
+      expect.arrayContaining([
+        [200, true],
+        [300, false],
+      ]),
+    );
+  });
+});

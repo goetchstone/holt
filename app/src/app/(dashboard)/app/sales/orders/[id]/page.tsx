@@ -8,6 +8,7 @@
 // /sales/orders list -- distinct path, no collision.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { OrderDetailView } from "./OrderDetailView";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   // Each guarded control is offered to the holders of the key its route
   // requires, and the route checks it again: undo handover (GAP-07), change
   // salesperson, void a pending payment, create a payment link, generate or
-  // text a portal link, and delete a quote.
+  // text a portal link, and delete a quote. Taking a payment at the register
+  // needs the register's page as well as the payment: the page it opens is
+  // gated on "Operate register" and on the register being switched on.
   const { holds } = await requirePage(undefined, {
     permission: "sales.read",
     also: [
@@ -23,10 +26,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       "sales.reassign",
       "payment.void",
       "payment.take",
+      "pos.operate",
       "sales.write",
       "sales.cancel",
     ],
   });
+  const canTakeAtRegister =
+    holds["payment.take"] && holds["pos.operate"] && (await isModuleEnabled("pos"));
   return (
     <OrderDetailView
       id={id}
@@ -34,6 +40,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       canReassign={holds["sales.reassign"]}
       canVoidPayment={holds["payment.void"]}
       canSendPaymentLink={holds["payment.take"]}
+      canTakeAtRegister={canTakeAtRegister}
       canPortalLink={holds["sales.write"]}
       canDeleteQuote={holds["sales.cancel"]}
     />

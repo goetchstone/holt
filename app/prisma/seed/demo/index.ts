@@ -328,6 +328,10 @@ async function main(): Promise<void> {
   const { recalculateCustomerLevels } = await import("@/lib/customerLeveling");
   await recalculateCustomerLevels();
 
+  // Before saying it is done: is what was written right? (verify.ts)
+  const { assertSeedIsSound } = await import("./verify");
+  await assertSeedIsSound(prisma);
+
   console.log(
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
       `(${inventoryResult.committedPositions} committed to orders, ` +
@@ -496,15 +500,16 @@ async function main(): Promise<void> {
       `(active staff sell through ${activeLatest?.toISOString().slice(0, 10) ?? "n/a"})`,
   );
   // --reset truncates EVERY table, including ones this seeder does not own. Run
-  // alone it therefore deletes the CMS content and the roles and does not put
-  // them back -- which shows up later as the storefront having lost its copy,
-  // with nothing in the log to explain it.
+  // alone it therefore deletes the CMS content and does not put it back --
+  // which shows up later as the storefront having lost its copy, with nothing
+  // in the log to explain it. The built-in roles it also empties are put back
+  // by seedStaff, before any staff (staff.ts); a role a store made itself is
+  // not.
   if (reset) {
     console.log("");
     console.log("NOTE: --reset truncated tables this seeder does not own. Also run:");
-    console.log("        npm run seed:roles     (Role, RolePermission)");
     console.log("        npm run seed:cms       (Page, Post, Menu, MediaAsset)");
-    console.log("      or use `npm run seed:all`, which runs all three in order.");
+    console.log("      or use `npm run seed:all`, which runs it after this.");
   }
 
   await prisma.$disconnect();

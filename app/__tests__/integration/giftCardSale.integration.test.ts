@@ -476,7 +476,7 @@ describe("a card line after the sale is written", () => {
     const copy = await prisma.$transaction((tx) =>
       duplicateOrder(tx, {
         orderId: order.id,
-        actor: { email: ACTOR, displayName: "Register" },
+        actor: { email: ACTOR, staff: null },
         settings,
       }),
     );

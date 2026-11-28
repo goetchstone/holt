@@ -23,6 +23,13 @@ const TIERED_CUSTOMERS = 5;
 /** Of those, how many get a quote at their tier. */
 const TIER_PRICED_QUOTES = 2;
 
+/** The staff member a copied quote is written by. */
+interface Seller {
+  id: number;
+  email: string | null;
+  displayName: string;
+}
+
 export async function seedTradePricing(
   prisma: PrismaClient,
   now: Date,
@@ -50,12 +57,22 @@ export async function seedTradePricing(
       },
     },
     orderBy: { id: "asc" },
-    select: { id: true, customerId: true },
+    select: {
+      id: true,
+      customerId: true,
+      salesPerson: { select: { id: true, email: true, displayName: true, isActive: true } },
+    },
   });
-  const toCopy: { orderId: number; customerId: number }[] = [];
+  // Duplicate order makes whoever copies the sale the quote's salesperson. The
+  // copies used to be made as the seed itself, so two quotes in the demo were
+  // sold by "seed:demo". Each is now copied by the person who sold the
+  // original, where they still work here: a quote written today is not written
+  // by someone who has left (index.ts checks that nobody archived sells late).
+  const toCopy: { orderId: number; customerId: number; seller: Seller }[] = [];
   for (const sale of sales) {
     if (sale.customerId == null || toCopy.some((c) => c.customerId === sale.customerId)) continue;
-    toCopy.push({ orderId: sale.id, customerId: sale.customerId });
+    if (!sale.salesPerson?.isActive) continue;
+    toCopy.push({ orderId: sale.id, customerId: sale.customerId, seller: sale.salesPerson });
     if (toCopy.length === TIER_PRICED_QUOTES) break;
   }
   const others = await prisma.customer.findMany({
@@ -76,11 +93,11 @@ export async function seedTradePricing(
       });
     }
     const copies = [];
-    for (const { orderId } of toCopy) {
+    for (const { orderId, seller } of toCopy) {
       copies.push(
         await duplicateOrder(tx, {
           orderId,
-          actor: { email: SEED_ACTOR, displayName: null },
+          actor: { email: seller.email, staff: seller },
           settings,
           now,
         }),

@@ -34,7 +34,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     if (!existing || existing.salesOrderId !== orderId) return notFound(res, "Payment");
 
     if (req.method === "POST") {
-      await presentTestCard(paymentId);
+      // Anything but an asked-for decline presents the card that is approved.
+      const decline = (req.body as { outcome?: unknown } | undefined)?.outcome === "decline";
+      await presentTestCard(paymentId, decline ? "decline" : "approve");
       return success(res, { presented: true });
     }
     const state =

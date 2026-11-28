@@ -9,14 +9,25 @@
 
 import { requirePage } from "@/lib/auth/requirePage";
 import { splitSaleSetup } from "@/lib/sales/splitSaleSetup";
+import { orderToPayFromQuery } from "@/lib/sales/orderToPay";
 import { PosView } from "./PosView";
 
-export default async function PosPage() {
+export default async function PosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ order?: string | string[] }>;
+}) {
   // Splitting a sale moves commission: offered to "Reassign salesperson" (GAP-07).
   const { userId, holds } = await requirePage(undefined, {
     permission: "pos.operate",
     feature: "pos",
-    also: ["sales.reassign"],
+    also: ["sales.reassign", "payment.take"],
   });
-  return <PosView splitSetup={await splitSaleSetup(userId, holds["sales.reassign"])} />;
+  const { order } = await searchParams;
+  return (
+    <PosView
+      splitSetup={await splitSaleSetup(userId, holds["sales.reassign"])}
+      payOrder={await orderToPayFromQuery(order, holds["payment.take"])}
+    />
+  );
 }

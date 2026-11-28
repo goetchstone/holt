@@ -17,6 +17,7 @@ const stripe = {
       cancelAction: jest.fn(),
     },
   },
+  testHelpers: { terminal: { readers: { presentPaymentMethod: jest.fn() } } },
   checkout: { sessions: { retrieve: jest.fn() } },
   refunds: { create: jest.fn() },
 };
@@ -159,6 +160,22 @@ describe("cancelTerminalCheckout", () => {
     await expect(stripeProvider.cancelTerminalCheckout!("pi_1", "tmr_1")).resolves.toBeUndefined();
     expect(stripe.terminal.readers.cancelAction).toHaveBeenCalledWith("tmr_1");
     expect(stripe.paymentIntents.cancel).toHaveBeenCalledWith("pi_1");
+  });
+});
+
+describe("simulateCardPresented (a simulated reader, test mode)", () => {
+  it("presents Stripe's default test card when no outcome is asked for", async () => {
+    await stripeProvider.simulateCardPresented!("tmr_1");
+    // No card named: Stripe then presents its Visa, which is approved.
+    expect(stripe.testHelpers.terminal.readers.presentPaymentMethod).toHaveBeenCalledWith("tmr_1");
+  });
+
+  it("presents the test card Stripe always declines when a decline is asked for", async () => {
+    await stripeProvider.simulateCardPresented!("tmr_1", "decline");
+    expect(stripe.testHelpers.terminal.readers.presentPaymentMethod).toHaveBeenCalledWith("tmr_1", {
+      type: "card_present",
+      card_present: { number: "4000000000000002" },
+    });
   });
 });
 

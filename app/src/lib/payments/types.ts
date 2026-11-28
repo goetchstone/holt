@@ -219,6 +219,9 @@ export interface RegisterReaderRequest {
   locationId: string;
 }
 
+/** What a test card presented to a simulated reader should do. */
+export type TestCardOutcome = "approve" | "decline";
+
 /** A reader as the processor knows it. */
 export interface ProcessorReader {
   id: string;
@@ -276,8 +279,11 @@ export interface PaymentProvider {
   /** Null when the processor no longer has the reader. */
   getReader?(readerId: string): Promise<ProcessorReader | null>;
   removeReader?(readerId: string): Promise<void>;
-  /** Test mode only: present a test card to a simulated reader. */
-  simulateCardPresented?(readerId: string): Promise<void>;
+  /**
+   * Test mode only: present a test card to a simulated reader. With no outcome
+   * the processor's default card is presented, which is approved.
+   */
+  simulateCardPresented?(readerId: string, outcome?: TestCardOutcome): Promise<void>;
 
   testConnection(): Promise<ConnectionTestResult>;
   /**

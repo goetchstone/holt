@@ -276,11 +276,19 @@ export function buildOrderPlans(
         : weightedPick(detailRng, designerWeights);
 
     const hasCustomer = chance(detailRng, CUSTOMER_ASSIGNMENT_PROBABILITY);
-    const customer = hasCustomer ? pick(detailRng, customers) : null;
-    const taxExemptReasonId = customer?.taxExemptReasonId ?? null;
-    const isTaxExempt = taxExemptReasonId != null;
+    const drawnCustomer = hasCustomer ? pick(detailRng, customers) : null;
 
     const isInvoiced = chance(detailRng, INVOICED_SHARE);
+
+    // An anonymous counter sale is a floor sale. An order that waits for its
+    // goods is delivered to, or collected by, somebody: one in ten delivery
+    // orders had no customer at all. Chosen by position, not drawn, so every
+    // later draw (and so the rest of the history) is what it was.
+    const customer =
+      drawnCustomer ??
+      (isInvoiced || customers.length === 0 ? null : customers[i % customers.length]);
+    const taxExemptReasonId = customer?.taxExemptReasonId ?? null;
+    const isTaxExempt = taxExemptReasonId != null;
 
     let method = weightedPick(
       detailRng,

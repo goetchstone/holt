@@ -33,6 +33,7 @@ import type {
   SessionStatus,
   TerminalCheckoutRequest,
   TerminalCheckoutResult,
+  TestCardOutcome,
   VerifiedWebhookEvent,
   WebhookVerifyRequest,
 } from "@/lib/payments/types";
@@ -55,6 +56,12 @@ function toMinorUnits(amount: number): number {
  * PaymentIntent, so only the ones created below carry this.
  */
 export const READER_PAYMENT_FLAG = "holt_reader_payment";
+
+/**
+ * Stripe's published test card that a simulated reader always declines
+ * (card_declined). Test mode only; it is not a real card number.
+ */
+const DECLINED_TEST_CARD = "4000000000000002";
 
 /** Stripe's reader status as a yes or no; anything else is "it does not say". */
 const READER_ONLINE: Record<string, boolean> = { online: true, offline: false };
@@ -396,8 +403,16 @@ export const stripeProvider: PaymentProvider = {
     }
   },
 
-  async simulateCardPresented(readerId: string): Promise<void> {
+  async simulateCardPresented(readerId: string, outcome: TestCardOutcome = "approve") {
     const stripe = await getStripe();
+    if (outcome === "decline") {
+      await stripe.testHelpers.terminal.readers.presentPaymentMethod(readerId, {
+        type: "card_present",
+        card_present: { number: DECLINED_TEST_CARD },
+      });
+      return;
+    }
+    // No card named: Stripe presents its default test Visa, which is approved.
     await stripe.testHelpers.terminal.readers.presentPaymentMethod(readerId);
   },
 

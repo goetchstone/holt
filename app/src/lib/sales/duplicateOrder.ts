@@ -47,6 +47,7 @@ import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
 import { businessDayKey } from "@/lib/reports/businessDay";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
+import { sellerColumns } from "@/lib/sales/orderSeller";
 import { orderDeliveryZip, quoteDeliveryFee, setDeliveryFee } from "@/lib/delivery/deliveryFee";
 import { deliveryPieces } from "@/lib/delivery/deliveryFeeShared";
 
@@ -67,8 +68,11 @@ type NumberingSettings = Parameters<typeof effectivePrefix>[0] & { timezone: str
 
 export interface DuplicateOrderInput {
   orderId: number;
-  /** Who is writing the copy: its salesperson, as a register sale records it. */
-  actor: { email: string | null; displayName: string | null };
+  /**
+   * Who is writing the copy: its salesperson, as a register sale records it.
+   * `staff` is their staff row; without one the copy names the email.
+   */
+  actor: { email: string | null; staff: { id: number; displayName: string } | null };
   settings: NumberingSettings;
   now?: Date;
 }
@@ -219,7 +223,7 @@ export async function duplicateOrder(
       customerId: source.customerId,
       taxDistrictId: taxDistrict.taxDistrictId,
       taxExemptReasonId: taxDistrict.taxExemptReasonId,
-      salesperson: input.actor.displayName || input.actor.email,
+      ...sellerColumns(input.actor.staff, input.actor.email),
       storeLocation: source.storeLocation,
       storeLocationId: source.storeLocationId,
       deliveryMethod: source.deliveryMethod,

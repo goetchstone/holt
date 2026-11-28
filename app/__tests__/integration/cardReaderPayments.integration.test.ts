@@ -122,8 +122,17 @@ const stripe = {
   testHelpers: {
     terminal: {
       readers: {
-        presentPaymentMethod: async () => {
-          approve(fake.readerAction!.process_payment_intent.payment_intent);
+        presentPaymentMethod: async (
+          _reader: string,
+          params?: { card_present?: { number?: string } },
+        ) => {
+          const id = fake.readerAction!.process_payment_intent.payment_intent;
+          // Stripe's test card that is always declined; any other is approved.
+          if (params?.card_present?.number === "4000000000000002") {
+            decline(id, "Your card was declined.");
+          } else {
+            approve(id);
+          }
           return {};
         },
       },
@@ -499,6 +508,31 @@ describe("a card payment on a register's reader (real DB, stand-in Stripe)", () 
     });
     await presentTestCard(started.paymentId);
     expect((await settleReaderPayment(started.paymentId)).status).toBe("APPROVED");
+  });
+
+  it("presents a declined test card when asked, and the decline is handled like any other", async () => {
+    const { order, register } = await seed({ deviceType: "simulated_wisepos_e" });
+    const started = await startReaderPayment(order.id, {
+      amount: 200,
+      registerId: register.id,
+      actor: null,
+    });
+
+    await presentTestCard(started.paymentId, "decline");
+
+    const state = await settleReaderPayment(started.paymentId);
+    expect(state).toMatchObject({ status: "DECLINED", message: "Your card was declined." });
+    expect(await ledgerRows(started.paymentId)).toBe(0);
+    expect((await calculateOrderBalance(order.id)).totalPaid).toBe(0);
+    // The next try is a new payment, and it can go through.
+    const again = await startReaderPayment(order.id, {
+      amount: 200,
+      registerId: register.id,
+      actor: null,
+    });
+    expect(again.paymentId).not.toBe(started.paymentId);
+    await presentTestCard(again.paymentId);
+    expect((await settleReaderPayment(again.paymentId)).status).toBe("APPROVED");
   });
 });
 

@@ -28,6 +28,7 @@ import { getAppSettings } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { assertCapability, getProviderForPayment } from "@/lib/payments";
+import type { TestCardOutcome } from "@/lib/payments/types";
 import { isSimulatedReader, processorRefusal, readerAtRegister } from "@/lib/payments/cardReaders";
 import {
   calculateOrderBalance,
@@ -364,8 +365,15 @@ export async function closeStaleReaderPayment(paymentId: number): Promise<boolea
   }
 }
 
-/** Test mode: present a test card to the simulated reader holding this payment. */
-export async function presentTestCard(paymentId: number): Promise<void> {
+/**
+ * Test mode: present a test card to the simulated reader holding this payment.
+ * "decline" presents the processor's test card that is always declined, so a
+ * decline can be seen without a real card or a special amount.
+ */
+export async function presentTestCard(
+  paymentId: number,
+  outcome: TestCardOutcome = "approve",
+): Promise<void> {
   const { payment, reader } = await loadReaderPayment(paymentId);
   if (payment.status !== "PENDING") {
     throw new ApiError(409, "This payment is no longer waiting for a card.");
@@ -378,7 +386,7 @@ export async function presentTestCard(paymentId: number): Promise<void> {
   }
   const provider = getProviderForPayment(payment.processorType);
   try {
-    await provider.simulateCardPresented!(reader.readerId);
+    await provider.simulateCardPresented!(reader.readerId, outcome);
   } catch (err) {
     throw processorRefusal(`${provider.displayName} didn't present the test card`, err);
   }
