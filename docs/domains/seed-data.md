@@ -138,7 +138,12 @@ stops it, listing the problems, unless:
    and each open order has neither;
 4. stock is held only for a quote or an open order, and no more of a product
    than its lines are waiting for;
-5. each delivery or pickup order names a customer.
+5. each delivery or pickup order names a customer;
+6. what each customer is stored as owing is what their ledger entries add up
+   to, and what their orders and payments say (`computeSourceBalance`, the
+   figure the daily drift check holds the ledger to). This one is not a bug
+   that was found: it holds the seeded ledgers to what they were built from
+   ("Deposits, and what customers owe").
 
 It sits beside the older checks at the end of `index.ts` (archived staff stop
 selling well before the end; floor staff sell). The seed runs in CI's setup step
@@ -146,18 +151,19 @@ selling well before the end; floor staff sell). The seed runs in CI's setup step
 scale. Add a check there when a wrong-but-present row is found: say what must be
 true of a seeded database, not what the bug was.
 
-Tested in `__tests__/integration/demoSeedSound.integration.test.ts` (eight
-cases; the three on staff fail on the old staff seed). Watched failing: the old
-seed code, run under the new check, stopped with all five kinds listed (30
-staff, 2 quotes, 422 delivered orders, 1 held position, 18 delivery orders, at
-the small scale). The fixed seed passes at both scales.
+Tested in `__tests__/integration/demoSeedSound.integration.test.ts` (twelve
+cases; the three on staff fail on the old staff seed, and four are the ledgers
+and check 6). Watched failing: the old seed code, run under the new check,
+stopped with all five kinds listed (30 staff, 2 quotes, 422 delivered orders, 1
+held position, 18 delivery orders, at the small scale). The fixed seed passes
+at both scales.
 
 **Read past the check.** What it does not look at is still unexamined. Known and
-left: every sale is paid in full, so no customer owes anything (the customer
-ledger and open balances are the next seed tranche, `money-detail`); no order
-has a cancelled or replaced line; and the small scale (`seed:all`'s default) has
-every open order waiting on its vendor, so its dispatch board has nothing to
-schedule. Use `--scale=demo` for a database to show someone.
+left: no order has a cancelled or replaced line; a delivered order was paid in
+full the day it was written (no deposit followed by a balance at delivery); and
+the small scale (`seed:all`'s default) has every open order waiting on its
+vendor, so its dispatch board has nothing to schedule. Use `--scale=demo` for a
+database to show someone.
 
 ### Deriving realistic data without copying any
 
@@ -422,6 +428,53 @@ Every order carries its store's NAME (`storeLocation`) as well as its id, the wa
 register writes it (`create-from-cart.ts`). With only the id, every report that groups
 by the name, the dashboard's store cards among them, put the whole history under
 "Unknown" and showed each store $0.
+
+### Deposits, and what customers owe (2026-11-28)
+
+Until this change every seeded sale was paid in full the day it was written, so
+nobody in the demo owed anything: balance aging, statements, the "balance due"
+columns on the dispatch board and the customer ledger all had nothing to show,
+and there was no balance to try "Take payment at the register" on.
+
+- **Deposits** (`orderPlan.ts` `paidAtSale`). A sale that has gone out is paid
+  in full. Of the orders still waiting for their goods, two in three carry a
+  deposit of half (`DEPOSIT_SHARE`) and owe the rest. Which ones is decided by
+  the order's place in the plan (`index % 3`), not drawn, so every draw after it
+  is what it was. Card and cash only: a gift card or store credit is spent
+  against a balance the seed books to the cent. An order with no customer pays
+  in full, having no account to owe on. One payment row per order still, so the
+  payment mix above is unchanged; the deposit books to "Pmt On Acct" as before.
+- **Ledgers** (`customerLedgers.ts`). Last in the seed, after every module that
+  writes an order or a payment, each customer's ledger is built by the backfill
+  a store runs for the history it brings with it (`lib/customerLedgerBackfill.ts`):
+  a SALE for each sale and return, a PAYMENT for each payment that is money in
+  hand, in date order, with `Customer.openArBalance` stored at the end. A quote
+  and an unpaid payment link are not ledgered. The step stops the seed unless
+  every ledger agrees with its orders and payments, and `verify.ts` holds the
+  result to that afterwards (check 6 above).
+- **Returns are still written by the seed itself**, not by `bookReturn`: that
+  appends to the ledger as it goes, and an entry written before the ledgers are
+  built would make the backfill hand that customer back for review.
+
+Measured on a seeded scratch database (2026-11-28):
+
+| | Small scale | Full scale |
+| --- | --- | --- |
+| Open orders, and of them on a deposit | 11, 9 | 244, 154 |
+| Customers owing, and what they owe between them | 8, $8,368.57 | 148, $78,108.96 |
+| Ledger entries, and customers with a ledger | 848, 161 | 11,926, 1,368 |
+| SALE / PAYMENT / REFUND_ISSUED entries | 424 / 403 / 21 | 5,963 / 5,610 / 353 |
+
+At both: every stored balance equal to its ledger's sum, every delivered order
+paid in full, no customer in credit, and the sampled journals balanced with no
+over or short. The pure rule is tested in `__tests__/seedDeposits.test.ts`.
+
+**What a seeded ledger does not show.** The application does not yet post a SALE
+to the ledger when a quote becomes an order (`docs/domains/accounting.md`,
+"Still missing"). A sale rung in a seeded database afterwards adds only its
+payments to that customer's ledger, so their balance goes down by what they
+paid. That is the application's gap, not the seed's; the daily drift check
+reports it.
 
 ### Today, and the same date last year
 
@@ -809,13 +862,13 @@ keep around.
 
 ## What was deliberately left out, and why
 
-- **The AR ledger (`CustomerLedgerEntry` / `Customer.openArBalance`).** Not in the task's
-  explicit generation list, and it's a parallel subsystem to the JE pipeline (per
-  `docs/domains/accounting.md`: "Distinct from the JE pipeline above"). Populating it
-  only for the subset of flows this seed touches (payments, refunds) without also
-  covering sales/adjustments would leave it in a WORSE, half-consistent state than not
-  touching it at all — every seeded `Customer.openArBalance` stays at its schema default
-  rather than drifting from a partial implementation.
+- **The AR ledger: no longer left out (2026-11-28).** This bullet said the ledger was
+  skipped because writing it for payments and refunds alone would leave it half
+  consistent. It is now built whole, at the end of the seed, from every order and
+  payment ("Deposits, and what customers owe"). What is still not modelled is the
+  application's own gap: nothing posts a SALE to the ledger when a quote becomes an
+  order (`docs/domains/accounting.md`, "Still missing"), so a sale rung in a seeded
+  database after seeding adds only its payments to that customer's ledger.
 - **`InvoiceLineItem` rows on order invoices.** `generateSalesJournal` never reads them
   (only `invoices.length > 0`), and skipping them lets order-line creation batch through
   `createMany`. See "Floor sales, delivery orders, and when a delivery order is

@@ -12,6 +12,7 @@
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { stockAt } from "../helpers/stock";
+import { seedCustomerLedgers } from "../../prisma/seed/demo/customerLedgers";
 import { seedStaff } from "../../prisma/seed/demo/staff";
 import { assertSeedIsSound, seedProblems } from "../../prisma/seed/demo/verify";
 
@@ -271,5 +272,126 @@ describe("the seed's own check of orders and the stock held for them", () => {
     expect(problems).toHaveLength(6);
     expect(problems[5]).toBe("... and 3 more of the same kind.");
     await expect(assertSeedIsSound(prisma)).rejects.toThrow(/6 problem\(s\)/);
+  });
+});
+
+describe("the seed's customer ledgers, and its check of them", () => {
+  beforeEach(async () => {
+    await resetTestDb();
+  });
+
+  /** A customer with one order of $1,000 and $60 tax, and the payments given. */
+  async function customerWithOrder(
+    status: "QUOTE" | "ORDER" | "FULFILLED",
+    payments: { paymentAmount: number; status: "COMPLETED" | "PENDING" }[],
+  ) {
+    const customer = await prisma.customer.create({
+      data: { firstName: "Ana", lastName: "Reyes" },
+    });
+    const day = new Date("2026-11-01T15:00:00Z");
+    // A delivered order is delivered in the other checks' eyes too.
+    const delivered = status === "FULFILLED";
+    await prisma.salesOrder.create({
+      data: {
+        orderno: `SO-${customer.id}`,
+        status,
+        orderDate: day,
+        created: day,
+        deliveredAt: delivered ? day : null,
+        customerId: customer.id,
+        lineItems: {
+          create: [
+            {
+              lineNumber: 1,
+              netPrice: 1000,
+              vatAmount: 60,
+              cost: 400,
+              orderedQuantity: 1,
+              fulfilledQty: delivered ? 1 : 0,
+            },
+          ],
+        },
+        payments: {
+          create: payments.map((p) => ({
+            ...p,
+            paymentDate: day,
+            created: day,
+            paymentType: "Card",
+          })),
+        },
+      },
+    });
+    return customer;
+  }
+
+  const owed = async (customerId: number) =>
+    Number((await prisma.customer.findUniqueOrThrow({ where: { id: customerId } })).openArBalance);
+
+  it("builds each customer's ledger from their orders and payments, and says who owes what", async () => {
+    // A deposit order, a sale paid in full, and a quote with a payment link nobody paid.
+    const deposit = await customerWithOrder("ORDER", [{ paymentAmount: 530, status: "COMPLETED" }]);
+    const paid = await customerWithOrder("FULFILLED", [
+      { paymentAmount: 1060, status: "COMPLETED" },
+    ]);
+    const quoted = await customerWithOrder("QUOTE", [{ paymentAmount: 1060, status: "PENDING" }]);
+
+    const result = await seedCustomerLedgers(prisma);
+
+    expect(result).toEqual({
+      customersWithALedger: 2,
+      entriesCreated: 4,
+      customersOwing: 1,
+      totalOwed: 530,
+    });
+    expect([await owed(deposit.id), await owed(paid.id), await owed(quoted.id)]).toEqual([
+      530, 0, 0,
+    ]);
+    expect(await seedProblems(prisma)).toEqual([]);
+  });
+
+  it("fails the seed's own check when a customer's ledger was never built", async () => {
+    const customer = await customerWithOrder("ORDER", [
+      { paymentAmount: 530, status: "COMPLETED" },
+    ]);
+
+    // What every customer in the demo looked like: orders, payments, no ledger.
+    expect(await seedProblems(prisma)).toEqual([
+      `Customer ${customer.id} is stored as owing 0.00; their ledger adds up to 0.00 and their ` +
+        `orders and payments to 530.00.`,
+    ]);
+  });
+
+  it("fails the seed's own check when what is stored and the ledger part ways", async () => {
+    const customer = await customerWithOrder("ORDER", [
+      { paymentAmount: 530, status: "COMPLETED" },
+    ]);
+    await seedCustomerLedgers(prisma);
+    await prisma.customer.update({ where: { id: customer.id }, data: { openArBalance: 99 } });
+
+    expect(await seedProblems(prisma)).toEqual([
+      `Customer ${customer.id} is stored as owing 99.00; their ledger adds up to 530.00 and their ` +
+        `orders and payments to 530.00.`,
+    ]);
+  });
+
+  it("stops the seed when a ledger entry was written before the ledgers were built", async () => {
+    const customer = await customerWithOrder("ORDER", [
+      { paymentAmount: 530, status: "COMPLETED" },
+    ]);
+    // What a seed module calling the application's own payment code would leave.
+    await prisma.customerLedgerEntry.create({
+      data: {
+        customerId: customer.id,
+        type: "PAYMENT",
+        amount: -530,
+        balanceBefore: 0,
+        balanceAfter: -530,
+        createdBy: "seed:demo",
+      },
+    });
+
+    await expect(seedCustomerLedgers(prisma)).rejects.toThrow(
+      /1 customer ledger\(s\) do not agree [\s\S]* 1 with entries from before this ran/,
+    );
   });
 });
