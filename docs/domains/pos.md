@@ -182,7 +182,7 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 - Customer portal exposes a payment link per-order at `/portal/order?token=…`, which posts to `pages/api/portal/pay.ts` (JWT token auth, no login, rate-limited at 5/min per IP).
 - `PaymentProvider.isConfigured()` answers whether the processor's credentials resolve, with no network call: Stripe needs its secret key, Square its access token and location id, each through the same `getStripe()` / `getSquareCredentials()` a payment uses. The Admin hub's getting-started checklist asks it of the active provider; "We take cash and checks only" (Settings → Integrations, `AppSettings.cashOnlyAcknowledgedAt`) satisfies that item instead. Tested in `__tests__/paymentProviderConfigured.test.ts`.
 
-## Card readers (GAP-03, built 2026-11-25, not yet run against Stripe or a reader)
+## Card readers (GAP-03, built 2026-11-25, run against Stripe in test mode 2026-11-28, not yet on a physical reader)
 
 **Status, read this first.** Everything below is built and tested against a stand-in for Stripe. It has **not** been run against Stripe's API, its simulated reader or a physical reader: no Stripe key was available where it was built. The first run with a test key and the simulated reader (steps at the end of this section) is the check that the requests are accepted as written. Until a physical reader has taken a payment, GAP-03 stays open.
 
@@ -213,18 +213,30 @@ A register with a card reader sends a card payment to it; a register without one
 
 **Tested**: `__tests__/stripeCardReader.test.ts` (what is sent to Stripe and how its answers are read, 14 cases) and `__tests__/integration/cardReaderPayments.integration.test.ts` (18 cases on the real database, four of them the stale sweep and one the order's Void: nothing in the books while waiting, posted once under concurrent asks and after the webhook, declined, resumed, cancelled, approved-before-cancel, cannot-stop, each refusal, reader offline, no forced link over a reader payment, test card, declined test card). Removing the reader guard in `startHostedCheckout`, the cancel-at-Stripe on a decline, or the approved-before-cancel check each fails one of them.
 
-**First run with a Stripe test key (not done yet).**
+**First run against Stripe: done 2026-11-28, test mode, a simulated reader, on a local test server seeded at full scale.** Every step below went through the screens a cashier uses, with no code change needed.
+
+| Step | What Stripe and Holt did |
+| --- | --- |
+| Add a reader (`simulated-wpe`, a new location, a register with an open till) | The location was created, the reader registered as `simulated_wisepos_e` and listed as Online, "Simulated (test mode)" |
+| $400 on an order owing $927.16, "Present a test card" | Approved. The payment is `COMPLETED` with brand visa, last four 4242, the PaymentIntent id, the till and the register; the customer's ledger took a PAYMENT; the screen said "$400.00 recorded — $527.16 still due" |
+| $100, "Cancel card payment" | Cancelled on the reader. The row is `VOIDED` with the reason and its reader kept |
+| $50, "Present a declined card" | "Your card was declined." The row is `FAILED` with that message; nothing in the books |
+| Refund the $400 (`POST orders/[id]/refunds`, by its PaymentIntent id) | Refunded. The payment is `REFUNDED`, a refund row carries Stripe's refund id, the ledger took a REFUND_ISSUED, and the order owes $927.16 again |
+
+Not covered by that run: a physical reader; the webhook path (a register closed mid-payment), which needs Stripe to reach the app; a new sale rung at the register, as opposed to an earlier order (the same screen and routes); and a refund from a screen, since no screen offers a bare "refund this payment" (line cancels and returns refund through `processRefund`; the route above was called from the signed-in session).
+
+The steps, for the next deployment:
 
 1. Settings › Integrations: the Stripe **test** secret key. No webhook is needed for this run: the register asks Stripe every two seconds. (The webhook covers a register closed mid-payment; Stripe has to reach the app for that, so locally it needs the Stripe CLI forwarding events, or a deployed instance, with the endpoint subscribed to `payment_intent.succeeded`.)
 2. Admin › Setup › Card readers › Add a reader, code `simulated-wpe` (or `simulated-s700`, `simulated-s710`, `simulated-t600`: Stripe's codes, test keys only), a new location with the store's address, and a register that has an open till.
 3. At that register, ring up a sale, choose Card, send it to the reader, press "Present a test card". Expect the receipt, and the payment on the order with the card's brand and last four (Stripe presents a Visa ending 4242).
 4. Repeat and cancel instead; repeat with "Present a declined card"; refund one from the order.
 
-Worth watching on that run: Stripe's own sample shows a simulated reader's `status` as `offline` when read back, so the reader list may say Offline while payments still work.
+Stripe's own sample shows a simulated reader's `status` as `offline` when read back; on the run above it read Online.
 
 **Left open.**
 
-- **Not run against Stripe** (above). The two questions that run was to settle were checked against Stripe's docs and the installed library on 2026-11-27, and neither needs a change:
+- **Not run on a physical reader, and the webhook path not exercised** (above). The two questions the first run was to settle were checked against Stripe's docs and the installed library on 2026-11-27, and the run on 2026-11-28 bore both out:
   - The payment is created with `payment_method_types: ["card_present"]`. Stripe's current guide names `allowed_payment_method_types`, but in the library Holt pins (stripe 22.6.2, API `2026-08-26.dahlia`) that parameter's typed values do not include `card_present`, while `payment_method_types` is still documented as the list a PaymentIntent can use. **Look at this again when the Stripe library is next upgraded**: the guide describes the newer API.
   - A reader payment is refunded with the Refunds API by its PaymentIntent id, which is what `stripeProvider.refund` does. Stripe: online refunds work on every card network except Interac, which needs the card present. Interac (Canada) is not handled.
 - Two cashiers sending the same order to a reader in the same instant can both pass the "one in flight" check; the second replaces the first on the reader and the first's row waits until cancelled. The button is disabled while one is out, so this needs two screens on one order.
@@ -438,7 +450,7 @@ No auto-print on order confirmation yet (master plan G3 / Phase 1).
 - **G2**: shipped — `lib/inventory/allocation.ts` commits free stock at order creation (`allocate`, inside `create-from-cart`'s transaction), deletes it at `FULFILLED` (`consume`) and returns it at `CANCELLED` (`release`). Overselling is deliberately still allowed: `allocate` records a shortfall and never blocks the sale.
 - **G3**: receipt auto-print on order confirmation
 - **G8**: `CashMovement` model + UI for intra-day non-sale cash flow
-- **Card readers (GAP-03)**: built, not yet run against Stripe or a reader; see "Card readers" for what is left
+- **Card readers (GAP-03)**: built, and run against Stripe in test mode with a simulated reader (2026-11-28); not yet on a physical reader; see "Card readers" for what is left
 - **Split tender UI**: shipped. The payment screen takes an amount ("Amount to take now"), records it and stays for the next tender until the order is paid off (`afterPaymentRecorded`); seen 2026-11-27 taking cash and then a check on one order
 - **C8**: shipped 2026-11-13 — completion idempotency rests on `completePayment`'s conditional `PENDING` → `COMPLETED` update (still no `processorTxnId` unique index), tested with two deliveries at once in `paymentRaces.integration.test.ts`.
 

@@ -1,6 +1,6 @@
 A card reader at a register takes that register's card payments. The cashier sends the amount to the reader, the customer taps, inserts or swipes their card, and the payment goes on the order when the card is approved. Holt keeps the card's brand and last four digits and nothing else about it.
 
-**New, and not yet proven on a physical reader.** Card readers were built to Stripe's instructions and tested against a stand-in for Stripe, not against Stripe itself. Try it in test mode first (see "Trying it without a reader" below) before taking a real card on it.
+**New, and not yet proven on a physical reader.** Card readers have been run against Stripe in test mode with its simulated reader: a payment approved, one cancelled, one declined, and a refund. They have not yet been run on a physical reader. Try it in test mode first (see "Trying it without a reader" below) before taking a real card on it.
 
 A register with no reader still takes cards the way it did before: you take the card on your own terminal, then record the payment at the register.
 
