@@ -10,8 +10,15 @@
 //
 // The two pages are rendered too (their default exports), since what they hand
 // the screen is the behaviour: the register's page the order, the order's page
-// whether to offer the button. Only the session readers are mocked.
+// whether to offer the button. The session readers are mocked, and the
+// register's screen is stood in.
 
+// The register's screen is only handed its props here, never run. Loading the
+// real module adds it and everything it imports to the files coverage measures,
+// with nothing in them run: PosView.tsx alone is 178 functions. The first gate
+// run on this branch measured functions at 73.07% against a floor of 73 for
+// that reason, so one more untested helper anywhere would have failed it.
+jest.mock("@/app/(dashboard)/app/sales/pos/PosView", () => ({ PosView: () => null }));
 jest.mock("next-auth/jwt", () => ({ getToken: jest.fn() }));
 jest.mock("next/headers", () => ({ cookies: jest.fn(), headers: jest.fn() }));
 jest.mock("next/navigation", () => ({
