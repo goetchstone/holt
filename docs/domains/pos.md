@@ -223,7 +223,7 @@ A register with a card reader sends a card payment to it; a register without one
 | $50, "Present a declined card" | "Your card was declined." The row is `FAILED` with that message; nothing in the books |
 | Refund the $400 (`POST orders/[id]/refunds`, by its PaymentIntent id) | Refunded. The payment is `REFUNDED`, a refund row carries Stripe's refund id, the ledger took a REFUND_ISSUED, and the order owes $927.16 again |
 
-Not covered by that run: a physical reader; the webhook path (a register closed mid-payment), which needs Stripe to reach the app; a new sale rung at the register, as opposed to an earlier order (the same screen and routes); and a refund from a screen, since no screen offers a bare "refund this payment" (line cancels and returns refund through `processRefund`; the route above was called from the signed-in session).
+Not covered by that run: a physical reader; the webhook path (a register closed mid-payment), which needs Stripe to reach the app; a new sale rung at the register, as opposed to an earlier order (the same screen and routes); and a refund from a screen: on that day no screen offered a bare "refund this payment" (line cancels and returns refund through `processRefund`), so the route above was called from the signed-in session. The order's payment list has had a Refund action since (sales-orders.md, "Refunding a payment from the order").
 
 The steps, for the next deployment:
 

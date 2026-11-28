@@ -15,16 +15,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   // Each guarded control is offered to the holders of the key its route
   // requires, and the route checks it again: undo handover (GAP-07), change
-  // salesperson, void a pending payment, create a payment link, generate or
-  // text a portal link, and delete a quote. Taking a payment at the register
-  // needs the register's page as well as the payment: the page it opens is
-  // gated on "Operate register" and on the register being switched on.
+  // salesperson, void a pending payment, refund a completed one, create a
+  // payment link, generate or text a portal link, and delete a quote. Taking a
+  // payment at the register needs the register's page as well as the payment:
+  // the page it opens is gated on "Operate register" and on the register being
+  // switched on.
   const { holds } = await requirePage(undefined, {
     permission: "sales.read",
     also: [
       "sales.undo-handover",
       "sales.reassign",
       "payment.void",
+      "payment.refund",
       "payment.take",
       "pos.operate",
       "sales.write",
@@ -39,6 +41,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       canUndoHandover={holds["sales.undo-handover"]}
       canReassign={holds["sales.reassign"]}
       canVoidPayment={holds["payment.void"]}
+      canRefundPayment={holds["payment.refund"]}
       canSendPaymentLink={holds["payment.take"]}
       canTakeAtRegister={canTakeAtRegister}
       canPortalLink={holds["sales.write"]}

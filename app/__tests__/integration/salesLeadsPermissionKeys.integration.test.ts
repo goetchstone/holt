@@ -373,6 +373,9 @@ describe("each page hands its view what the viewer's keys allow", () => {
       canUndoHandover: false,
       canReassign: false,
       canVoidPayment: false,
+      // Takes money, and gives it back only through a return: a plain refund
+      // of a payment is the manager's (payment.refund).
+      canRefundPayment: false,
       canSendPaymentLink: true,
       // Takes payments and operates the register: an earlier order's balance
       // can be taken there (orderToPay.integration.test.ts has the other cases).
@@ -390,6 +393,7 @@ describe("each page hands its view what the viewer's keys allow", () => {
       canUndoHandover: true,
       canReassign: true,
       canVoidPayment: true,
+      canRefundPayment: true,
       canSendPaymentLink: true,
       canTakeAtRegister: true,
       canPortalLink: true,

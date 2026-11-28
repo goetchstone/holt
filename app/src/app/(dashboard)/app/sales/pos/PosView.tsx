@@ -32,6 +32,7 @@ import {
   type CatalogSale,
   type DiscountType,
 } from "@/lib/pos/cartPricing";
+import { REGISTER_STORAGE_KEY } from "@/lib/pos/registerChoice";
 import {
   priceLineForTier,
   tierFieldsFromLookup,
@@ -59,8 +60,6 @@ import {
   closedCardMessage,
   type GiftCardCartLine,
 } from "@/lib/sales/giftCardLineShared";
-
-const REGISTER_STORAGE_KEY = "pos-register-id";
 
 interface Register {
   id: number;

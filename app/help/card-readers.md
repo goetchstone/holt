@@ -53,4 +53,4 @@ With a Stripe **test** key you can add a simulated reader: use the code **simula
 
 ## Refunds
 
-A card payment taken on a reader is refunded from the order like any other card payment, back to the same card.
+A card payment taken on a reader is refunded from the order like any other card payment, back to the same card. Open the order, find the payment under **Payments**, and choose **Refund**: enter the amount (all of it, or part) and why. Someone who may **Refund payment** sees the button.

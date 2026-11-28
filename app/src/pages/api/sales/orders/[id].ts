@@ -28,12 +28,13 @@ import {
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
 import { deleteProblem, saleWithoutPaymentProblem } from "@/lib/sales/cancelOrder";
 import { readSalePos } from "@/lib/sales/salePos";
-import { computeBalance, onSaleWentAhead } from "@/lib/paymentService";
+import { computeBalance, isProcessorPayment, onSaleWentAhead } from "@/lib/paymentService";
 import { getAppSettings } from "@/lib/appSettings";
 import { holdDateString, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
 import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 import { orderFlagsOf } from "@/lib/sales/orderFlags";
 import { orderDisclaimersOf } from "@/lib/sales/orderDisclaimers";
+import { refundableByPayment } from "@/lib/sales/refundablePayments";
 import { handedOverStatusProblem } from "@/lib/fulfilment/undoHandover";
 import { isCountedLine } from "@/lib/salesOrderRevenue";
 
@@ -293,10 +294,12 @@ export async function handler(
     if (!order) {
       return res.status(404).json({ error: "Order not found." });
     }
-    // The store's flags on it and the disclaimers it prints (GAP-07).
-    const [flags, disclaimers] = await Promise.all([
+    // The store's flags on it and the disclaimers it prints (GAP-07), and what
+    // is left to refund on each payment (the order page's Refund action).
+    const [flags, disclaimers, refundable] = await Promise.all([
       orderFlagsOf(prisma, order.id),
       orderDisclaimersOf(prisma, order.id),
+      refundableByPayment(prisma, order.payments),
     ]);
 
     // Cancelled and replaced lines are out of every sum (CLAUDE.md rule 33,
@@ -407,6 +410,12 @@ export async function handler(
         // Sent to a register's card reader: the order page words its Void
         // for that (it cancels on the reader, not a link).
         onCardReader: (p.processorData as { cardReader?: unknown } | null)?.cardReader === true,
+        // For the Refund action: how it was paid (cash comes back out of a
+        // till; a processor's payment goes back through it), and what is
+        // left to refund on it, 0 when nothing is.
+        method: p.method,
+        viaProcessor: isProcessorPayment(p),
+        refundable: refundable.get(p.id) ?? 0,
       })),
     });
   } catch (error) {
