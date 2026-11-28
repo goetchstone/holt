@@ -10,24 +10,22 @@
 //
 // The two pages are rendered too (their default exports), since what they hand
 // the screen is the behaviour: the register's page the order, the order's page
-// whether to offer the button. The session readers are mocked, and the
-// register's screen is stood in.
+// whether to offer the button. The session readers are mocked. Each page comes
+// through helpers/pageWithoutClientViews.ts, so its screen is a stub that is
+// handed its props and never loaded: the first two gate runs on this branch
+// imported the pages directly, and the register's and the order's screens,
+// with everything they import and none of it run, took the merged functions
+// figure from about 76.8% to 73.07%, against a floor of 73.
 
-// The register's screen is only handed its props here, never run. Loading the
-// real module adds it and everything it imports to the files coverage measures,
-// with nothing in them run: PosView.tsx alone is 178 functions. The first gate
-// run on this branch measured functions at 73.07% against a floor of 73 for
-// that reason, so one more untested helper anywhere would have failed it.
-jest.mock("@/app/(dashboard)/app/sales/pos/PosView", () => ({ PosView: () => null }));
 jest.mock("next-auth/jwt", () => ({ getToken: jest.fn() }));
 jest.mock("next/headers", () => ({ cookies: jest.fn(), headers: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((to: string) => {
     throw new Error(`REDIRECT ${to}`);
   }),
-  useRouter: jest.fn(),
 }));
 
+import type { ReactElement } from "react";
 import type { Prisma } from "@prisma/client";
 import { getToken } from "next-auth/jwt";
 import { cookies, headers } from "next/headers";
@@ -37,8 +35,7 @@ import { DEFAULT_ORG_ID, invalidateAppSettingsCache } from "@/lib/appSettings";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { loadOrderToPay, orderToPayFromQuery } from "@/lib/sales/orderToPay";
-import PosPage from "@/app/(dashboard)/app/sales/pos/page";
-import OrderDetailPage from "@/app/(dashboard)/app/sales/orders/[id]/page";
+import { pageWithoutClientViews, type ServerPage } from "../helpers/pageWithoutClientViews";
 
 type Line = Prisma.OrderLineItemUncheckedCreateWithoutSalesOrderInput;
 type Paid = Pick<
@@ -221,6 +218,19 @@ describe("the order named on the register's address", () => {
 });
 
 describe("the pages", () => {
+  /** The register's page takes its address's query, where most pages take route params. */
+  type RegisterPage = (props: {
+    searchParams: Promise<{ order?: string | string[] }>;
+  }) => Promise<ReactElement<Record<string, unknown>>>;
+  let PosPage: RegisterPage;
+  let OrderDetailPage: ServerPage;
+  beforeAll(async () => {
+    PosPage = (await pageWithoutClientViews(
+      "@/app/(dashboard)/app/sales/pos/page",
+    )) as unknown as RegisterPage;
+    OrderDetailPage = await pageWithoutClientViews("@/app/(dashboard)/app/sales/orders/[id]/page");
+  });
+
   function signIn(who: string) {
     (getToken as jest.Mock).mockResolvedValue({ id: who });
     (headers as jest.Mock).mockResolvedValue(new Headers());
