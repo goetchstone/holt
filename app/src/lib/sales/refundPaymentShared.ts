@@ -44,11 +44,6 @@ export function refundGoesTo(
   );
 }
 
-/** A cash refund comes out of a till, so it needs one open at this register. */
-export function refundNeedsTill(method: string | null): boolean {
-  return method === "CASH";
-}
-
 /** Why what was typed can't be refunded, or null when it can. Compared in whole cents. */
 export function refundAmountProblem(
   typed: string,

@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
 import { computeTotalPaid } from "@/lib/paymentBalance";
+import { computeBalance } from "@/lib/paymentService";
 import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
 import { flagRefsOf } from "@/lib/sales/orderFlagsShared";
 import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
@@ -135,6 +136,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         totalPaid,
         totalTax,
         totalAmount,
+        // What is still owed, the way every balance says it (computeBalance):
+        // the register's sale lookup offers a payment on an order by this.
+        balanceDue: computeBalance(order.lineItems, order.payments).balanceDue,
         flags: flagRefsOf(order.flags),
       };
     });

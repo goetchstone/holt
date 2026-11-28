@@ -18,11 +18,10 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import Modal from "@/components/ui/Modal";
 import { getErrorMessage } from "@/lib/toastError";
-import { rememberedRegisterId } from "@/lib/pos/registerChoice";
+import { cashNeedsTill, rememberedRegisterId } from "@/lib/pos/registerChoice";
 import {
   refundAmountProblem,
   refundGoesTo,
-  refundNeedsTill,
   type RefundablePayment,
 } from "@/lib/sales/refundPaymentShared";
 
@@ -76,7 +75,7 @@ export function RefundPayment({
     setBusy(true);
     try {
       const till = await openTillHere();
-      if (refundNeedsTill(payment.method) && !till) {
+      if (cashNeedsTill(payment.method, till?.tillId)) {
         toast.error(
           "A cash refund comes out of a till. Choose your register on the register screen " +
             "and open its till, then refund.",

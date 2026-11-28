@@ -39,7 +39,9 @@ Ring up the sale and choose the card tender. At a register with a reader, the bu
 - **Declined:** the screen says why, and no payment is taken. You can send it again or take another kind of payment.
 - **Cancel card payment** clears the reader. If the card went through just before you pressed it, the payment is recorded, not cancelled. If the card is being authorized at that moment it can't be stopped, and the screen keeps waiting for the answer.
 
-To take a card for an order written earlier, such as the balance on a deposit order, open the order and choose **Take payment at the register**. The register opens on that order's balance, and the card tender works the same way.
+To take a card for an order written earlier, such as the balance on a deposit order, open the order and choose **Take payment at the register**. Or find it from the register itself: choose **Look up a sale or a gift card**, search by order number or customer name, and press **Take payment** on the sale. Either way the register opens on that order's balance, and the card tender works the same way.
+
+The payment screen says which register you are at and what it has, such as "Till open · Card reader". If that register has no reader, choose **Change register** and pick the one that does. You can't change register while a payment is out on a reader.
 
 While a payment is out on a reader, the order can't be sent a payment link, so the customer can't pay twice. Cancel the card payment first.
 

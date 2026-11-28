@@ -5,6 +5,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorCode } from "@/lib/errorCode";
+import { isPracticeCopy } from "@/lib/practiceCopy";
 import {
   success,
   created,
@@ -13,6 +14,22 @@ import {
   methodNotAllowed,
   handleError,
 } from "@/lib/apiResponse";
+
+/**
+ * A register as the list answers it: whether it has a till open and a card
+ * reader, in place of the rows those were read from. A practice copy reaches no
+ * card processor, so none of its registers has a reader to send to (as
+ * registers/[id].ts answers).
+ */
+function withWhatItHas<
+  R extends { tills: { id: number }[]; cardReader: { isActive: boolean } | null },
+>({ tills, cardReader, ...register }: R) {
+  return {
+    ...register,
+    hasOpenTill: tills.length > 0,
+    hasCardReader: cardReader?.isActive === true && !isPracticeCopy(),
+  };
+}
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -40,11 +57,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         ];
       }
 
-      const [registers, total] = await Promise.all([
+      const [rows, total] = await Promise.all([
         prisma.register.findMany({
           where,
           include: {
             storeLocation: { select: { id: true, name: true, code: true } },
+            // For choosing a register to take a payment at: which have a till
+            // open, and which have a card reader.
+            tills: { where: { status: "OPEN" }, take: 1, select: { id: true } },
+            cardReader: { select: { isActive: true } },
           },
           skip,
           take: limit,
@@ -52,8 +73,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         }),
         prisma.register.count({ where }),
       ]);
-
-      return success(res, { registers, total });
+      return success(res, { registers: rows.map(withWhatItHas), total });
     } catch (err) {
       return handleError(res, err, "GET /registers");
     }

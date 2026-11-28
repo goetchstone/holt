@@ -1,16 +1,17 @@
 // /app/__tests__/refundPaymentShared.test.ts
 //
-// The order page's Refund action: what it says about where the money goes,
-// which refunds need a till, and which amounts it lets through
-// (lib/sales/refundPaymentShared.ts), and the register a browser remembers
-// (lib/pos/registerChoice.ts).
+// The order page's Refund action: what it says about where the money goes and
+// which amounts it lets through (lib/sales/refundPaymentShared.ts); and the
+// register a browser remembers, what a register is said to have, and the rule
+// that cash needs an open till there (lib/pos/registerChoice.ts).
 
+import { refundAmountProblem, refundGoesTo } from "@/lib/sales/refundPaymentShared";
 import {
-  refundAmountProblem,
-  refundGoesTo,
-  refundNeedsTill,
-} from "@/lib/sales/refundPaymentShared";
-import { REGISTER_STORAGE_KEY, rememberedRegisterId } from "@/lib/pos/registerChoice";
+  REGISTER_STORAGE_KEY,
+  cashNeedsTill,
+  registerHas,
+  rememberedRegisterId,
+} from "@/lib/pos/registerChoice";
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
@@ -50,12 +51,38 @@ describe("where a refund goes, as the screen says it", () => {
   });
 });
 
-describe("which refunds come out of a till", () => {
-  it("is cash only", () => {
-    expect(refundNeedsTill("CASH")).toBe(true);
+describe("cash with no open till to be counted in", () => {
+  it("is refused for cash taken or handed back where no till is open", () => {
+    expect(cashNeedsTill("CASH", null)).toBe(true);
+    // The register route leaves the till out when none is open.
+    expect(cashNeedsTill("CASH", undefined)).toBe(true);
+  });
+
+  it("is let through where a till is open", () => {
+    expect(cashNeedsTill("CASH", 1968)).toBe(false);
+  });
+
+  it("is never refused for any other way of paying, till or no till", () => {
     for (const method of ["CARD", "CHECK", "GIFT_CARD", "STORE_CREDIT", "OTHER", null]) {
-      expect(refundNeedsTill(method)).toBe(false);
+      expect(cashNeedsTill(method, null)).toBe(false);
+      expect(cashNeedsTill(method, 1968)).toBe(false);
     }
+  });
+});
+
+describe("what a register is said to have, where one is chosen", () => {
+  it("always says whether a till is open there, and names its card reader when it has one", () => {
+    expect(registerHas({ hasOpenTill: true, hasCardReader: true })).toBe("Till open · Card reader");
+    expect(registerHas({ hasOpenTill: true, hasCardReader: false })).toBe("Till open");
+    // A reader with no till: cash can't be taken there, so it still says so.
+    expect(registerHas({ hasOpenTill: false, hasCardReader: true })).toBe(
+      "No till open · Card reader",
+    );
+    expect(registerHas({ hasOpenTill: false, hasCardReader: false })).toBe("No till open");
+  });
+
+  it("reads a register listed without the flags as having neither", () => {
+    expect(registerHas({})).toBe("No till open");
   });
 });
 
