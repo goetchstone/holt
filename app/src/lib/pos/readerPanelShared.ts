@@ -12,6 +12,10 @@
 // reader had finished, the processor refused it ("not currently processing a
 // transaction"), and the screen showed that as an error beside a payment that
 // had gone exactly as asked.
+//
+// The buttons keep their words and their places whatever this says: the line
+// is shown under them (see the panel), so a second press can never land on a
+// different button from the first.
 
 /** What this screen is doing about the payment out on the reader. */
 export interface ReaderPanelState {
@@ -22,42 +26,28 @@ export interface ReaderPanelState {
 }
 
 export interface ReaderPanelSays {
-  /** What is happening, under the heading; null while only waiting for the card. */
+  /** What is happening, under the buttons; null while only waiting for the card. */
   line: string | null;
-  cancelLabel: string;
   canCancel: boolean;
   /** The two test-card buttons, on a simulated reader. One card per payment. */
   canPresent: boolean;
 }
 
-const CANCEL = "Cancel card payment";
-
 export function readerPanelSays(state: ReaderPanelState): ReaderPanelSays {
   if (state.busy === "cancelling") {
-    return {
-      line: "Cancelling it on the reader...",
-      cancelLabel: "Cancelling...",
-      canCancel: false,
-      canPresent: false,
-    };
+    return { line: "Cancelling it on the reader...", canCancel: false, canPresent: false };
   }
   if (state.busy === "presenting") {
-    return {
-      line: "Presenting the test card...",
-      cancelLabel: CANCEL,
-      canCancel: false,
-      canPresent: false,
-    };
+    return { line: "Presenting the test card...", canCancel: false, canPresent: false };
   }
   if (state.presented) {
     // Still cancellable: the server says so when the card is already being
     // authorized and can't be stopped.
     return {
       line: "Card presented. Waiting for the reader's answer...",
-      cancelLabel: CANCEL,
       canCancel: true,
       canPresent: false,
     };
   }
-  return { line: null, cancelLabel: CANCEL, canCancel: true, canPresent: true };
+  return { line: null, canCancel: true, canPresent: true };
 }

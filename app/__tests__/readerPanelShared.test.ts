@@ -9,18 +9,12 @@ import { readerPanelSays } from "@/lib/pos/readerPanelShared";
 
 describe("the panel while a card payment is out on a reader", () => {
   it("only waits for the card at first: cancel and the test cards are offered", () => {
-    expect(readerPanelSays({})).toEqual({
-      line: null,
-      cancelLabel: "Cancel card payment",
-      canCancel: true,
-      canPresent: true,
-    });
+    expect(readerPanelSays({})).toEqual({ line: null, canCancel: true, canPresent: true });
   });
 
   it("takes one press at a time while a test card is being presented", () => {
     expect(readerPanelSays({ busy: "presenting" })).toEqual({
       line: "Presenting the test card...",
-      cancelLabel: "Cancel card payment",
       canCancel: false,
       canPresent: false,
     });
@@ -31,7 +25,6 @@ describe("the panel while a card payment is out on a reader", () => {
     // reader that has finished, which the processor refuses.
     expect(readerPanelSays({ presented: true })).toEqual({
       line: "Card presented. Waiting for the reader's answer...",
-      cancelLabel: "Cancel card payment",
       canCancel: true,
       canPresent: false,
     });
@@ -40,20 +33,23 @@ describe("the panel while a card payment is out on a reader", () => {
   it("says it is cancelling, and takes nothing else meanwhile", () => {
     expect(readerPanelSays({ busy: "cancelling" })).toEqual({
       line: "Cancelling it on the reader...",
-      cancelLabel: "Cancelling...",
       canCancel: false,
       canPresent: false,
     });
     // A cancel pressed after a card was presented is still the cancel in flight.
-    expect(readerPanelSays({ busy: "cancelling", presented: true }).canCancel).toBe(false);
-    expect(readerPanelSays({ busy: "cancelling", presented: true }).line).toBe(
-      "Cancelling it on the reader...",
-    );
+    expect(readerPanelSays({ busy: "cancelling", presented: true })).toEqual({
+      line: "Cancelling it on the reader...",
+      canCancel: false,
+      canPresent: false,
+    });
   });
 
   it("goes back to what it was when a cancel could not stop a presented card", () => {
     // The press is over (no busy), the card was presented: no second card.
-    expect(readerPanelSays({ busy: undefined, presented: true }).canPresent).toBe(false);
-    expect(readerPanelSays({ busy: undefined, presented: true }).canCancel).toBe(true);
+    expect(readerPanelSays({ busy: undefined, presented: true })).toEqual({
+      line: "Card presented. Waiting for the reader's answer...",
+      canCancel: true,
+      canPresent: false,
+    });
   });
 });

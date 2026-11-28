@@ -294,11 +294,9 @@ function CardTenderNote({
           {fmt(readerPayment.amount)}
         </span>
       </p>
-      {says.line && <p className="text-sm font-medium text-brand-blue">{says.line}</p>}
-      {readerPayment.message && <p className="text-sm text-brand-gray">{readerPayment.message}</p>}
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" onClick={onCancel} disabled={!says.canCancel}>
-          {says.cancelLabel}
+          Cancel card payment
         </Button>
         {readerPayment.simulated && (
           <>
@@ -319,6 +317,11 @@ function CardTenderNote({
           </>
         )}
       </div>
+      {/* What is happening goes under the buttons, and their words stay as they
+          are: a line appearing above them moved them down, and a second press
+          then landed on a different button (Cancel) from the one first pressed. */}
+      {says.line && <p className="text-sm font-medium text-brand-blue">{says.line}</p>}
+      {readerPayment.message && <p className="text-sm text-brand-gray">{readerPayment.message}</p>}
     </div>
   );
 }
