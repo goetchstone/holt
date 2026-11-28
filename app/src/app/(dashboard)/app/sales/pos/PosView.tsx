@@ -1921,18 +1921,19 @@ function PaymentRegister({
   onChange,
 }: Readonly<{ register: Register | null; locked: boolean; onChange: () => void }>) {
   if (!register) return null;
+  // The way to another register sits under the line, not in it: in the line it
+  // wrapped mid-phrase beside the amount once a register had a reader to name.
   return (
-    <p className="text-xs text-brand-gray mt-1">
-      At {register.name}, {register.storeLocation?.name} ({registerHas(register)})
+    <div className="text-xs text-brand-gray mt-1">
+      <p>
+        At {register.name}, {register.storeLocation?.name} ({registerHas(register)})
+      </p>
       {!locked && (
-        <button
-          onClick={onChange}
-          className="ml-2 text-brand-blue underline min-h-[44px] align-middle"
-        >
+        <button onClick={onChange} className="text-brand-blue underline min-h-[44px]">
           Change register
         </button>
       )}
-    </p>
+    </div>
   );
 }
 
